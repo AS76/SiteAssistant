@@ -38,3 +38,13 @@ Questa versione è una demo locale, non un sistema aziendale distribuito. Tutti 
 - Offline e sincronizzazione solo dopo aver definito conflitti e protezione della cache.
 
 Prima del rilascio operativo vanno concordati ruoli, modello di diario, volumi, hosting, conservazione dei dati e necessità di integrazioni.
+
+## Direzione della versione multiutente
+
+Uso interno e complementare a un sistema sorgente: import di export, consultazione di file S3 autorizzati e arricchimenti locali. Snapshot e stati originali rimangono separati da note, consuntivi e verifiche interne. Nessuna sincronizzazione in scrittura con il sistema sorgente è prevista. Connettori API/MCP e profili reali sono da verificare; vedere [Import e archivio documenti](import-storage.md).
+
+Prima fase: attività e coordinamento, qualità/deviazioni, pianificazione/avanzamento e diario; documenti, storico e dashboard come servizi condivisi. I moduli saranno abilitabili per cantiere, con logistica ed engineering nei successivi incrementi.
+
+L'area **Pianificazione, layout e mappe** riceverà pianificazioni Excel e documenti grafici PDF, immagini ad alta risoluzione e originali CAD. Gantt e altre viste condividono voci aggiornabili per percentuale, quantità installata o azione sì/no. Baseline, piano corrente, avanzamento dichiarato e verifica rimangono distinti. La visualizzazione/conversione CAD è soggetta a compatibilità e scelta del motore. Vedere [Specifica funzionale](planning-layouts.md); queste funzioni non sono ancora implementate.
+
+La proposta tecnica usa PostgreSQL relazionale e API server; Railway è la piattaforma scelta per applicazione e database nell'ambiente di prova. I file si integrano tramite un archivio privato compatibile S3, con configurazione e credenziali esterne al repository; accesso iniziale in sola lettura. Il metodo di autenticazione resta da definire. Entità, vincoli e sequenza di migrazione sono descritti in [Architettura proposta](architecture.md). Questa progettazione non modifica la persistenza della demo e non costituisce un'integrazione già realizzata.

@@ -29,8 +29,12 @@ Nessuna dipendenza esterna, telemetria, CDN o chiamata a servizi terzi. Il cambi
 
 ## Verifica
 
+La demo statica non richiede installazione. Per eseguire anche i test dello schema SQL usare Node.js 24 e installare le dipendenze di sviluppo:
+
 ```sh
-node --test tests/domain.test.mjs
+npm ci
+npm test
+npm run test:schema
 ```
 
 Il test browser opzionale richiede Playwright e un Chromium disponibili nell'ambiente:
@@ -40,3 +44,17 @@ SITEASSISTANT_URL=http://127.0.0.1:8000 node tests/browser.cjs
 ```
 
 [Requisiti e perimetro](docs/requirements.md).
+
+[Architettura e base dati proposte per la versione multiutente](docs/architecture.md).
+
+[Tabella e infografica dell'architettura](docs/architecture-overview.html).
+
+[Specifica Pianificazione, layout e mappe](docs/planning-layouts.md).
+
+[Import e archivio documenti in modalità complementare](docs/import-storage.md).
+
+[Valutazione economica della demo multiutente](docs/cost-options.md).
+
+[Ripresa dello sviluppo con Codex](docs/development-handoff.md).
+
+[Schema PostgreSQL generico e test sintetici](database/README.md).
