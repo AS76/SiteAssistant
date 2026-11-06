@@ -1,0 +1,17 @@
+{
+  "name": "siteassistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "test": "node tests/domain.test.mjs",
+    "test:schema": "node tests/schema.test.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.15"
+  }
+}
