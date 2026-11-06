@@ -1,11 +1,16 @@
-import { SqliteStorage } from './storage/index.mjs';
+import { SqliteStorage, PgStorage } from './storage/index.mjs';
 
 // DATA_DIR is the database pathname; its parent directory must already exist.
-export async function openDb(path = process.env.DATA_DIR || './data/app.db') {
-  const db = new SqliteStorage(path);
+// An explicit location overrides DATA_DIR (SQLite) or DATABASE_URL (pg).
+export async function openDb(location, { driver = process.env.DB_DRIVER || 'sqlite', schema = 'app' } = {}) {
+  if (!['sqlite', 'pg'].includes(driver)) throw new Error(`Unknown DB_DRIVER: ${driver}`);
+  const db = driver === 'pg'
+    ? new PgStorage(location ?? process.env.DATABASE_URL, { schema })
+    : new SqliteStorage(location ?? (process.env.DATA_DIR || './data/app.db'));
   try {
+    if (driver === 'pg') await db.open();
     await db.exec(`
-      PRAGMA foreign_keys = ON;
+      ${driver === 'sqlite' ? 'PRAGMA foreign_keys = ON;' : ''}
 
       CREATE TABLE IF NOT EXISTS sites (
         id TEXT PRIMARY KEY NOT NULL,
@@ -33,7 +38,7 @@ export async function openDb(path = process.env.DATA_DIR || './data/app.db') {
       );
 
       CREATE TABLE IF NOT EXISTS task_events (
-        id INTEGER PRIMARY KEY,
+        id INTEGER ${driver === 'pg' ? 'GENERATED ALWAYS AS IDENTITY ' : ''}PRIMARY KEY,
         task_id TEXT NOT NULL REFERENCES tasks(id),
         at TEXT NOT NULL,
         actor TEXT NOT NULL,
