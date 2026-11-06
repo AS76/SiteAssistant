@@ -48,26 +48,26 @@ function date(value, field, required = false) {
   return result;
 }
 
-function uniqueWrite(write, message, code) {
+async function uniqueWrite(db, write, message, code) {
   try {
-    return write();
+    return await write();
   } catch (error) {
-    if (error.errcode === 2067) fail(409, message, code);
+    if (db.isUniqueViolation(error)) fail(409, message, code);
     throw error;
   }
 }
 
-export function listSites(db) {
-  return db.prepare('SELECT * FROM sites ORDER BY created_at, id').all();
+export async function listSites(db) {
+  return await db.all('SELECT * FROM sites ORDER BY created_at, id');
 }
 
-export function getSite(db, id) {
-  const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(id);
+export async function getSite(db, id) {
+  const site = await db.get('SELECT * FROM sites WHERE id = ?', id);
   if (!site) fail(404, 'Site not found.', 'SITE_NOT_FOUND');
   return site;
 }
 
-export function createSite(db, input) {
+export async function createSite(db, input) {
   object(input);
   const code = text(input.code, 'code', true);
   const name = text(input.name, 'name', true);
@@ -78,15 +78,15 @@ export function createSite(db, input) {
     fail(400, 'end_date must not precede start_date.', 'VALIDATION_ERROR');
   }
   const id = randomUUID();
-  uniqueWrite(() => db.prepare(`
+  await uniqueWrite(db, () => db.run(`
     INSERT INTO sites (id, code, name, location, start_date, end_date, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, code, name, location, start, end, new Date().toISOString()),
+  `, id, code, name, location, start, end, new Date().toISOString()),
   'Site code already exists.', 'DUPLICATE_SITE_CODE');
-  return getSite(db, id);
+  return await getSite(db, id);
 }
 
-export function listTasks(db, { siteId, status } = {}) {
+export async function listTasks(db, { siteId, status } = {}) {
   const site = text(siteId, 'siteId');
   const state = text(status, 'status');
   if (state && !STATUSES.includes(state)) fail(400, 'Unknown task status.', 'VALIDATION_ERROR');
@@ -94,18 +94,18 @@ export function listTasks(db, { siteId, status } = {}) {
   const values = [];
   if (site) { clauses.push('site_id = ?'); values.push(site); }
   if (state) { clauses.push('status = ?'); values.push(state); }
-  return db.prepare(`SELECT * FROM tasks ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
-    ORDER BY created_at, id`).all(...values);
+  return await db.all(`SELECT * FROM tasks ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
+    ORDER BY created_at, id`, ...values);
 }
 
-export function getTask(db, id) {
-  const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+export async function getTask(db, id) {
+  const task = await db.get('SELECT * FROM tasks WHERE id = ?', id);
   if (!task) fail(404, 'Task not found.', 'TASK_NOT_FOUND');
-  const events = db.prepare('SELECT * FROM task_events WHERE task_id = ? ORDER BY at, id').all(id);
+  const events = await db.all('SELECT * FROM task_events WHERE task_id = ? ORDER BY at, id', id);
   return { ...task, events };
 }
 
-export function createTask(db, input) {
+export async function createTask(db, input) {
   object(input);
   const siteId = text(input.siteId, 'siteId', true);
   const title = text(input.title, 'title', true);
@@ -118,59 +118,54 @@ export function createTask(db, input) {
   const company = text(input.company, 'company');
   const priority = text(input.priority, 'priority') || 'normal';
   const due = date(input.due_date, 'due_date');
-  getSite(db, siteId);
+  await getSite(db, siteId);
   const id = randomUUID();
-  db.prepare(`
+  await db.run(`
     INSERT INTO tasks (id, site_id, title, area, company, executor, verifier, priority,
       due_date, status, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?)
-  `).run(id, siteId, title, area, company, executor, verifier, priority, due, new Date().toISOString());
-  return getTask(db, id);
+  `, id, siteId, title, area, company, executor, verifier, priority, due, new Date().toISOString());
+  return await getTask(db, id);
 }
 
-export function transitionTask(db, id, input) {
+export async function transitionTask(db, id, input) {
   object(input);
-  const task = getTask(db, id);
-  const to = text(input.to, 'to', true);
-  const actor = text(input.actor, 'actor', true);
-  const note = text(input.note, 'note');
-  const reason = text(input.reason, 'reason');
-  if (!STATUSES.includes(to)) fail(400, 'Unknown task status.', 'VALIDATION_ERROR');
-  if (!transitions[task.status].includes(to)) {
-    fail(409, `Transition from ${task.status} to ${to} is not allowed.`, 'INVALID_TRANSITION');
-  }
-  if ((to === 'to_verify' || to === 'closed') && !note) {
-    fail(400, 'A non-empty note is required.', 'NOTE_REQUIRED');
-  }
-  if ((to === 'blocked' || task.status === 'closed') && !reason) {
-    fail(400, 'A non-empty reason is required.', 'REASON_REQUIRED');
-  }
-  if (to === 'closed' && actor !== task.verifier) {
-    fail(409, 'Only the designated verifier can close this task.', 'VERIFIER_REQUIRED');
-  }
+  return await db.transaction(async tx => {
+    const task = await getTask(tx, id);
+    const to = text(input.to, 'to', true);
+    const actor = text(input.actor, 'actor', true);
+    const note = text(input.note, 'note');
+    const reason = text(input.reason, 'reason');
+    if (!STATUSES.includes(to)) fail(400, 'Unknown task status.', 'VALIDATION_ERROR');
+    if (!transitions[task.status].includes(to)) {
+      fail(409, `Transition from ${task.status} to ${to} is not allowed.`, 'INVALID_TRANSITION');
+    }
+    if ((to === 'to_verify' || to === 'closed') && !note) {
+      fail(400, 'A non-empty note is required.', 'NOTE_REQUIRED');
+    }
+    if ((to === 'blocked' || task.status === 'closed') && !reason) {
+      fail(400, 'A non-empty reason is required.', 'REASON_REQUIRED');
+    }
+    if (to === 'closed' && actor !== task.verifier) {
+      fail(409, 'Only the designated verifier can close this task.', 'VERIFIER_REQUIRED');
+    }
 
-  db.exec('BEGIN');
-  try {
-    db.prepare('UPDATE tasks SET status = ? WHERE id = ?').run(to, id);
-    db.prepare(`
+    await tx.run('UPDATE tasks SET status = ? WHERE id = ?', to, id);
+    await tx.run(`
       INSERT INTO task_events (task_id, at, actor, from_status, to_status, note, reason)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, new Date().toISOString(), actor, task.status, to, note, reason);
-    db.exec('COMMIT');
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
-  return getTask(db, id);
+    `, id, new Date().toISOString(), actor, task.status, to, note, reason);
+    return await getTask(tx, id);
+  });
 }
 
-export function listDiary(db, { siteId } = {}) {
+export async function listDiary(db, { siteId } = {}) {
   const site = text(siteId, 'siteId');
-  return db.prepare(`SELECT * FROM diary ${site ? 'WHERE site_id = ?' : ''}
-    ORDER BY operational_date, shift, created_at, id`).all(...(site ? [site] : []));
+  return await db.all(`SELECT * FROM diary ${site ? 'WHERE site_id = ?' : ''}
+    ORDER BY operational_date, shift, created_at, id`, ...(site ? [site] : []));
 }
 
-export function createDiary(db, input) {
+export async function createDiary(db, input) {
   object(input);
   const siteId = text(input.siteId, 'siteId', true);
   const operationalDate = date(input.operational_date, 'operational_date', true);
@@ -180,13 +175,13 @@ export function createDiary(db, input) {
   const actual = text(input.actual, 'actual');
   const impediments = text(input.impediments, 'impediments');
   const nextStep = text(input.next_step, 'next_step');
-  getSite(db, siteId);
+  await getSite(db, siteId);
   const id = randomUUID();
-  uniqueWrite(() => db.prepare(`
+  await uniqueWrite(db, () => db.run(`
     INSERT INTO diary (id, site_id, operational_date, shift, plan, actual,
       impediments, next_step, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, siteId, operationalDate, shift, plan, actual, impediments, nextStep, new Date().toISOString()),
+  `, id, siteId, operationalDate, shift, plan, actual, impediments, nextStep, new Date().toISOString()),
   'A diary entry already exists for this site, date and shift.', 'DUPLICATE_DIARY');
-  return db.prepare('SELECT * FROM diary WHERE id = ?').get(id);
+  return await db.get('SELECT * FROM diary WHERE id = ?', id);
 }

@@ -47,31 +47,31 @@ export function createServer(db) {
       }
       const path = url.pathname;
       const method = request.method;
-      if (path === '/api/sites' && method === 'GET') return json(response, 200, listSites(db));
+      if (path === '/api/sites' && method === 'GET') return json(response, 200, await listSites(db));
       if (path === '/api/sites' && method === 'POST') {
-        return json(response, 201, createSite(db, await readJson(request)));
+        return json(response, 201, await createSite(db, await readJson(request)));
       }
       const site = /^\/api\/sites\/([^/]+)$/.exec(path);
-      if (site && method === 'GET') return json(response, 200, getSite(db, site[1]));
+      if (site && method === 'GET') return json(response, 200, await getSite(db, site[1]));
       if (path === '/api/tasks' && method === 'GET') {
-        return json(response, 200, listTasks(db, {
+        return json(response, 200, await listTasks(db, {
           siteId: url.searchParams.get('siteId'), status: url.searchParams.get('status'),
         }));
       }
       if (path === '/api/tasks' && method === 'POST') {
-        return json(response, 201, createTask(db, await readJson(request)));
+        return json(response, 201, await createTask(db, await readJson(request)));
       }
       const task = /^\/api\/tasks\/([^/]+)$/.exec(path);
-      if (task && method === 'GET') return json(response, 200, getTask(db, task[1]));
+      if (task && method === 'GET') return json(response, 200, await getTask(db, task[1]));
       const transition = /^\/api\/tasks\/([^/]+)\/transition$/.exec(path);
       if (transition && method === 'POST') {
-        return json(response, 200, transitionTask(db, transition[1], await readJson(request)));
+        return json(response, 200, await transitionTask(db, transition[1], await readJson(request)));
       }
       if (path === '/api/diary' && method === 'GET') {
-        return json(response, 200, listDiary(db, { siteId: url.searchParams.get('siteId') }));
+        return json(response, 200, await listDiary(db, { siteId: url.searchParams.get('siteId') }));
       }
       if (path === '/api/diary' && method === 'POST') {
-        return json(response, 201, createDiary(db, await readJson(request)));
+        return json(response, 201, await createDiary(db, await readJson(request)));
       }
       json(response, 404, { error: 'Route not found.', code: 'NOT_FOUND' });
     } catch (error) {

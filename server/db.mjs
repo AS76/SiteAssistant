@@ -1,10 +1,10 @@
-import { DatabaseSync } from 'node:sqlite';
+import { SqliteStorage } from './storage/index.mjs';
 
 // DATA_DIR is the database pathname; its parent directory must already exist.
-export function openDb(path = process.env.DATA_DIR || './data/app.db') {
-  const db = new DatabaseSync(path);
+export async function openDb(path = process.env.DATA_DIR || './data/app.db') {
+  const db = new SqliteStorage(path);
   try {
-    db.exec(`
+    await db.exec(`
       PRAGMA foreign_keys = ON;
 
       CREATE TABLE IF NOT EXISTS sites (
@@ -58,11 +58,11 @@ export function openDb(path = process.env.DATA_DIR || './data/app.db') {
     `);
     return db;
   } catch (error) {
-    db.close();
+    await db.close();
     throw error;
   }
 }
 
-export function closeDb(db) {
-  db.close();
+export async function closeDb(db) {
+  await db.close();
 }
