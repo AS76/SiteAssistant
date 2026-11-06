@@ -8,10 +8,16 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "test": "node tests/domain.test.mjs",
-    "test:schema": "node tests/schema.test.mjs"
+    "test": "node --test tests/",
+    "test:schema": "node tests/schema.test.mjs",
+    "start": "node server/index.mjs",
+    "seed": "node server/seed.mjs",
+    "test:pg": "DB_DRIVER=pg node --test tests/"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.15"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
   }
 }

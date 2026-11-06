@@ -12,7 +12,7 @@ test('only the designated reviewer can verify, after a completion proposal with 
   assert.throws(() => transition(state, id, 'submit', 'lead', 'Done'), /actionDenied/);
   assert.throws(() => transition(state, id, 'submit', 'worker', '  '), /reasonRequired/);
   state = transition(state, id, 'submit', 'worker', 'Evidence E-01');
-  assert.equal(state.tasks.at(-1).status, 'review');
+  assert.equal(state.tasks.at(-1).status, 'to_verify');
   assert.throws(() => transition(state, id, 'verify', 'worker', 'Checked'), /actionDenied/);
   assert.throws(() => transition(state, id, 'verify', 'lead', 'Checked'), /actionDenied/);
   state = transition(state, id, 'verify', 'reviewer', 'Criteria checked');
@@ -24,7 +24,7 @@ test('rejection and reopening preserve prior evidence and require a reason', () 
   state = transition(state, id, 'start', 'worker');
   state = transition(state, id, 'submit', 'worker', 'First evidence');
   state = transition(state, id, 'reject', 'reviewer', 'Correct the finish');
-  assert.equal(state.tasks.at(-1).status, 'active');
+  assert.equal(state.tasks.at(-1).status, 'in_progress');
   state = transition(state, id, 'submit', 'worker', 'New evidence');
   state = transition(state, id, 'verify', 'reviewer', 'Accepted');
   assert.throws(() => transition(state, id, 'reopen', 'lead', ''), /reasonRequired/);

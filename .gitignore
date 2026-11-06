@@ -20,6 +20,9 @@ private-analysis/
 attachments/
 imports/
 data/
+!/data/
+/data/*
+!/data/.gitkeep
 coverage/
 test-results/
 playwright-report/
