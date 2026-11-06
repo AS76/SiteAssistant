@@ -6,13 +6,19 @@ if (!/^\d+$/.test(rawPort) || Number(rawPort) > 65535) {
   throw new Error('PORT must be an integer between 0 and 65535.');
 }
 
-const db = openDb();
+const db = await openDb();
 const server = createServer(db);
-const closeConnection = () => { if (db.isOpen) closeDb(db); };
-server.once('close', closeConnection);
+let closing;
+const closeConnection = () => closing ??= (async () => {
+  if (db.isOpen) await closeDb(db);
+})().catch(error => {
+  console.error('Could not close backend storage:', error.message);
+  process.exitCode = 1;
+});
+server.once('close', () => { void closeConnection(); });
 server.once('error', (error) => {
   console.error('Could not start backend:', error.message);
-  closeConnection();
+  void closeConnection();
   process.exitCode = 1;
 });
 server.listen(Number(rawPort), '127.0.0.1', () => {

@@ -16,7 +16,7 @@ async function fixture(t) {
   process.env.DATA_DIR = path;
   let db;
   try {
-    db = openDb();
+    db = await openDb();
   } finally {
     if (previous === undefined) delete process.env.DATA_DIR;
     else process.env.DATA_DIR = previous;
@@ -28,7 +28,7 @@ async function fixture(t) {
         await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
       }
     } finally {
-      closeDb(db);
+      await closeDb(db);
     }
   });
   await new Promise((resolve, reject) => {
@@ -87,12 +87,12 @@ test('create, list and retrieve a site; reject duplicate codes and persist in SQ
   t.assert.deepStrictEqual(await api.request('/api/sites'), [site]);
   const error = await api.request('/api/sites', { code: site.code, name: 'Altro cantiere fittizio' }, 409);
   t.assert.strictEqual(error.code, 'DUPLICATE_SITE_CODE');
-  const reopened = openDb(api.path);
+  const reopened = await openDb(api.path);
   try {
-    t.assert.strictEqual(reopened.prepare('SELECT name FROM sites WHERE id = ?').get(site.id).name, site.name);
-    t.assert.strictEqual(reopened.prepare('PRAGMA foreign_keys').get().foreign_keys, 1);
+    t.assert.strictEqual((await reopened.get('SELECT name FROM sites WHERE id = ?', site.id)).name, site.name);
+    t.assert.strictEqual((await reopened.get('PRAGMA foreign_keys')).foreign_keys, 1);
   } finally {
-    closeDb(reopened);
+    await closeDb(reopened);
   }
 });
 
@@ -257,14 +257,14 @@ test('malformed JSON, non-object bodies, oversized bodies and wrong media types 
 
 test('seed inserts exactly 2 sites, 4 tasks and 1 diary entry and skips existing data', async t => {
   const api = await fixture(t);
-  t.assert.strictEqual(seed(api.db), true);
+  t.assert.strictEqual(await seed(api.db), true);
   const before = {
     sites: await api.request('/api/sites'), tasks: await api.request('/api/tasks'), diary: await api.request('/api/diary'),
   };
   t.assert.strictEqual(before.sites.length, 2);
   t.assert.strictEqual(before.tasks.length, 4);
   t.assert.strictEqual(before.diary.length, 1);
-  t.assert.strictEqual(seed(api.db), false);
+  t.assert.strictEqual(await seed(api.db), false);
   t.assert.deepStrictEqual(await api.request('/api/sites'), before.sites);
   t.assert.deepStrictEqual(await api.request('/api/tasks'), before.tasks);
   t.assert.deepStrictEqual(await api.request('/api/diary'), before.diary);
