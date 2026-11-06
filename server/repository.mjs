@@ -150,7 +150,13 @@ export async function transitionTask(db, id, input) {
       fail(409, 'Only the designated verifier can close this task.', 'VERIFIER_REQUIRED');
     }
 
-    await tx.run('UPDATE tasks SET status = ? WHERE id = ?', to, id);
+    const { rowCount } = await tx.run(
+      'UPDATE tasks SET status = ? WHERE id = ? AND status = ?', to, id, task.status,
+    );
+    if (rowCount === 0) {
+      const current = await getTask(tx, id);
+      fail(409, `Transition from ${current.status} to ${to} is not allowed.`, 'INVALID_TRANSITION');
+    }
     await tx.run(`
       INSERT INTO task_events (task_id, at, actor, from_status, to_status, note, reason)
       VALUES (?, ?, ?, ?, ?, ?, ?)
