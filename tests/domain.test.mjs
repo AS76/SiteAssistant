@@ -1,98 +1,59 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { seedState, validateState, createSite, createTask, updateTask, transition, allowedActions, addDiaryEntry, counts, today, validDate, csvCell } from '../app/domain.mjs';
+import { STATUSES, sitePayload, taskPayload, diaryPayload, transitionPayload, allowedTransitions, transitionRequirements, counts, today, validDate, csvCell } from '../app/domain.mjs';
 
-const taskInput = { siteId: 'site-alpha', title: 'Example task', description: '', area: 'Area 1', company: 'Example company', assignee: 'worker', reviewer: 'reviewer', priority: 'normal', due: '2026-01-01', criteria: 'Documented check' };
-function freshTask() { const state = createTask(seedState(), taskInput, 'lead'); return { state, id: state.tasks.at(-1).id }; }
+const input = { siteId: 'site-example', title: 'Example task', area: 'Area 1', company: 'Example company', assignee: 'Example executor', reviewer: 'Example verifier', priority: 'normal', due: '2026-01-01' };
 
-test('only the designated reviewer can verify, after a completion proposal with evidence', () => {
-  let { state, id } = freshTask();
-  assert.throws(() => transition(state, id, 'verify', 'reviewer', 'Checked'), /actionDenied/);
-  state = transition(state, id, 'start', 'worker');
-  assert.throws(() => transition(state, id, 'submit', 'lead', 'Done'), /actionDenied/);
-  assert.throws(() => transition(state, id, 'submit', 'worker', '  '), /reasonRequired/);
-  state = transition(state, id, 'submit', 'worker', 'Evidence E-01');
-  assert.equal(state.tasks.at(-1).status, 'to_verify');
-  assert.throws(() => transition(state, id, 'verify', 'worker', 'Checked'), /actionDenied/);
-  assert.throws(() => transition(state, id, 'verify', 'lead', 'Checked'), /actionDenied/);
-  state = transition(state, id, 'verify', 'reviewer', 'Criteria checked');
-  assert.equal(state.tasks.at(-1).status, 'closed');
-  assert.equal(state.tasks.at(-1).history.at(-1).actor, 'reviewer');
+test('form payloads map only supported fields and preserve optional dates as null', () => {
+  assert.deepEqual(sitePayload({ code: ' EX-01 ', name: 'Example', start: '', end: null }), { code: 'EX-01', name: 'Example', location: '', start_date: null, end_date: null });
+  assert.deepEqual(taskPayload({ ...input, description: 'Ignored', criteria: 'Ignored' }), { siteId: input.siteId, title: input.title, area: input.area, company: input.company, executor: input.assignee, verifier: input.reviewer, priority: 'normal', due_date: input.due });
+  assert.equal(taskPayload({ ...input, due: null }).due_date, null);
 });
-test('rejection and reopening preserve prior evidence and require a reason', () => {
-  let { state, id } = freshTask();
-  state = transition(state, id, 'start', 'worker');
-  state = transition(state, id, 'submit', 'worker', 'First evidence');
-  state = transition(state, id, 'reject', 'reviewer', 'Correct the finish');
-  assert.equal(state.tasks.at(-1).status, 'in_progress');
-  state = transition(state, id, 'submit', 'worker', 'New evidence');
-  state = transition(state, id, 'verify', 'reviewer', 'Accepted');
-  assert.throws(() => transition(state, id, 'reopen', 'lead', ''), /reasonRequired/);
-  state = transition(state, id, 'reopen', 'lead', 'New defect');
-  assert.equal(state.tasks.at(-1).submittedBy, null);
-  assert.equal(state.tasks.at(-1).history.filter(event => event.action === 'verify').length, 1);
-  assert.equal(state.tasks.at(-1).history.filter(event => event.action === 'submit').length, 2);
+test('site and task validation respects API requirements with free-text people', () => {
+  assert.throws(() => sitePayload({ code: 'X', name: 'Example', start: '2026-11-05', end: '2026-11-01' }), /dateOrder/);
+  assert.throws(() => taskPayload({ ...input, reviewer: ' Example executor ' }), /separatePeople/);
+  assert.throws(() => taskPayload({ ...input, assignee: ' ' }), /invalidData/);
+  assert.equal(taskPayload({ ...input, company: '', priority: 'custom' }).priority, 'custom');
 });
-test('blocking requires a reason and completion requires resuming first', () => {
-  let { state, id } = freshTask();
-  assert.throws(() => transition(state, id, 'block', 'worker', ''), /reasonRequired/);
-  state = transition(state, id, 'block', 'worker', 'Waiting for material');
-  assert.deepEqual(allowedActions(state.tasks.at(-1), 'worker'), ['resume']);
-  assert.throws(() => transition(state, id, 'submit', 'worker', 'Done'), /actionDenied/);
+test('transitions match the backend map for every status without mutating helpers', () => {
+  const expected = { todo: ['in_progress', 'blocked'], in_progress: ['to_verify', 'blocked'], to_verify: ['closed', 'blocked'], closed: ['in_progress'], blocked: [] };
+  assert.deepEqual(STATUSES, Object.keys(expected));
+  for (const status of STATUSES) {
+    assert.deepEqual(allowedTransitions({ status }), expected[status]);
+    for (const to of STATUSES) {
+      const task = { status, reviewer: input.reviewer };
+      const payload = { to, actor: input.reviewer, note: 'Checked', reason: 'Example reason' };
+      if (expected[status].includes(to)) assert.deepEqual(transitionPayload(task, payload), payload);
+      else assert.throws(() => transitionPayload(task, payload), /actionDenied/);
+    }
+  }
+  allowedTransitions({ status: 'todo' }).push('closed');
+  assert.deepEqual(allowedTransitions({ status: 'todo' }), expected.todo);
 });
-test('different executor/reviewer and unique site codes are enforced', () => {
-  const state = seedState();
-  assert.throws(() => createTask(state, { ...taskInput, reviewer: 'worker' }, 'lead'), /separatePeople/);
-  assert.throws(() => createSite(state, { code: 'demo-01', name: 'Example', location: '', start: '', end: '' }), /duplicateCode/);
-  assert.throws(() => createSite(state, { code: 'NEW', name: 'Example', location: '', start: '2026-11-05', end: '2026-11-01' }), /dateOrder/);
+test('transitions require note, reason and designated verifier as in the API', () => {
+  const task = { status: 'in_progress', reviewer: input.reviewer };
+  assert.deepEqual(transitionRequirements(task, 'to_verify'), { note: true, reason: false });
+  assert.throws(() => transitionPayload(task, { to: 'to_verify', actor: 'Any person' }), /noteRequired/);
+  assert.throws(() => transitionPayload(task, { to: 'blocked', actor: 'Any person', note: 'A note' }), /reasonRequired/);
+  assert.throws(() => transitionPayload({ ...task, status: 'closed' }, { to: 'in_progress', actor: 'Any person' }), /reasonRequired/);
+  assert.throws(() => transitionPayload({ ...task, status: 'to_verify' }, { to: 'closed', actor: 'Other person', note: 'Checked' }), /verifierRequired/);
+  assert.equal(transitionPayload(task, { to: 'to_verify', actor: 'Any person', note: 'Done' }).actor, 'Any person');
+});
+test('diary maps explicit operational day and shift without unsupported author or task link', () => {
+  assert.deepEqual(diaryPayload({ siteId: 'site-example', date: '2026-01-01', shift: 'night', plan: ' Plan ', actual: 'Actual', blockers: 'Delay', next: 'Next', author: 'Ignored', taskId: 'ignored' }), { siteId: 'site-example', operational_date: '2026-01-01', shift: 'night', plan: 'Plan', actual: 'Actual', impediments: 'Delay', next_step: 'Next' });
+  assert.throws(() => diaryPayload({ siteId: 'site-example', date: '2026-01-01', shift: 'other' }), /invalidData/);
+  assert.throws(() => diaryPayload({ siteId: 'site-example', date: '', shift: 'day' }), /invalidData/);
 });
 test('review items remain overdue and are not counted as closed', () => {
-  let { state, id } = freshTask();
-  state = transition(state, id, 'start', 'worker');
-  state = transition(state, id, 'submit', 'worker', 'Evidence');
-  const count = counts([state.tasks.at(-1)], '2026-01-02');
-  assert.deepEqual(count, { execution: 0, review: 1, closed: 0, overdue: 1, blocked: 0 });
-});
-test('diary groups day and night contributions under one explicit operational date', () => {
-  const state = seedState();
-  const entry = { shift: 'night', taskId: '', plan: 'Plan', actual: 'Actual', blockers: '', next: '' };
-  let next = addDiaryEntry(state, 'site-alpha', '2026-01-01', entry, 'worker', '2026-01-02T02:00:00Z');
-  next = addDiaryEntry(next, 'site-alpha', '2026-01-01', { ...entry, shift: 'day' }, 'lead');
-  assert.equal(next.reports.filter(report => report.date === '2026-01-01').length, 1);
-  assert.equal(next.reports.find(report => report.date === '2026-01-01').entries.length, 2);
-  assert.equal(next.reports.find(report => report.date === '2026-01-01').entries[0].shift, 'night');
-});
-test('cross-site task links are rejected without mutating current data', () => {
-  const { state, id } = freshTask();
-  const before = JSON.stringify(state);
-  assert.throws(() => addDiaryEntry(state, 'site-beta', today(), { shift: 'day', taskId: id, plan: 'Plan', actual: 'Actual', blockers: '', next: '' }, 'lead'), /wrongSite/);
-  assert.equal(JSON.stringify(state), before);
-});
-test('imports reject wrong version, duplicate records and forged closed items without verification', () => {
-  const state = seedState();
-  assert.throws(() => validateState({ ...state, schemaVersion: 2 }), /invalidBackup/);
-  assert.throws(() => validateState({ ...state, tasks: [...state.tasks, state.tasks[0]] }), /duplicate/);
-  const altered = structuredClone(state);
-  altered.tasks[0].status = 'closed';
-  altered.tasks[0].submittedBy = 'worker';
-  altered.tasks[0].history.at(-1).status = 'closed';
-  assert.throws(() => validateState(altered), /invalidData/);
-  assert.deepEqual(validateState(JSON.parse(JSON.stringify(state))), state);
-});
-test('task edits preserve identity and history and cannot alter completed tasks', () => {
-  let { state, id } = freshTask();
-  state = updateTask(state, id, { ...taskInput, title: 'Updated' }, 'lead');
-  assert.equal(state.tasks.at(-1).id, id);
-  assert.equal(state.tasks.at(-1).history.at(-1).action, 'updated');
-  state = transition(state, id, 'start', 'worker');
-  state = transition(state, id, 'submit', 'worker', 'Evidence');
-  assert.throws(() => updateTask(state, id, taskInput, 'lead'), /actionDenied/);
+  assert.deepEqual(counts([{ status: 'to_verify', due: '2026-01-01' }], '2026-01-02'), { execution: 0, review: 1, closed: 0, overdue: 1, blocked: 0 });
+  assert.deepEqual(counts([{ status: 'closed', due: '2026-01-01' }, { status: 'blocked', due: null }], '2026-01-02'), { execution: 1, review: 0, closed: 1, overdue: 0, blocked: 1 });
 });
 test('CSV neutralizes formulas including leading whitespace and quotes correctly', () => {
   assert.equal(csvCell('=1+1'), '"\'=1+1"');
   assert.equal(csvCell(' \t@SUM(A1)'), '"\' \t@SUM(A1)"');
   assert.equal(csvCell('plain "text"'), '"plain ""text"""');
   assert.equal(csvCell('a,b\nnext'), '"a,b\nnext"');
+  assert.equal(csvCell(null), '""');
 });
 test('local dates reject impossible days and retain local calendar semantics', () => {
   assert.equal(validDate('2026-02-30'), false);

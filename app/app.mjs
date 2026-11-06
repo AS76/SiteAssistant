@@ -1,27 +1,17 @@
-import { USERS, STATUSES, PRIORITIES, today, validDate, seedState, validateState, createSite, createTask, updateTask, transition, allowedActions, addDiaryEntry, counts, csvCell } from './domain.mjs';
+import { STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell } from './domain.mjs';
+import { createApi } from './api.mjs';
 import { messages } from './i18n.mjs';
 
-const DATA_KEY = 'siteassistant.data.v1';
-const PREF_KEY = 'siteassistant.preferences.v1';
+const api = createApi({ baseUrl: document.querySelector('meta[name=siteassistant-api-base]')?.content || undefined });
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-let state, language = 'it', siteId, actor = 'lead', storageIssue = '', toastTimer, lastData;
+let state = { sites: [], tasks: [], diary: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
 let view = ['overview', 'sites', 'tasks', 'diary'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 let filters = { search: '', status: '', person: '', priority: '' };
 let taskView = 'board';
 let reportDate = today();
-try {
-  lastData = localStorage.getItem(DATA_KEY);
-  state = lastData ? validateState(JSON.parse(lastData)) : seedState();
-  if (!lastData) { lastData = JSON.stringify(state); localStorage.setItem(DATA_KEY, lastData); }
-} catch { state = seedState(); storageIssue = 'loadError'; }
-try {
-  const prefs = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
-  language = prefs.language === 'en' ? 'en' : 'it';
-  siteId = state.sites.some(site => site.id === prefs.siteId) ? prefs.siteId : state.sites[0].id;
-} catch { siteId = state.sites[0].id; }
-const t = key => messages[language][key] ?? key;
-const personName = id => t(id === 'reviewer' ? 'reviewerPerson' : id);
+const t = key => Object.hasOwn(messages[language], key) ? messages[language][key] : key;
+const personName = name => esc(name || '—');
 const currentSite = () => state.sites.find(site => site.id === siteId);
 const siteTasks = () => state.tasks.filter(task => task.siteId === siteId);
 const dateLabel = value => value && validDate(value) ? new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T12:00:00`)) : t('noDue');
@@ -35,26 +25,26 @@ const paths = {
 };
 const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[key] || paths.tasks}</svg>`;
 const badge = status => `<span class="badge ${status}">${t(status)}</span>`;
-const priorityBadge = priority => priority !== 'normal' ? `<span class="badge ${priority}">${t(priority)}</span>` : '';
+const priorityBadge = priority => priority !== 'normal' ? `<span class="badge ${esc(priority)}">${esc(t(priority))}</span>` : '';
 const button = (key, command, extra = '', css = '') => `<button type="button" class="${css}" data-command="${command}" ${extra}>${t(key)}</button>`;
-function preference() { try { localStorage.setItem(PREF_KEY, JSON.stringify({ language, siteId })); } catch {} }
 function toast(message) {
   clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false;
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
-function commit(next) {
-  const clean = validateState(next);
+const errorKeys = { DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
+function errorMessage(error) { return t(errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
+async function loadData() {
+  loading = true; loadError = null; render();
   try {
-    const current = localStorage.getItem(DATA_KEY);
-    if (current !== lastData && storageIssue !== 'loadError') throw new Error('tabConflict');
-    const encoded = JSON.stringify(clean);
-    localStorage.setItem(DATA_KEY, encoded); lastData = encoded;
-  } catch (error) { throw new Error(error.message === 'tabConflict' ? 'tabConflict' : 'localError'); }
-  state = clean; storageIssue = ''; $('#storage-banner').hidden = true;
+    const [sites, tasks, diary] = await Promise.all([api.listSites(), api.listTasks(), api.listDiary()]);
+    state = { sites, tasks, diary };
+    if (!sites.some(site => site.id === siteId)) siteId = sites[0]?.id;
+  } catch (error) { loadError = error; }
+  loading = false; render();
 }
-function notifyError(error) { toast(t(error.message in messages[language] ? error.message : 'invalidData')); }
+function rememberTask(task) { state.tasks = state.tasks.map(item => item.id === task.id ? task : item); }
 function heading(title, subtitle, actions = '') {
-  return `<div class="page-heading"><div><div class="eyebrow">${esc(currentSite().code)} · ${esc(currentSite().name)}</div><h1>${t(title)}</h1><p>${t(subtitle)}</p></div><div class="heading-actions">${actions}</div></div>`;
+  return `<div class="page-heading"><div><div class="eyebrow">${esc(currentSite()?.code || '')} · ${esc(currentSite()?.name || '')}</div><h1>${t(title)}</h1><p>${t(subtitle)}</p></div><div class="heading-actions">${actions}</div></div>`;
 }
 function empty(title, subtitle, action = '') { return `<div class="empty"><strong>${t(title)}</strong>${t(subtitle)}${action ? `<div style="margin-top:16px">${action}</div>` : ''}</div>`; }
 function renderChrome() {
@@ -66,15 +56,14 @@ function renderChrome() {
   $('#navigation').innerHTML = ['overview', 'sites', 'tasks', 'diary'].map(key => `<a href="#${key}" ${view === key ? 'class="active" aria-current="page"' : ''}>${icon(key)}${t(key)}</a>`).join('');
   $('#skip').textContent = t('skip'); $('#site-label').textContent = t('site'); $('#actor-label').textContent = t('actor');
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
-  $('#actor-select').innerHTML = personOptions(actor);
+  $('#actor-input').value = actor;
+  $('#actor-input').placeholder = t('actorPlaceholder');
+  $('#site-select').disabled = loading || !state.sites.length;
   $('#language').textContent = language === 'it' ? 'EN' : 'IT';
   $('#language').setAttribute('aria-label', language === 'it' ? 'Switch to English' : 'Passa all’italiano');
   $('#demo-banner').innerHTML = `<strong>${t('demo')}</strong> &nbsp; ${t('demoNote')}`;
   $('#footer-note').textContent = t('footer');
-  for (const key of ['backup', 'restore', 'reset']) $(`#${key}`).textContent = t(key);
-  $('#storage-banner').hidden = !storageIssue; $('#storage-banner').textContent = storageIssue ? t(storageIssue) : '';
 }
-function personOptions(value) { return USERS.map(user => `<option value="${user.id}" ${user.id === value ? 'selected' : ''}>${personName(user.id)}</option>`).join(''); }
 function dueMarkup(task) { return `<span class="due ${task.status !== 'closed' && task.due && task.due < today() ? 'overdue' : ''}">${dateLabel(task.due)}</span>`; }
 function taskRow(task) {
   return `<div class="task-row"><div><h3><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></h3><p>${esc(task.area || t('noArea'))} · ${esc(task.company)}</p>${badge(task.status)} ${priorityBadge(task.priority)}</div><div class="subtitle">${dueMarkup(task)}</div></div>`;
@@ -85,8 +74,7 @@ function renderOverview() {
     const score = task => (task.status === 'blocked' ? 10 : task.status === 'to_verify' ? 6 : 0) + (task.due && task.due < today() ? 12 : 0) + PRIORITIES.indexOf(task.priority);
     return score(b) - score(a) || (a.due || '9999').localeCompare(b.due || '9999');
   }).slice(0, 5);
-  const report = state.reports.find(item => item.siteId === siteId && item.date === today());
-  const lastEntry = report?.entries.at(-1);
+  const lastEntry = state.diary.filter(item => item.siteId === siteId && item.date === today()).at(-1);
   $('#main').innerHTML = heading('overviewTitle', 'overviewSub', button('newTask', 'new-task', '', 'primary')) +
     `<div class="date-caption">${t('today')} · ${new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}</div>` +
     `<div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div>` +
@@ -104,7 +92,7 @@ function filteredTasks() {
 }
 function renderTasks() {
   $('#main').innerHTML = heading('tasksTitle', 'tasksSub', button('exportCsv', 'csv') + button('newTask', 'new-task', '', 'primary')) +
-    `<div class="toolbar"><input class="search" id="filter-search" aria-label="${t('search')}" placeholder="${t('search')}" value="${esc(filters.search)}"><select id="filter-status" aria-label="${t('status')}"><option value="">${t('allStatuses')}</option>${STATUSES.map(status => `<option value="${status}" ${filters.status === status ? 'selected' : ''}>${t(status)}</option>`).join('')}</select><select id="filter-person" aria-label="${t('assignee')}"><option value="">${t('allPeople')}</option>${USERS.map(user => `<option value="${user.id}" ${filters.person === user.id ? 'selected' : ''}>${personName(user.id)}</option>`).join('')}</select><select id="filter-priority" aria-label="${t('priority')}"><option value="">${t('allPriorities')}</option>${PRIORITIES.map(priority => `<option value="${priority}" ${filters.priority === priority ? 'selected' : ''}>${t(priority)}</option>`).join('')}</select><div class="view-toggle">${button('board', 'task-view', `data-value="board" aria-pressed="${taskView === 'board'}"`, taskView === 'board' ? 'selected' : '')}${button('list', 'task-view', `data-value="list" aria-pressed="${taskView === 'list'}"`, taskView === 'list' ? 'selected' : '')}</div></div><div id="task-results"></div>`;
+    `<div class="toolbar"><input class="search" id="filter-search" aria-label="${t('search')}" placeholder="${t('search')}" value="${esc(filters.search)}"><select id="filter-status" aria-label="${t('status')}"><option value="">${t('allStatuses')}</option>${STATUSES.map(status => `<option value="${status}" ${filters.status === status ? 'selected' : ''}>${t(status)}</option>`).join('')}</select><select id="filter-person" aria-label="${t('assignee')}"><option value="">${t('allPeople')}</option>${[...new Set(siteTasks().map(task => task.assignee))].map(person => `<option value="${esc(person)}" ${filters.person === person ? 'selected' : ''}>${personName(person)}</option>`).join('')}</select><select id="filter-priority" aria-label="${t('priority')}"><option value="">${t('allPriorities')}</option>${PRIORITIES.map(priority => `<option value="${priority}" ${filters.priority === priority ? 'selected' : ''}>${t(priority)}</option>`).join('')}</select><div class="view-toggle">${button('board', 'task-view', `data-value="board" aria-pressed="${taskView === 'board'}"`, taskView === 'board' ? 'selected' : '')}${button('list', 'task-view', `data-value="list" aria-pressed="${taskView === 'list'}"`, taskView === 'list' ? 'selected' : '')}</div></div><div id="task-results"></div>`;
   renderTaskResults();
 }
 function taskCard(task) {
@@ -122,29 +110,34 @@ function renderTaskResults() {
   $('#task-results').innerHTML = html;
 }
 function renderDiary() {
-  const report = state.reports.find(item => item.siteId === siteId && item.date === reportDate);
+  const entries = state.diary.filter(item => item.siteId === siteId && item.date === reportDate);
   $('#main').innerHTML = heading('diaryTitle', 'diarySub', button('print', 'print') + button('newEntry', 'new-entry', '', 'primary')) +
-    `<div class="diary-toolbar"><label for="report-date">${t('reportDate')}</label><input id="report-date" type="date" min="0001-01-01" max="9999-12-31" value="${reportDate}"><span class="badge">${t('draft')}</span><span class="subtitle">${report?.entries.length || 0} ${t('entries')}</span></div><div class="diary-grid"><section class="panel">${report ? report.entries.map(entry => {
-      const linked = state.tasks.find(task => task.id === entry.taskId);
-      return `<article class="diary-entry"><div class="entry-heading"><strong>${t(entry.shift)} · ${personName(entry.author)}</strong><span>${t('recordedAt')} ${timeLabel(entry.createdAt)}</span></div>${linked ? `<p class="note">${t('linkedTask')}: ${esc(linked.title)}</p>` : ''}<div class="entry-grid">${['plan', 'actual', 'blockers', 'next'].map(key => `<section class="entry-section ${key === 'blockers' && entry[key] ? 'entry-blocker' : ''}"><h3>${t(key)}</h3><p>${esc(entry[key] || '—')}</p></section>`).join('')}</div></article>`;
+    `<div class="diary-toolbar"><label for="report-date">${t('reportDate')}</label><input id="report-date" type="date" min="0001-01-01" max="9999-12-31" value="${reportDate}"><span class="badge">${t('draft')}</span><span class="subtitle">${entries.length} ${t('entries')}</span></div><div class="diary-grid"><section class="panel">${entries.length ? entries.map(entry => {
+      return `<article class="diary-entry"><div class="entry-heading"><strong>${t(entry.shift)}</strong><span>${t('recordedAt')} ${timeLabel(entry.createdAt)}</span></div><div class="entry-grid">${['plan', 'actual', 'blockers', 'next'].map(key => `<section class="entry-section ${key === 'blockers' && entry[key] ? 'entry-blocker' : ''}"><h3>${t(key)}</h3><p>${esc(entry[key] || '—')}</p></section>`).join('')}</div></article>`;
     }).join('') : empty('diaryEmpty', 'diaryEmptyHint', button('newEntry', 'new-entry', '', 'primary'))}</section><aside class="panel diary-aside"><div class="panel-body"><h3>${t('dayRule')}</h3><p>${t('dayRuleNote')}</p><div class="blank-message">${t('diaryLimit')}</div></div></aside></div><p class="note">${t('forDate')} ${dateLabel(reportDate)} · ${t('draft')} · ${t('diaryLimit')}</p>`;
 }
 function render() {
-  renderChrome(); ({ overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary })[view]();
+  renderChrome();
+  $('#main').setAttribute('aria-busy', String(loading));
+  if (loading) { $('#main').innerHTML = `<p role="status">${t('loading')}</p>`; return; }
+  if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
+  if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
+  ({ overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary })[view]();
 }
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
 function selectSite(id) {
   if (!state.sites.some(site => site.id === id)) return;
-  siteId = id; filters = { search: '', status: '', person: '', priority: '' }; preference(); render();
+  siteId = id; filters = { search: '', status: '', person: '', priority: '' }; render();
 }
 function showModal(title, content) {
+  modalVersion++;
   $('#modal-content').innerHTML = `<div class="modal-header"><h2 id="modal-title">${esc(title)}</h2><button class="close" type="button" data-command="close-modal" aria-label="${t('close')}">×</button></div><div class="modal-body">${content}</div>`;
   if (!$('#modal').open) $('#modal').showModal();
   $('#modal').scrollTop = 0;
   const first = $('#modal-content input:not([type=hidden]), #modal-content textarea, #modal-content select');
   if (first) first.focus();
 }
-function closeModal() { $('#modal').close(); }
+function closeModal() { modalVersion++; $('#modal').close(); }
 function field(label, name, value = '', { type = 'text', required = false, full = false, max = 4000, hint = '', options = null } = {}) {
   const attrs = `name="${name}" id="field-${name}" ${required ? 'required' : ''}`;
   const control = options !== null ? `<select ${attrs}>${options}</select>` : type === 'textarea' ? `<textarea ${attrs} maxlength="${max}">${esc(value)}</textarea>` : `<input ${attrs} type="${type}" value="${esc(value)}" ${type === 'date' ? 'min="0001-01-01" max="9999-12-31"' : `maxlength="${max}"`}>`;
@@ -153,32 +146,35 @@ function field(label, name, value = '', { type = 'text', required = false, full 
 const formActions = () => `<div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="primary">${t('save')}</button></div>`;
 function formError(form, error) {
   const target = form.querySelector('.form-error');
-  target.textContent = t(error.message in messages[language] ? error.message : 'invalidData'); target.hidden = false; target.focus();
+  target.textContent = errorMessage(error); target.hidden = false; target.focus();
 }
 function showSiteForm() {
   showModal(t('newSite'), `<form id="site-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('code', 'code', '', { required: true, max: 30, hint: 'codeHint' })}${field('name', 'name', '', { required: true, max: 120 })}${field('location', 'location', '', { full: true, max: 160 })}${field('startDate', 'start', today(), { type: 'date' })}${field('endDate', 'end', '', { type: 'date' })}</div>${formActions()}</form>`);
 }
-function showTaskForm(taskId = '') {
-  const task = state.tasks.find(item => item.id === taskId);
-  const input = task || { title: '', description: '', area: '', company: '', assignee: 'worker', reviewer: 'reviewer', priority: 'normal', due: today(), criteria: '' };
-  showModal(t(task ? 'editTask' : 'newTask'), `<form id="task-form" data-task-id="${esc(taskId)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', input.title, { full: true, required: true, max: 180 })}${field('description', 'description', input.description, { full: true, type: 'textarea' })}${field('area', 'area', input.area, { max: 100 })}${field('company', 'company', input.company, { max: 100, required: true })}${field('assignee', 'assignee', '', { options: personOptions(input.assignee), required: true })}${field('reviewer', 'reviewer', '', { options: personOptions(input.reviewer), required: true })}${field('priority', 'priority', '', { options: PRIORITIES.map(priority => `<option value="${priority}" ${input.priority === priority ? 'selected' : ''}>${t(priority)}</option>`).join(''), required: true })}${field('due', 'due', input.due, { type: 'date' })}${field('criteria', 'criteria', input.criteria, { full: true, type: 'textarea', required: true, max: 2000, hint: 'criteriaHint' })}</div>${formActions()}</form>`);
+function showTaskForm() {
+  showModal(t('newTask'), `<form id="task-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', '', { full: true, required: true, max: 180 })}${field('area', 'area', '', { max: 100 })}${field('company', 'company', '', { max: 100 })}${field('assignee', 'assignee', '', { required: true })}${field('reviewer', 'reviewer', '', { required: true })}${field('priority', 'priority', '', { options: PRIORITIES.map(priority => `<option value="${esc(priority)}">${esc(t(priority))}</option>`).join(''), required: true })}${field('due', 'due', today(), { type: 'date' })}</div>${formActions()}</form>`);
 }
-function showDetail(taskId) {
-  const task = state.tasks.find(item => item.id === taskId && item.siteId === siteId);
-  if (!task) return;
-  const actions = allowedActions(task, actor);
-  showModal(task.title, `<p>${badge(task.status)} ${priorityBadge(task.priority)}</p><dl class="detail-grid">${['area', 'company', 'assignee', 'reviewer', 'due', 'priority'].map(key => `<div><dt>${t(key)}</dt><dd>${['assignee', 'reviewer'].includes(key) ? personName(task[key]) : key === 'due' ? dateLabel(task[key]) : key === 'priority' ? t(task[key]) : esc(task[key] || '—')}</dd></div>`).join('')}<div class="full"><dt>${t('description')}</dt><dd class="prewrap">${esc(task.description || '—')}</dd></div><div class="full"><dt>${t('criteria')}</dt><dd class="prewrap">${esc(task.criteria)}</dd></div></dl><label class="field">${t('actor')}<select id="detail-actor">${personOptions(actor)}</select><small>${t('actorHelp')}</small></label><div class="detail-actions">${actions.map(action => button(action, 'action', `data-id="${esc(task.id)}" data-action="${action}"`, ['submit', 'verify', 'start', 'resume'].includes(action) ? 'primary' : '')).join('')}${['todo', 'in_progress', 'blocked'].includes(task.status) && [task.assignee, 'lead'].includes(actor) ? button('editTask', 'edit-task', `data-id="${esc(task.id)}"`) : ''}</div>${actions.length ? '' : `<p class="note">${t('waitingActor')}</p>`}<section class="timeline"><h3>${t('history')}</h3>${[...task.history].reverse().map(event => `<div class="event"><strong>${t(event.action)}</strong><div class="event-meta">${personName(event.actor)} · ${timeLabel(event.at)}</div>${event.note ? `<p>${esc(event.note)}</p>` : ''}</div>`).join('')}</section>`);
-  $('#modal-content').dataset.detailId = taskId;
-}
-function showAction(taskId, action) {
-  if (['start', 'resume'].includes(action)) {
-    try { commit(transition(state, taskId, action, actor)); render(); showDetail(taskId); toast(t('actionSaved')); } catch (error) { notifyError(error); }
-    return;
+async function showDetail(taskId) {
+  showModal(t('details'), `<p role="status">${t('loading')}</p>`);
+  const version = modalVersion;
+  try {
+    const task = await api.getTask(taskId);
+    if (version !== modalVersion || !$('#modal').open) return;
+    rememberTask(task); render();
+    const actions = allowedTransitions(task);
+    showModal(task.title, `<p>${badge(task.status)} ${priorityBadge(task.priority)}</p><dl class="detail-grid">${['area', 'company', 'assignee', 'reviewer', 'due', 'priority'].map(key => `<div><dt>${t(key)}</dt><dd>${['assignee', 'reviewer'].includes(key) ? personName(task[key]) : key === 'due' ? dateLabel(task[key]) : key === 'priority' ? esc(t(task[key])) : esc(task[key] || '—')}</dd></div>`).join('')}</dl><div class="detail-actions">${actions.map(to => `<button type="button" data-command="transition" data-id="${esc(task.id)}" data-to="${to}">${t('transitionTo')} ${t(to)}</button>`).join('')}</div>${actions.length ? '' : `<p class="note">${t('noTransitions')}</p>`}<section class="timeline"><h3>${t('history')}</h3>${[...(task.events || [])].reverse().map(event => `<div class="event"><strong>${event.from_status ? `${esc(t(event.from_status))} → ` : ''}${esc(t(event.to_status))}</strong><div class="event-meta">${personName(event.actor)} · ${timeLabel(event.at)}</div>${event.note ? `<p>${t('note')}: ${esc(event.note)}</p>` : ''}${event.reason ? `<p>${t('reason')}: ${esc(event.reason)}</p>` : ''}</div>`).join('')}</section>`);
+  } catch (error) {
+    if (version === modalVersion && $('#modal').open) showModal(t('details'), `<p role="alert">${esc(errorMessage(error))}</p>${button('retry', 'detail', `data-id="${esc(taskId)}"`)}`);
   }
-  showModal(t(action), `<form id="action-form" data-task-id="${esc(taskId)}" data-action="${action}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="subtitle">${t(`${action}Hint`)}</p>${field('actionNote', 'note', '', { type: 'textarea', required: true, full: true })}<div class="form-actions">${button('cancel', 'detail', `data-id="${esc(taskId)}"`)}<button type="submit" class="primary">${t(action)}</button></div></form>`);
+}
+function showTransition(taskId, to) {
+  const task = state.tasks.find(item => item.id === taskId);
+  if (!task || !allowedTransitions(task).includes(to)) return;
+  const required = transitionRequirements(task, to);
+  showModal(`${t('transitionTo')} ${t(to)}`, `<form id="transition-form" data-task-id="${esc(taskId)}" data-to="${to}"><div class="form-error" role="alert" tabindex="-1" hidden></div>${field('actor', 'actor', actor, { required: true, hint: 'actorHelp' })}${field('note', 'note', '', { type: 'textarea', required: required.note })}${field('reason', 'reason', '', { type: 'textarea', required: required.reason })}${formActions()}</form>`);
 }
 function showEntryForm() {
-  showModal(t('newEntry'), `<form id="entry-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)} · ${personName(actor)}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${field('shift', 'shift', '', { required: true, options: `<option value="day">${t('day')}</option><option value="night">${t('night')}</option>` })}${field('linkedTask', 'taskId', '', { options: `<option value="">${t('none')}</option>${siteTasks().map(task => `<option value="${esc(task.id)}">${esc(task.title)}</option>`).join('')}` })}${field('plan', 'plan', '', { type: 'textarea', required: true, full: true })}${field('actual', 'actual', '', { type: 'textarea', required: true, full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}</div>${formActions()}</form>`);
+  showModal(t('newEntry'), `<form id="entry-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${field('shift', 'shift', '', { required: true, options: `<option value="day">${t('day')}</option><option value="night">${t('night')}</option>` })}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}</div>${formActions()}</form>`);
 }
 function download(content, type, name) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -188,65 +184,62 @@ function download(content, type, name) {
 function exportCsv() {
   const tasks = filteredTasks();
   if (!tasks.length) return toast(t('emptyExport'));
-  const header = ['title', 'area', 'company', 'assignee', 'reviewer', 'priority', 'due', 'status', 'criteria'];
-  const rows = [header.map(t), ...tasks.map(task => header.map(key => ['assignee', 'reviewer'].includes(key) ? personName(task[key]) : ['priority', 'status'].includes(key) ? t(task[key]) : task[key]))];
+  const header = ['title', 'area', 'company', 'assignee', 'reviewer', 'priority', 'due', 'status'];
+  const rows = [header.map(t), ...tasks.map(task => header.map(key => ['priority', 'status'].includes(key) ? t(task[key]) : task[key]))];
   download('\ufeff' + rows.map(row => row.map(csvCell).join(',')).join('\r\n'), 'text/csv;charset=utf-8', `siteassistant-tasks-${today()}.csv`); toast(t('csvDone'));
 }
-function confirmDialog(messageKey, command) {
-  showModal(t('confirm'), `<p>${t(messageKey)}</p><div class="form-actions">${button('cancel', 'close-modal')}${button('confirm', command, '', 'primary')}</div>`);
-}
-let pendingRestore = null;
 document.addEventListener('click', event => {
   const target = event.target.closest('[data-command]'); if (!target) return;
   const command = target.dataset.command, id = target.dataset.id;
   const commands = {
-    'new-site': showSiteForm, 'new-task': () => showTaskForm(), 'edit-task': () => showTaskForm(id),
+    'new-site': showSiteForm, 'new-task': showTaskForm, reload: loadData,
     'select-site': () => { selectSite(id); go('overview'); }, detail: () => showDetail(id),
-    action: () => showAction(id, target.dataset.action), 'new-entry': showEntryForm,
+    transition: () => showTransition(id, target.dataset.to), 'new-entry': showEntryForm,
     'close-modal': closeModal, 'task-view': () => { taskView = target.dataset.value; renderTasks(); },
     'clear-filters': () => { filters = { search: '', status: '', person: '', priority: '' }; renderTasks(); },
     csv: exportCsv, print: () => window.print(),
-    'confirm-reset': () => { try { commit(seedState()); siteId = state.sites[0].id; preference(); closeModal(); render(); toast(t('resetDone')); } catch (error) { notifyError(error); } },
-    'confirm-restore': () => { try { if (!pendingRestore) return; commit(pendingRestore); pendingRestore = null; siteId = state.sites[0].id; filters = { search: '', status: '', person: '', priority: '' }; preference(); closeModal(); render(); toast(t('restoreDone')); } catch (error) { notifyError(error); } },
   };
   commands[command]?.();
 });
-document.addEventListener('submit', event => {
+document.addEventListener('submit', async event => {
   const form = event.target;
-  if (!['site-form', 'task-form', 'entry-form', 'action-form'].includes(form.id)) return;
+  if (!['site-form', 'task-form', 'entry-form', 'transition-form'].includes(form.id)) return;
   event.preventDefault();
+  if (form.dataset.saving) return;
   const data = Object.fromEntries(new FormData(form));
+  form.dataset.saving = 'true';
+  const submit = form.querySelector('[type=submit]'); submit.disabled = true;
+  const version = modalVersion;
+  // Capture the selected context before waiting for the server.
+  const selectedSite = siteId, selectedDate = reportDate;
   try {
-    let message, detailId;
-    if (form.id === 'site-form') { const result = createSite(state, data); commit(result.state); siteId = result.site.id; preference(); message = 'siteCreated'; }
-    if (form.id === 'task-form') {
-      const taskId = form.dataset.taskId;
-      commit(taskId ? updateTask(state, taskId, data, actor) : createTask(state, { ...data, siteId }, actor));
-      message = taskId ? 'taskUpdated' : 'taskCreated'; detailId = taskId;
+    let message, detail;
+    if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); siteId = site.id; filters = { search: '', status: '', person: '', priority: '' }; message = 'siteCreated'; }
+    if (form.id === 'task-form') { state.tasks.push(await api.createTask({ ...data, siteId: selectedSite })); message = 'taskCreated'; }
+    if (form.id === 'entry-form') { state.diary.push(await api.createDiary({ ...data, siteId: selectedSite, date: selectedDate })); message = 'entrySaved'; }
+    if (form.id === 'transition-form') {
+      const task = state.tasks.find(item => item.id === form.dataset.taskId);
+      detail = await api.transitionTask(task, { ...data, to: form.dataset.to });
+      rememberTask(detail); actor = data.actor.trim(); message = 'actionSaved';
     }
-    if (form.id === 'entry-form') { commit(addDiaryEntry(state, siteId, reportDate, data, actor)); message = 'entrySaved'; }
-    if (form.id === 'action-form') { detailId = form.dataset.taskId; commit(transition(state, detailId, form.dataset.action, actor, data.note)); message = 'actionSaved'; }
-    closeModal(); render(); if (detailId) showDetail(detailId); toast(t(message));
-  } catch (error) { formError(form, error); }
+    const sameModal = version === modalVersion;
+    if (sameModal) closeModal();
+    render();
+    if (sameModal && detail && siteId === detail.siteId) showDetail(detail.id);
+    toast(t(message));
+  } catch (error) {
+    if (version === modalVersion) formError(form, error);
+    else toast(errorMessage(error));
+  } finally { delete form.dataset.saving; submit.disabled = false; }
 });
+$('#modal').addEventListener('cancel', () => { modalVersion++; });
 $('#site-select').addEventListener('change', event => selectSite(event.target.value));
-$('#actor-select').addEventListener('change', event => { actor = event.target.value; });
+$('#actor-input').addEventListener('input', event => { actor = event.target.value; });
 document.addEventListener('change', event => {
-  if (event.target.id === 'detail-actor') { actor = event.target.value; $('#actor-select').value = actor; showDetail($('#modal-content').dataset.detailId); }
   if (event.target.id === 'report-date') { if (validDate(event.target.value)) { reportDate = event.target.value; renderDiary(); } else event.target.value = reportDate; }
   for (const [id, key] of [['filter-status', 'status'], ['filter-person', 'person'], ['filter-priority', 'priority']]) if (event.target.id === id) { filters[key] = event.target.value; renderTaskResults(); }
 });
 document.addEventListener('input', event => { if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
-$('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; preference(); render(); });
-$('#backup').addEventListener('click', () => { download(JSON.stringify(state, null, 2), 'application/json', `siteassistant-backup-${today()}.json`); toast(t('backupDone')); });
-$('#restore').addEventListener('click', () => { $('#restore-file').value = ''; $('#restore-file').click(); });
-$('#restore-file').addEventListener('change', async event => {
-  const file = event.target.files[0]; if (!file) return;
-  pendingRestore = null;
-  try { if (file.size > 5 * 1024 * 1024) throw new Error('fileTooLarge'); pendingRestore = validateState(JSON.parse(await file.text())); confirmDialog('confirmRestore', 'confirm-restore'); }
-  catch (error) { notifyError(new Error(error.message in messages[language] ? error.message : 'invalidBackup')); }
-});
-$('#reset').addEventListener('click', () => confirmDialog('confirmReset', 'confirm-reset'));
+$('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
 window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'diary'].includes(next) ? next : 'overview'; closeModal(); render(); $('#main').focus(); });
-window.addEventListener('storage', event => { if (event.key === DATA_KEY) { storageIssue = 'tabConflict'; $('#storage-banner').textContent = t('tabConflict'); $('#storage-banner').hidden = false; } });
-render();
+void loadData();
