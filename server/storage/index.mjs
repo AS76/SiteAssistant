@@ -5,7 +5,7 @@
  * @typedef {object} StorageExecutor
  * @property {(sql: string, ...params: any[]) => Promise<object[]>} all
  * @property {(sql: string, ...params: any[]) => Promise<object|undefined>} get
- * @property {(sql: string, ...params: any[]) => Promise<{rowCount: number, lastInsertRowid: number|bigint}>} run
+ * @property {(sql: string, ...params: any[]) => Promise<{rowCount: number, lastInsertRowid?: number|bigint}>} run
  * @property {(sql: string) => Promise<void>} exec
  * @property {(error: Error) => boolean} isUniqueViolation
  */
@@ -22,3 +22,4 @@
  */
 
 export { SqliteStorage } from './sqlite.mjs';
+export { PgStorage } from './pg.mjs';

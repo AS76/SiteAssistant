@@ -1,13 +1,14 @@
 import test from 'node:test';
-import { openDb, closeDb } from '../server/db.mjs';
+import { isPg, openTestDb } from './helpers/db.mjs';
 import {
   createSite, createTask, getTask, transitionTask, createDiary, listSites, listTasks, listDiary,
 } from '../server/repository.mjs';
 import { seed } from '../server/seed.mjs';
 
 async function fixture(t) {
-  const db = await openDb(':memory:');
-  t.after(() => closeDb(db));
+  const database = await openTestDb();
+  const { db } = database;
+  t.after(database.close);
   const site = await createSite(db, { code: 'FITT-REPO', name: 'Cantiere fittizio di Nebbialuna' });
   const task = await createTask(db, {
     siteId: site.id, title: 'Controllo dimostrativo',
@@ -54,6 +55,7 @@ test('repository rejects skipped edges and requires blocking reasons without wri
 });
 
 test('SQLite transition transaction rolls back the status if event insertion fails', async t => {
+  if (isPg) { t.skip('Uses a SQLite RAISE trigger.'); return; }
   const { db, task } = await fixture(t);
   const before = await getTask(db, task.id);
   await db.exec(`CREATE TRIGGER fail_event BEFORE INSERT ON task_events
@@ -87,14 +89,19 @@ test('repository validates site/task data and rejects duplicate site and diary k
   t.assert.strictEqual(entry.operational_date, input.operational_date);
   t.assert.strictEqual((await listSites(db)).length, 1);
   t.assert.deepStrictEqual((await listTasks(db, { siteId: site.id, status: 'todo' })).map(row => row.id), [task.id]);
-  t.assert.strictEqual((await db.get('PRAGMA foreign_keys')).foreign_keys, 1);
-  await t.assert.rejects(() => db.run(`UPDATE tasks SET site_id = 'unknown' WHERE id = ?`, task.id), /FOREIGN KEY/);
-  await t.assert.rejects(() => db.run(`UPDATE tasks SET status = 'unknown' WHERE id = ?`, task.id), /CHECK/);
+  await t.test('SQLite enables foreign keys', async t => {
+    if (isPg) { t.skip('PRAGMA is SQLite-specific.'); return; }
+    t.assert.strictEqual((await db.get('PRAGMA foreign_keys')).foreign_keys, 1);
+  });
+  await t.assert.rejects(() => db.run(`UPDATE tasks SET site_id = 'unknown' WHERE id = ?`, task.id), /foreign key/i);
+  await t.assert.rejects(() => db.run(`UPDATE tasks SET status = 'unknown' WHERE id = ?`, task.id), /check/i);
 });
 
 test('seed is atomic and idempotent, and leaves existing user data alone', async t => {
-  const db = await openDb(':memory:');
-  t.after(() => closeDb(db));
+  if (isPg) { t.skip('Uses a SQLite RAISE trigger.'); return; }
+  const database = await openTestDb();
+  const { db } = database;
+  t.after(database.close);
   await db.exec(`CREATE TRIGGER fail_diary BEFORE INSERT ON diary
     BEGIN SELECT RAISE(ABORT, 'Synthetic diary failure'); END;`);
   await t.assert.rejects(() => seed(db), /Synthetic diary failure/);

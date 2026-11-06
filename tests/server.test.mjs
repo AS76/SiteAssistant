@@ -1,6 +1,7 @@
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { openDb, closeDb } from '../server/db.mjs';
+import { closeDb } from '../server/db.mjs';
+import { isPg, openTestDb } from './helpers/db.mjs';
 import { createServer } from '../server/http.mjs';
 import { seed } from '../server/seed.mjs';
 
@@ -10,17 +11,10 @@ process.env.NO_PROXY = [process.env.NO_PROXY, '127.0.0.1', 'localhost'].filter(B
 process.env.no_proxy = process.env.NO_PROXY;
 
 async function fixture(t) {
-  // A unique temporary database pathname; no filesystem modules are needed.
+  // SQLite uses a unique pathname; pg uses a unique schema in the test DB.
   const path = `/tmp/siteassistant-test-${randomUUID()}.db`;
-  const previous = process.env.DATA_DIR;
-  process.env.DATA_DIR = path;
-  let db;
-  try {
-    db = await openDb();
-  } finally {
-    if (previous === undefined) delete process.env.DATA_DIR;
-    else process.env.DATA_DIR = previous;
-  }
+  const database = await openTestDb(path);
+  const { db } = database;
   const server = createServer(db);
   t.after(async () => {
     try {
@@ -28,7 +22,7 @@ async function fixture(t) {
         await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
       }
     } finally {
-      await closeDb(db);
+      await database.close();
     }
   });
   await new Promise((resolve, reject) => {
@@ -61,7 +55,7 @@ async function fixture(t) {
       executor: 'Operatore fittizio A', verifier: 'Verificatore fittizio B', ...overrides,
     }, 201);
   }
-  return { db, path, base, request, site, task };
+  return { db, reopen: database.reopen, base, request, site, task };
 }
 
 test('site validation rejects missing fields, invalid dates and reversed date ranges', async t => {
@@ -74,7 +68,7 @@ test('site validation rejects missing fields, invalid dates and reversed date ra
   t.assert.deepStrictEqual(await api.request('/api/sites'), []);
 });
 
-test('create, list and retrieve a site; reject duplicate codes and persist in SQLite', async t => {
+test('create, list and retrieve a site; reject duplicate codes and persist across connections', async t => {
   const api = await fixture(t);
   const site = await api.site({
     code: ' FITT-UNICO ', location: 'Località immaginaria di Nuvolario',
@@ -87,10 +81,13 @@ test('create, list and retrieve a site; reject duplicate codes and persist in SQ
   t.assert.deepStrictEqual(await api.request('/api/sites'), [site]);
   const error = await api.request('/api/sites', { code: site.code, name: 'Altro cantiere fittizio' }, 409);
   t.assert.strictEqual(error.code, 'DUPLICATE_SITE_CODE');
-  const reopened = await openDb(api.path);
+  const reopened = await api.reopen();
   try {
     t.assert.strictEqual((await reopened.get('SELECT name FROM sites WHERE id = ?', site.id)).name, site.name);
-    t.assert.strictEqual((await reopened.get('PRAGMA foreign_keys')).foreign_keys, 1);
+    await t.test('SQLite enables foreign keys on a reopened connection', async t => {
+      if (isPg) { t.skip('PRAGMA is SQLite-specific.'); return; }
+      t.assert.strictEqual((await reopened.get('PRAGMA foreign_keys')).foreign_keys, 1);
+    });
   } finally {
     await closeDb(reopened);
   }
