@@ -38,6 +38,17 @@ async function readJson(request) {
 // The caller owns the connection and closes it after the HTTP server stops.
 export function createServer(db) {
   return createHttpServer(async (request, response) => {
+    response.setHeader('Vary', 'Origin');
+    if (request.headers.origin === 'https://siteassistant.asassi.cloud') {
+      response.setHeader('Access-Control-Allow-Origin', request.headers.origin);
+      response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    }
+    if (request.method === 'OPTIONS') {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
     try {
       let url;
       try {
