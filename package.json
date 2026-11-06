@@ -1,0 +1,13 @@
+{
+  "name": "siteassistant",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node server/index.mjs",
+    "seed": "node server/seed.mjs",
+    "test": "node --test tests/"
+  }
+}
