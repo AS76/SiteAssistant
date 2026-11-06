@@ -1,7 +1,7 @@
 export const USERS = [
   { id: 'lead', key: 'lead' }, { id: 'worker', key: 'worker' }, { id: 'reviewer', key: 'reviewer' },
 ];
-export const STATUSES = ['todo', 'active', 'blocked', 'review', 'closed'];
+export const STATUSES = ['todo', 'in_progress', 'blocked', 'to_verify', 'closed'];
 export const PRIORITIES = ['normal', 'high', 'urgent'];
 export const SCHEMA_VERSION = 1;
 const userIds = USERS.map(user => user.id);
@@ -49,7 +49,7 @@ function cleanTask(task) {
     }),
   };
   if (result.assignee === result.reviewer) fail('separatePeople');
-  if (['review', 'closed'].includes(result.status) && (result.submittedBy !== result.assignee || result.submittedBy === result.reviewer)) fail('invalidData');
+  if (['to_verify', 'closed'].includes(result.status) && (result.submittedBy !== result.assignee || result.submittedBy === result.reviewer)) fail('invalidData');
   const last = result.history.at(-1);
   if (last.status !== result.status) fail('invalidData');
   if (result.status === 'closed' && !result.history.some(event => event.action === 'verify' && event.actor === result.reviewer && event.note)) fail('invalidData');
@@ -94,10 +94,10 @@ export function allowedActions(task, actor) {
   const review = actor === task.reviewer && actor !== task.submittedBy;
   return [
     ...(task.status === 'todo' && manage ? ['start', 'block'] : []),
-    ...(task.status === 'active' && manage ? ['block'] : []),
-    ...(task.status === 'active' && execute ? ['submit'] : []),
+    ...(task.status === 'in_progress' && manage ? ['block'] : []),
+    ...(task.status === 'in_progress' && execute ? ['submit'] : []),
     ...(task.status === 'blocked' && manage ? ['resume'] : []),
-    ...(task.status === 'review' && review ? ['verify', 'reject'] : []),
+    ...(task.status === 'to_verify' && review ? ['verify', 'reject'] : []),
     ...(task.status === 'closed' && (actor === 'lead' || actor === task.reviewer) ? ['reopen'] : []),
   ];
 }
@@ -106,14 +106,14 @@ export function transition(state, taskId, action, actor, note = '', at = new Dat
   if (!task || !allowedActions(task, actor).includes(action)) fail('actionDenied');
   const reason = text(note);
   if (['block', 'submit', 'verify', 'reject', 'reopen'].includes(action) && !reason) fail('reasonRequired');
-  const statuses = { start: 'active', block: 'blocked', resume: 'active', submit: 'review', verify: 'closed', reject: 'active', reopen: 'active' };
+  const statuses = { start: 'in_progress', block: 'blocked', resume: 'in_progress', submit: 'to_verify', verify: 'closed', reject: 'in_progress', reopen: 'in_progress' };
   const next = cleanTask({ ...task, status: statuses[action], submittedBy: action === 'submit' ? actor : ['reject', 'reopen'].includes(action) ? null : task.submittedBy,
     history: [...task.history, { id: uid(), action, status: statuses[action], actor, at, note: reason }] });
   return { ...state, tasks: state.tasks.map(item => item.id === taskId ? next : item) };
 }
 export function updateTask(state, taskId, input, actor, at = new Date().toISOString()) {
   const old = state.tasks.find(task => task.id === taskId);
-  if (!old || !['todo', 'active', 'blocked'].includes(old.status) || (actor !== 'lead' && actor !== old.assignee)) fail('actionDenied');
+  if (!old || !['todo', 'in_progress', 'blocked'].includes(old.status) || (actor !== 'lead' && actor !== old.assignee)) fail('actionDenied');
   const task = cleanTask({ ...old, ...input, id: old.id, siteId: old.siteId, createdAt: old.createdAt, submittedBy: old.submittedBy, status: old.status,
     history: [...old.history, { id: uid(), action: 'updated', status: old.status, actor, at, note: '' }] });
   return { ...state, tasks: state.tasks.map(item => item.id === taskId ? task : item) };
@@ -127,8 +127,8 @@ export function addDiaryEntry(state, siteId, reportDate, input, actor, at = new 
   return validateState({ ...state, reports });
 }
 export function counts(tasks, referenceDate = today()) {
-  return { execution: tasks.filter(task => ['todo', 'active', 'blocked'].includes(task.status)).length,
-    review: tasks.filter(task => task.status === 'review').length,
+  return { execution: tasks.filter(task => ['todo', 'in_progress', 'blocked'].includes(task.status)).length,
+    review: tasks.filter(task => task.status === 'to_verify').length,
     closed: tasks.filter(task => task.status === 'closed').length,
     overdue: tasks.filter(task => task.status !== 'closed' && task.due && task.due < referenceDate).length,
     blocked: tasks.filter(task => task.status === 'blocked').length };
@@ -148,16 +148,16 @@ export function seedState() {
   ], tasks: [], reports: [] };
   const inputs = [
     { title: 'Controllare le protezioni della zona A', area: 'Zona A · Asset A-01', priority: 'high', due: today(yesterday), status: 'blocked' },
-    { title: 'Verificare il fissaggio del supporto', area: 'Zona B · Asset B-01', priority: 'urgent', due: day, status: 'review' },
+    { title: 'Verificare il fissaggio del supporto', area: 'Zona B · Asset B-01', priority: 'urgent', due: day, status: 'to_verify' },
     { title: 'Preparare il passaggio al turno successivo', area: 'Zona A', priority: 'normal', due: day, status: 'todo' },
-    { title: 'Completare il controllo visivo', area: 'Zona C', priority: 'normal', due: day, status: 'active' },
+    { title: 'Completare il controllo visivo', area: 'Zona C', priority: 'normal', due: day, status: 'in_progress' },
   ];
   for (const input of inputs) {
     state = createTask(state, { ...input, siteId: 'site-alpha', description: 'Esempio fittizio per provare il flusso operativo.', company: 'Impresa Alfa', assignee: 'worker', reviewer: 'reviewer', criteria: 'Controllo eseguito e risultato documentato.' }, 'lead', at);
     const taskId = state.tasks.at(-1).id;
     if (input.status !== 'todo') state = transition(state, taskId, 'start', 'worker', '', at);
     if (input.status === 'blocked') state = transition(state, taskId, 'block', 'worker', 'In attesa del materiale dimostrativo. Prossimo passo: confermare la disponibilità.', at);
-    if (input.status === 'review') state = transition(state, taskId, 'submit', 'worker', 'Controllo completato; riferimento dimostrativo E-01.', at);
+    if (input.status === 'to_verify') state = transition(state, taskId, 'submit', 'worker', 'Controllo completato; riferimento dimostrativo E-01.', at);
   }
   state = addDiaryEntry(state, 'site-alpha', day, { shift: 'day', taskId: '', plan: 'Controllare due aree e preparare il passaggio di consegne.', actual: 'Una verifica proposta. Una lavorazione in attesa di materiale.', blockers: 'Disponibilità del materiale da confermare.', next: 'Rivedere il piano prima del turno successivo.' }, 'lead', at);
   return state;
