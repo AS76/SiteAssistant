@@ -18,6 +18,8 @@ Per configurare un'altra API, aggiungere in `app/index.html`, prima dello script
 <meta name="siteassistant-api-base" content="https://api.example.com">
 ```
 
+Con `content="/"` il client usa la **stessa origine** che serve i file statici, quindi l'app deve essere pubblicata dall'API (stesso host, stesso schema). Il valore vuoto risultante dalla rimozione degli slash finali produce chiamate relative come `/api/sites`.
+
 Il client aggiunge `/api/sites`, `/api/tasks` e `/api/diary` alla base URL. È anche disponibile `createApi({ baseUrl })` in `app/api.mjs`. L'API deve consentire l'origine del frontend: il CORS del server autorizza `https://siteassistant.asassi.cloud`. Un frontend locale richiede un proxy della stessa origine o un'API di sviluppo con CORS appropriato; servire i soli file su localhost non abilita l'accesso cross-origin.
 
 Per avviare il backend di sviluppo con Node.js 24, seguire [Backend incremento 1](docs/backend-increment-1.md). Nessuna configurazione o migrazione di produzione viene applicata dall'avvio del frontend.
