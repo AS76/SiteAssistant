@@ -1,6 +1,9 @@
 import { createServer as createHttpServer } from 'node:http';
+import { createHash } from 'node:crypto';
+import { StringDecoder } from 'node:string_decoder';
+import { createTaskResponse } from './idempotency.mjs';
 import {
-  RepositoryError, listSites, createSite, getSite, listTasks, createTask, getTask,
+  RepositoryError, listSites, createSite, getSite, listTasks, getTask,
   transitionTask, listDiary, createDiary,
 } from './repository.mjs';
 
@@ -9,19 +12,25 @@ function json(response, status, data) {
   response.end(JSON.stringify(data));
 }
 
-async function readJson(request) {
+async function readJson(request, { includeHash = false } = {}) {
   const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
   if (contentType !== 'application/json') {
     throw new RepositoryError(400, 'Content-Type must be application/json.', 'INVALID_JSON');
   }
-  request.setEncoding('utf8');
+  const decoder = new StringDecoder('utf8');
+  const hash = createHash('sha256');
   let body = '';
   // Reject oversized input without accumulating the remainder in memory.
   let oversized = false;
   for await (const chunk of request) {
-    if (!oversized) body += chunk;
+    if (!oversized) {
+      hash.update(chunk);
+      body += decoder.write(chunk);
+    }
     if (body.length > 65536) { oversized = true; body = ''; }
   }
+  if (!oversized) body += decoder.end();
+  if (body.length > 65536) oversized = true;
   if (oversized) throw new RepositoryError(400, 'JSON body exceeds 65536 characters.', 'INVALID_JSON');
   let input;
   try {
@@ -32,7 +41,7 @@ async function readJson(request) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new RepositoryError(400, 'Expected a JSON object.', 'INVALID_JSON');
   }
-  return input;
+  return includeHash ? { input, requestHash: hash.digest('hex') } : input;
 }
 
 // The caller owns the connection and closes it after the HTTP server stops.
@@ -42,7 +51,7 @@ export function createServer(db) {
     if (request.headers.origin === 'https://siteassistant.asassi.cloud') {
       response.setHeader('Access-Control-Allow-Origin', request.headers.origin);
       response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Idempotency-Key');
     }
     if (request.method === 'OPTIONS') {
       response.writeHead(204);
@@ -70,7 +79,11 @@ export function createServer(db) {
         }));
       }
       if (path === '/api/tasks' && method === 'POST') {
-        return json(response, 201, await createTask(db, await readJson(request)));
+        const { input, requestHash } = await readJson(request, { includeHash: true });
+        const result = await createTaskResponse(db, input, {
+          key: request.headers['idempotency-key'], requestHash,
+        });
+        return json(response, result.status, result.body);
       }
       const task = /^\/api\/tasks\/([^/]+)$/.exec(path);
       if (task && method === 'GET') return json(response, 200, await getTask(db, task[1]));

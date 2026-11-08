@@ -24,6 +24,8 @@ Il client aggiunge `/api/sites`, `/api/tasks` e `/api/diary` alla base URL. È a
 
 Per avviare il backend di sviluppo con Node.js 24, seguire [Backend incremento 1](docs/backend-increment-1.md). Nessuna configurazione o migrazione di produzione viene applicata dall'avvio del frontend.
 
+Le migrazioni applicative versionate, il calcolo del giorno operativo e l'header opzionale `Idempotency-Key` sono descritti nel [riferimento tecnico dell'incremento 4](docs/backend-increment-4.md).
+
 ## Funzioni
 
 - Creazione cantieri e selezione del contesto di lavoro.

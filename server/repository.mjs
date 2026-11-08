@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { operationalDate } from './operational-day.mjs';
 
 export class RepositoryError extends Error {
   constructor(status, message, code) {
@@ -174,7 +175,17 @@ export async function listDiary(db, { siteId } = {}) {
 export async function createDiary(db, input) {
   object(input);
   const siteId = text(input.siteId, 'siteId', true);
-  const operationalDate = date(input.operational_date, 'operational_date', true);
+  const createdAt = new Date().toISOString();
+  const timeZone = input.time_zone === undefined ? 'Europe/Rome' : text(input.time_zone, 'time_zone', true);
+  const cutoff = input.day_cutoff_time === undefined ? '06:00' : text(input.day_cutoff_time, 'day_cutoff_time', true);
+  let derivedDate;
+  try { derivedDate = operationalDate(createdAt, { timeZone, cutoff }); }
+  catch (error) {
+    if (error instanceof RangeError) fail(400, error.message, 'VALIDATION_ERROR');
+    throw error;
+  }
+  const entryDate = input.operational_date === undefined
+    ? derivedDate : date(input.operational_date, 'operational_date', true);
   const shift = text(input.shift, 'shift', true);
   if (!['day', 'night'].includes(shift)) fail(400, 'shift must be day or night.', 'VALIDATION_ERROR');
   const plan = text(input.plan, 'plan');
@@ -185,9 +196,9 @@ export async function createDiary(db, input) {
   const id = randomUUID();
   await uniqueWrite(db, () => db.run(`
     INSERT INTO diary (id, site_id, operational_date, shift, plan, actual,
-      impediments, next_step, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, id, siteId, operationalDate, shift, plan, actual, impediments, nextStep, new Date().toISOString()),
+      impediments, next_step, created_at, time_zone, day_cutoff_time)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, id, siteId, entryDate, shift, plan, actual, impediments, nextStep, createdAt, timeZone, cutoff),
   'A diary entry already exists for this site, date and shift.', 'DUPLICATE_DIARY');
   return await db.get('SELECT * FROM diary WHERE id = ?', id);
 }

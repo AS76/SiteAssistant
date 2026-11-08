@@ -59,7 +59,7 @@ export class SqliteStorage {
   }
 
   isUniqueViolation(error) {
-    return error?.errcode === 2067;
+    return error?.errcode === 2067 || error?.errcode === 1555;
   }
 
   close() {

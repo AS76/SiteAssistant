@@ -1,5 +1,8 @@
 # Backend increment 1
 
+Historical increment documentation. The current migration, operational-day and
+task idempotency behavior is described in [Backend increment 4](backend-increment-4.md).
+
 Local demo API for sites, tasks, transition history and diary entries. Requires
 Node.js 24 with `node:sqlite` (`DatabaseSync`). No npm dependencies, external
 services or frontend changes. The frontend remains a separate localStorage demo;

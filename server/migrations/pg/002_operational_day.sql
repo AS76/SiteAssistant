@@ -1,0 +1,2 @@
+ALTER TABLE diary ADD COLUMN time_zone TEXT NOT NULL DEFAULT 'Europe/Rome';
+ALTER TABLE diary ADD COLUMN day_cutoff_time TEXT NOT NULL DEFAULT '06:00';
