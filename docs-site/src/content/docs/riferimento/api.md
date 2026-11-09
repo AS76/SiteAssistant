@@ -59,7 +59,7 @@ Formato:
 | `VALIDATION_ERROR` | 400 | Campo mancante o non valido |
 | `INVALID_JSON` | 400 | Content-Type o corpo non validi |
 | `INVALID_CREDENTIALS` | 401 | Login fallito |
-| `FORBIDDEN` | 403 | Ruolo insufficiente sul cantiere |
+| `FORBIDDEN` | 403 | Ruolo insufficiente sul cantiere, o transizione riservata al verificatore designato o a un owner |
 | `NOT_FOUND` | 404 | Risorsa o rotta inesistente |
 | `DUPLICATE_SITE_CODE` | 409 | Codice cantiere già usato |
 | `DUPLICATE_DIARY` | 409 | Voce già presente per cantiere/data/turno |
