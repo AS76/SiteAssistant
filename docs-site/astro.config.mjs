@@ -64,6 +64,7 @@ export default defineConfig({
           items: [
             { label: 'API REST', translations: { en: 'REST API' }, slug: 'riferimento/api' },
             { label: 'Glossario', translations: { en: 'Glossary' }, slug: 'riferimento/glossario' },
+            { label: 'Novità', translations: { en: "What's new" }, slug: 'note/novita' },
             { label: 'Stato del prodotto', translations: { en: 'Product status' }, slug: 'note/rilascio' },
           ],
         },
