@@ -57,6 +57,7 @@ for (const driver of ['sqlite', 'pg']) {
     }
     await t.assert.rejects(() => db.run("UPDATE site_members SET role = 'unknown'"), /check/i);
     await t.assert.rejects(() => db.run("UPDATE users SET email = 'OWNER@EXAMPLE.INVALID' WHERE id = ?", user.id), /unique/i);
+    await db.transaction(tx => applyMigration(tx, '006_signup.sql', { driver }));
     const request = requestListener(createServer(db));
     const result = await request('/api/auth/login', { method: 'POST', body: { email: 'owner@example.invalid', password: 'Local-owner-5b!' } });
     t.assert.strictEqual(result.status, 200);

@@ -29,7 +29,7 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     let data;
     try { data = await response.json(); }
     catch { throw new ApiError('apiError', { status: response.status, code: 'INVALID_RESPONSE' }); }
-    if (response.status === 401 && path !== '/api/auth/login') onUnauthorized();
+    if (response.status === 401 && path !== '/api/auth/login' && !(path === '/api/auth/password' && data.code === 'INVALID_CREDENTIALS')) onUnauthorized();
     if (!response.ok) throw new ApiError(data.error || 'apiError', { status: response.status, code: data.code || 'API_ERROR' });
     return data;
   }
@@ -41,6 +41,9 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     login: input => request('/api/auth/login', input),
     logout: () => request('/api/auth/logout', {}),
     me: () => request('/api/auth/me'),
+    changePassword: input => request('/api/auth/password', input),
+    requestAccess: input => request('/api/auth/request', input),
+    forgotPassword: input => request('/api/auth/forgot', input),
     listSites: async () => (await request('/api/sites')).map(siteFromApi),
     createSite: async input => siteFromApi(await request('/api/sites', sitePayload(input))),
     listTasks: async (filters = {}) => (await request(`/api/tasks${query(filters)}`)).map(taskFromApi),

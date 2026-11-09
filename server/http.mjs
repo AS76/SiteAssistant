@@ -2,6 +2,8 @@ import { createServer as createHttpServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
 import { authenticate, login, memberships, publicUser, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
+import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
+import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage } from './signup.mjs';
 import { createTaskResponse } from './idempotency.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
@@ -45,8 +47,33 @@ async function readJson(request, { includeHash = false } = {}) {
   return includeHash ? { input, requestHash: hash.digest('hex') } : input;
 }
 
+async function readForm(request) {
+  const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
+  if (contentType !== 'application/x-www-form-urlencoded') {
+    throw new RepositoryError(400, 'Content-Type must be application/x-www-form-urlencoded.', 'INVALID_FORM');
+  }
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size <= 4096) chunks.push(chunk);
+    else chunks.length = 0;
+  }
+  if (size > 4096) throw new RepositoryError(400, 'Form body exceeds 4096 bytes.', 'INVALID_FORM');
+  return new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+}
+
+function html(response, status, message, review) {
+  response.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8' });
+  response.end(decisionPage(message, review));
+}
+
 // The caller owns the connection and closes it after the HTTP server stops.
-export function createServer(db, { limiter = createLoginLimiter(), production = process.env.NODE_ENV === 'production' } = {}) {
+export function createServer(db, { limiter = createLoginLimiter(), production = process.env.NODE_ENV === 'production',
+  mailer = sendMail, ownerEmail = process.env.OWNER_EMAIL,
+  publicUrl = process.env.PUBLIC_URL || 'https://api.siteassistant.asassi.cloud',
+  requestLimiter = createLoginLimiter(), forgotLimiter = createLoginLimiter(), passwordLimiter = createLoginLimiter(),
+} = {}) {
   return createHttpServer(async (request, response) => {
     response.setHeader('Vary', 'Origin');
     response.setHeader('Cache-Control', 'no-store');
@@ -61,6 +88,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       response.end();
       return;
     }
+    let isDecision = false;
     try {
       let url;
       try {
@@ -70,6 +98,30 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       const path = url.pathname;
       const method = request.method;
+      isDecision = path === '/api/auth/request/decide' && ['GET', 'POST'].includes(method);
+      if (isDecision) {
+        response.setHeader('Referrer-Policy', 'no-referrer');
+        response.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+        if (method === 'GET') {
+          const token = url.searchParams.get('token');
+          const row = await readSignupRequest(db, token);
+          return html(response, 200, 'Esamina la richiesta di accesso e scegli se approvarla o rifiutarla.', { email: row.email, requested_at: row.requested_at, token });
+        }
+        const form = await readForm(request);
+        const decision = await decideSignup(db, form.get('token'), form.get('decision'), { mailer });
+        return html(response, 200, decision === 'approve' ? 'Request approved. A temporary password has been emailed to the applicant.' : 'Request rejected. No account was created.');
+      }
+      if (['/api/auth/request', '/api/auth/forgot'].includes(path) && method === 'POST') {
+        const email = normalizeEmail((await readJson(request)).email);
+        const signup = path === '/api/auth/request';
+        (signup ? requestLimiter : forgotLimiter).attempt(request.socket?.remoteAddress || '', email);
+        // Preflight also covers no-op cases, keeping configuration errors uniform.
+        if (signup && (typeof ownerEmail !== 'string' || !ownerEmail.trim())) throw new MailNotConfiguredError();
+        mailer.assertConfigured?.();
+        if (signup) await requestSignup(db, email, { mailer, ownerEmail, publicUrl });
+        else await forgotPassword(db, email, { mailer });
+        return json(response, 202, { status: 'accepted' });
+      }
       if (path === '/api/health' && method === 'GET') return json(response, 200, { status: 'ok' });
       if (path === '/api/auth/login' && method === 'POST') {
         const result = await login(db, await readJson(request), {
@@ -80,8 +132,13 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, { user: result.user });
       }
       const user = path.startsWith('/api/') ? await authenticate(db, request.headers.cookie) : null;
+      if (path === '/api/auth/password' && method === 'POST') {
+        passwordLimiter.attempt(request.socket?.remoteAddress || '', user.id);
+        await changePassword(db, user, await readJson(request));
+        return json(response, 200, { status: 'ok' });
+      }
       if (path === '/api/auth/me' && method === 'GET') {
-        return json(response, 200, { user: publicUser(user), roles: await memberships(db, user.id) });
+        return json(response, 200, { user: publicUser(user), roles: await memberships(db, user.id), password_change_required: Boolean(user.password_change_required) });
       }
       if (path === '/api/auth/logout' && method === 'POST') {
         await db.run('UPDATE sessions SET revoked_at = ? WHERE id = ?', new Date().toISOString(), user.session_id);
@@ -147,11 +204,15 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       json(response, 404, { error: 'Route not found.', code: 'NOT_FOUND' });
     } catch (error) {
+      if (error instanceof MailNotConfiguredError || error instanceof MailDeliveryError) {
+        return json(response, 503, { error: error.message, code: error.code });
+      }
+      if (isDecision && error instanceof RepositoryError && error.code !== 'INVALID_FORM') return html(response, error.status, error.message);
       if (error instanceof RepositoryError) {
         if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
         json(response, error.status, { error: error.message, code: error.code });
       } else {
-        console.error('Backend request failed:', error);
+        console.error('Backend request failed.');
         json(response, 500, { error: 'Internal server error.', code: 'INTERNAL_ERROR' });
       }
     }

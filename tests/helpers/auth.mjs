@@ -19,8 +19,8 @@ export async function authFixture(db, site) {
 
 // Invoke the real listener without sockets; this is not a replacement for listen tests.
 export function requestListener(server) {
-  return (path, { method = 'GET', body, headers = {}, cookie, ip = '127.0.0.1', encrypted = false } = {}) => {
-    const request = Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))]);
+  return (path, { method = 'GET', body, rawBody, headers = {}, cookie, ip = '127.0.0.1', encrypted = false } = {}) => {
+    const request = Readable.from(rawBody !== undefined ? (Array.isArray(rawBody) ? rawBody : [Buffer.from(rawBody)]) : body === undefined ? [] : [Buffer.from(JSON.stringify(body))]);
     request.url = path; request.method = method;
     request.headers = { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers, ...(cookie ? { cookie } : {}) };
     request.socket = { remoteAddress: ip, encrypted };
@@ -29,7 +29,7 @@ export function requestListener(server) {
       const response = {
         setHeader: (name, value) => { values[name.toLowerCase()] = value; },
         writeHead(status, extra = {}) { response.status = status; for (const [key, value] of Object.entries(extra)) response.setHeader(key, value); },
-        end(raw) { resolve({ status: response.status, headers: values, body: raw ? JSON.parse(raw) : null }); },
+        end(raw) { resolve({ status: response.status, headers: values, body: raw ? (values['content-type']?.startsWith('text/html') ? raw : JSON.parse(raw)) : null }); },
       };
       server.emit('request', request, response);
     });

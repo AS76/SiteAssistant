@@ -32,7 +32,7 @@ function toast(message) {
   clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false;
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
-const errorKeys = { DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
+const errorKeys = { MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession() {
   session = null; actor = ''; siteId = undefined; loadError = null;
@@ -77,6 +77,13 @@ function renderChrome() {
     $('#language').insertAdjacentHTML('beforebegin', '<button type="button" id="logout" data-command="logout"></button>');
     logoutButton = $('#logout');
   }
+  let passwordBanner = $('#password-banner');
+  if (!passwordBanner) {
+    $('#demo-banner').insertAdjacentHTML('afterend', '<section id="password-banner" class="demo-banner"></section>');
+    passwordBanner = $('#password-banner');
+  }
+  passwordBanner.hidden = !session?.password_change_required;
+  passwordBanner.innerHTML = `<strong>${t('passwordChangeNotice')}</strong> ${button('changePassword', 'change-password')}`;
   logoutButton.hidden = !session; logoutButton.textContent = t('logout');
   $('#actor-input').placeholder = t('actorPlaceholder');
   $('#site-select').disabled = loading || !state.sites.length;
@@ -142,7 +149,7 @@ function render() {
   $('#main').setAttribute('aria-busy', String(loading));
   if (loading) { $('#main').innerHTML = `<p role="status">${t('loading')}</p>`; return; }
   if (!session && (!loadError || loadError.status === 401)) {
-    $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<input name="password" type="password" autocomplete="current-password" required maxlength="1024"></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button></div></form></div></section>`;
+    $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<input name="password" type="password" autocomplete="current-password" required maxlength="1024"></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button></div></form><div class="heading-actions">${button('requestAccess', 'request-access')}${button('forgotPassword', 'forgot-password')}</div></div></section>`;
     return;
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
@@ -172,6 +179,12 @@ const formActions = () => `<div class="form-actions">${button('cancel', 'close-m
 function formError(form, error) {
   const target = form.querySelector('.form-error');
   target.textContent = errorMessage(error); target.hidden = false; target.focus();
+}
+function showPasswordForm() {
+  showModal(t('changePassword'), `<form id="password-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('passwordPolicy')}</p><div class="form-grid">${['current_password', 'new_password', 'confirm_password'].map((name, index) => `<label class="field">${t(['currentPassword', 'newPassword', 'confirmPassword'][index])}<input name="${name}" type="password" autocomplete="${index ? 'new-password' : 'current-password'}" required maxlength="1024" ${index ? 'minlength="12"' : ''}></label>`).join('')}</div>${formActions()}</form>`);
+}
+function showEmailForm(kind) {
+  showModal(t(kind === 'request' ? 'requestAccess' : 'forgotPassword'), `<form id="${kind}-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><label class="field">${t('email')}<input name="email" type="email" autocomplete="email" required maxlength="254"></label>${formActions()}</form>`);
 }
 function showSiteForm() {
   showModal(t('newSite'), `<form id="site-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('code', 'code', '', { required: true, max: 30, hint: 'codeHint' })}${field('name', 'name', '', { required: true, max: 120 })}${field('location', 'location', '', { full: true, max: 160 })}${field('startDate', 'start', today(), { type: 'date' })}${field('endDate', 'end', '', { type: 'date' })}</div>${formActions()}</form>`);
@@ -217,6 +230,7 @@ document.addEventListener('click', event => {
   const target = event.target.closest('[data-command]'); if (!target) return;
   const command = target.dataset.command, id = target.dataset.id;
   const commands = {
+    'change-password': showPasswordForm, 'request-access': () => showEmailForm('request'), 'forgot-password': () => showEmailForm('forgot'),
     logout, 'new-site': showSiteForm, 'new-task': showTaskForm, reload: loadData,
     'select-site': () => { selectSite(id); go('overview'); }, detail: () => showDetail(id),
     transition: () => showTransition(id, target.dataset.to), 'new-entry': showEntryForm,
@@ -228,7 +242,7 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('submit', async event => {
   const form = event.target;
-  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form'].includes(form.id)) return;
+  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   const data = Object.fromEntries(new FormData(form));
@@ -239,6 +253,19 @@ document.addEventListener('submit', async event => {
   const selectedSite = siteId, selectedDate = reportDate;
   try {
     if (form.id === 'login-form') { await api.login(data); await loadData(); return; }
+    if (form.id === 'password-form') {
+      if (data.new_password !== data.confirm_password) throw new Error('passwordMismatch');
+      if ([...data.new_password].length < 12 || data.new_password === data.current_password) throw new Error('passwordPolicy');
+      await api.changePassword({ current_password: data.current_password, new_password: data.new_password });
+      if (session) session.password_change_required = false;
+      if (version === modalVersion) closeModal();
+      render(); toast(t('passwordChanged')); return;
+    }
+    if (['request-form', 'forgot-form'].includes(form.id)) {
+      await (form.id === 'request-form' ? api.requestAccess(data) : api.forgotPassword(data));
+      if (version === modalVersion) closeModal();
+      toast(t('emailAccepted')); return;
+    }
     let message, detail;
     if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); siteId = site.id; filters = { search: '', status: '', person: '', priority: '' }; message = 'siteCreated'; }
     if (form.id === 'task-form') { state.tasks.push(await api.createTask({ ...data, siteId: selectedSite })); message = 'taskCreated'; }

@@ -15,3 +15,7 @@ import './auth.test.mjs';
 import './auth-schema.test.mjs';
 import './create-user.test.mjs';
 import './secure-cookie.test.mjs';
+
+import './signup.test.mjs';
+import './signup-schema.test.mjs';
+import './auth-mail.test.mjs';

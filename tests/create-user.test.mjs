@@ -1,6 +1,6 @@
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
@@ -165,9 +165,12 @@ test('CLI child rejects invalid arguments, piped input without opt-in, short pas
 
 test('CLI applies pending migrations normally and retains earlier ledger rows and site data', async t => {
   const { path, run } = await cliFixture(t);
+  const files = (await readdir(new URL('../server/migrations/sqlite/', import.meta.url)))
+    .filter(name => /^\d{3}_.+\.sql$/.test(name)).sort();
+  const last = files.at(-1).slice(0, 3);
   let db = new SqliteStorage(path);
   await db.exec('CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
-  for (const file of ['001_init.sql', '002_operational_day.sql', '003_idempotency_keys.sql', '004_physical_types.sql']) {
+  for (const file of files.slice(0, -1)) {
     await applyMigration(db, file, { driver: 'sqlite' });
     await db.run('INSERT INTO schema_migrations VALUES (?, ?)', file.slice(0, 3), '2026-01-01T00:00:00.000Z');
   }
@@ -182,6 +185,8 @@ test('CLI applies pending migrations normally and retains earlier ledger rows an
   try {
     const after = await db.all('SELECT * FROM schema_migrations ORDER BY version');
     t.assert.strictEqual(after.length, before.length + 1);
+    const newVersions = after.filter(row => !before.some(previous => previous.version === row.version)).map(row => row.version);
+    t.assert.deepStrictEqual(newVersions, [last]);
     t.assert.deepStrictEqual(after.slice(0, before.length), before);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM sites'), sites);
   } finally { await db.close(); }

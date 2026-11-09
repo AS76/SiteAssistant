@@ -44,7 +44,7 @@ test('login normalizes email, emits HttpOnly cookie, persists only token hash an
   t.assert.strictEqual(stored.ip, '127.0.0.1');
   t.assert.doesNotMatch(JSON.stringify(stored), new RegExp(token));
   const me = await request('/api/auth/me', { cookie: cookie.split(';')[0] });
-  t.assert.deepStrictEqual(me.body, { user: users.owner, roles: [{ site_id: site.id, role: 'owner' }] });
+  t.assert.deepStrictEqual(me.body, { user: users.owner, roles: [{ site_id: site.id, role: 'owner' }], password_change_required: false });
   t.assert.doesNotMatch(JSON.stringify(result.body), /password|token|session_id/);
   for (const email of ['owner@example.invalid', 'missing@example.invalid']) {
     const failed = await request('/api/auth/login', { method: 'POST', body: { email, password: 'Wrong' } });

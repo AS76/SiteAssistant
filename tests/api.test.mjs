@@ -112,3 +112,22 @@ test('auth client uses credentialed requests and retains 401/403/429 machine cod
     t.assert.strictEqual(expired, status === 401);
   }
 });
+
+
+test('password client retains the session on wrong current password but clears expired sessions', async t => {
+  let code = 'INVALID_CREDENTIALS', cleared = 0;
+  const calls = [];
+  const api = createApi({ baseUrl: 'https://app.example.invalid', onUnauthorized: () => cleared++, fetchImpl: async (url, options) => {
+    calls.push({ url, options });
+    return Response.json({ code, error: 'Synthetic error' }, { status: 401 });
+  } });
+  await t.assert.rejects(() => api.changePassword({ current_password: 'Wrong', new_password: 'Synthetic-password!' }), error => error.code === code);
+  t.assert.strictEqual(cleared, 0);
+  t.assert.strictEqual(calls[0].options.credentials, 'include');
+  t.assert.match(calls[0].url, /\/api\/auth\/password$/);
+  code = 'AUTH_REQUIRED';
+  await t.assert.rejects(() => api.changePassword({}));
+  t.assert.strictEqual(cleared, 1);
+  for (const method of ['requestAccess', 'forgotPassword']) await t.assert.rejects(() => api[method]({ email: 'synthetic@example.invalid' }));
+  t.assert.deepStrictEqual(calls.slice(2).map(call => new URL(call.url).pathname), ['/api/auth/request', '/api/auth/forgot']);
+});

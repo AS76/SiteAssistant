@@ -17,7 +17,8 @@ async function run() {
   const { createServer } = await import('../server/http.mjs');
   const { seed } = await import('../server/seed.mjs');
   const db = await openDb(':memory:', { driver: 'sqlite' });
-  const server = createServer(db);
+  const mail = [];
+  const server = createServer(db, { mailer: async message => { mail.push(message); }, ownerEmail: 'owner@example.invalid', publicUrl: 'https://app.example.invalid' });
   let browser;
   try {
     await seed(db);
@@ -60,6 +61,27 @@ async function run() {
       await page.waitForSelector('#login-form', { state: 'detached' });
       await page.waitForSelector('#site-select option');
     }
+    await page.locator('[data-command="request-access"]').click();
+    await page.locator('#request-form [name="email"]').fill('applicant@example.invalid');
+    await page.locator('#request-form [type="submit"]').click();
+    await page.waitForSelector('#modal', { state: 'hidden' });
+    assert.equal(mail.length, 1);
+    const reviewUrl = new URL(/Review request: (https:\/\/[^\s]+)/.exec(mail[0].text)[1]);
+    const review = await context.newPage();
+    await review.goto(`https://api.siteassistant.asassi.cloud${reviewUrl.pathname}${reviewUrl.search}`);
+    assert.equal((await db.get('SELECT status FROM signup_requests')).status, 'pending');
+    assert.equal(mail.length, 1);
+    await contains(review.locator('main'), 'applicant@example.invalid');
+    assert.equal(await review.locator('form').getAttribute('method'), 'post');
+    assert.equal(await review.getByRole('button', { name: 'Approva', exact: true }).count(), 1);
+    await Promise.all([
+      review.waitForURL('https://api.siteassistant.asassi.cloud/api/auth/request/decide'),
+      review.getByRole('button', { name: 'Rifiuta', exact: true }).click(),
+    ]);
+    await contains(review.locator('main'), 'Request rejected');
+    assert.equal((await db.get('SELECT status FROM signup_requests')).status, 'rejected');
+    assert.equal(mail.length, 1);
+    await review.close();
     await signIn('owner');
     const cookies = await context.cookies();
     assert.ok(cookies.find(cookie => cookie.name === 'sa_session')?.httpOnly);
@@ -175,8 +197,40 @@ async function run() {
     failReads = false;
     await page.getByRole('button', { name: 'Riprova', exact: true }).click();
     await page.waitForSelector('#report-date');
+    await page.locator('#logout').click();
+    await page.waitForSelector('#login-form');
+    await page.locator('[data-command="forgot-password"]').click();
+    await page.locator('#forgot-form [name="email"]').fill('owner@example.invalid');
+    await page.locator('#forgot-form [type="submit"]').click();
+    await page.waitForSelector('#modal', { state: 'hidden' });
+    const temporary = /Temporary password: ([^\s]+)/.exec(mail.at(-1).text)[1];
+    await page.locator('#login-form [name="email"]').fill('owner@example.invalid');
+    await page.locator('#login-form [name="password"]').fill(temporary);
+    await page.locator('#login-form [type="submit"]').click();
+    await page.waitForSelector('#password-banner:not([hidden])');
+    // The banner does not block navigation, even on mobile and without a modal.
+    await page.locator('a[href="#tasks"]').click();
+    await page.locator('#language').click();
+    await contains(page.locator('#password-banner'), 'Change password');
+    await page.locator('[data-command="change-password"]').click();
+    await page.locator('[name="current_password"]').fill('Incorrect-password!');
+    await page.locator('[name="new_password"]').fill('Synthetic-updated-password!');
+    await page.locator('[name="confirm_password"]').fill('Synthetic-mismatched-password!');
+    await page.locator('#password-form [type="submit"]').click();
+    await contains(page.locator('#password-form .form-error'), 'do not match');
+    await page.locator('[name="confirm_password"]').fill('Synthetic-updated-password!');
+    await page.locator('#password-form [type="submit"]').click();
+    await contains(page.locator('#password-form .form-error'), 'Invalid email or password');
+    assert.equal(await page.locator('#login-form').count(), 0);
+    await page.locator('[name="current_password"]').fill(temporary);
+    await page.locator('#password-form [type="submit"]').click();
+    await page.waitForSelector('#modal', { state: 'hidden' });
+    assert.equal(await page.locator('#password-banner').isVisible(), false);
+    await page.reload();
+    await page.waitForSelector('#task-results');
+    assert.equal(await page.locator('#password-banner').isVisible(), false);
     assert.deepEqual(errors, []);
-    console.log('PASS: API loading/creation, transitions/events, login/logout, HttpOnly cookie, independent session verification, blocked state, CSV, diary uniqueness, escaping, IT/EN, reload, mobile and network error recovery.');
+    console.log('PASS: API loading/creation, transitions/events, login/logout, HttpOnly cookie, independent session verification, blocked state, CSV, diary uniqueness, escaping, IT/EN, reload, mobile, network error recovery, signup request/rejection, forgot password, non-blocking password banner and password change.');
   } finally {
     if (browser) await browser.close();
     if (server.listening) await new Promise(resolve => server.close(resolve));
