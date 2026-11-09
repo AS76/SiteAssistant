@@ -57,7 +57,7 @@ Dates use `YYYY-MM-DD`. Diary dates are operational days, not midnight-to-midnig
 | `VALIDATION_ERROR` | 400 | Missing or invalid field |
 | `INVALID_JSON` | 400 | Invalid content type or body |
 | `INVALID_CREDENTIALS` | 401 | Login failed |
-| `FORBIDDEN` | 403 | Insufficient site role |
+| `FORBIDDEN` | 403 | Insufficient site role, or transition reserved to the designated verifier or a site owner |
 | `NOT_FOUND` | 404 | Unknown resource or route |
 | `DUPLICATE_SITE_CODE` | 409 | Site code already used |
 | `DUPLICATE_DIARY` | 409 | Entry already exists for site/date/shift |
