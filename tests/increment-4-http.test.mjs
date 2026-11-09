@@ -2,7 +2,7 @@ import test from 'node:test';
 import { Readable } from 'node:stream';
 import { createHash } from 'node:crypto';
 import { createServer } from '../server/http.mjs';
-import { createSite, transitionTask } from '../server/repository.mjs';
+import { createSite, getTask, transitionTask } from '../server/repository.mjs';
 import { isPg, openTestDb } from './helpers/db.mjs';
 import { createTaskResponse } from '../server/idempotency.mjs';
 
@@ -160,6 +160,7 @@ test('concurrent POSTs race on the primary key and commit exactly one task and r
   t.assert.strictEqual(results[0].raw, results[1].raw);
   t.assert.strictEqual((await db.all('SELECT * FROM tasks')).length, 1);
   t.assert.strictEqual((await db.all('SELECT * FROM idempotency_keys')).length, 1);
+  t.assert.strictEqual((await db.all('SELECT * FROM task_events')).length, 1);
 });
 
 test('concurrent POSTs with different bodies commit one task and reject the losing request', { timeout: 10000 }, async t => {
@@ -191,9 +192,66 @@ test('failure while storing the response rolls back both the task and its reserv
   const options = { key: 'example-rollback', requestHash: createHash('sha256').update(JSON.stringify(input)).digest('hex') };
   await t.assert.rejects(() => createTaskResponse(db, input, options), /Synthetic response failure/);
   t.assert.deepStrictEqual(await db.all('SELECT * FROM tasks'), []);
+  t.assert.deepStrictEqual(await db.all('SELECT * FROM task_events'), []);
   t.assert.deepStrictEqual(await db.all('SELECT * FROM idempotency_keys'), []);
   await db.exec('DROP TRIGGER fail_response');
   t.assert.strictEqual((await createTaskResponse(db, input, options)).status, 201);
+});
+
+test('HTTP 5a preserves to/actor payloads, serializes events and returns stable transition conflicts', async t => {
+  const { post, input, db } = await fixture(t);
+  const missingSite = await post('/api/tasks', { ...input, siteId: 'unknown' });
+  t.assert.strictEqual(missingSite.status, 404);
+  t.assert.strictEqual(missingSite.body.code, 'SITE_NOT_FOUND');
+  const missingTask = await post('/api/tasks/unknown/transition', { to: 'in_progress', actor: input.executor });
+  t.assert.strictEqual(missingTask.status, 404);
+  t.assert.strictEqual(missingTask.body.code, 'TASK_NOT_FOUND');
+  const created = await post('/api/tasks', input);
+  t.assert.strictEqual(created.status, 201);
+  const task = created.body;
+  t.assert.strictEqual(typeof task.id, 'string');
+  t.assert.strictEqual(task.created_at, new Date(task.created_at).toISOString());
+  t.assert.strictEqual(task.events.length, 1);
+  t.assert.strictEqual(task.events[0].action, 'create');
+  const route = `/api/tasks/${task.id}/transition`;
+  const move = (to, extra = {}) => post(route, { to, actor: input.executor, ...extra });
+  const conflict = async (to, extra = {}) => {
+    const before = await getTask(db, task.id);
+    const result = await move(to, extra);
+    t.assert.strictEqual(result.status, 409);
+    t.assert.strictEqual(result.body.code, 'INVALID_TRANSITION');
+    t.assert.deepStrictEqual(await getTask(db, task.id), before);
+  };
+  await conflict('closed', { actor: input.verifier, note: 'Example' });
+  t.assert.strictEqual((await move('blocked', { reason: 'Example blocker' })).status, 200);
+  await conflict('in_progress');
+  const resumed = await move('todo');
+  t.assert.strictEqual(resumed.status, 200);
+  t.assert.strictEqual(resumed.body.blocked_from, null);
+  t.assert.strictEqual(resumed.body.events.at(-1).action, 'resume');
+  t.assert.strictEqual((await move('in_progress')).status, 200);
+  t.assert.strictEqual((await move('to_verify', { note: 'Evidence' })).status, 200);
+  await conflict('in_progress', { note: 'Self rejection' });
+  const missingNote = await move('in_progress', { actor: input.verifier });
+  t.assert.strictEqual(missingNote.status, 400);
+  t.assert.strictEqual(missingNote.body.code, 'NOTE_REQUIRED');
+  const rejected = await move('in_progress', { actor: input.verifier, note: 'Correction' });
+  t.assert.strictEqual(rejected.status, 200);
+  t.assert.strictEqual(rejected.body.events.at(-1).action, 'reject');
+  t.assert.strictEqual((await move('to_verify', { note: 'Corrected' })).status, 200);
+  t.assert.strictEqual((await move('closed', { actor: input.verifier, note: 'Checked' })).status, 200);
+  await conflict('in_progress', { reason: 'Follow-up' });
+  const reopened = await move('in_progress', { actor: input.verifier, reason: 'Follow-up' });
+  t.assert.strictEqual(reopened.status, 200);
+  t.assert.strictEqual(reopened.body.events.at(-1).action, 'reopen');
+  t.assert.deepStrictEqual(reopened.body.events.map(event => event.action), [
+    'create', 'block', 'resume', 'start', 'submit', 'reject', 'submit', 'verify', 'reopen',
+  ]);
+  for (const event of reopened.body.events) {
+    t.assert.strictEqual(typeof event.id, 'number');
+    t.assert.strictEqual(typeof event.task_id, 'string');
+    t.assert.strictEqual(event.at, new Date(event.at).toISOString());
+  }
 });
 
 test('task POST permits the idempotency header for the existing allowed origin', async t => {

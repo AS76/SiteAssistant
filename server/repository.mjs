@@ -15,12 +15,28 @@ const fail = (status, message, code) => {
 
 export const STATUSES = ['todo', 'in_progress', 'to_verify', 'closed', 'blocked'];
 const transitions = {
-  todo: ['in_progress', 'blocked'],
-  in_progress: ['to_verify', 'blocked'],
-  to_verify: ['closed', 'blocked'],
-  closed: ['in_progress'],
-  blocked: [],
+  todo: { in_progress: 'start', blocked: 'block' },
+  in_progress: { to_verify: 'submit', blocked: 'block' },
+  to_verify: { closed: 'verify', blocked: 'block', in_progress: 'reject' },
+  closed: { in_progress: 'reopen' },
 };
+
+function transitionAction(task, to) {
+  if (task.status === 'blocked') {
+    return ['todo', 'in_progress', 'to_verify'].includes(task.blocked_from)
+      && to === task.blocked_from ? 'resume' : undefined;
+  }
+  return transitions[task.status]?.[to];
+}
+
+// Invalid UUID lookup parameters used to be simple misses with TEXT columns.
+async function idLookup(read, missing) {
+  try { return await read(); }
+  catch (error) {
+    if (error.code === '22P02') return missing;
+    throw error;
+  }
+}
 
 function object(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -63,7 +79,7 @@ export async function listSites(db) {
 }
 
 export async function getSite(db, id) {
-  const site = await db.get('SELECT * FROM sites WHERE id = ?', id);
+  const site = await idLookup(() => db.get('SELECT * FROM sites WHERE id = ?', id));
   if (!site) fail(404, 'Site not found.', 'SITE_NOT_FOUND');
   return site;
 }
@@ -95,12 +111,12 @@ export async function listTasks(db, { siteId, status } = {}) {
   const values = [];
   if (site) { clauses.push('site_id = ?'); values.push(site); }
   if (state) { clauses.push('status = ?'); values.push(state); }
-  return await db.all(`SELECT * FROM tasks ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
-    ORDER BY created_at, id`, ...values);
+  return await idLookup(() => db.all(`SELECT * FROM tasks ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
+    ORDER BY created_at, id`, ...values), []);
 }
 
 export async function getTask(db, id) {
-  const task = await db.get('SELECT * FROM tasks WHERE id = ?', id);
+  const task = await idLookup(() => db.get('SELECT * FROM tasks WHERE id = ?', id));
   if (!task) fail(404, 'Task not found.', 'TASK_NOT_FOUND');
   const events = await db.all('SELECT * FROM task_events WHERE task_id = ? ORDER BY at, id', id);
   return { ...task, events };
@@ -119,14 +135,23 @@ export async function createTask(db, input) {
   const company = text(input.company, 'company');
   const priority = text(input.priority, 'priority') || 'normal';
   const due = date(input.due_date, 'due_date');
-  await getSite(db, siteId);
+  const actor = text(input.actor, 'actor') || executor;
   const id = randomUUID();
-  await db.run(`
-    INSERT INTO tasks (id, site_id, title, area, company, executor, verifier, priority,
-      due_date, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?)
-  `, id, siteId, title, area, company, executor, verifier, priority, due, new Date().toISOString());
-  return await getTask(db, id);
+  const at = new Date().toISOString();
+  const write = async tx => {
+    await getSite(tx, siteId);
+    await tx.run(`
+      INSERT INTO tasks (id, site_id, title, area, company, executor, verifier, priority,
+        due_date, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?)
+    `, id, siteId, title, area, company, executor, verifier, priority, due, at);
+    await tx.run(`INSERT INTO task_events
+      (task_id, at, actor, from_status, to_status, note, reason, action)
+      VALUES (?, ?, ?, 'todo', 'todo', '', '', 'create')`, id, at, actor);
+    return await getTask(tx, id);
+  };
+  // Idempotent POST and seed already supply a transaction executor.
+  return await (db.transaction ? db.transaction(write) : write(db));
 }
 
 export async function transitionTask(db, id, input) {
@@ -138,10 +163,11 @@ export async function transitionTask(db, id, input) {
     const note = text(input.note, 'note');
     const reason = text(input.reason, 'reason');
     if (!STATUSES.includes(to)) fail(400, 'Unknown task status.', 'VALIDATION_ERROR');
-    if (!transitions[task.status].includes(to)) {
+    const action = transitionAction(task, to);
+    if (!action) {
       fail(409, `Transition from ${task.status} to ${to} is not allowed.`, 'INVALID_TRANSITION');
     }
-    if ((to === 'to_verify' || to === 'closed') && !note) {
+    if (['submit', 'verify', 'reject'].includes(action) && !note) {
       fail(400, 'A non-empty note is required.', 'NOTE_REQUIRED');
     }
     if ((to === 'blocked' || task.status === 'closed') && !reason) {
@@ -150,26 +176,36 @@ export async function transitionTask(db, id, input) {
     if (to === 'closed' && actor !== task.verifier) {
       fail(409, 'Only the designated verifier can close this task.', 'VERIFIER_REQUIRED');
     }
+    if (action === 'reject' && actor === task.submitted_by) {
+      fail(409, 'The submitter cannot reject their own submission.', 'INVALID_TRANSITION');
+    }
+    // Until identity/roles exist, owner is an explicit simulated actor label.
+    if (action === 'reopen' && actor !== task.verifier && actor !== 'owner') {
+      fail(409, 'Only the designated verifier or owner can reopen this task.', 'INVALID_TRANSITION');
+    }
 
     const { rowCount } = await tx.run(
-      'UPDATE tasks SET status = ? WHERE id = ? AND status = ?', to, id, task.status,
+      `UPDATE tasks SET status = ?, blocked_from = ?, submitted_by = ?
+        WHERE id = ? AND status = ?`,
+      to, action === 'block' ? task.status : null,
+      action === 'submit' ? actor : task.submitted_by, id, task.status,
     );
     if (rowCount === 0) {
       const current = await getTask(tx, id);
       fail(409, `Transition from ${current.status} to ${to} is not allowed.`, 'INVALID_TRANSITION');
     }
     await tx.run(`
-      INSERT INTO task_events (task_id, at, actor, from_status, to_status, note, reason)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, id, new Date().toISOString(), actor, task.status, to, note, reason);
+      INSERT INTO task_events (task_id, at, actor, from_status, to_status, note, reason, action)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, id, new Date().toISOString(), actor, task.status, to, note, reason, action);
     return await getTask(tx, id);
   });
 }
 
 export async function listDiary(db, { siteId } = {}) {
   const site = text(siteId, 'siteId');
-  return await db.all(`SELECT * FROM diary ${site ? 'WHERE site_id = ?' : ''}
-    ORDER BY operational_date, shift, created_at, id`, ...(site ? [site] : []));
+  return await idLookup(() => db.all(`SELECT * FROM diary ${site ? 'WHERE site_id = ?' : ''}
+    ORDER BY operational_date, shift, created_at, id`, ...(site ? [site] : [])), []);
 }
 
 export async function createDiary(db, input) {

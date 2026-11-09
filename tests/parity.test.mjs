@@ -49,13 +49,14 @@ async function scenario(t, open) {
   });
   results.push(await advance('closed', { actor: task.verifier, note: 'Verifica demo.' }));
   await reject(() => advance('in_progress'), { status: 400, code: 'REASON_REQUIRED' });
-  results.push(await advance('in_progress', { reason: 'Riapertura demo.' }));
+  results.push(await advance('in_progress', { actor: task.verifier, reason: 'Riapertura demo.' }));
   await reject(() => advance('blocked'), { status: 400, code: 'REASON_REQUIRED' });
   const blocked = await advance('blocked', { reason: 'Impedimento demo.' });
   results.push(blocked);
-  t.assert.strictEqual(blocked.events.length, 5);
+  t.assert.strictEqual(blocked.events.length, 6);
   for (const event of blocked.events) t.assert.strictEqual(typeof event.id, 'number');
-  await reject(() => advance('in_progress'), { status: 409, code: 'INVALID_TRANSITION' });
+  await reject(() => advance('todo'), { status: 409, code: 'INVALID_TRANSITION' });
+  results.push(await advance('in_progress'));
 
   const diaryInput = {
     siteId: site.id, operational_date: '2026-11-06', shift: 'day',
@@ -133,11 +134,11 @@ test('concurrent transitions commit exactly one status change and one numeric-ID
   t.assert.strictEqual(failures[0].reason.code, 'INVALID_TRANSITION');
   const current = await getTask(db, task.id);
   t.assert.strictEqual(current.status, 'in_progress');
-  t.assert.strictEqual(current.events.length, 1);
+  t.assert.strictEqual(current.events.length, 2);
   t.assert.strictEqual(typeof current.events[0].id, 'number');
   t.assert.strictEqual(typeof successes[0].value.events[0].id, 'number');
-  t.assert.strictEqual(current.events[0].from_status, 'todo');
-  t.assert.strictEqual(current.events[0].to_status, 'in_progress');
+  t.assert.strictEqual(current.events.at(-1).from_status, 'todo');
+  t.assert.strictEqual(current.events.at(-1).to_status, 'in_progress');
   t.assert.deepStrictEqual(current, successes[0].value);
 });
 

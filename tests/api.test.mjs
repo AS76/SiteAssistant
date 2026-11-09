@@ -30,8 +30,8 @@ test('API client round-trip: sites, tasks, transitions/events and diary against 
   let updated = await api.transitionTask(task, { to: 'in_progress', actor: 'Example executor' });
   updated = await api.transitionTask(updated, { to: 'to_verify', actor: 'Example executor', note: 'Evidence' });
   updated = await api.transitionTask(updated, { to: 'closed', actor: 'Example verifier', note: 'Checked' });
-  updated = await api.transitionTask(updated, { to: 'in_progress', actor: 'Example executor', reason: 'Follow-up' });
-  assert.equal(updated.events.length, 4);
+  updated = await api.transitionTask(updated, { to: 'in_progress', actor: 'Example verifier', reason: 'Follow-up' });
+  assert.equal(updated.events.length, 5);
   assert.equal(updated.events.at(-1).from_status, 'closed');
   assert.equal(updated.events.at(-1).to_status, 'in_progress');
   assert.equal(updated.events.at(-1).reason, 'Follow-up');

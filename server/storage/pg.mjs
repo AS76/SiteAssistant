@@ -45,6 +45,12 @@ export class PgStorage {
     this.#pool = new pg.Pool({
       connectionString,
       max: 10,
+      // Keep the storage/JSON contract identical to SQLite, including in tx.
+      types: {
+        getTypeParser: (oid, format) => oid === 1184 && format !== 'binary'
+          ? value => new Date(value).toISOString()
+          : pg.types.getTypeParser(oid, format),
+      },
       ...(schema === undefined ? {} : { options: `-c search_path=${schema}` }),
     });
     this.#executor = executor(this.#pool);

@@ -105,7 +105,8 @@ test('create tasks with distinct executor and verifier and filter by site and st
   t.assert.strictEqual(task.site_id, first.id);
   t.assert.strictEqual(task.status, 'todo');
   t.assert.strictEqual(task.priority, 'high');
-  t.assert.deepStrictEqual(task.events, []);
+  t.assert.strictEqual(task.events.length, 1);
+  t.assert.strictEqual(task.events[0].action, 'create');
   t.assert.deepStrictEqual(await api.request(`/api/tasks/${task.id}`), task);
   const filtered = await api.request(`/api/tasks?siteId=${first.id}&status=todo`);
   t.assert.deepStrictEqual(filtered.map(row => row.id), [task.id]);
@@ -139,7 +140,7 @@ test('completion requires a note; closure requires a note and the designated ver
   const closed = await api.request(route, { to: 'closed', actor: task.verifier, note: 'Verifica simulata accettata.' });
   t.assert.strictEqual(closed.status, 'closed');
   t.assert.deepStrictEqual(closed.events.map(event => [event.from_status, event.to_status]), [
-    ['todo', 'in_progress'], ['in_progress', 'to_verify'], ['to_verify', 'closed'],
+    ['todo', 'todo'], ['todo', 'in_progress'], ['in_progress', 'to_verify'], ['to_verify', 'closed'],
   ]);
   t.assert.strictEqual(closed.events.at(-1).actor, task.verifier);
   t.assert.strictEqual(closed.events.at(-1).note, 'Verifica simulata accettata.');
@@ -149,9 +150,9 @@ test('completion requires a note; closure requires a note and the designated ver
   }
   await api.request(route, { to: 'in_progress', actor: task.executor }, 400);
   t.assert.deepStrictEqual(await api.request(`/api/tasks/${task.id}`), closed);
-  const reopened = await api.request(route, { to: 'in_progress', actor: task.executor, reason: 'Nuova anomalia simulata.' });
+  const reopened = await api.request(route, { to: 'in_progress', actor: task.verifier, reason: 'Nuova anomalia simulata.' });
   t.assert.strictEqual(reopened.status, 'in_progress');
-  t.assert.deepStrictEqual(reopened.events.slice(0, 3), closed.events);
+  t.assert.deepStrictEqual(reopened.events.slice(0, closed.events.length), closed.events);
   t.assert.strictEqual(reopened.events.at(-1).reason, 'Nuova anomalia simulata.');
 });
 
@@ -177,7 +178,7 @@ test('every unspecified state-machine edge returns 409 without writing', async t
   const site = await api.site();
   const allowed = {
     todo: ['in_progress', 'blocked'], in_progress: ['to_verify', 'blocked'],
-    to_verify: ['closed', 'blocked'], closed: ['in_progress'], blocked: [],
+    to_verify: ['closed', 'blocked', 'in_progress'], closed: ['in_progress'], blocked: ['todo'],
   };
   for (const from of Object.keys(allowed)) {
     const task = await api.task(site.id);
