@@ -1,5 +1,6 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { operationalDate } from './operational-day.mjs';
+import { ObjectStorageError, S3Storage } from './s3.mjs';
 
 export class RepositoryError extends Error {
   constructor(status, message, code) {
@@ -301,4 +302,140 @@ export async function createDiary(db, input) {
   `, id, siteId, entryDate, shift, plan, actual, impediments, nextStep, createdAt, timeZone, cutoff),
   'A diary entry already exists for this site, date and shift.', 'DUPLICATE_DIARY');
   return await db.get('SELECT * FROM diary WHERE id = ?', id);
+}
+
+export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+const ATTACHMENT_ROLES = ['owner', 'editor'];
+const attachmentTables = { task: 'tasks', diary: 'diary', site: 'sites' };
+
+function attachmentUser(user) {
+  if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
+}
+
+function attachmentId(value, field) {
+  if (typeof value !== 'string' || !uuid.test(value)) fail(400, `${field} must be a UUID.`, 'VALIDATION_ERROR');
+  return value.toLowerCase();
+}
+
+async function attachmentEntity(db, input, user, roles) {
+  attachmentUser(user);
+  if (typeof input.entity_type !== 'string' || !Object.hasOwn(attachmentTables, input.entity_type)) fail(400, 'Invalid entity_type.', 'VALIDATION_ERROR');
+  const entityId = attachmentId(input.entity_id, 'entity_id');
+  const entity = await db.get(`SELECT * FROM ${attachmentTables[input.entity_type]} WHERE id = ?`, entityId);
+  if (!entity) fail(400, 'Attachment entity does not exist.', 'VALIDATION_ERROR');
+  const siteId = input.entity_type === 'site' ? entity.id : entity.site_id;
+  await requireRole(db, siteId, user, roles);
+  // The POST contract derives site_id; an optional explicit scope must agree.
+  if (input.site_id !== undefined && attachmentId(input.site_id, 'site_id') !== siteId) {
+    fail(403, 'Attachment entity belongs to another site.', 'FORBIDDEN');
+  }
+  return { siteId, entityId };
+}
+
+function attachmentData(input) {
+  const filename = text(input.filename, 'filename', true);
+  if (!filename.isWellFormed() || Buffer.byteLength(filename) > 255 || /[\x00-\x1f\x7f/\\]/.test(filename) || ['.', '..'].includes(filename)) {
+    fail(400, 'Invalid attachment filename.', 'VALIDATION_ERROR');
+  }
+  const mime = text(input.content_type, 'content_type', true).toLowerCase();
+  if (mime !== 'application/pdf' && !/^image\/[a-z0-9][a-z0-9.+-]*$/.test(mime)) {
+    fail(415, 'Only images and PDF are supported.', 'UNSUPPORTED_MEDIA_TYPE');
+  }
+  const encoded = input.data_base64;
+  if (typeof encoded !== 'string' || !encoded.length) fail(400, 'data_base64 is required.', 'VALIDATION_ERROR');
+  if (encoded.length > 4 * Math.ceil(MAX_ATTACHMENT_BYTES / 3)) fail(413, 'Attachment exceeds 15 MiB.', 'ATTACHMENT_TOO_LARGE');
+  // A flat character check avoids recursion on multi-megabyte base64 input.
+  if (encoded.length % 4 || /[^A-Za-z0-9+/=]/.test(encoded)) fail(400, 'Invalid base64.', 'VALIDATION_ERROR');
+  const data = Buffer.from(encoded, 'base64');
+  if (data.toString('base64') !== encoded) fail(400, 'Invalid base64.', 'VALIDATION_ERROR');
+  if (data.length > MAX_ATTACHMENT_BYTES) fail(413, 'Attachment exceeds 15 MiB.', 'ATTACHMENT_TOO_LARGE');
+  return { filename, mime, data };
+}
+
+function publicAttachment(row) {
+  const { storage_locator, ...metadata } = row;
+  return metadata;
+}
+
+async function attachmentRecord(db, id, user, roles) {
+  attachmentUser(user);
+  const row = await idLookup(() => db.get('SELECT * FROM attachments WHERE id = ?', id));
+  if (!row) fail(404, 'Attachment not found.', 'ATTACHMENT_NOT_FOUND');
+  await requireRole(db, row.site_id, user, roles);
+  return row;
+}
+
+export async function createAttachment(db, input, user, storage = new S3Storage()) {
+  object(input);
+  const { siteId, entityId } = await attachmentEntity(db, input, user, ATTACHMENT_ROLES);
+  const { filename, mime, data } = attachmentData(input);
+  const id = randomUUID();
+  const sha256 = createHash('sha256').update(data).digest('hex');
+  const locator = `attachments/${siteId}/${id}/v1`;
+  // Unique keys and conditional PUT prevent replacement of an existing object.
+  await storage.put(locator, data, { mime, sha256 });
+  try {
+    const head = await storage.head(locator);
+    if (head.sha256 !== sha256 || head.size !== data.length) {
+      fail(502, 'Attachment readback checksum mismatch.', 'ATTACHMENT_CHECKSUM_MISMATCH');
+    }
+    // Metadata can echo a supplied checksum even if bytes are corrupted.
+    // Verify actual stored bytes as well; never treat an ETag as SHA-256.
+    const readback = await storage.get(locator);
+    const digest = createHash('sha256');
+    let size = 0;
+    for await (const chunk of readback) {
+      size += chunk.length;
+      if (size > data.length) fail(502, 'Attachment readback size mismatch.', 'ATTACHMENT_CHECKSUM_MISMATCH');
+      digest.update(chunk);
+    }
+    if (size !== data.length || digest.digest('hex') !== sha256) {
+      fail(502, 'Attachment readback checksum mismatch.', 'ATTACHMENT_CHECKSUM_MISMATCH');
+    }
+    return await db.transaction(async tx => {
+      // Recheck scope and membership after the storage round trip.
+      const current = await attachmentEntity(tx, input, user, ATTACHMENT_ROLES);
+      if (current.siteId !== siteId) fail(403, 'Attachment entity changed site.', 'FORBIDDEN');
+      await tx.run(`INSERT INTO attachments (id, site_id, entity_type, entity_id, filename, mime, size,
+        content_sha256, storage_locator, manifest_version, uploaded_by, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1', ?, ?)`,
+      id, siteId, input.entity_type, entityId, filename, mime, data.length, sha256, locator, user.id, new Date().toISOString());
+      return publicAttachment(await tx.get('SELECT * FROM attachments WHERE id = ?', id));
+    });
+  } catch (error) {
+    try { await storage.delete(locator); }
+    catch { throw new ObjectStorageError('ATTACHMENT_CLEANUP_FAILED'); }
+    throw error;
+  }
+}
+
+export async function listAttachments(db, input, user) {
+  object(input);
+  attachmentUser(user);
+  const siteId = attachmentId(input.site_id, 'site_id');
+  await requireRole(db, siteId, user);
+  const clauses = ['site_id = ?'], values = [siteId];
+  if (input.entity_type !== undefined) {
+    if (typeof input.entity_type !== 'string' || !Object.hasOwn(attachmentTables, input.entity_type)) fail(400, 'Invalid entity_type.', 'VALIDATION_ERROR');
+    clauses.push('entity_type = ?'); values.push(input.entity_type);
+  }
+  if (input.entity_id !== undefined) {
+    await attachmentEntity(db, input, user);
+    clauses.push('entity_id = ?'); values.push(attachmentId(input.entity_id, 'entity_id'));
+  }
+  return (await db.all(`SELECT * FROM attachments WHERE ${clauses.join(' AND ')} ORDER BY created_at, id`, ...values)).map(publicAttachment);
+}
+
+export async function getAttachment(db, id, user, storage = new S3Storage()) {
+  const row = await attachmentRecord(db, id, user);
+  return { ...publicAttachment(row), stream: await storage.get(row.storage_locator) };
+}
+
+export async function deleteAttachment(db, id, user, storage = new S3Storage()) {
+  await db.transaction(async tx => {
+    const row = await attachmentRecord(tx, id, user, ATTACHMENT_ROLES);
+    await tx.run('DELETE FROM attachments WHERE id = ?', row.id);
+    // A storage failure rolls SQL back, preserving metadata for a retry.
+    await storage.delete(row.storage_locator);
+  });
 }

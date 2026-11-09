@@ -28,6 +28,8 @@ Per avviare il backend di sviluppo con Node.js 24, seguire [Backend incremento 1
 
 Le migrazioni applicative versionate, il calcolo del giorno operativo e l'header opzionale `Idempotency-Key` sono descritti nel [riferimento tecnico dell'incremento 4](docs/backend-increment-4.md).
 
+Le API per gli allegati a task, diario e cantiere, la configurazione S3 e il readback SHA-256 sono descritti nell'[incremento 8](docs/backend-increment-8.md). L'integrazione UI degli allegati resta da implementare.
+
 ## Funzioni
 
 - Creazione cantieri e selezione del contesto di lavoro.
@@ -43,7 +45,7 @@ Il backend conserva i dati condivisi; il frontend non contiene autenticazione. E
 
 La UI segue le transizioni del backend: `todo → in_progress / blocked`, `in_progress → to_verify / blocked`, `to_verify → closed / blocked`, `closed → in_progress`. `blocked` non ha transizioni in uscita. Non sono disponibili modifica attività, criteri di accettazione, descrizioni o ripristino JSON. Il diario accetta un contributo per cantiere, giorno operativo e turno, senza autore né collegamento attività.
 
-Non inserire informazioni riservate. Upload, connettori e funzionamento offline non sono implementati. L'evidenza è una nota testuale; la stampa usa il browser. Il cambio lingua traduce l'interfaccia, lasciando invariati i contenuti inseriti. Questa modifica collega il frontend all'API e non avvia deploy o attiva nuovi servizi. I documenti di architettura descrivono anche funzionalità proposte e il precedente stato della demo locale.
+Non inserire informazioni riservate. L'upload di allegati è disponibile via API; connettori e funzionamento offline non sono implementati. Nell'interfaccia l'evidenza è una nota testuale; la stampa usa il browser. Il cambio lingua traduce l'interfaccia, lasciando invariati i contenuti inseriti. Questa modifica collega il frontend all'API e non avvia deploy o attiva nuovi servizi. I documenti di architettura descrivono anche funzionalità proposte e il precedente stato della demo locale.
 
 ## Verifica
 

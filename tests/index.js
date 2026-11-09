@@ -19,3 +19,6 @@ import './secure-cookie.test.mjs';
 import './signup.test.mjs';
 import './signup-schema.test.mjs';
 import './auth-mail.test.mjs';
+import './attachments.test.mjs';
+import './attachments-schema.test.mjs';
+import './s3.test.mjs';

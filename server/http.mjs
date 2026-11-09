@@ -1,6 +1,8 @@
 import { createServer as createHttpServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
+import { pipeline } from 'node:stream/promises';
+import { S3Storage, ObjectStorageError, encodeS3Component } from './s3.mjs';
 import { authenticate, login, memberships, publicUser, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage } from './signup.mjs';
@@ -8,6 +10,7 @@ import { createTaskResponse } from './idempotency.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
   transitionTask, listDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember,
+  createAttachment, listAttachments, getAttachment, deleteAttachment, MAX_ATTACHMENT_BYTES,
 } from './repository.mjs';
 
 function json(response, status, data) {
@@ -15,7 +18,7 @@ function json(response, status, data) {
   response.end(JSON.stringify(data));
 }
 
-async function readJson(request, { includeHash = false } = {}) {
+async function readJson(request, { includeHash = false, maxBytes = 65536 } = {}) {
   const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
   if (contentType !== 'application/json') {
     throw new RepositoryError(400, 'Content-Type must be application/json.', 'INVALID_JSON');
@@ -23,18 +26,19 @@ async function readJson(request, { includeHash = false } = {}) {
   const decoder = new StringDecoder('utf8');
   const hash = createHash('sha256');
   let body = '';
+  let size = 0;
   // Reject oversized input without accumulating the remainder in memory.
   let oversized = false;
   for await (const chunk of request) {
+    size += chunk.length;
+    if (size > maxBytes) { oversized = true; body = ''; }
     if (!oversized) {
       hash.update(chunk);
       body += decoder.write(chunk);
     }
-    if (body.length > 65536) { oversized = true; body = ''; }
   }
   if (!oversized) body += decoder.end();
-  if (body.length > 65536) oversized = true;
-  if (oversized) throw new RepositoryError(400, 'JSON body exceeds 65536 characters.', 'INVALID_JSON');
+  if (oversized) throw new RepositoryError(maxBytes === 65536 ? 400 : 413, 'JSON body exceeds the size limit.', 'INVALID_JSON');
   let input;
   try {
     input = JSON.parse(body);
@@ -73,6 +77,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   mailer = sendMail, ownerEmail = process.env.OWNER_EMAIL,
   publicUrl = process.env.PUBLIC_URL || 'https://api.siteassistant.asassi.cloud',
   requestLimiter = createLoginLimiter(), forgotLimiter = createLoginLimiter(), passwordLimiter = createLoginLimiter(),
+  storage = new S3Storage(),
 } = {}) {
   return createHttpServer(async (request, response) => {
     response.setHeader('Vary', 'Origin');
@@ -80,7 +85,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
     if (request.headers.origin === 'https://siteassistant.asassi.cloud') {
       response.setHeader('Access-Control-Allow-Origin', request.headers.origin);
       response.setHeader('Access-Control-Allow-Credentials', 'true');
-      response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      response.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Idempotency-Key, Authorization, Cookie');
     }
     if (request.method === 'OPTIONS') {
@@ -145,6 +150,35 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         response.setHeader('Set-Cookie', sessionCookie('', { production, secure: isSecureRequest(request, { production }), clear: true }));
         return json(response, 200, { status: 'ok' });
       }
+      if (path === '/api/attachments' && method === 'POST') {
+        const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_ATTACHMENT_BYTES / 3) + 65536 });
+        return json(response, 201, await createAttachment(db, input, user, storage));
+      }
+      if (path === '/api/attachments' && method === 'GET') {
+        const input = {};
+        for (const key of ['site_id', 'entity_type', 'entity_id']) {
+          if (url.searchParams.has(key)) input[key] = url.searchParams.get(key);
+        }
+        return json(response, 200, await listAttachments(db, input, user));
+      }
+      const attachment = /^\/api\/attachments\/([^/]+)$/.exec(path);
+      if (attachment && method === 'GET') {
+        const file = await getAttachment(db, attachment[1], user, storage);
+        if (response.destroyed) { file.stream.destroy(); return; }
+        response.writeHead(200, {
+          'Content-Type': file.mime, 'Content-Length': String(file.size),
+          'Content-Disposition': `attachment; filename="download"; filename*=UTF-8''${encodeS3Component(file.filename)}`,
+          'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "sandbox; default-src 'none'",
+        });
+        await pipeline(file.stream, response);
+        return;
+      }
+      if (attachment && method === 'DELETE') {
+        await deleteAttachment(db, attachment[1], user, storage);
+        response.writeHead(204);
+        response.end();
+        return;
+      }
       if (path === '/api/sites' && method === 'GET') return json(response, 200, await listSites(db, user));
       if (path === '/api/sites' && method === 'POST') {
         const input = await readJson(request);
@@ -204,6 +238,11 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       json(response, 404, { error: 'Route not found.', code: 'NOT_FOUND' });
     } catch (error) {
+      // A failed/aborted download must not append JSON to a binary response.
+      if (response.headersSent || response.destroyed) { response.destroy(); return; }
+      if (error instanceof ObjectStorageError) {
+        return json(response, error.status, { error: error.message, code: error.code });
+      }
       if (error instanceof MailNotConfiguredError || error instanceof MailDeliveryError) {
         return json(response, 503, { error: error.message, code: error.code });
       }
