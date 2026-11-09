@@ -1,0 +1,67 @@
+name: Docs freshness
+
+on:
+  schedule:
+    # Monday 06:00 UTC — before the weekly review.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compare last code change with last docs change
+        id: compare
+        run: |
+          set -euo pipefail
+          code_ts=$(git log -1 --format=%ct -- app server database)
+          docs_ts=$(git log -1 --format=%ct -- docs-site/src/content/docs)
+          code_date=$(date -u -d "@${code_ts}" +%Y-%m-%d)
+          docs_date=$(date -u -d "@${docs_ts}" +%Y-%m-%d)
+          echo "code_date=${code_date}" >> "$GITHUB_OUTPUT"
+          echo "docs_date=${docs_date}" >> "$GITHUB_OUTPUT"
+          if [ "${code_ts}" -gt "${docs_ts}" ]; then
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: List changed files since the last docs update
+        if: steps.compare.outputs.stale == 'true'
+        id: files
+        run: |
+          set -euo pipefail
+          docs_ts=$(git log -1 --format=%ct -- docs-site/src/content/docs)
+          git log --since="@${docs_ts}" --name-only --format= -- app server database \
+            | sed '/^$/d' | sort -u > /tmp/changed.txt
+          head -40 /tmp/changed.txt > /tmp/changed-short.txt
+          {
+            echo "## Code changed after the docs"
+            echo
+            echo "Last code change: ${{ steps.compare.outputs.code_date }} · last docs change: ${{ steps.compare.outputs.docs_date }}"
+            echo
+            echo '```'
+            cat /tmp/changed-short.txt
+            echo '```'
+            echo
+            echo "Review the affected pages under \`docs-site/src/content/docs/\` (Italian) and \`.../en/\` (English), then update or confirm them."
+          } > /tmp/body.md
+      - name: Open or update the tracking issue
+        if: steps.compare.outputs.stale == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh label create docs-stale --color FBCA04 --description "Documentation may be out of date" --force >/dev/null 2>&1 || true
+          existing=$(gh issue list --label docs-stale --state open --json number --jq '.[0].number' || true)
+          if [ -n "${existing}" ]; then
+            gh issue edit "${existing}" --body-file /tmp/body.md
+          else
+            gh issue create --title "Docs review: code changed after the manual" --body-file /tmp/body.md --label docs-stale
+          fi

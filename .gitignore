@@ -27,3 +27,7 @@ coverage/
 test-results/
 playwright-report/
 .DS_Store
+
+# Documentation site build output
+docs-site/dist/
+docs-site/.astro/

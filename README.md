@@ -2,6 +2,8 @@
 
 Prima web app per cantieri, attività e diario giornaliero, con interfaccia italiano/inglese.
 
+Documentazione utente e tecnica (IT/EN): <https://as76.github.io/SiteAssistant/>. Sorgente in `docs-site/`, pubblicata automaticamente da GitHub Actions a ogni modifica su `main`.
+
 ## Avvio
 
 Il frontend statico legge e salva cantieri, attività e diario tramite la REST API. La base URL predefinita è `https://api.siteassistant.asassi.cloud`; non usa localStorage, dati di ripiego o backup JSON.
