@@ -3,24 +3,24 @@ title: Configurare un cantiere
 description: Codice, date, appartenenze e regole del giorno operativo.
 ---
 
-Questa pagina raccoglie le impostazioni che riguardano un cantiere e i loro effetti pratici.
+Questa pagina raccoglie le impostazioni che riguardano un cantiere e i loro effetti pratici, per chi lo amministra.
 
 ## Codice del cantiere
 
 - identificatore breve, univoco, massimo 30 caratteri;
 - usato dalla CLI `create-user` per assegnare un utente (`--site`);
 - non è modificabile dopo la creazione;
-- un codice duplicato viene rifiutato con `409 DUPLICATE_SITE_CODE`.
+- un codice duplicato viene rifiutato.
 
-Conviene usare un codice stabile nel tempo — per esempio il codice commessa — perché è il riferimento che gli amministratori digitano quando creano gli account.
+Conviene usare un codice stabile nel tempo — per esempio il codice commessa — perché è il riferimento che digitano gli amministratori quando creano gli account.
 
 ## Date
 
-Le date di inizio e fine sono descrittive: non bloccano inserimenti di attività o diario fuori intervallo. La data di fine non può precedere quella di inizio.
+Le date di inizio e fine sono **descrittive**: non bloccano l'inserimento di attività o diario fuori intervallo. La data di fine non può precedere quella di inizio.
 
-## Appartenenze
+## Appartenenze e ruoli
 
-Solo gli **owner** possono aggiungere o rimuovere membri e cambiare ruolo. Un utente vede esclusivamente i cantieri in cui è membro.
+Solo gli **owner** possono aggiungere o rimuovere membri e cambiare ruolo. Un utente vede esclusivamente i cantieri di cui è membro.
 
 Ruoli consigliati in cantiere:
 
@@ -29,16 +29,16 @@ Ruoli consigliati in cantiere:
 - `verifier` a qualità/collaudo, separati da chi esegue;
 - `viewer` a chi deve solo consultare.
 
-## Giorno operativo
+## Il giorno operativo
 
 Fuso orario e ora di taglio determinano a quale giorno operativo appartiene una voce di diario.
 
 | Impostazione | Valore predefinito | Dove si imposta |
 | :-- | :-- | :-- |
-| Fuso orario | `Europe/Rome` | Campo `time_zone` della voce di diario (API) |
-| Ora di taglio | `06:00` | Campo `day_cutoff_time` della voce di diario (API) |
+| Fuso orario | `Europe/Rome` | Attributo della voce di diario (via API) |
+| Ora di taglio | `06:00` | Attributo della voce di diario (via API) |
 
-Non sono impostazioni del cantiere e non sono modificabili dall'interfaccia. Se un cantiere lavora su un fuso diverso, la voce di diario va creata via API con i valori corretti; le voci già salvate mantengono i valori con cui sono state registrate.
+Non sono impostazioni del cantiere e non sono modificabili dall'interfaccia. Le voci già salvate mantengono i valori con cui sono state registrate.
 
 ## Cosa non è configurabile
 

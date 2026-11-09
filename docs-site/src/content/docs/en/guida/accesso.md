@@ -1,44 +1,47 @@
 ---
-title: Sign in and sessions
-description: How to sign in to SiteAssistant, how long a session lasts and how failed attempts are handled.
+title: Sign in and account
+description: How to sign in to SiteAssistant, request an account and manage your password.
 ---
 
-SiteAssistant has no self-service sign-up: accounts are created by an administrator with the `create-user` CLI (see [Users and roles](../../amministrazione/utenti-e-ruoli/)).
+You sign in to SiteAssistant with your **email** and **password**. There is no public registration: accounts are created in two ways, both designed for people working on site.
 
-## Signing in
+## Sign in
 
-1. Open the application URL in a browser, on desktop or mobile.
-2. Without an active session, the **sign-in** form appears.
-3. Enter **email** and **password**, then press **Sign in**.
-4. You only see the sites you are a member of; the picker at the top sets the working context.
+1. Open the application address in your browser, on desktop or mobile.
+2. If there is no active session, the **Sign in** form appears.
+3. Enter your **email** and **password**, then press **Sign in**.
+4. After signing in you only see the sites you belong to, and you can choose your working context from the menu at the top.
 
-Email matching is case-insensitive: `Mario.Rossi@example.com` and `mario.rossi@example.com` are the same account.
+The email is case-insensitive: `Mario.Rossi@example.com` and `mario.rossi@example.com` are the same account.
 
-## Failed sign-in
+## If you do not have an account yet
 
-| Response | Meaning | Action |
-| :-- | :-- | :-- |
-| **400** | Missing or malformed email/password | Check the fields |
-| **401** `INVALID_CREDENTIALS` | Wrong credentials, unknown or disabled account | Retry; ask your administrator if it persists |
-| **429** `RATE_LIMITED` | Too many failed attempts | Wait for the time in `Retry-After` |
+From the sign-in form you can press **Request access**:
 
-The error never reveals whether the email or the password was wrong.
+1. Enter your email.
+2. The request reaches whoever administers the application, who can **approve** or **reject** it.
+3. If approved, you receive a **temporary password** by email.
+4. On first sign-in the application asks you to **change the password**.
 
-## Attempt limit
+A request does not create the account on its own: it needs an administrator's approval.
 
-After **10 attempts** within **15 minutes** for the same IP address and email pair, sign-in is blocked with **429** and a `Retry-After` header in seconds. The limit is per IP + email pair, so one blocked user does not block others.
+## Forgotten or temporary password
 
-## Session lifetime and security
+- **Forgot password:** from the sign-in form press **Forgot password** and enter your email. If the account exists, you receive a new temporary password by email.
+- **Change password:** if you are using a temporary password, a notice appears with the **Change password** button. It requires your current password and a new one, different and at least **12 characters** long. Other sessions are closed.
 
-- The server sets the **`sa_session`** cookie, valid for **7 days**.
-- The cookie is `HttpOnly`, `SameSite=Lax` and `Secure` over HTTPS.
-- Only a SHA-256 hash of the token is stored server-side, in the `sessions` table.
-- Every operation records the authenticated user as actor, not a hand-typed name.
+If the email service is not active, these operations are unavailable: the application tells you and asks you to try again later.
 
-## Signing out
+## When sign-in fails
 
-**Sign out** revokes the session server-side, invalidates the cookie and clears the data loaded in the page. Closing the browser without signing out does not revoke the session: it stays valid until expiry or logout.
+The error message never reveals whether the email or the password is wrong. After **10 failed attempts** in the same **15-minute** window (for the same email and network address), sign-in is suspended for a while: wait a few minutes and try again.
+
+## How long the session lasts
+
+- The session lasts **7 days** and is remembered by the browser with a secure cookie.
+- The **Sign out** button closes the session on the server immediately.
+- Closing the browser without signing out does **not** close the session: it stays valid until it expires or you sign out.
 
 :::note[Expired session]
-If the cookie has expired or was revoked, the application returns to the sign-in form and the previous navigation state is lost.
+If the session expires or is revoked, the application takes you back to the sign-in form.
 :::

@@ -1,46 +1,45 @@
 ---
 title: Diario di cantiere
-description: Come si registra il piano e il consuntivo del turno, e come funziona il giorno operativo.
+description: Registrare piano e consuntivo del turno, e come funziona il giorno operativo.
 ---
 
-Il **diario** registra, per ogni turno, cosa era previsto, cosa è stato fatto, quali impedimenti sono emersi e cosa passa al turno successivo.
+Il **diario** racconta ogni turno: cosa era previsto, cosa è stato fatto, quali impedimenti sono emersi e cosa passa al turno successivo. È un passaggio di consegne, non un verbale formale.
 
 ## Dove si trova
 
-La vista **Diario** mostra le voci del cantiere selezionato per la data di rendicontazione corrente. Da qui si apre il modulo **Nuova voce**.
+La vista **Diario** mostra le voci del cantiere selezionato per il **giorno operativo** scelto. Da qui si apre il modulo **Aggiungi contributo**.
 
-## Campi di una voce
+## Registrare una voce
+
+Dal pulsante **Aggiungi contributo**:
 
 | Campo | Obbligatorio | Note |
 | :-- | :-- | :-- |
 | Turno | Sì | `day` (diurno) o `night` (notturno) |
 | Piano | No | Cosa era previsto per il turno |
 | Consuntivo | No | Cosa è stato effettivamente eseguito |
-| Impedimenti | No | Blocchi, interferenze, non conformità |
+| Impedimenti | No | Blocchi, interferenze, scostamenti |
 | Prossimo passo | No | Cosa passa al turno successivo |
-| Data | Sì | Giorno operativo calcolato dall'applicazione |
 
-Esiste **una sola voce per cantiere, giorno operativo e turno**. Un secondo inserimento sulla stessa combinazione viene rifiutato con `409 DUPLICATE_DIARY`.
+Il giorno operativo è calcolato dall'applicazione in base al cantiere e all'orario. Esiste **una sola voce per cantiere, giorno e turno**: un secondo inserimento sulla stessa combinazione viene rifiutato.
 
-## Giorno operativo
+## Il giorno operativo
 
 Il giorno operativo non coincide con la mezzanotte:
 
 - inizia all'ora di taglio configurata, per impostazione predefinita **06:00** nel fuso **Europe/Rome**;
 - termina alle 05:59:59 del giorno successivo;
-- un turno notturno appartiene al giorno operativo in cui è iniziato.
+- un turno notturno appartiene al giorno in cui è iniziato.
 
 Esempio: un turno notturno che inizia il 12 novembre alle 22:00 e finisce il 13 alle 06:00 viene registrato sul **12 novembre**.
 
-Fuso orario e ora di taglio sono attributi della singola voce di diario. L'interfaccia usa i valori predefiniti; per impostarli diversamente bisogna passare dall'API (`time_zone`, `day_cutoff_time`), come descritto in [API REST](../../riferimento/api/).
-
 ## Stampa
 
-Il diario si stampa con la finestra di stampa del browser. Non esiste un'anteprima PDF generata dal server né un archivio delle stampe.
+Il pulsante **Stampa diario** usa la stampa del browser. Non esiste un PDF generato dal server né un archivio delle stampe.
 
-## Cosa non è disponibile
+## Cosa non è ancora disponibile
 
-- Modifica o cancellazione di una voce dopo il salvataggio.
-- Autore della voce diverso dall'utente autenticato.
-- Collegamento tra voce di diario e attività.
-- Allegati o foto.
+- Modificare o cancellare una voce dopo il salvataggio.
+- Collegare una voce di diario a un'attività.
+- Allegare foto o documenti.
+- Chiudere o firmare formalmente il diario: i contributi restano aperti e salvati sul server.

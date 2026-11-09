@@ -1,27 +1,29 @@
 ---
 title: Utenti e ruoli
-description: Ruoli per cantiere, creazione degli account e gestione delle appartenenze.
+description: I ruoli per cantiere, come si creano gli account e come si gestiscono le appartenenze.
 ---
 
-## Ruoli
+I permessi in SiteAssistant sono **per cantiere**, non globali: la stessa persona può essere `owner` su un cantiere e `viewer` su un altro. Senza appartenenza, il cantiere non esiste per quell'utente.
 
-Il ruolo è **per cantiere**, non globale. La stessa persona può essere `owner` su un cantiere e `viewer` su un altro. Senza appartenenza, il cantiere non esiste per quell'utente.
+## I ruoli
 
 | Capacità | owner | editor | verifier | viewer |
 | :-- | :-: | :-: | :-: | :-: |
 | Vedere cantieri, attività e diario | Sì | Sì | Sì | Sì |
-| Creare e avanzare attività | Sì | Sì | Sì | No |
+| Creare e far avanzare attività | Sì | Sì | Sì | No |
 | Scrivere il diario | Sì | Sì | Sì | No |
-| Verificare o rifiutare | Sì* | No | Sì* | No |
-| Riaprire un'attività chiusa | Sì* | No | Sì* | No |
+| Verificare o riaprire | Sì* | No | Sì* | No |
 | Gestire i membri del cantiere | Sì | No | No | No |
 | Creare nuovi cantieri | Sì | No | No | No |
 
-\* Solo se designato verificatore dell'attività, e mai sulla propria sottomissione. L'owner può verificare anche attività di cui non è verificatore designato, ma non può auto-verificarsi.
+\* Solo se designato verificatore dell'attività, e mai sul proprio lavoro. L'owner può verificare anche attività di cui non è il verificatore designato, ma non può verificare ciò che ha eseguito lui stesso.
 
-## Creare un account
+## Come nasce un account
 
-Gli account si creano da riga di comando sul server, con la CLI inclusa nel progetto:
+Un account può nascere in due modi:
+
+1. **Richiesta autonoma.** Dal modulo di accesso, chiunque può premere **Richiedi accesso** e inserire la propria email; un owner la approva e l'utente riceve una password temporanea (vedi [Accesso e account](../../guida/accesso/)).
+2. **Creazione dall'amministratore.** Chi gestisce il server può creare account e assegnarli subito a un cantiere con la CLI `create-user`:
 
 ```sh
 npm run create-user -- \
@@ -32,38 +34,18 @@ npm run create-user -- \
   --role editor
 ```
 
-Regole:
+Regole principali:
 
-- la password si legge da TTY o da `--password-stdin`, **mai** come argomento (finirebbe nella history della shell);
+- la password si legge da TTY o da `--password-stdin`, **mai** come argomento;
 - minimo **12 caratteri**;
 - l'email viene normalizzata in minuscolo;
 - `--site` e `--role` vanno indicati insieme; il codice cantiere deve esistere;
-- i ruoli ammessi sono `owner`, `editor`, `verifier`, `viewer`;
-- senza `--site` l'utente viene creato ma non associato ad alcun cantiere.
-
-Per creare un utente senza assegnarlo subito:
-
-```sh
-npm run create-user -- --email mario.rossi@example.com --name "Mario Rossi" --password-stdin
-```
+- i ruoli ammessi sono `owner`, `editor`, `verifier`, `viewer`.
 
 ## Gestire i membri
 
-L'API espone la gestione delle appartenenze:
+L'elenco e la modifica dei membri si fanno via API (`GET`/`POST /api/sites/{id}/members`) e sono riservati agli **owner**. In questa versione l'interfaccia **non** ha una schermata per i membri. Un owner non può rimuovere o declassare se stesso.
 
-- `GET /api/sites/{id}/members` — elenco dei membri con ruolo (solo owner);
-- `POST /api/sites/{id}/members` — imposta o rimuove un ruolo.
+## Identità e sicurezza
 
-Corpo della richiesta:
-
-```json
-{ "user_id": "uuid-utente", "role": "verifier" }
-```
-
-Con `"role": null` l'utente viene rimosso dal cantiere. Un owner non può declassare se stesso: il server risponde `400 VALIDATION_ERROR`.
-
-In questa versione l'interfaccia **non** ha una schermata per i membri: la gestione passa dall'API.
-
-## Autenticazione e identità
-
-Non esiste registrazione autonoma, recupero password o invio email dall'applicazione. Le password sono salvate con `scrypt`; le sessioni sono descritte in [Accesso e sessioni](../../guida/accesso/).
+Le password sono salvate con `scrypt`; le sessioni sono descritte in [Accesso e account](../../guida/accesso/). Non esiste recupero autonomo della password oltre al flusso "Password dimenticata" descritto nella stessa pagina.

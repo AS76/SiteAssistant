@@ -1,0 +1,83 @@
+---
+title: Tasks and reviews
+description: Create tasks, move them through their statuses and verify them.
+---
+
+import { Image } from 'astro:assets';
+import flusso from '../../../../assets/flusso-stati-attivita.svg';
+import board from '../../../../assets/board-elenco.svg';
+
+The **task** is the unit of work on site. Every task belongs to a site, has a distinct **executor** and **reviewer**, and only moves through allowed transitions. The golden rule: **whoever executes cannot review their own work**.
+
+## Create a task
+
+From the **New task** button:
+
+| Field | Required | Notes |
+| :-- | :-- | :-- |
+| Title | Yes | At most 180 characters |
+| Area | No | At most 100 characters |
+| Company | No | At most 100 characters |
+| Executor | Yes | The person doing the work |
+| Reviewer | Yes | The person who checks and closes the work |
+| Priority | Yes | `normal`, `high`, `urgent` |
+| Due date | No | Date, pre-filled with today |
+
+The task starts in status `todo`. **The executor and the reviewer must be two different people**: the application rejects the assignment if they coincide.
+
+## The statuses
+
+<figure>
+  <Image src={flusso} alt="Task status flow" />
+  <figcaption>The lifecycle of a task: from <code>todo</code> to <code>closed</code>, with the option to block from several statuses and to reopen a closed task.</figcaption>
+</figure>
+
+| Status | Meaning |
+| :-- | :-- |
+| `todo` | To do: planned, not started yet |
+| `in_progress` | In progress |
+| `to_verify` | Reported done, awaiting review |
+| `closed` | Verified and closed |
+| `blocked` | Stopped by an impediment |
+
+## Move a task forward
+
+Open the task detail: the available buttons depend on the current status.
+
+| From | To | What you do | What it requires |
+| :-- | :-- | :-- | :-- |
+| `todo` | `in_progress` | **Start** | — |
+| `todo` | `blocked` | **Block** | A reason |
+| `in_progress` | `to_verify` | **Submit for review** | An execution note |
+| `in_progress` | `blocked` | **Block** | A reason |
+| `to_verify` | `closed` | **Verify** | A note; only the designated reviewer or an owner |
+| `to_verify` | `blocked` | **Block** | A reason |
+| `closed` | `in_progress` | **Reopen** | A reason; only the designated reviewer or an owner |
+
+Every move records who did it, when, from which status to which status, with the note or reason: the **history** stays visible in the detail.
+
+## The review
+
+Closing requires two distinct acts:
+
+1. the **executor** reports completion with an execution note;
+2. the **reviewer** confirms with their own note.
+
+Only the designated reviewer (or an owner) can close or reopen. Whoever executed the work can never verify it themselves.
+
+## Board and list
+
+<figure>
+  <Image src={board} alt="Board view and list view" />
+  <figcaption>On the left the board, with columns by status; on the right the list, with one row per task.</figcaption>
+</figure>
+
+The **board** groups tasks by status, the **list** orders them by due date and priority. From both you open the detail with the fields and the full history. The filters (text, status, executor, priority) apply to both views and to the CSV export.
+
+## What is not available yet
+
+- Editing a task after creation.
+- Acceptance criteria, long descriptions, checklists.
+- Deleting a task.
+- Attaching photos or documents: the evidence is a **text note**.
+- Rejecting a submission or resuming a blocked task from the interface: those transitions exist only via API and are not yet exposed in the application.

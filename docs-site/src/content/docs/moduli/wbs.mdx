@@ -1,0 +1,43 @@
+---
+title: Struttura progetto (WBS)
+description: Consultare la struttura del progetto importata dal Time Schedule.
+---
+
+import { Image } from 'astro:assets';
+import albero from '../../../assets/albero-wbs.svg';
+
+La vista **Struttura progetto** mostra la gerarchia dei lavori (*Work Breakdown Structure*, WBS) importata dal Time Schedule del cantiere. È una vista **in sola lettura**: serve per orientarsi sulla struttura dei lavori, non per modificarli.
+
+## Cosa vedi
+
+La struttura è un albero di voci identificate da un **codice WBS** (per esempio `1`, `1.1`, `1.1.2`). Per ogni voce puoi vedere:
+
+- il codice e la descrizione;
+- il livello nella gerarchia;
+- l'avanzamento importato;
+- le date di inizio e fine pianificate.
+
+<figure>
+  <Image src={albero} alt="Albero WBS della struttura progetto" />
+  <figcaption>L'albero della struttura progetto: le voci sono nidificate per livello. La voce tratteggiata è un "padre sintetico", ricostruito perché mancava nel Time Schedule.</figcaption>
+</figure>
+
+## Albero e tabella
+
+La vista ha due rappresentazioni:
+
+- **Albero:** gerarchia espandibile e comprimibile, con i pulsanti **Espandi tutto** e **Comprimi tutto**.
+- **Tabella piatta:** una riga per voce, ordinata per livello, con codice, descrizione, padre, livello, ordine, avanzamento e date pianificate.
+
+Quando il Time Schedule non contiene una voce padre, l'applicazione la ricostruisce come **padre sintetico**: è indicata con un contrassegno e ha i campi descrittivi vuoti.
+
+## Chi può fare cosa
+
+- Tutti i membri del cantiere possono **consultare** la struttura.
+- Solo un **owner** può **importare** uno snapshot del Time Schedule, e solo via API.
+
+## Cosa non è ancora disponibile
+
+- Modificare le voci dall'interfaccia.
+- Importare o aggiornare lo snapshot dall'applicazione: l'import è un'operazione amministrativa via API.
+- Calcolare o verificare l'avanzamento: quello mostrato è il valore importato, non un calcolo interno.

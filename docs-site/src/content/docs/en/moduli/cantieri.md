@@ -1,47 +1,43 @@
 ---
 title: Sites
-description: Create, select and organise the sites you work on.
+description: Create and select the sites you work on.
 ---
 
-A **site** is the organising unit in SiteAssistant. Every task and every diary entry belongs to a site and is visible only to its members.
+The **site** is the container for all the work: tasks and diary always belong to a site and are only visible to its members.
 
-## Site list
+## The site list
 
-The **Sites** view shows a card for each site where you have an active role:
+The **Sites** view shows a card for every site you belong to, with:
 
 - code and name;
 - location;
 - start and end dates;
-- total and open task counts.
+- number of total tasks and still-open tasks.
 
-The selected site is highlighted. **Open** sets the working context; from then on Overview, Tasks and Diary show that site only.
+The selected site is highlighted. The **Open** button sets it as the working context: from then on Overview, Tasks, Project structure and Diary show only that site.
 
-## Creating a site
+## Create a site
 
-Creation is restricted to users with the **owner** role on at least one site. The form requires:
+Creating a site is reserved to users with the **owner** role on at least one site. From the **New site** button:
 
 | Field | Required | Notes |
 | :-- | :-- | :-- |
-| Code | Yes | Unique, max 30 characters; also used by the CLI to assign users |
-| Name | Yes | Max 120 characters |
-| Location | No | Max 160 characters |
-| Start date | No | Defaults to today |
-| End date | No | Cannot precede the start date |
+| Code | Yes | Unique, at most 30 characters; also used to assign users |
+| Name | Yes | At most 120 characters |
+| Location | No | At most 160 characters |
+| Start date | No | Pre-filled with today |
+| End date | No | Cannot be before the start date |
 
-Whoever creates the site automatically becomes its **owner**.
+Whoever creates the site automatically becomes its **owner**. An already-used code is rejected: no two sites share the same code.
 
-An existing code is rejected with `409 DUPLICATE_SITE_CODE`: two sites never share a code.
+## Roles and visibility
 
-## Membership and roles
+Membership in a site associates each person with a role: `owner`, `editor`, `verifier` or `viewer`. Without membership the site does not appear in your list. The roles are described in [Users and roles](../../amministrazione/utenti-e-ruoli/).
 
-Membership links a user to a site with a role: `owner`, `editor`, `verifier` or `viewer`. Without membership the site is not listed and its API calls return `403`.
-
-Members are managed through the API (`GET`/`POST /api/sites/{id}/members`) because this version has no dedicated screen. See [Users and roles](../../amministrazione/utenti-e-ruoli/).
-
-## Not available
+## What is not available yet
 
 - Deleting or archiving a site from the interface.
 - Editing a site after creation (name, dates, location).
-- Managing members from the interface.
+- Managing members from a dedicated screen: in this version it is done via API.
 
-These operations do not exist in the current version; they are not hidden, simply absent.
+These operations are not "hidden": they simply do not exist yet in this version.

@@ -1,17 +1,20 @@
 ---
 title: Novità
-description: Modifiche a SiteAssistant che cambiano il prodotto o il modo di usarlo.
+description: Le modifiche a SiteAssistant che cambiano il prodotto o il modo di usarlo.
 ---
 
-Questa pagina è mantenuta dal processo automatico di documentazione: quando cambia il comportamento dell'applicazione, qui compare una voce con la data e le pagine aggiornate. Non è un changelog tecnico — per quello vale la cronologia dei commit nel repository.
+Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è un changelog tecnico: per quello vale la cronologia dei commit nel repository.
 
 ## 9 novembre 2026
 
-- **Verifica e riapertura riservate.** Solo il verificatore designato o un owner possono chiudere, rifiutare o riaprire un'attività. Chi ha sottomesso il lavoro non può mai verificarlo. Vedi [Attività e verifiche](../../moduli/attivita/).
-- **Identità locale con ruoli per cantiere.** Accesso con email e password, sessioni server-side, ruoli `owner`, `editor`, `verifier`, `viewer`. Vedi [Accesso e sessioni](../../guida/accesso/) e [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/).
-- **CLI `create-user`.** Provisioning degli account da riga di comando, password mai in argv, assegnazione iniziale a un cantiere. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/).
-- **Giorno operativo e idempotenza.** Il diario è indicizzato per cantiere, giorno operativo e turno; la creazione attività accetta `Idempotency-Key`. Vedi [Diario di cantiere](../../moduli/diario/) e [API REST](../../riferimento/api/).
-- **Pubblicazione del manuale.** Documentazione IT/EN generata dal repository e pubblicata a ogni modifica. Vedi [Stato del prodotto](../rilascio/).
+- **Struttura progetto (WBS).** Nuova vista in sola lettura con l'albero e la tabella piatta del Time Schedule importato. Vedi [Struttura progetto](../../moduli/wbs/).
+- **Richiesta di accesso autonoma.** Dal modulo di accesso puoi premere **Richiedi accesso** e **Password dimenticata**; l'approvazione avviene da parte di un owner via email. Vedi [Accesso e account](../../guida/accesso/).
+- **Cambio password.** Se stai usando una password temporanea, l'applicazione ti invita a cambiarla. Vedi [Accesso e account](../../guida/accesso/).
+- **Verifica e riapertura riservate.** Solo il verificatore designato o un owner possono chiudere o riaprire un'attività. Chi ha eseguito il lavoro non può mai verificarlo. Vedi [Attività e verifiche](../../moduli/attivita/).
+- **Accesso con ruoli per cantiere.** Accesso con email e password, sessioni che durano 7 giorni, ruoli `owner`, `editor`, `verifier`, `viewer`. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/).
+- **Giorno operativo.** Il diario è organizzato per cantiere, giorno operativo e turno. Vedi [Diario di cantiere](../../moduli/diario/).
+- **Presenze e allegati via API.** Le presenze del personale e gli allegati sono disponibili come proiezioni in sola lettura via API, non ancora nell'interfaccia. Vedi [API REST](../../riferimento/api/).
+- **Manuale rimodellato.** La documentazione è stata riorganizzata per chi usa l'applicazione in cantiere, con guide passo-passo per modulo. Vedi [Stato del prodotto](../rilascio/).
 
 ## Come funziona l'aggiornamento
 

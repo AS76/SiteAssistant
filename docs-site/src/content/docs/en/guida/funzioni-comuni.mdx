@@ -1,0 +1,53 @@
+---
+title: Common features
+description: How the application is organised. Navigation, site selection, language, filters and exports.
+---
+
+import { Image } from 'astro:assets';
+import mappa from '../../../../assets/mappa-moduli-en.svg';
+
+SiteAssistant is organised into **views** that share the same context: the **selected site**. Change the site, and every view shows that site's data.
+
+<figure>
+  <Image src={mappa} alt="Map of the SiteAssistant views" />
+  <figcaption>The SiteAssistant views: Overview, Sites, Tasks, Project structure and Diary. They all share the selected site.</figcaption>
+</figure>
+
+## The header
+
+The header contains, from left to right:
+
+- the **site selector**, which lists only the sites where you have a role;
+- the **navigation** between views: **Overview**, **Sites**, **Tasks**, **Project structure**, **Diary**;
+- the **language selector** (IT / EN);
+- your name and the **Sign out** button.
+
+## Overview
+
+It is the at-a-glance view of the selected site:
+
+- the tasks to keep an eye on, ordered by urgency and due date;
+- review progress: closed tasks out of the total, with the count of blocked and awaiting-review ones;
+- the latest diary entry of the current operational day.
+
+## Tasks: board and list
+
+The **Tasks** view has two representations with the same content:
+
+- **Board:** columns by status, to see at a glance where each task stands.
+- **List:** rows ordered by priority, due date and the people involved.
+
+The available filters are free text, status, executor and priority. On narrow screens the board becomes a horizontal carousel.
+
+## Language
+
+The IT/EN selector translates the interface labels immediately. The content you enter — titles, notes, reasons, diary entries — stays in the language you wrote it in. The chosen language and the selected site are kept in memory until the page is reloaded.
+
+## Exports and printing
+
+- **CSV:** exports the tasks you are currently viewing with the active filters, not the whole archive.
+- **Print diary:** uses the browser's print dialog; there is no server-generated PDF.
+
+## Accessibility and devices
+
+The interface is responsive and keyboard-navigable. The input forms are modal windows with focus management; validation errors are announced in the form's message area.

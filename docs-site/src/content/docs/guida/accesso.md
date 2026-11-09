@@ -1,44 +1,47 @@
 ---
-title: Accesso e sessioni
-description: Come si entra in SiteAssistant, quanto dura una sessione e come si gestiscono i tentativi falliti.
+title: Accesso e account
+description: Come entri in SiteAssistant, come richiedi un account e come gestisci la password.
 ---
 
-SiteAssistant non ha una pagina di registrazione autonoma: gli account vengono creati da un amministratore con la CLI `create-user` (vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/)).
+Entri in SiteAssistant con la tua **email** e la tua **password**. Non esiste una registrazione pubblica: gli account si creano in due modi, entrambi pensati per chi lavora in cantiere.
 
 ## Entrare
 
 1. Apri l'indirizzo dell'applicazione nel browser, da desktop o da smartphone.
-2. Se non esiste una sessione attiva, compare il modulo di **accesso**.
+2. Se non c'è una sessione attiva, compare il modulo **Accedi**.
 3. Inserisci **email** e **password**, poi premi **Accedi**.
-4. Dopo l'accesso vedi solo i cantieri in cui sei membro: il menu in alto permette di scegliere il contesto di lavoro.
+4. Dopo l'accesso vedi solo i cantieri di cui sei membro e puoi scegliere il contesto di lavoro dal menu in alto.
 
 L'email non distingue maiuscole e minuscole: `Mario.Rossi@example.com` e `mario.rossi@example.com` sono lo stesso account.
 
-## Cosa succede quando l'accesso fallisce
+## Se non hai ancora un account
 
-| Risposta | Significato | Cosa fare |
-| :-- | :-- | :-- |
-| **400** | Email o password mancanti o non valide come formato | Ricontrolla i campi |
-| **401** `INVALID_CREDENTIALS` | Credenziali errate, account inesistente o disabilitato | Riprova; se persiste, chiedi all'amministratore |
-| **429** `RATE_LIMITED` | Troppi tentativi falliti | Attendi il tempo indicato in `Retry-After` |
+Dal modulo di accesso puoi premere **Richiedi accesso**:
 
-Il messaggio di errore non rivela se a essere sbagliata sia l'email o la password.
+1. Inserisci la tua email.
+2. La richiesta arriva a chi amministra l'applicazione, che può **approvarla** o **rifiutarla**.
+3. Se viene approvata, ricevi via email una **password temporanea**.
+4. Al primo accesso l'applicazione ti invita a **cambiare la password**.
 
-## Limite sui tentativi
+La richiesta non crea l'account da sola: serve l'approvazione di un amministratore.
 
-Dopo **10 tentativi** nella stessa finestra di **15 minuti**, per la stessa combinazione di indirizzo IP ed email, l'accesso viene bloccato con risposta **429** e header `Retry-After` in secondi. Il limite è per coppia IP + email: un utente bloccato non blocca gli altri.
+## Password dimenticata o da cambiare
 
-## Durata e sicurezza della sessione
+- **Password dimenticata:** dal modulo di accesso premi **Password dimenticata** e inserisci la tua email. Se l'account esiste, ricevi una nuova password temporanea via email.
+- **Cambiare la password:** se stai usando una password temporanea, compare un avviso con il pulsante **Cambia la password**. Serve la password attuale e una nuova password, diversa e di almeno **12 caratteri**. Le altre sessioni vengono chiuse.
 
-- Il server rilascia il cookie **`sa_session`**, valido **7 giorni**.
-- Il cookie è `HttpOnly`, `SameSite=Lax` e `Secure` quando la richiesta arriva su HTTPS.
-- Sul server non è salvato il token in chiaro, ma solo il suo hash SHA-256 nella tabella `sessions`.
-- Ogni operazione registra come attore l'utente autenticato, non un nome digitato a mano.
+Se il servizio email non è attivo, queste operazioni non sono disponibili: l'applicazione lo segnala con un messaggio e ti invita a riprovare.
 
-## Uscire
+## Quando l'accesso non riesce
 
-Il pulsante **Esci** revoca la sessione sul server, invalida il cookie e scarica i dati caricati nella pagina. Chiudere il browser senza uscire non revoca la sessione: questa resta valida fino alla scadenza o al logout.
+Il messaggio di errore non rivela mai se a essere sbagliata è l'email o la password. Dopo **10 tentativi** falliti nella stessa finestra di **15 minuti** (per la stessa email e lo stesso indirizzo di rete), l'accesso viene sospeso per un po': attendi qualche minuto e riprova.
+
+## Quanto dura la sessione
+
+- La sessione dura **7 giorni** e viene ricordata dal browser con un cookie sicuro.
+- Il pulsante **Esci** chiude subito la sessione sul server.
+- Chiudere il browser senza uscire **non** chiude la sessione: resta valida fino alla scadenza o al prossimo logout.
 
 :::note[Sessione scaduta]
-Se il cookie è scaduto o revocato, l'applicazione riporta al modulo di accesso e la navigazione precedente non è recuperabile.
+Se la sessione scade o viene revocata, l'applicazione ti riporta al modulo di accesso.
 :::

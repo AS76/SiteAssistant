@@ -1,53 +1,61 @@
 ---
 title: Welcome
-description: SiteAssistant user manual and technical reference.
+description: The SiteAssistant manual. How to use the application on site.
 template: splash
 hero:
-  tagline: The site control point. Sites, tasks, verification and the site diary in one application.
+  tagline: Your site control point. Sites, tasks, reviews and the daily diary in one application.
+  image:
+    file: ../../../assets/hero-dashboard.jpg
+    alt: Illustration of a site manager checking a progress board on a tablet
   actions:
     - text: Start with the guide
       link: guida/accesso/
       icon: right-arrow
-    - text: Go to the API reference
-      link: riferimento/api/
+    - text: Explore the modules
+      link: moduli/attivita/
       variant: minimal
 ---
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-This documentation describes **SiteAssistant** as it is today: what it does, how it is used on site, and what its limits are. It is written for the people doing the work — site managers, foremen, verifiers — and for whoever administers users and sites.
+This documentation explains **how to use SiteAssistant on site**: what you can do, step by step, and what you cannot. It is written for people working in the field — Site Managers, foremen, reviewers — and for those who administer users and sites.
 
-If you know what you are looking for, use **search** above: it indexes every page in Italian and English.
+If you know what you are looking for, use the **search** box at the top: it indexes every page, in Italian and English.
 
 <CardGrid>
   <LinkCard
-    title="Sign in and sessions"
-    description="How to sign in, how long a session lasts, how to sign out."
+    title="Sign in and account"
+    description="How to sign in, request an account and manage your password."
     href="guida/accesso/"
   />
   <LinkCard
     title="Sites"
-    description="Create a site, select it, manage its members."
+    description="Create a site, select it, understand the roles."
     href="moduli/cantieri/"
   />
   <LinkCard
-    title="Tasks and verification"
-    description="Statuses, transitions, evidence and the separation between executor and verifier."
+    title="Tasks and reviews"
+    description="Statuses, transitions, evidence and the separation between executor and reviewer."
     href="moduli/attivita/"
   />
   <LinkCard
     title="Site diary"
-    description="Operational day, shifts, plan and actuals."
+    description="Operational day, shifts, plan and actual results."
     href="moduli/diario/"
+  />
+  <LinkCard
+    title="Project structure (WBS)"
+    description="Consult the work hierarchy imported from the Time Schedule."
+    href="moduli/wbs/"
   />
 </CardGrid>
 
 ## Where to start
 
-- **I am a new user:** [Sign in and sessions](guida/accesso/), then [Common features](guida/funzioni-comuni/).
-- **I need to set up the first site:** [Sites](moduli/cantieri/) and [Configure a site](amministrazione/configurare-cantiere/).
-- **I need to know who can do what:** [Users and roles](amministrazione/utenti-e-ruoli/).
-- **I am integrating the application:** [REST API](riferimento/api/).
+- **I am a new user:** [Sign in and account](guida/accesso/), then [Common features](guida/funzioni-comuni/).
+- **I need to load the first site:** [Sites](moduli/cantieri/) and [Configure a site](amministrazione/configurare-cantiere/).
+- **I need to understand who can do what:** [Users and roles](amministrazione/utenti-e-ruoli/).
+- **I want to know what is still missing:** [Product status](note/rilascio/).
 
 :::caution[Real data]
 The current version is an operational demo. Do not enter confidential information, credentials or contractual data. See [Product status](note/rilascio/) for the exact scope.

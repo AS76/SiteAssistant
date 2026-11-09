@@ -1,69 +1,51 @@
 ---
 title: Users and roles
-description: Per-site roles, account creation and membership management.
+description: The per-site roles, how accounts are created and how memberships are managed.
 ---
 
-## Roles
+Permissions in SiteAssistant are **per site**, not global: the same person can be `owner` on one site and `viewer` on another. Without membership, the site does not exist for that user.
 
-A role is **per site**, not global. The same person can be `owner` on one site and `viewer` on another. Without membership, that site does not exist for the user.
+## The roles
 
 | Capability | owner | editor | verifier | viewer |
 | :-- | :-: | :-: | :-: | :-: |
 | View sites, tasks and diary | Yes | Yes | Yes | Yes |
-| Create and advance tasks | Yes | Yes | Yes | No |
+| Create and move tasks | Yes | Yes | Yes | No |
 | Write the diary | Yes | Yes | Yes | No |
-| Verify or reject | Yes* | No | Yes* | No |
-| Reopen a closed task | Yes* | No | Yes* | No |
+| Verify or reopen | Yes* | No | Yes* | No |
 | Manage site members | Yes | No | No | No |
 | Create new sites | Yes | No | No | No |
 
-\* Only when designated verifier of that task, and never on their own submission. An owner may verify tasks where they are not the designated verifier, but can never self-verify.
+\* Only if designated reviewer of the task, and never on their own work. An owner can verify tasks they are not the designated reviewer of, but cannot verify what they executed themselves.
 
-## Creating an account
+## How an account is created
 
-Accounts are created from the command line on the server:
+An account can be created in two ways:
+
+1. **Self-service request.** From the sign-in form anyone can press **Request access** and enter their email; an owner approves it and the user receives a temporary password (see [Sign in and account](../../guida/accesso/)).
+2. **Administrator creation.** Whoever manages the server can create accounts and immediately assign them to a site with the `create-user` CLI:
 
 ```sh
 npm run create-user -- \
   --email mario.rossi@example.com \
   --name "Mario Rossi" \
   --password-stdin \
-  --site SITE01 \
+  --site CANTIERE01 \
   --role editor
 ```
 
-Rules:
+Main rules:
 
-- the password is read from a TTY or `--password-stdin`, **never** as an argument (it would end up in shell history);
-- minimum **12 characters**;
-- email is normalised to lowercase;
-- `--site` and `--role` go together; the site code must exist;
-- allowed roles: `owner`, `editor`, `verifier`, `viewer`;
-- without `--site` the user is created but linked to no site.
-
-To create a user without assigning a site:
-
-```sh
-npm run create-user -- --email mario.rossi@example.com --name "Mario Rossi" --password-stdin
-```
+- the password is read from a TTY or from `--password-stdin`, **never** as an argument;
+- at least **12 characters**;
+- the email is normalised to lowercase;
+- `--site` and `--role` must be given together; the site code must exist;
+- the allowed roles are `owner`, `editor`, `verifier`, `viewer`.
 
 ## Managing members
 
-The API exposes membership management:
+Listing and editing members is done via API (`GET`/`POST /api/sites/{id}/members`) and is reserved to **owners**. In this version the interface has **no** members screen. An owner cannot remove or demote themselves.
 
-- `GET /api/sites/{id}/members` — members and roles (owner only);
-- `POST /api/sites/{id}/members` — set or remove a role.
+## Identity and security
 
-Request body:
-
-```json
-{ "user_id": "user-uuid", "role": "verifier" }
-```
-
-With `"role": null` the user is removed from the site. An owner cannot downgrade themselves: the server responds `400 VALIDATION_ERROR`.
-
-This version has **no** members screen in the interface: management goes through the API.
-
-## Authentication and identity
-
-There is no self-registration, password recovery or email sending from the application. Passwords are stored with `scrypt`; sessions are described in [Sign in and sessions](../../guida/accesso/).
+Passwords are stored with `scrypt`; sessions are described in [Sign in and account](../../guida/accesso/). There is no autonomous password recovery beyond the "Forgot password" flow described on the same page.

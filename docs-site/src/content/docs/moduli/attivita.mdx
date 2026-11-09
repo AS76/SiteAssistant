@@ -1,0 +1,83 @@
+---
+title: Attività e verifiche
+description: Creare attività, farle avanzare di stato e verificarle.
+---
+
+import { Image } from 'astro:assets';
+import flusso from '../../../assets/flusso-stati-attivita.svg';
+import board from '../../../assets/board-elenco.svg';
+
+L'**attività** è l'unità di lavoro in cantiere. Ogni attività appartiene a un cantiere, ha un **esecutore** e un **verificatore** distinti, e avanza solo attraverso passaggi consentiti. La regola di fondo: **chi esegue non può verificare il proprio lavoro**.
+
+## Creare un'attività
+
+Dal pulsante **Nuova attività**:
+
+| Campo | Obbligatorio | Note |
+| :-- | :-- | :-- |
+| Titolo | Sì | Massimo 180 caratteri |
+| Area | No | Massimo 100 caratteri |
+| Impresa | No | Massimo 100 caratteri |
+| Esecutore | Sì | Chi esegue il lavoro |
+| Verificatore | Sì | Chi controlla e chiude il lavoro |
+| Priorità | Sì | `normal`, `high`, `urgent` |
+| Scadenza | No | Data, già impostata a oggi |
+
+L'attività nasce in stato `todo`. **Esecutore e verificatore devono essere due persone diverse**: l'applicazione rifiuta l'assegnazione se coincidono.
+
+## Gli stati
+
+<figure>
+  <Image src={flusso} alt="Flusso degli stati di un'attività" />
+  <figcaption>Il ciclo di vita di un'attività: da <code>todo</code> a <code>closed</code>, con la possibilità di bloccare da più stati e di riaprire un'attività chiusa.</figcaption>
+</figure>
+
+| Stato | Significato |
+| :-- | :-- |
+| `todo` | Da fare: pianificata, non ancora avviata |
+| `in_progress` | In corso |
+| `to_verify` | Eseguita, in attesa di verifica |
+| `closed` | Verificata e chiusa |
+| `blocked` | Ferma per un impedimento |
+
+## Far avanzare un'attività
+
+Apri il dettaglio dell'attività: i pulsanti disponibili dipendono dallo stato corrente.
+
+| Da | A | Cosa fai | Cosa serve |
+| :-- | :-- | :-- | :-- |
+| `todo` | `in_progress` | **Avvia** | — |
+| `todo` | `blocked` | **Blocca** | Motivazione |
+| `in_progress` | `to_verify` | **Sottoponi a verifica** | Nota di esecuzione |
+| `in_progress` | `blocked` | **Blocca** | Motivazione |
+| `to_verify` | `closed` | **Verifica** | Nota; solo il verificatore assegnato o un owner |
+| `to_verify` | `blocked` | **Blocca** | Motivazione |
+| `closed` | `in_progress` | **Riapri** | Motivazione; solo il verificatore assegnato o un owner |
+
+Ogni passaggio registra chi l'ha fatto, quando, da quale stato a quale stato, con la nota o la motivazione: la **cronologia** resta visibile nel dettaglio.
+
+## La verifica
+
+La chiusura richiede due atti distinti:
+
+1. l'**esecutore** dichiara il completamento con una nota di esecuzione;
+2. il **verificatore** conferma con la propria nota.
+
+Solo il verificatore assegnato (o un owner) può chiudere o riaprire. Chi ha eseguito il lavoro non può mai verificarlo da solo.
+
+## Bacheca ed elenco
+
+<figure>
+  <Image src={board} alt="Vista bacheca e vista elenco" />
+  <figcaption>A sinistra la bacheca, con le colonne per stato; a destra l'elenco, con una riga per attività.</figcaption>
+</figure>
+
+La **bacheca** raggruppa le attività per stato, l'**elenco** le ordina per scadenza e priorità. Da entrambe si apre il dettaglio con i campi e la cronologia completa. I filtri (testo, stato, esecutore, priorità) si applicano a entrambe le viste e all'esportazione CSV.
+
+## Cosa non è ancora disponibile
+
+- Modificare un'attività dopo la creazione.
+- Criteri di accettazione, descrizioni lunghe, checklist.
+- Eliminare un'attività.
+- Allegare foto o documenti: l'evidenza è una **nota testuale**.
+- Rifiutare una sottomissione (rimandarla a `in_progress`) o riprendere un'attività bloccata: queste transizioni esistono solo via API, non sono ancora esposte nell'applicazione.

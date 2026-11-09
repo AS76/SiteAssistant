@@ -1,84 +1,83 @@
 ---
 title: API REST
-description: Endpoint, autenticazione, errori e idempotenza dell'API di SiteAssistant.
+description: Riferimento degli endpoint per chi integra o amministra SiteAssistant.
 ---
 
-L'API è un servizio HTTP in Node.js senza framework. Il frontend statico la chiama direttamente.
+:::tip[Questa pagina è per chi integra]
+Se usi soltanto la webapp, non ti serve: questa è la documentazione tecnica dell'interfaccia HTTP che l'applicazione usa "dietro le quinte", utile per chi integra SiteAssistant o per chi lo amministra dal server.
+:::
 
-## Base URL e CORS
+L'API è un servizio HTTP che il frontend chiama direttamente. Non esistono token API: l'autenticazione usa il cookie di sessione `sa_session`, ottenuto dal login e inviato automaticamente dal browser.
 
-- Base predefinita del client: `https://api.siteassistant.asassi.cloud`.
-- Con `<meta name="siteassistant-api-base" content="/">` il client usa la stessa origine che serve i file statici.
-- Il server autorizza con CORS solo l'origine `https://siteassistant.asassi.cloud`, con credenziali.
-- Le risposte sono sempre `Cache-Control: no-store`.
+## Autenticazione e account
 
-## Autenticazione
-
-Non esistono token API. L'autenticazione avviene con il cookie di sessione `sa_session`, ottenuto da `POST /api/auth/login` e inviato automaticamente dal browser con `credentials: 'include'`.
-
-## Endpoint
-
-| Metodo | Percorso | Ruolo richiesto | Note |
+| Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/health` | nessuno | `{ "status": "ok" }` |
+| GET | `/api/health` | nessuno | Stato del servizio |
 | POST | `/api/auth/login` | nessuno | `{ email, password }`; imposta il cookie |
 | GET | `/api/auth/me` | autenticato | Utente e ruoli per cantiere |
 | POST | `/api/auth/logout` | autenticato | Revoca la sessione |
-| GET | `/api/sites` | autenticato | Solo i cantieri in cui sei membro |
+| POST | `/api/auth/request` | nessuno | Richiesta di accesso `{ email }` |
+| GET/POST | `/api/auth/request/decide` | owner (via link email) | Approva o rifiuta una richiesta |
+| POST | `/api/auth/password` | autenticato | Cambio password |
+| POST | `/api/auth/forgot` | nessuno | Reset password `{ email }` |
+
+## Cantieri
+
+| Metodo | Percorso | Accesso | Note |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/sites` | autenticato | Solo i cantieri di cui sei membro |
 | POST | `/api/sites` | owner | `code`, `name`, `location`, `start_date`, `end_date` |
 | GET | `/api/sites/{id}` | membro | Dettaglio cantiere |
 | GET | `/api/sites/{id}/members` | owner | Elenco membri e ruoli |
 | POST | `/api/sites/{id}/members` | owner | `{ user_id, role }`; `role: null` rimuove |
+
+## Attività
+
+| Metodo | Percorso | Accesso | Note |
+| :-- | :-- | :-- | :-- |
 | GET | `/api/tasks?siteId=&status=` | membro | Filtri opzionali |
 | POST | `/api/tasks` | owner/editor/verifier | Supporta `Idempotency-Key` |
 | GET | `/api/tasks/{id}` | membro | Include la cronologia eventi |
 | POST | `/api/tasks/{id}/transition` | owner/editor/verifier | `{ to, note?, reason? }` |
+
+## Diario
+
+| Metodo | Percorso | Accesso | Note |
+| :-- | :-- | :-- | :-- |
 | GET | `/api/diary?siteId=` | membro | Voci del cantiere |
 | POST | `/api/diary` | owner/editor/verifier | Una voce per cantiere/data/turno |
 
-## Corpo delle richieste
+## Struttura progetto (WBS) e presenze (HR)
 
-`Content-Type: application/json` è obbligatorio. Il corpo massimo è **65.536 caratteri**; oltre, la richiesta è rifiutata con `400 INVALID_JSON`.
+Queste aree sono esposte in **sola lettura**; l'import degli snapshot è riservato agli owner e avviene solo via API.
 
-Campi data in formato `YYYY-MM-DD`. Le date di diario sono calcolate sul giorno operativo, non sulla mezzanotte.
+| Metodo | Percorso | Accesso | Note |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/wbs?site_id=` | membro | Albero della struttura |
+| GET | `/api/wbs?site_id=&flat=1` | membro | Tabella piatta |
+| GET | `/api/wbs/{id}` | membro | Nodo con figli immediati |
+| POST | `/api/wbs/import` | owner | Promuove uno snapshot Time Schedule |
+| GET | `/api/employees?site_id=` | membro | Dipendenti del cantiere |
+| GET | `/api/employees/{id}` | membro | Dipendente con i suoi work days |
+| GET | `/api/work-days?site_id=&employee_id=&from=&to=` | membro | Presenze filtrate per intervallo |
+| POST | `/api/employees/import` | owner | Promuove uno snapshot presenze |
 
-## Idempotenza
+## Allegati
 
-`POST /api/tasks` accetta l'header `Idempotency-Key`. Due richieste con la stessa chiave e lo stesso corpo restituiscono la stessa risposta senza creare due attività; con la stessa chiave e corpo diverso la richiesta viene rifiutata. La chiave è legata all'utente che l'ha inviata.
+Gli allegati a attività, diario e cantiere sono disponibili **solo via API**; l'interfaccia non li espone ancora.
+
+| Metodo | Percorso | Accesso | Note |
+| :-- | :-- | :-- | :-- |
+| POST | `/api/attachments` | owner/editor | Carica un file (base64) |
+| GET | `/api/attachments?site_id=&entity_type=&entity_id=` | membro | Metadati degli allegati |
+| GET | `/api/attachments/{id}` | membro | Scarica i byte |
+| DELETE | `/api/attachments/{id}` | owner/editor | Elimina |
 
 ## Errori
 
-Formato:
+Le risposte d'errore hanno la forma `{ "error": "messaggio", "code": "CODICE" }`. I codici più comuni: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` e `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `RATE_LIMITED` (429).
 
-```json
-{ "error": "Human readable message.", "code": "ERROR_CODE" }
-```
-
-| Codice | HTTP | Significato |
-| :-- | :-- | :-- |
-| `VALIDATION_ERROR` | 400 | Campo mancante o non valido |
-| `INVALID_JSON` | 400 | Content-Type o corpo non validi |
-| `INVALID_CREDENTIALS` | 401 | Login fallito |
-| `FORBIDDEN` | 403 | Ruolo insufficiente sul cantiere, o transizione riservata al verificatore designato o a un owner |
-| `NOT_FOUND` | 404 | Risorsa o rotta inesistente |
-| `DUPLICATE_SITE_CODE` | 409 | Codice cantiere già usato |
-| `DUPLICATE_DIARY` | 409 | Voce già presente per cantiere/data/turno |
-| `INVALID_TRANSITION` | 409 | Transizione non ammessa |
-| `SEPARATE_PEOPLE_REQUIRED` | 400 | Esecutore e verificatore coincidono |
-| `NOTE_REQUIRED` / `REASON_REQUIRED` | 400 | Nota o motivazione obbligatoria |
-| `RATE_LIMITED` | 429 | Troppi tentativi di login |
-| `INTERNAL_ERROR` | 500 | Errore non gestito |
-
-## Esempio
-
-```sh
-curl -s -X POST https://api.siteassistant.asassi.cloud/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -c cookies.txt \
-  -d '{"email":"mario.rossi@example.com","password":"..."}'
-
-curl -s https://api.siteassistant.asassi.cloud/api/tasks?siteId=UUID \
-  -b cookies.txt
-```
-
-L'API non espone OpenAPI: questa tabella è il contratto corrente. Per lo schema dati completo vedi `database/README.md` nel repository.
+:::note
+L'API non espone uno schema OpenAPI: le tabelle qui sopra sono il contratto corrente. Per lo schema dati completo vedi `database/README.md` nel repository.
+:::

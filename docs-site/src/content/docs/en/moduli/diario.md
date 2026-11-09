@@ -1,46 +1,45 @@
 ---
 title: Site diary
-description: How the shift plan and actuals are recorded, and how the operational day works.
+description: Record the shift plan and results, and how the operational day works.
 ---
 
-The **diary** records, per shift, what was planned, what was done, which impediments came up and what carries over to the next shift.
+The **diary** tells the story of every shift: what was planned, what was actually done, which impediments came up and what is handed over to the next shift. It is a handover, not a formal record.
 
 ## Where it is
 
-The **Diary** view lists entries for the selected site on the current reporting date. **New entry** opens the form.
+The **Diary** view shows the entries of the selected site for the chosen **operational day**. From here you open the **Add contribution** form.
 
-## Entry fields
+## Record an entry
+
+From the **Add contribution** button:
 
 | Field | Required | Notes |
 | :-- | :-- | :-- |
 | Shift | Yes | `day` or `night` |
 | Plan | No | What was planned for the shift |
-| Actuals | No | What was actually done |
-| Impediments | No | Blocks, interference, non-conformities |
-| Next step | No | What carries over to the next shift |
-| Date | Yes | Operational day computed by the application |
+| Actual results | No | What was actually executed |
+| Blockers | No | Impediments, interferences, variances |
+| Next step | No | What is handed over to the next shift |
 
-There is exactly **one entry per site, operational day and shift**. A second insert on the same combination is rejected with `409 DUPLICATE_DIARY`.
+The operational day is computed by the application from the site and the time. There is **one entry per site, day and shift**: a second entry on the same combination is rejected.
 
-## Operational day
+## The operational day
 
 The operational day does not start at midnight:
 
-- it begins at the configured cutoff time, **06:00** by default in the **Europe/Rome** time zone;
-- it ends at 05:59:59 the following day;
-- a night shift belongs to the operational day in which it started.
+- it starts at the configured cutoff time, by default **06:00** in the **Europe/Rome** timezone;
+- it ends at 05:59:59 of the following day;
+- a night shift belongs to the day it started on.
 
-Example: a night shift starting on 12 November at 22:00 and ending on 13 November at 06:00 is recorded on **12 November**.
-
-Time zone and cutoff belong to the individual diary entry. The interface uses the defaults; to set them differently you must go through the API (`time_zone`, `day_cutoff_time`), as described in [REST API](../../riferimento/api/).
+Example: a night shift starting on 12 November at 22:00 and ending on the 13th at 06:00 is recorded on **12 November**.
 
 ## Printing
 
-The diary is printed with the browser print dialog. There is no server-side PDF preview and no archive of printouts.
+The **Print diary** button uses the browser's print dialog. There is no server-generated PDF and no archive of prints.
 
-## Not available
+## What is not available yet
 
 - Editing or deleting an entry after saving.
-- An author other than the authenticated user.
-- Linking a diary entry to tasks.
-- Attachments or photos.
+- Linking a diary entry to a task.
+- Attaching photos or documents.
+- Closing or formally signing the diary: contributions stay open and are saved on the server.

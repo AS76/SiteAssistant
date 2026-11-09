@@ -1,82 +1,83 @@
 ---
 title: REST API
-description: Endpoints, authentication, errors and idempotency of the SiteAssistant API.
+description: Endpoint reference for those who integrate with or administer SiteAssistant.
 ---
 
-The API is a plain Node.js HTTP service. The static frontend calls it directly.
+:::tip[This page is for integrators]
+If you only use the web app, you do not need this: it is the technical documentation of the HTTP interface the application uses behind the scenes, useful for those who integrate SiteAssistant or administer it from the server.
+:::
 
-## Base URL and CORS
+The API is an HTTP service that the frontend calls directly. There are no API tokens: authentication uses the `sa_session` session cookie, obtained at sign-in and sent automatically by the browser.
 
-- Default client base: `https://api.siteassistant.asassi.cloud`.
-- With `<meta name="siteassistant-api-base" content="/">` the client uses the same origin that serves the static files.
-- CORS allows only `https://siteassistant.asassi.cloud`, with credentials.
-- Responses are always `Cache-Control: no-store`.
+## Authentication and account
 
-## Authentication
-
-There are no API tokens. Authentication uses the `sa_session` cookie obtained from `POST /api/auth/login` and sent by the browser with `credentials: 'include'`.
-
-## Endpoints
-
-| Method | Path | Role | Notes |
+| Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/health` | none | `{ "status": "ok" }` |
+| GET | `/api/health` | none | Service status |
 | POST | `/api/auth/login` | none | `{ email, password }`; sets the cookie |
 | GET | `/api/auth/me` | authenticated | User and per-site roles |
 | POST | `/api/auth/logout` | authenticated | Revokes the session |
-| GET | `/api/sites` | authenticated | Only sites you are a member of |
+| POST | `/api/auth/request` | none | Access request `{ email }` |
+| GET/POST | `/api/auth/request/decide` | owner (via email link) | Approve or reject a request |
+| POST | `/api/auth/password` | authenticated | Change password |
+| POST | `/api/auth/forgot` | none | Reset password `{ email }` |
+
+## Sites
+
+| Method | Path | Access | Notes |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/sites` | authenticated | Only the sites you belong to |
 | POST | `/api/sites` | owner | `code`, `name`, `location`, `start_date`, `end_date` |
 | GET | `/api/sites/{id}` | member | Site detail |
 | GET | `/api/sites/{id}/members` | owner | Members and roles |
 | POST | `/api/sites/{id}/members` | owner | `{ user_id, role }`; `role: null` removes |
+
+## Tasks
+
+| Method | Path | Access | Notes |
+| :-- | :-- | :-- | :-- |
 | GET | `/api/tasks?siteId=&status=` | member | Optional filters |
 | POST | `/api/tasks` | owner/editor/verifier | Supports `Idempotency-Key` |
-| GET | `/api/tasks/{id}` | member | Includes event history |
+| GET | `/api/tasks/{id}` | member | Includes the event history |
 | POST | `/api/tasks/{id}/transition` | owner/editor/verifier | `{ to, note?, reason? }` |
+
+## Diary
+
+| Method | Path | Access | Notes |
+| :-- | :-- | :-- | :-- |
 | GET | `/api/diary?siteId=` | member | Site entries |
 | POST | `/api/diary` | owner/editor/verifier | One entry per site/date/shift |
 
-## Request bodies
+## Project structure (WBS) and attendance (HR)
 
-`Content-Type: application/json` is mandatory. The maximum body is **65,536 characters**; beyond that the request fails with `400 INVALID_JSON`.
+These areas are exposed **read-only**; importing snapshots is reserved to owners and only happens via API.
 
-Dates use `YYYY-MM-DD`. Diary dates are operational days, not midnight-to-midnight dates.
+| Method | Path | Access | Notes |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/wbs?site_id=` | member | Structure tree |
+| GET | `/api/wbs?site_id=&flat=1` | member | Flat table |
+| GET | `/api/wbs/{id}` | member | Node with immediate children |
+| POST | `/api/wbs/import` | owner | Promotes a Time Schedule snapshot |
+| GET | `/api/employees?site_id=` | member | Site employees |
+| GET | `/api/employees/{id}` | member | Employee with their work days |
+| GET | `/api/work-days?site_id=&employee_id=&from=&to=` | member | Attendance filtered by range |
+| POST | `/api/employees/import` | owner | Promotes an attendance snapshot |
 
-## Idempotency
+## Attachments
 
-`POST /api/tasks` accepts an `Idempotency-Key` header. Two requests with the same key and body return the same response without creating a second task; the same key with a different body is rejected. The key is bound to the user who sent it.
+Attachments on tasks, diary and sites are available **only via API**; the interface does not expose them yet.
+
+| Method | Path | Access | Notes |
+| :-- | :-- | :-- | :-- |
+| POST | `/api/attachments` | owner/editor | Upload a file (base64) |
+| GET | `/api/attachments?site_id=&entity_type=&entity_id=` | member | Attachment metadata |
+| GET | `/api/attachments/{id}` | member | Download the bytes |
+| DELETE | `/api/attachments/{id}` | owner/editor | Delete |
 
 ## Errors
 
-```json
-{ "error": "Human readable message.", "code": "ERROR_CODE" }
-```
+Error responses have the shape `{ "error": "message", "code": "CODE" }`. The most common codes: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` and `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `RATE_LIMITED` (429).
 
-| Code | HTTP | Meaning |
-| :-- | :-- | :-- |
-| `VALIDATION_ERROR` | 400 | Missing or invalid field |
-| `INVALID_JSON` | 400 | Invalid content type or body |
-| `INVALID_CREDENTIALS` | 401 | Login failed |
-| `FORBIDDEN` | 403 | Insufficient site role, or transition reserved to the designated verifier or a site owner |
-| `NOT_FOUND` | 404 | Unknown resource or route |
-| `DUPLICATE_SITE_CODE` | 409 | Site code already used |
-| `DUPLICATE_DIARY` | 409 | Entry already exists for site/date/shift |
-| `INVALID_TRANSITION` | 409 | Transition not allowed |
-| `SEPARATE_PEOPLE_REQUIRED` | 400 | Executor and verifier are the same person |
-| `NOTE_REQUIRED` / `REASON_REQUIRED` | 400 | Note or reason missing |
-| `RATE_LIMITED` | 429 | Too many sign-in attempts |
-| `INTERNAL_ERROR` | 500 | Unhandled error |
-
-## Example
-
-```sh
-curl -s -X POST https://api.siteassistant.asassi.cloud/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -c cookies.txt \
-  -d '{"email":"mario.rossi@example.com","password":"..."}'
-
-curl -s https://api.siteassistant.asassi.cloud/api/tasks?siteId=UUID \
-  -b cookies.txt
-```
-
-The API exposes no OpenAPI document: this table is the current contract. For the data schema see `database/README.md` in the repository.
+:::note
+The API does not expose an OpenAPI schema: the tables above are the current contract. For the full data schema see `database/README.md` in the repository.
+:::

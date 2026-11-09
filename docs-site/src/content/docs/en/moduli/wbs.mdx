@@ -1,0 +1,43 @@
+---
+title: Project structure (WBS)
+description: Consult the project structure imported from the Time Schedule.
+---
+
+import { Image } from 'astro:assets';
+import albero from '../../../../assets/albero-wbs.svg';
+
+The **Project structure** view shows the work hierarchy (*Work Breakdown Structure*, WBS) imported from the site's Time Schedule. It is a **read-only** view: it helps you find your way around the work structure, not edit it.
+
+## What you see
+
+The structure is a tree of items identified by a **WBS code** (for example `1`, `1.1`, `1.1.2`). For each item you can see:
+
+- the code and description;
+- the level in the hierarchy;
+- the imported progress;
+- the planned start and finish dates.
+
+<figure>
+  <Image src={albero} alt="WBS tree of the project structure" />
+  <figcaption>The project structure tree: items are nested by level. The dashed item is a "synthetic parent", rebuilt because it was missing from the Time Schedule.</figcaption>
+</figure>
+
+## Tree and table
+
+The view has two representations:
+
+- **Tree:** an expandable and collapsible hierarchy, with the **Expand all** and **Collapse all** buttons.
+- **Flat table:** one row per item, ordered by level, with code, description, parent, level, order, progress and planned dates.
+
+When the Time Schedule does not contain a parent item, the application rebuilds it as a **synthetic parent**: it is marked and its descriptive fields are empty.
+
+## Who can do what
+
+- Every site member can **consult** the structure.
+- Only an **owner** can **import** a Time Schedule snapshot, and only via API.
+
+## What is not available yet
+
+- Editing the items from the interface.
+- Importing or updating the snapshot from the application: the import is an administrative operation via API.
+- Computing or checking the progress: what is shown is the imported value, not an internal calculation.

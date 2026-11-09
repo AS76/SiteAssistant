@@ -48,6 +48,7 @@ export default defineConfig({
             { label: 'Cantieri', translations: { en: 'Sites' }, slug: 'moduli/cantieri' },
             { label: 'Attività e verifiche', translations: { en: 'Tasks and verification' }, slug: 'moduli/attivita' },
             { label: 'Diario di cantiere', translations: { en: 'Site diary' }, slug: 'moduli/diario' },
+            { label: 'Struttura progetto (WBS)', translations: { en: 'Project structure (WBS)' }, slug: 'moduli/wbs' },
           ],
         },
         {
