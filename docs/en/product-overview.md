@@ -22,30 +22,41 @@ The primary target roles are:
 
 ---
 
-## 3. Current Capabilities (Implemented in Demo)
+## 3. Current Capabilities (Implemented Features)
 
-The current live demonstration release (static frontend communicating with a REST API backed by PostgreSQL or SQLite) delivers four core modules:
+The current live demonstration release (static frontend communicating with a REST API backed by PostgreSQL or SQLite) delivers five core functional areas:
 
-### 3.1 Site Management
-- Registration of construction sites featuring a unique site code, descriptive name, location, and planned start/end dates.
-- Active site selector establishing the working context for all subsequent operations.
+### 3.1 Authentication & Per-Site Access Control
+- **Application Sign-In:** authentication via local credentials (email and scrypt-hashed password), secure sessions stored in `sessions` and accessed via the `sa_session` cookie (7-day TTL, HttpOnly, SameSite=Lax, Secure over HTTPS), with brute-force rate limiting (max 10 attempts per 15 minutes with HTTP 429 status handling).
+- **Per-Site Roles (`site_members`):** granular authorization configured on each site:
+  - `owner`: full control over tasks and logbook, membership management, and site creation;
+  - `editor`: task creation/updates, submission for verification, and diary contributions;
+  - `verifier`: task updates, diary contributions, and verification acceptance or rejection;
+  - `viewer`: read-only inspection.
+- **Authoritative Actor Identity:** the acting identity for every transition and audit event is derived authoritatively from the active session and cannot be forged or overridden by the client.
 
-### 3.2 Task Tracking
+### 3.2 Site Management
+- Registration of construction sites featuring a unique site code, descriptive name, location, and planned start/end dates (restricted to users holding an `owner` role).
+- Active site selector establishing the working context (scoped strictly to sites where the authenticated user holds an active membership).
+
+### 3.3 Task Tracking
 - Creation of tasks assigned to a specific site, containing: title, plant area, assigned subcontractor company, executor, designated verifier, priority level (`normal`, `high`, `urgent`), and due date.
 - **Role separation rule:** the application strictly requires the executor and verifier to be distinct persons upon creation.
 - List view and board view; on mobile the board scrolls horizontally with snap between columns. Filterable by status and site.
 - CSV export of loaded tasks with built-in formula-injection sanitization.
 
-### 3.3 State Machine and Verification Workflow
+### 3.4 State Machine and Verification Workflow
 Task lifecycle is strictly governed by a server-validated finite state machine with immutable audit trail logging (`task_events`):
 - `todo` $\rightarrow$ can transition to `in_progress` or `blocked` (mandatory blocking reason).
 - `in_progress` $\rightarrow$ can transition to `to_verify` (mandatory execution note) or `blocked` (mandatory blocking reason).
-- `to_verify` $\rightarrow$ can transition to `closed` (mandatory completion note; **strictly restricted to the designated verifier**) or `blocked`.
+- `to_verify` $\rightarrow$ can transition to `closed` or be rejected back to `in_progress`.
+- **Anti-Self-Review Enforcement:** review (approval or rejection) can only be performed by a `verifier` or `owner` who **did not submit the task for verification** (`submitted_by_id`).
 - `closed` $\rightarrow$ can be reopened to `in_progress` (mandatory reopening reason).
-- `blocked` $\rightarrow$ holds the task until unblocked, logging the reason.
+- `blocked` $\rightarrow$ records the blocking reason and origin status, allowing clean resumption.
 
-### 3.4 Operational Daily Logbook (Site Diary)
+### 3.5 Operational Daily Logbook (Site Diary)
 - Recording of daily site activities structured by **site**, **operational date** (format `YYYY-MM-DD`), and **shift** (`day` / `night`).
+- Automatic operational day calculation based on the local cutoff rule (defaulting to 06:00 local time) with preserved timezone metadata (`Europe/Rome`).
 - Four structured sections:
   1. *Plan*: tasks scheduled for the shift.
   2. *Actual*: summary of work actually performed.
@@ -61,7 +72,8 @@ Task lifecycle is strictly governed by a server-validated finite state machine w
 The current deployment is an architectural and functional prototype published to validate workflow mechanics with stakeholders. Key boundaries include:
 
 - **Synthetic test data:** all database records and demonstration profiles are entirely fictional.
-- **No application-level authentication:** access to the demo environment is protected at the ingress perimeter via HTTP Basic Auth. Inside the app, individual user accounts do not yet exist; person fields (`executor`, `verifier`, transition actors) are free-text strings claimed by the operator.
+- **Perimeter and application security:** access to the environment is protected at the edge (HTTP Basic Auth) and handled at the application layer with personal credentials and per-site roles.
+- **User provisioning via CLI:** user account creation is handled through a dedicated administrative CLI tool (`server/create-user.mjs`), while site memberships are managed via API for `owner` users. There is no public self-registration or password-reset screen in the web UI.
 - **Text-only evidence:** handovers and verifications currently capture structured text notes; file attachments (photos, delivery slips, test sheets) are not yet wired up.
 - **Bilingual interface:** UI text switches dynamically between English and Italian; user-submitted text content remains in the input language.
 
@@ -70,7 +82,7 @@ The current deployment is an architectural and functional prototype published to
 ## 5. Planned Roadmap
 
 Architectural specifications already defined for future increments include:
-1. **User Authentication & Role-Based Access Control:** introduction of local identities (email + scrypt password) or Google OAuth, with site-level permission roles (`owner`, `editor`, `verifier`, `viewer`).
-2. **Configurable Operational Day Cutoff:** automated operational date calculation with site-specific cutoff times (defaulting to 06:00 local time) and seamless cross-midnight night shift attribution.
+1. **Google OAuth Integration:** federated single sign-on alongside local password credentials.
+2. **Web UI for Member Management:** visual interface allowing site owners to invite users and adjust roles directly from the browser.
 3. **Object Storage Attachments (S3):** attachment upload module targeting a dedicated S3-compatible object bucket with cryptographic SHA-256 integrity verification and versioned manifests.
 4. **Data Ingestion Pipeline:** structured import jobs for schedules, timesheets, and external deviation lists, maintaining strict separation between official third-party snapshots and internal site annotations.
