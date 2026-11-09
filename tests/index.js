@@ -10,3 +10,6 @@ import './repository.test.mjs';
 import './parity.test.mjs';
 import './server.test.mjs';
 import './schema.test.mjs';
+
+import './auth.test.mjs';
+import './auth-schema.test.mjs';

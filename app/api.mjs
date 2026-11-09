@@ -14,12 +14,13 @@ export class ApiError extends Error {
 }
 
 // Override via <meta name="siteassistant-api-base" content="…"> or createApi({ baseUrl }).
-export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.fetch } = {}) {
+export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.fetch, onUnauthorized = () => {} } = {}) {
   const base = baseUrl.replace(/\/+$/, '');
   async function request(path, input) {
     let response;
     try {
-      response = await fetchImpl(`${base}${path}`, input === undefined ? {} : {
+      response = await fetchImpl(`${base}${path}`, input === undefined ? { credentials: 'include' } : {
+        credentials: 'include',
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
       });
     } catch {
@@ -28,6 +29,7 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     let data;
     try { data = await response.json(); }
     catch { throw new ApiError('apiError', { status: response.status, code: 'INVALID_RESPONSE' }); }
+    if (response.status === 401 && path !== '/api/auth/login') onUnauthorized();
     if (!response.ok) throw new ApiError(data.error || 'apiError', { status: response.status, code: data.code || 'API_ERROR' });
     return data;
   }
@@ -36,6 +38,9 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     return params.size ? `?${params}` : '';
   };
   return {
+    login: input => request('/api/auth/login', input),
+    logout: () => request('/api/auth/logout', {}),
+    me: () => request('/api/auth/me'),
     listSites: async () => (await request('/api/sites')).map(siteFromApi),
     createSite: async input => siteFromApi(await request('/api/sites', sitePayload(input))),
     listTasks: async (filters = {}) => (await request(`/api/tasks${query(filters)}`)).map(taskFromApi),

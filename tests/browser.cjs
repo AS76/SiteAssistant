@@ -51,6 +51,19 @@ async function run() {
       Storage.prototype.getItem = Storage.prototype.setItem = () => { throw new Error('Storage is disabled'); };
     });
     await page.goto(origin);
+    await page.waitForSelector('#login-form');
+    assert.equal(await page.locator('[data-metric="execution"]').count(), 0);
+    async function signIn(role) {
+      await page.locator('#login-form [name="email"]').fill(`${role}@example.invalid`);
+      await page.locator('#login-form [name="password"]').fill(`Local-${role}-5b!`);
+      await page.locator('#login-form [type="submit"]').click();
+      await page.waitForSelector('#login-form', { state: 'detached' });
+      await page.waitForSelector('#site-select option');
+    }
+    await signIn('owner');
+    const cookies = await context.cookies();
+    assert.ok(cookies.find(cookie => cookie.name === 'sa_session')?.httpOnly);
+    assert.equal(await page.evaluate(() => document.cookie.includes('sa_session')), false);
     await page.waitForSelector('[data-metric="execution"]');
     assert.equal(await page.locator('#site-select option').count(), 2);
     assert.equal(await page.locator('[data-metric="review"]').textContent(), '0');
@@ -78,26 +91,29 @@ async function run() {
     await page.locator('#filter-person').selectOption('Example executor & crew');
     await page.locator('.task-card').click();
     await page.waitForSelector('.timeline');
-    async function transition(to, actor, note = '', reason = '') {
+    async function transition(to, note = '', reason = '') {
       await page.locator(`[data-command="transition"][data-to="${to}"]`).click();
-      await page.locator('[name="actor"]').fill(actor);
       if (note) await page.locator('[name="note"]').fill(note);
       if (reason) await page.locator('[name="reason"]').fill(reason);
       await page.getByRole('button', { name: 'Salva', exact: true }).click();
       await page.waitForSelector(`.modal-body > p .badge.${to}`);
     }
-    await transition('in_progress', 'Example executor & crew');
-    await transition('to_verify', 'Example executor & crew', 'Evidence DEMO-01');
+    await transition('in_progress');
+    await transition('to_verify', 'Evidence DEMO-01');
     await page.locator('[data-to="closed"]').click();
-    await page.locator('[name="actor"]').fill('Other person');
     await page.locator('[name="note"]').fill('Checked');
     await page.getByRole('button', { name: 'Salva', exact: true }).click();
-    await contains(page.locator('.form-error'), 'Solo il verificatore');
-    await page.locator('[name="actor"]').fill('Example verifier');
-    await page.getByRole('button', { name: 'Salva', exact: true }).click();
-    await page.waitForSelector('.modal-body > p .badge.closed');
-    await transition('in_progress', 'Example executor & crew', '', 'Follow-up correction');
-    await transition('blocked', 'Example executor & crew', '', 'Waiting for material');
+    await contains(page.locator('.form-error'), 'Transizione non consentita');
+    await page.keyboard.press('Escape');
+    await page.locator('#logout').click();
+    await page.waitForSelector('#login-form');
+    await signIn('verifier');
+    await page.locator('#filter-search').fill('Synthetic workflow');
+    await page.locator('.task-card').click();
+    await page.waitForSelector('.timeline');
+    await transition('closed', 'Checked');
+    await transition('in_progress', '', 'Follow-up correction');
+    await transition('blocked', '', 'Waiting for material');
     assert.equal(await page.locator('[data-command="transition"]').count(), 0);
     await contains(page.locator('.timeline'), 'Evidence DEMO-01');
     await contains(page.locator('.timeline'), 'Follow-up correction');
@@ -131,6 +147,9 @@ async function run() {
     assert.equal(await page.locator('html').getAttribute('lang'), 'en');
     await contains(page.locator('.diary-entry'), 'Night shift');
 
+    await page.locator('#logout').click();
+    await page.waitForSelector('#login-form');
+    await signIn('owner');
     await page.locator('a[href="#sites"]').click();
     await page.getByRole('button', { name: 'New site', exact: true }).click();
     await page.locator('[name="code"]').fill('TEST-03');
@@ -157,7 +176,7 @@ async function run() {
     await page.getByRole('button', { name: 'Riprova', exact: true }).click();
     await page.waitForSelector('#report-date');
     assert.deepEqual(errors, []);
-    console.log('PASS: API loading/creation, transitions/events, verifier, blocked terminal state, CSV, diary uniqueness, escaping, IT/EN, reload, mobile and network error recovery.');
+    console.log('PASS: API loading/creation, transitions/events, login/logout, HttpOnly cookie, independent session verification, blocked state, CSV, diary uniqueness, escaping, IT/EN, reload, mobile and network error recovery.');
   } finally {
     if (browser) await browser.close();
     if (server.listening) await new Promise(resolve => server.close(resolve));

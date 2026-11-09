@@ -1,3 +1,4 @@
+import { authFixture } from './helpers/auth.mjs';
 import test from 'node:test';
 import { Readable } from 'node:stream';
 import { createHash } from 'node:crypto';
@@ -13,12 +14,14 @@ async function fixture(t, { race = false } = {}) {
   const { db } = database;
   t.after(database.close);
   const site = await createSite(db, { code: 'EXAMPLE-4', name: 'Example site' });
+  const { users, cookies } = await authFixture(db, site);
   let storage = db;
   if (race) {
     let readers = 0;
     let release;
     const bothRead = new Promise(resolve => { release = resolve; });
     storage = {
+      all: (...args) => db.all(...args),
       get: async (sql, ...params) => {
         const row = await db.get(sql, ...params);
         if (sql === 'SELECT * FROM idempotency_keys WHERE key = ?' && !row) {
@@ -34,11 +37,11 @@ async function fixture(t, { race = false } = {}) {
   }
   const server = createServer(storage);
   const input = { siteId: site.id, title: 'Example task', executor: 'Example executor', verifier: 'Example verifier' };
-  function post(path, body, { key, raw = JSON.stringify(body), chunks, headers = {} } = {}) {
+  function post(path, body, { key, raw = JSON.stringify(body), chunks, headers = {}, as = 'owner' } = {}) {
     const request = Readable.from(chunks ?? [Buffer.from(raw)]);
     request.method = 'POST';
     request.url = path;
-    request.headers = { 'content-type': 'application/json', ...headers };
+    request.headers = { 'content-type': 'application/json', cookie: cookies[as], ...headers };
     if (key !== undefined) request.headers['idempotency-key'] = key;
     return new Promise(resolve => {
       const responseHeaders = {};
@@ -53,7 +56,7 @@ async function fixture(t, { race = false } = {}) {
       server.emit('request', request, response);
     });
   }
-  return { db, site, input, post, reopen: database.reopen };
+  return { db, site, input, post, users, reopen: database.reopen };
 }
 
 test('POST diary derives its date from one server instant and stores zone and cutoff', async t => {
@@ -95,7 +98,7 @@ test('POST diary derives the date after the autumn cutoff', async t => {
 });
 
 test('double POST with one key replays the saved status and exact body, including after a task changes', async t => {
-  const { post, input, db } = await fixture(t);
+  const { post, input, db, users } = await fixture(t);
   const first = await post('/api/tasks', input, { key: 'example-retry' });
   t.assert.strictEqual(first.status, 201);
   await transitionTask(db, first.body.id, { to: 'in_progress', actor: input.executor });
@@ -107,11 +110,11 @@ test('double POST with one key replays the saved status and exact body, includin
   t.assert.strictEqual(saved.route, 'POST /api/tasks');
   t.assert.strictEqual(saved.status, first.status);
   t.assert.strictEqual(saved.body, first.raw);
-  t.assert.strictEqual(saved.request_hash, createHash('sha256').update(JSON.stringify(input)).digest('hex'));
+  t.assert.strictEqual(saved.request_hash, createHash('sha256').update(users.owner.id).update(createHash('sha256').update(JSON.stringify(input)).digest('hex')).digest('hex'));
 });
 
 test('the same key with a different body returns 409 IDEMPOTENCY_KEY_REUSED', async t => {
-  const { post, input, db } = await fixture(t);
+  const { post, input, db, users } = await fixture(t);
   t.assert.strictEqual((await post('/api/tasks', input, { key: 'example-conflict' })).status, 201);
   const result = await post('/api/tasks', { ...input, title: 'Another example task' }, { key: 'example-conflict' });
   t.assert.strictEqual(result.status, 409);
@@ -120,14 +123,14 @@ test('the same key with a different body returns 409 IDEMPOTENCY_KEY_REUSED', as
 });
 
 test('hashing uses raw UTF-8 bytes, including whitespace, key order and split multibyte characters', async t => {
-  const { post, input, db } = await fixture(t);
+  const { post, input, db, users } = await fixture(t);
   const raw = JSON.stringify({ ...input, title: 'Example café 🧱' });
   const bytes = Buffer.from(raw);
   const chunks = Array.from(bytes, byte => Buffer.from([byte]));
   const first = await post('/api/tasks', input, { key: 'example-bytes', raw, chunks });
   t.assert.strictEqual(first.status, 201);
   const saved = await db.get('SELECT * FROM idempotency_keys WHERE key = ?', 'example-bytes');
-  t.assert.strictEqual(saved.request_hash, createHash('sha256').update(bytes).digest('hex'));
+  t.assert.strictEqual(saved.request_hash, createHash('sha256').update(users.owner.id).update(createHash('sha256').update(bytes).digest('hex')).digest('hex'));
   t.assert.strictEqual((await post('/api/tasks', input, { key: 'example-bytes', raw })).raw, first.raw);
   const reordered = JSON.stringify({
     title: 'Example café 🧱', siteId: input.siteId, executor: input.executor, verifier: input.verifier,
@@ -140,7 +143,7 @@ test('hashing uses raw UTF-8 bytes, including whitespace, key order and split mu
 });
 
 test('two POSTs without a key still create distinct tasks and no stored keys', async t => {
-  const { post, input, db } = await fixture(t);
+  const { post, input, db, users } = await fixture(t);
   const first = await post('/api/tasks', input);
   const second = await post('/api/tasks', input);
   t.assert.strictEqual(first.status, 201);
@@ -176,7 +179,7 @@ test('concurrent POSTs with different bodies commit one task and reject the losi
 });
 
 test('failed task validation rolls back the key reservation and permits a corrected retry', async t => {
-  const { post, input, db } = await fixture(t);
+  const { post, input, db, users } = await fixture(t);
   const invalid = await post('/api/tasks', { ...input, title: '' }, { key: 'example-correction' });
   t.assert.strictEqual(invalid.status, 400);
   t.assert.deepStrictEqual(await db.all('SELECT * FROM tasks'), []);
@@ -199,7 +202,7 @@ test('failure while storing the response rolls back both the task and its reserv
 });
 
 test('HTTP 5a preserves to/actor payloads, serializes events and returns stable transition conflicts', async t => {
-  const { post, input, db } = await fixture(t);
+  const { post, input, db, users } = await fixture(t);
   const missingSite = await post('/api/tasks', { ...input, siteId: 'unknown' });
   t.assert.strictEqual(missingSite.status, 404);
   t.assert.strictEqual(missingSite.body.code, 'SITE_NOT_FOUND');
@@ -214,7 +217,7 @@ test('HTTP 5a preserves to/actor payloads, serializes events and returns stable 
   t.assert.strictEqual(task.events.length, 1);
   t.assert.strictEqual(task.events[0].action, 'create');
   const route = `/api/tasks/${task.id}/transition`;
-  const move = (to, extra = {}) => post(route, { to, actor: input.executor, ...extra });
+  const move = (to, extra = {}) => post(route, { to, actor: input.executor, ...extra }, { as: extra.actor === input.verifier ? 'verifier' : 'owner' });
   const conflict = async (to, extra = {}) => {
     const before = await getTask(db, task.id);
     const result = await move(to, extra);
@@ -240,7 +243,6 @@ test('HTTP 5a preserves to/actor payloads, serializes events and returns stable 
   t.assert.strictEqual(rejected.body.events.at(-1).action, 'reject');
   t.assert.strictEqual((await move('to_verify', { note: 'Corrected' })).status, 200);
   t.assert.strictEqual((await move('closed', { actor: input.verifier, note: 'Checked' })).status, 200);
-  await conflict('in_progress', { reason: 'Follow-up' });
   const reopened = await move('in_progress', { actor: input.verifier, reason: 'Follow-up' });
   t.assert.strictEqual(reopened.status, 200);
   t.assert.strictEqual(reopened.body.events.at(-1).action, 'reopen');

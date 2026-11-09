@@ -2,9 +2,10 @@ import { STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionR
 import { createApi } from './api.mjs';
 import { messages } from './i18n.mjs';
 
-const api = createApi({ baseUrl: document.querySelector('meta[name=siteassistant-api-base]')?.content || undefined });
+const api = createApi({ baseUrl: document.querySelector('meta[name=siteassistant-api-base]')?.content || undefined, onUnauthorized: clearSession });
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+let session = null;
 let state = { sites: [], tasks: [], diary: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
 let view = ['overview', 'sites', 'tasks', 'diary'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 let filters = { search: '', status: '', person: '', priority: '' };
@@ -32,10 +33,22 @@ function toast(message) {
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
 const errorKeys = { DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
-function errorMessage(error) { return t(errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
+function errorMessage(error) { return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
+function clearSession() {
+  session = null; actor = ''; siteId = undefined; loadError = null;
+  state = { sites: [], tasks: [], diary: [] };
+  filters = { search: '', status: '', person: '', priority: '' };
+  closeModal();
+  if (!loading) render();
+}
+async function logout() {
+  try { await api.logout(); clearSession(); }
+  catch (error) { toast(errorMessage(error)); }
+}
 async function loadData() {
   loading = true; loadError = null; render();
   try {
+    session = await api.me(); actor = session.user.name;
     const [sites, tasks, diary] = await Promise.all([api.listSites(), api.listTasks(), api.listDiary()]);
     state = { sites, tasks, diary };
     if (!sites.some(site => site.id === siteId)) siteId = sites[0]?.id;
@@ -57,6 +70,14 @@ function renderChrome() {
   $('#skip').textContent = t('skip'); $('#site-label').textContent = t('site'); $('#actor-label').textContent = t('actor');
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
   $('#actor-input').value = actor;
+  $('#actor-input').readOnly = true;
+  $('#navigation').hidden = !session;
+  let logoutButton = $('#logout');
+  if (!logoutButton) {
+    $('#language').insertAdjacentHTML('beforebegin', '<button type="button" id="logout" data-command="logout"></button>');
+    logoutButton = $('#logout');
+  }
+  logoutButton.hidden = !session; logoutButton.textContent = t('logout');
   $('#actor-input').placeholder = t('actorPlaceholder');
   $('#site-select').disabled = loading || !state.sites.length;
   $('#language').textContent = language === 'it' ? 'EN' : 'IT';
@@ -120,6 +141,10 @@ function render() {
   renderChrome();
   $('#main').setAttribute('aria-busy', String(loading));
   if (loading) { $('#main').innerHTML = `<p role="status">${t('loading')}</p>`; return; }
+  if (!session && (!loadError || loadError.status === 401)) {
+    $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<input name="password" type="password" autocomplete="current-password" required maxlength="1024"></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button></div></form></div></section>`;
+    return;
+  }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
   if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
   ({ overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary })[view]();
@@ -171,7 +196,7 @@ function showTransition(taskId, to) {
   const task = state.tasks.find(item => item.id === taskId);
   if (!task || !allowedTransitions(task).includes(to)) return;
   const required = transitionRequirements(task, to);
-  showModal(`${t('transitionTo')} ${t(to)}`, `<form id="transition-form" data-task-id="${esc(taskId)}" data-to="${to}"><div class="form-error" role="alert" tabindex="-1" hidden></div>${field('actor', 'actor', actor, { required: true, hint: 'actorHelp' })}${field('note', 'note', '', { type: 'textarea', required: required.note })}${field('reason', 'reason', '', { type: 'textarea', required: required.reason })}${formActions()}</form>`);
+  showModal(`${t('transitionTo')} ${t(to)}`, `<form id="transition-form" data-task-id="${esc(taskId)}" data-to="${to}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('actor')}: ${esc(actor)}</p><input type="hidden" name="actor" value="${esc(actor)}">${field('note', 'note', '', { type: 'textarea', required: required.note })}${field('reason', 'reason', '', { type: 'textarea', required: required.reason })}${formActions()}</form>`);
 }
 function showEntryForm() {
   showModal(t('newEntry'), `<form id="entry-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${field('shift', 'shift', '', { required: true, options: `<option value="day">${t('day')}</option><option value="night">${t('night')}</option>` })}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}</div>${formActions()}</form>`);
@@ -192,7 +217,7 @@ document.addEventListener('click', event => {
   const target = event.target.closest('[data-command]'); if (!target) return;
   const command = target.dataset.command, id = target.dataset.id;
   const commands = {
-    'new-site': showSiteForm, 'new-task': showTaskForm, reload: loadData,
+    logout, 'new-site': showSiteForm, 'new-task': showTaskForm, reload: loadData,
     'select-site': () => { selectSite(id); go('overview'); }, detail: () => showDetail(id),
     transition: () => showTransition(id, target.dataset.to), 'new-entry': showEntryForm,
     'close-modal': closeModal, 'task-view': () => { taskView = target.dataset.value; renderTasks(); },
@@ -203,7 +228,7 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('submit', async event => {
   const form = event.target;
-  if (!['site-form', 'task-form', 'entry-form', 'transition-form'].includes(form.id)) return;
+  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   const data = Object.fromEntries(new FormData(form));
@@ -213,6 +238,7 @@ document.addEventListener('submit', async event => {
   // Capture the selected context before waiting for the server.
   const selectedSite = siteId, selectedDate = reportDate;
   try {
+    if (form.id === 'login-form') { await api.login(data); await loadData(); return; }
     let message, detail;
     if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); siteId = site.id; filters = { search: '', status: '', person: '', priority: '' }; message = 'siteCreated'; }
     if (form.id === 'task-form') { state.tasks.push(await api.createTask({ ...data, siteId: selectedSite })); message = 'taskCreated'; }
@@ -234,7 +260,6 @@ document.addEventListener('submit', async event => {
 });
 $('#modal').addEventListener('cancel', () => { modalVersion++; });
 $('#site-select').addEventListener('change', event => selectSite(event.target.value));
-$('#actor-input').addEventListener('input', event => { actor = event.target.value; });
 document.addEventListener('change', event => {
   if (event.target.id === 'report-date') { if (validDate(event.target.value)) { reportDate = event.target.value; renderDiary(); } else event.target.value = reportDate; }
   for (const [id, key] of [['filter-status', 'status'], ['filter-person', 'person'], ['filter-priority', 'priority']]) if (event.target.id === id) { filters[key] = event.target.value; renderTaskResults(); }

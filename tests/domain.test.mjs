@@ -30,13 +30,13 @@ test('transitions match the backend map for every status without mutating helper
   allowedTransitions({ status: 'todo' }).push('closed');
   assert.deepEqual(allowedTransitions({ status: 'todo' }), expected.todo);
 });
-test('transitions require note, reason and designated verifier as in the API', () => {
+test('transitions require note and reason; the server authorizes the session identity', () => {
   const task = { status: 'in_progress', reviewer: input.reviewer };
   assert.deepEqual(transitionRequirements(task, 'to_verify'), { note: true, reason: false });
   assert.throws(() => transitionPayload(task, { to: 'to_verify', actor: 'Any person' }), /noteRequired/);
   assert.throws(() => transitionPayload(task, { to: 'blocked', actor: 'Any person', note: 'A note' }), /reasonRequired/);
   assert.throws(() => transitionPayload({ ...task, status: 'closed' }, { to: 'in_progress', actor: 'Any person' }), /reasonRequired/);
-  assert.throws(() => transitionPayload({ ...task, status: 'to_verify' }, { to: 'closed', actor: 'Other person', note: 'Checked' }), /verifierRequired/);
+  assert.equal(transitionPayload({ ...task, status: 'to_verify' }, { to: 'closed', actor: 'Other person', note: 'Checked' }).to, 'closed');
   assert.equal(transitionPayload(task, { to: 'to_verify', actor: 'Any person', note: 'Done' }).actor, 'Any person');
 });
 test('diary maps explicit operational day and shift without unsupported author or task link', () => {

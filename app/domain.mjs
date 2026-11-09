@@ -58,7 +58,6 @@ export function transitionPayload(task, input) {
   const required = transitionRequirements(task, input.to);
   if (required.note && !result.note) fail('noteRequired');
   if (required.reason && !result.reason) fail('reasonRequired');
-  if (input.to === 'closed' && result.actor !== task.reviewer) fail('verifierRequired');
   return result;
 }
 export function counts(tasks, referenceDate = today()) {

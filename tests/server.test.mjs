@@ -1,3 +1,5 @@
+import { authFixture } from './helpers/auth.mjs';
+import { createSite } from '../server/repository.mjs';
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { closeDb } from '../server/db.mjs';
@@ -15,6 +17,9 @@ async function fixture(t) {
   const path = `/tmp/siteassistant-test-${randomUUID()}.db`;
   const database = await openTestDb(path);
   const { db } = database;
+  const bootstrap = await createSite(db, { code: 'BOOTSTRAP', name: 'Synthetic bootstrap' });
+  const { users, cookies } = await authFixture(db, bootstrap);
+  let role = 'owner';
   const server = createServer(db);
   t.after(async () => {
     try {
@@ -31,8 +36,8 @@ async function fixture(t) {
   });
   const base = `http://127.0.0.1:${server.address().port}`;
   async function request(path, body, expected = 200) {
-    const response = await fetch(`${base}${path}`, body === undefined ? {} : {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    const response = await fetch(`${base}${path}`, body === undefined ? { headers: { cookie: cookies[role] } } : {
+      method: 'POST', headers: { 'Content-Type': 'application/json', cookie: cookies[role] }, body: JSON.stringify(body),
     });
     const result = await response.json();
     t.assert.strictEqual(response.status, expected, JSON.stringify(result));
@@ -45,9 +50,11 @@ async function fixture(t) {
     return result;
   }
   async function site(overrides = {}) {
-    return request('/api/sites', {
+    const result = await request('/api/sites', {
       code: `FITT-${randomUUID()}`, name: 'Cantiere fittizio di Nuvolario', ...overrides,
     }, 201);
+    for (const member of ['editor', 'verifier', 'viewer']) await db.run('INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, ?)', result.id, users[member].id, member);
+    return result;
   }
   async function task(siteId, overrides = {}) {
     return request('/api/tasks', {
@@ -55,7 +62,7 @@ async function fixture(t) {
       executor: 'Operatore fittizio A', verifier: 'Verificatore fittizio B', ...overrides,
     }, 201);
   }
-  return { db, reopen: database.reopen, base, request, site, task };
+  return { db, bootstrap: JSON.parse(JSON.stringify(bootstrap)), users, cookies, setRole: value => { role = value; }, reopen: database.reopen, base, request, site, task };
 }
 
 test('site validation rejects missing fields, invalid dates and reversed date ranges', async t => {
@@ -65,7 +72,7 @@ test('site validation rejects missing fields, invalid dates and reversed date ra
     { code: 'FITT', name: 'Cantiere fittizio', start_date: '2026-02-30' },
     { code: 'FITT', name: 'Cantiere fittizio', start_date: '2026-11-06', end_date: '2026-11-01' },
   ]) await api.request('/api/sites', input, 400);
-  t.assert.deepStrictEqual(await api.request('/api/sites'), []);
+  t.assert.deepStrictEqual(await api.request('/api/sites'), [api.bootstrap]);
 });
 
 test('create, list and retrieve a site; reject duplicate codes and persist across connections', async t => {
@@ -78,7 +85,7 @@ test('create, list and retrieve a site; reject duplicate codes and persist acros
   t.assert.strictEqual(site.code, 'FITT-UNICO');
   t.assert.ok(Number.isFinite(Date.parse(site.created_at)));
   t.assert.deepStrictEqual(await api.request(`/api/sites/${site.id}`), site);
-  t.assert.deepStrictEqual(await api.request('/api/sites'), [site]);
+  t.assert.deepStrictEqual(await api.request('/api/sites'), [api.bootstrap, site]);
   const error = await api.request('/api/sites', { code: site.code, name: 'Altro cantiere fittizio' }, 409);
   t.assert.strictEqual(error.code, 'DUPLICATE_SITE_CODE');
   const reopened = await api.reopen();
@@ -119,7 +126,7 @@ test('create tasks with distinct executor and verifier and filter by site and st
   t.assert.strictEqual((await api.request('/api/tasks')).length, 2);
 });
 
-test('completion requires a note; closure requires a note and the designated verifier', async t => {
+test('completion and closure require notes; closure uses an independent authorized session', async t => {
   const api = await fixture(t);
   const task = await api.task((await api.site()).id);
   const route = `/api/tasks/${task.id}/transition`;
@@ -132,17 +139,16 @@ test('completion requires a note; closure requires a note and the designated ver
   t.assert.deepStrictEqual(await api.request(`/api/tasks/${task.id}`), before);
   const proposed = await api.request(route, { to: 'to_verify', actor: task.executor, note: 'Controllo simulato completato.' });
   await api.request(route, { to: 'closed', actor: task.verifier, note: ' ' }, 400);
-  for (const actor of [task.executor, 'Coordinatore fittizio C']) {
-    const error = await api.request(route, { to: 'closed', actor, note: 'Verifica simulata.' }, 409);
-    t.assert.strictEqual(error.code, 'VERIFIER_REQUIRED');
-  }
+  const error = await api.request(route, { to: 'closed', actor: task.verifier, note: 'Verifica simulata.' }, 409);
+  t.assert.strictEqual(error.code, 'INVALID_TRANSITION');
   t.assert.deepStrictEqual(await api.request(`/api/tasks/${task.id}`), proposed);
+  api.setRole('verifier');
   const closed = await api.request(route, { to: 'closed', actor: task.verifier, note: 'Verifica simulata accettata.' });
   t.assert.strictEqual(closed.status, 'closed');
   t.assert.deepStrictEqual(closed.events.map(event => [event.from_status, event.to_status]), [
     ['todo', 'todo'], ['todo', 'in_progress'], ['in_progress', 'to_verify'], ['to_verify', 'closed'],
   ]);
-  t.assert.strictEqual(closed.events.at(-1).actor, task.verifier);
+  t.assert.strictEqual(closed.events.at(-1).actor, api.users.verifier.name);
   t.assert.strictEqual(closed.events.at(-1).note, 'Verifica simulata accettata.');
   for (let index = 1; index < closed.events.length; index++) {
     t.assert.ok(closed.events[index - 1].id < closed.events[index].id);
@@ -189,7 +195,7 @@ test('every unspecified state-machine edge returns 409 without writing', async t
     if (from === 'blocked') await advance('blocked');
     if (['in_progress', 'to_verify', 'closed'].includes(from)) await advance('in_progress');
     if (['to_verify', 'closed'].includes(from)) await advance('to_verify');
-    if (from === 'closed') await advance('closed');
+    if (from === 'closed') { api.setRole('verifier'); await advance('closed'); api.setRole('owner'); }
     const before = await api.request(`/api/tasks/${task.id}`);
     for (const to of Object.keys(allowed).filter(to => !allowed[from].includes(to))) {
       const error = await api.request(route, {
@@ -243,19 +249,21 @@ test('malformed JSON, non-object bodies, oversized bodies and wrong media types 
     [JSON.stringify({ name: 'x'.repeat(65537) }), 'application/json'],
   ]) {
     const response = await fetch(`${api.base}/api/sites`, {
-      method: 'POST', headers: { 'Content-Type': type }, body,
+      method: 'POST', headers: { 'Content-Type': type, cookie: api.cookies.owner }, body,
     });
     t.assert.strictEqual(response.status, 400);
     const error = await response.json();
     t.assert.strictEqual(error.code, 'INVALID_JSON');
     t.assert.strictEqual(typeof error.error, 'string');
   }
-  t.assert.deepStrictEqual(await api.request('/api/sites'), []);
+  t.assert.deepStrictEqual(await api.request('/api/sites'), [api.bootstrap]);
 });
 
 test('seed inserts exactly 2 sites, 4 tasks and 1 diary entry and skips existing data', async t => {
   const api = await fixture(t);
-  t.assert.strictEqual(await seed(api.db), true);
+  t.assert.strictEqual(await seed(api.db, { reset: true }), true);
+  const response = await fetch(`${api.base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'owner@example.invalid', password: 'Local-owner-5b!' }) });
+  api.cookies.owner = response.headers.get('set-cookie').split(';')[0];
   const before = {
     sites: await api.request('/api/sites'), tasks: await api.request('/api/tasks'), diary: await api.request('/api/diary'),
   };
