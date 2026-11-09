@@ -78,3 +78,5 @@ node tests/browser.cjs
 [Ripresa dello sviluppo con Codex](docs/development-handoff.md).
 
 [Schema PostgreSQL generico e test sintetici](database/README.md).
+
+La [struttura progetto WBS](docs/wbs.md) aggiunge una vista in sola lettura del Time Schedule importato: albero e tabella, API con membership di cantiere, migrazione `008` e promozione idempotente da snapshot completati. La configurazione della sorgente e l’ingestione restano prerequisiti separati; nessun servizio viene attivato.

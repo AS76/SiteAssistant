@@ -7,9 +7,11 @@ const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 let session = null;
 let state = { sites: [], tasks: [], diary: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
-let view = ['overview', 'sites', 'tasks', 'diary'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+let view = ['overview', 'sites', 'tasks', 'wbs', 'diary'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 let filters = { search: '', status: '', person: '', priority: '' };
 let taskView = 'board';
+let wbsView = 'tree', wbsLoad = null;
+const wbsCache = new Map();
 let reportDate = today();
 const t = key => Object.hasOwn(messages[language], key) ? messages[language][key] : key;
 const personName = name => esc(name || '—');
@@ -35,6 +37,7 @@ function toast(message) {
 const errorKeys = { MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession() {
+  wbsCache.clear(); wbsLoad = null;
   session = null; actor = ''; siteId = undefined; loadError = null;
   state = { sites: [], tasks: [], diary: [] };
   filters = { search: '', status: '', person: '', priority: '' };
@@ -46,6 +49,7 @@ async function logout() {
   catch (error) { toast(errorMessage(error)); }
 }
 async function loadData() {
+  wbsCache.clear(); wbsLoad = null;
   loading = true; loadError = null; render();
   try {
     session = await api.me(); actor = session.user.name;
@@ -66,7 +70,7 @@ function renderChrome() {
   $('#brand-sub').textContent = t('brandSub'); $('#workspace-label').textContent = t('workspace');
   $('#local-label').innerHTML = `${t('local')}<small>${t('fiction')}</small>`;
   $('#navigation').setAttribute('aria-label', t('nav'));
-  $('#navigation').innerHTML = ['overview', 'sites', 'tasks', 'diary'].map(key => `<a href="#${key}" ${view === key ? 'class="active" aria-current="page"' : ''}>${icon(key)}${t(key)}</a>`).join('');
+  $('#navigation').innerHTML = ['overview', 'sites', 'tasks', 'wbs', 'diary'].map(key => `<a href="#${key}" ${view === key ? 'class="active" aria-current="page"' : ''}>${icon(key)}${t(key)}</a>`).join('');
   $('#skip').textContent = t('skip'); $('#site-label').textContent = t('site'); $('#actor-label').textContent = t('actor');
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
   $('#actor-input').value = actor;
@@ -144,6 +148,51 @@ function renderDiary() {
       return `<article class="diary-entry"><div class="entry-heading"><strong>${t(entry.shift)}</strong><span>${t('recordedAt')} ${timeLabel(entry.createdAt)}</span></div><div class="entry-grid">${['plan', 'actual', 'blockers', 'next'].map(key => `<section class="entry-section ${key === 'blockers' && entry[key] ? 'entry-blocker' : ''}"><h3>${t(key)}</h3><p>${esc(entry[key] || '—')}</p></section>`).join('')}</div></article>`;
     }).join('') : empty('diaryEmpty', 'diaryEmptyHint', button('newEntry', 'new-entry', '', 'primary'))}</section><aside class="panel diary-aside"><div class="panel-body"><h3>${t('dayRule')}</h3><p>${t('dayRuleNote')}</p><div class="blank-message">${t('diaryLimit')}</div></div></aside></div><p class="note">${t('forDate')} ${dateLabel(reportDate)} · ${t('draft')} · ${t('diaryLimit')}</p>`;
 }
+async function loadWbs() {
+  const selected = siteId, token = {};
+  wbsLoad = token;
+  try {
+    const nodes = await api.listWbs(selected);
+    if (wbsLoad === token) wbsCache.set(selected, { nodes });
+  } catch (error) {
+    if (wbsLoad === token) wbsCache.set(selected, { error });
+  } finally {
+    if (wbsLoad === token) {
+      wbsLoad = null;
+      if (view === 'wbs' && siteId === selected) render();
+    }
+  }
+}
+function renderWbs() {
+  const cached = wbsCache.get(siteId);
+  $('#main').innerHTML = heading('wbs', 'wbsSub',
+    button('wbsTree', 'wbs-view', `data-value="tree" aria-pressed="${wbsView === 'tree'}"`) +
+    button('wbsFlat', 'wbs-view', `data-value="flat" aria-pressed="${wbsView === 'flat'}"`) + button('retry', 'wbs-reload'));
+  if (!cached) {
+    $('#main').insertAdjacentHTML('beforeend', `<p role="status">${t('loading')}</p>`);
+    $('#main').setAttribute('aria-busy', 'true');
+    if (!wbsLoad) void loadWbs();
+    return;
+  }
+  if (cached.error) {
+    $('#main').insertAdjacentHTML('beforeend', `<p role="alert">${esc(errorMessage(cached.error))}</p>`); return;
+  }
+  if (!cached.nodes.length) { $('#main').insertAdjacentHTML('beforeend', empty('wbsEmpty', 'wbsEmptyHint')); return; }
+  const label = node => `<strong>${esc(node.wbs_code)}</strong> ${esc(node.description ?? '—')}${node.is_synthetic ? ` <span class="badge">${t('wbsSynthetic')}</span>` : ''}`;
+  const branches = nodes => `<ul class="wbs-tree">${nodes.map(node => `<li>${node.children.length
+    ? `<details open><summary>${label(node)}</summary>${branches(node.children)}</details>`
+    : `<div class="wbs-leaf">${label(node)}</div>`}</li>`).join('')}</ul>`;
+  if (wbsView === 'tree') {
+    $('#main').insertAdjacentHTML('beforeend', `<section class="panel panel-body">${button('wbsExpand', 'wbs-expand')}${button('wbsCollapse', 'wbs-collapse')}${branches(cached.nodes)}</section>`);
+  } else {
+    const rows = [];
+    const flatten = nodes => { for (const node of nodes) { rows.push(node); flatten(node.children); } };
+    flatten(cached.nodes);
+    rows.sort((a, b) => a.level - b.level || (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity) || a.wbs_code.localeCompare(b.wbs_code) || a.id.localeCompare(b.id));
+    const byId = new Map(rows.map(node => [node.id, node]));
+    $('#main').insertAdjacentHTML('beforeend', `<div class="table-scroll"><table><thead><tr>${['wbsCode', 'wbsDescription', 'wbsParent', 'wbsLevel', 'wbsOrder', 'wbsProgress', 'wbsPlannedStart', 'wbsPlannedFinish'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${rows.map(node => `<tr><td>${esc(node.wbs_code)}${node.is_synthetic ? ` <span class="badge">${t('wbsSynthetic')}</span>` : ''}</td><td>${esc(node.description ?? '—')}</td><td>${esc(byId.get(node.parent_id)?.wbs_code ?? '—')}</td><td>${node.level}</td><td>${esc(node.sort_order ?? '—')}</td><td>${node.progress_pct === null ? '—' : `${esc(node.progress_pct)}%`}</td><td>${esc(node.planned_start ?? '—')}</td><td>${esc(node.planned_finish ?? '—')}</td></tr>`).join('')}</tbody></table></div>`);
+  }
+}
 function render() {
   renderChrome();
   $('#main').setAttribute('aria-busy', String(loading));
@@ -154,11 +203,12 @@ function render() {
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
   if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
-  ({ overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary })[view]();
+  ({ overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs })[view]();
 }
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
 function selectSite(id) {
   if (!state.sites.some(site => site.id === id)) return;
+  wbsLoad = null;
   siteId = id; filters = { search: '', status: '', person: '', priority: '' }; render();
 }
 function showModal(title, content) {
@@ -230,6 +280,10 @@ document.addEventListener('click', event => {
   const target = event.target.closest('[data-command]'); if (!target) return;
   const command = target.dataset.command, id = target.dataset.id;
   const commands = {
+    'wbs-view': () => { wbsView = target.dataset.value; render(); },
+    'wbs-reload': () => { wbsCache.delete(siteId); wbsLoad = null; render(); },
+    'wbs-expand': () => { document.querySelectorAll('.wbs-tree details').forEach(node => { node.open = true; }); },
+    'wbs-collapse': () => { document.querySelectorAll('.wbs-tree details').forEach(node => { node.open = false; }); },
     'change-password': showPasswordForm, 'request-access': () => showEmailForm('request'), 'forgot-password': () => showEmailForm('forgot'),
     logout, 'new-site': showSiteForm, 'new-task': showTaskForm, reload: loadData,
     'select-site': () => { selectSite(id); go('overview'); }, detail: () => showDetail(id),
@@ -293,5 +347,5 @@ document.addEventListener('change', event => {
 });
 document.addEventListener('input', event => { if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
 $('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
-window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'diary'].includes(next) ? next : 'overview'; closeModal(); render(); $('#main').focus(); });
+window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'diary'].includes(next) ? next : 'overview'; closeModal(); render(); $('#main').focus(); });
 void loadData();

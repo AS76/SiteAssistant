@@ -7,6 +7,7 @@ import { authenticate, login, memberships, publicUser, sessionCookie, isSecureRe
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage } from './signup.mjs';
 import { createTaskResponse } from './idempotency.mjs';
+import { listWbs, getWbs, importWbs } from './wbs.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
   transitionTask, listDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember,
@@ -149,6 +150,22 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         await db.run('UPDATE sessions SET revoked_at = ? WHERE id = ?', new Date().toISOString(), user.session_id);
         response.setHeader('Set-Cookie', sessionCookie('', { production, secure: isSecureRequest(request, { production }), clear: true }));
         return json(response, 200, { status: 'ok' });
+      }
+      if (path === '/api/wbs' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id');
+        if (!siteId) throw new RepositoryError(400, 'site_id is required.', 'VALIDATION_ERROR');
+        await requireRole(db, siteId, user);
+        return json(response, 200, await listWbs(db, { siteId, flat: url.searchParams.get('flat') }));
+      }
+      if (path === '/api/wbs/import' && method === 'POST') {
+        const input = await readJson(request);
+        return json(response, 200, await importWbs(db, input.site_id, user));
+      }
+      const wbs = /^\/api\/wbs\/([^/]+)$/.exec(path);
+      if (wbs && method === 'GET') {
+        const node = await getWbs(db, wbs[1]);
+        await requireRole(db, node.site_id, user);
+        return json(response, 200, node);
       }
       if (path === '/api/attachments' && method === 'POST') {
         const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_ATTACHMENT_BYTES / 3) + 65536 });

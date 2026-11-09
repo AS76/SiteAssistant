@@ -22,6 +22,13 @@ async function run() {
   let browser;
   try {
     await seed(db);
+    const { attachSyntheticIngestion, wbsSource } = await import('./helpers/wbs.mjs');
+    const { importWbs } = await import('../server/wbs.mjs');
+    await attachSyntheticIngestion(db);
+    const wbsSite = await db.get('SELECT * FROM sites ORDER BY created_at, id LIMIT 1');
+    const owner = await db.get("SELECT * FROM users WHERE email = 'owner@example.invalid'");
+    await wbsSource(db, wbsSite);
+    await importWbs(db, wbsSite.id, owner);
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     const apiUrl = `http://127.0.0.1:${server.address().port}`;
@@ -91,6 +98,29 @@ async function run() {
     assert.equal(await page.locator('[data-metric="review"]').textContent(), '0');
     await page.screenshot({ path: path.join(os.tmpdir(), 'siteassistant-desktop.png'), fullPage: true });
 
+    await page.locator('a[href="#wbs"]').click();
+    await page.waitForSelector('.wbs-tree');
+    await contains(page.locator('#main'), 'Padre sintetico');
+    assert.equal(await page.locator('.wbs-tree li').count(), 8);
+    await page.locator('[data-command="wbs-collapse"]').click();
+    assert.equal(await page.locator('.wbs-tree details[open]').count(), 0);
+    await page.locator('[data-command="wbs-expand"]').click();
+    assert.ok(await page.locator('.wbs-tree details[open]').count() > 0);
+    await page.locator('[data-command="wbs-view"][data-value="flat"]').click();
+    assert.equal(await page.locator('#main tbody tr').count(), 8);
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'mobile WBS table overflow');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.locator('#site-select').selectOption({ index: 1 });
+    await contains(page.locator('#main'), 'Nessuna struttura importata');
+    await page.locator('#site-select').selectOption(wbsSite.id);
+    await page.waitForSelector('#main tbody tr');
+    failReads = true;
+    await page.locator('[data-command="wbs-reload"]').click();
+    await contains(page.locator('#main [role="alert"]'), 'non raggiungibile');
+    failReads = false;
+    await page.locator('[data-command="wbs-reload"]').click();
+    await page.waitForSelector('#main tbody tr');
     await page.locator('a[href="#tasks"]').click();
     await page.getByRole('button', { name: 'Nuova attività', exact: true }).click();
     await page.locator('[name="title"]').fill('Synthetic workflow task');
@@ -185,7 +215,7 @@ async function run() {
     await page.waitForSelector('#task-results');
     assert.equal(await page.locator('#site-select option').count(), 3);
     await page.locator('#site-select').selectOption({ index: 2 });
-    for (const view of ['overview', 'sites', 'tasks', 'diary']) {
+    for (const view of ['overview', 'sites', 'tasks', 'wbs', 'diary']) {
       await page.locator(`a[href="#${view}"]`).click();
       await page.setViewportSize({ width: 390, height: 844 });
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `mobile overflow: ${view}`);
@@ -230,7 +260,7 @@ async function run() {
     await page.waitForSelector('#task-results');
     assert.equal(await page.locator('#password-banner').isVisible(), false);
     assert.deepEqual(errors, []);
-    console.log('PASS: API loading/creation, transitions/events, login/logout, HttpOnly cookie, independent session verification, blocked state, CSV, diary uniqueness, escaping, IT/EN, reload, mobile, network error recovery, signup request/rejection, forgot password, non-blocking password banner and password change.');
+    console.log('PASS: WBS tree/flat/synthetic parents/site switching/error recovery, API loading/creation, transitions/events, login/logout, HttpOnly cookie, independent session verification, blocked state, CSV, diary uniqueness, escaping, IT/EN, reload, mobile, network error recovery, signup request/rejection, forgot password, non-blocking password banner and password change.');
   } finally {
     if (browser) await browser.close();
     if (server.listening) await new Promise(resolve => server.close(resolve));

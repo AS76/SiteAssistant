@@ -50,6 +50,8 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     getTask: async id => taskFromApi(await request(`/api/tasks/${encodeURIComponent(id)}`)),
     createTask: async input => taskFromApi(await request('/api/tasks', taskPayload(input))),
     transitionTask: async (task, input) => taskFromApi(await request(`/api/tasks/${encodeURIComponent(task.id)}/transition`, transitionPayload(task, input))),
+    listWbs: (siteId, flat = false) => request(`/api/wbs${query({ site_id: siteId, flat: flat ? 1 : undefined })}`),
+    getWbs: id => request(`/api/wbs/${encodeURIComponent(id)}`),
     listDiary: async (filters = {}) => (await request(`/api/diary${query(filters)}`)).map(diaryFromApi),
     createDiary: async input => diaryFromApi(await request('/api/diary', diaryPayload(input))),
   };
