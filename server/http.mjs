@@ -8,6 +8,7 @@ import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage } from './signup.mjs';
 import { createTaskResponse } from './idempotency.mjs';
 import { listWbs, getWbs, importWbs } from './wbs.mjs';
+import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
   transitionTask, listDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember,
@@ -150,6 +151,25 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         await db.run('UPDATE sessions SET revoked_at = ? WHERE id = ?', new Date().toISOString(), user.session_id);
         response.setHeader('Set-Cookie', sessionCookie('', { production, secure: isSecureRequest(request, { production }), clear: true }));
         return json(response, 200, { status: 'ok' });
+      }
+      if (['/api/employees', '/api/work-days'].includes(path) && method === 'GET') {
+        const siteId = url.searchParams.get('site_id');
+        if (!siteId) throw new RepositoryError(400, 'site_id is required.', 'VALIDATION_ERROR');
+        await requireRole(db, siteId, user);
+        const result = path === '/api/employees' ? await listEmployees(db, { siteId })
+          : await listWorkDays(db, { siteId, employee_id: url.searchParams.get('employee_id'),
+            from: url.searchParams.get('from'), to: url.searchParams.get('to') });
+        return json(response, 200, result);
+      }
+      if (path === '/api/employees/import' && method === 'POST') {
+        const input = await readJson(request);
+        return json(response, 200, await importEmployees(db, input.site_id, user));
+      }
+      const employee = /^\/api\/employees\/([^/]+)$/.exec(path);
+      if (employee && method === 'GET') {
+        const record = await getEmployee(db, employee[1]);
+        await requireRole(db, record.site_id, user);
+        return json(response, 200, record);
       }
       if (path === '/api/wbs' && method === 'GET') {
         const siteId = url.searchParams.get('site_id');

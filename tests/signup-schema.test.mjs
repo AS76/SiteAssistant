@@ -32,7 +32,7 @@ for (const driver of ['sqlite', 'pg']) {
     const user = await createUser(db, { email: 'upgrade@example.invalid', name: 'Synthetic upgrade', password: 'Synthetic-password!' });
     await db.run('INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)', randomUUID(), user.id, 'a'.repeat(64), '2026-01-01T00:00:00.000Z', '2026-01-08T00:00:00.000Z');
     const before = await db.get('SELECT * FROM users'), sessions = await db.all('SELECT * FROM sessions');
-    t.assert.strictEqual(await migrate(db, { driver }), 3);
+    t.assert.strictEqual(await migrate(db, { driver }), 4);
     const after = await db.get('SELECT * FROM users');
     t.assert.strictEqual(Boolean(after.password_change_required), false);
     delete after.password_change_required;
@@ -42,7 +42,7 @@ for (const driver of ['sqlite', 'pg']) {
       if (driver === 'pg') await db.transaction(tx => applyMigration(tx, '006_signup.sql', { driver }));
       t.assert.strictEqual(await migrate(db, { driver }), 0);
     }
-    t.assert.deepStrictEqual((await db.all('SELECT version FROM schema_migrations ORDER BY version')).map(row => row.version), ['001', '002', '003', '004', '005', '006', '007', '008']);
+    t.assert.deepStrictEqual((await db.all('SELECT version FROM schema_migrations ORDER BY version')).map(row => row.version), ['001', '002', '003', '004', '005', '006', '007', '008', '009']);
     if (driver === 'pg') {
       const columns = await db.all("SELECT table_name, column_name, udt_name FROM information_schema.columns WHERE table_schema = 'public'");
       for (const [table, column, type] of [['users', 'password_change_required', 'bool'], ['signup_requests', 'id', 'uuid'], ['signup_requests', 'requested_at', 'timestamptz'], ['signup_requests', 'decided_at', 'timestamptz']]) {

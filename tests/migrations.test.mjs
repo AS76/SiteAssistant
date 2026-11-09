@@ -10,7 +10,7 @@ import { openDb, closeDb } from '../server/db.mjs';
 import { migrate } from '../server/migrations/index.mjs';
 import { isPg, openTestDb } from './helpers/db.mjs';
 
-const versions = ['001', '002', '003', '004', '005', '006', '007', '008'];
+const versions = ['001', '002', '003', '004', '005', '006', '007', '008', '009'];
 
 async function temporarySqlite(t) {
   const directory = await mkdtemp(join(tmpdir(), 'siteassistant-migrations-'));
@@ -24,7 +24,7 @@ async function assertMigrations(t, db, driver) {
   const before = await db.all('SELECT * FROM schema_migrations ORDER BY version');
   t.assert.deepStrictEqual(before.map(row => row.version), versions);
   for (const row of before) t.assert.ok(Number.isFinite(Date.parse(row.applied_at)));
-  for (const table of ['sites', 'tasks', 'task_events', 'diary', 'idempotency_keys', 'users', 'sessions', 'site_members', 'attachments', 'project_structure', 'wbs_import_sources']) {
+  for (const table of ['sites', 'tasks', 'task_events', 'diary', 'idempotency_keys', 'users', 'sessions', 'site_members', 'attachments', 'project_structure', 'wbs_import_sources', 'employees', 'work_days', 'hr_import_sources']) {
     t.assert.deepStrictEqual(await db.all(`SELECT * FROM ${table}`), []);
   }
   await migrate(db, { driver });

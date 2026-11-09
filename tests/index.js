@@ -23,3 +23,4 @@ import './attachments.test.mjs';
 import './attachments-schema.test.mjs';
 import './s3.test.mjs';
 import './wbs.test.mjs';
+import './hr.test.mjs';
