@@ -10,6 +10,7 @@ import { createTaskResponse } from './idempotency.mjs';
 import { listWbs, getWbs, importWbs } from './wbs.mjs';
 import { listSiteProgress, getSiteProgressItem, importSiteProgress } from './site-progress.mjs';
 import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.mjs';
+import { listDeviations, getDeviation, importDeviations } from './deviations.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
   transitionTask, listDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember,
@@ -205,6 +206,25 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const item = await getSiteProgressItem(db, siteProgress[1]);
         await requireRole(db, item.site_id, user);
         return json(response, 200, item);
+      }
+      if (path === '/api/deviations' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id');
+        if (!siteId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(siteId)) {
+          throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
+        }
+        await requireRole(db, siteId.toLowerCase(), user);
+        return json(response, 200, await listDeviations(db, { siteId,
+          status: url.searchParams.get('status'), priority: url.searchParams.get('priority') }));
+      }
+      if (path === '/api/deviations/import' && method === 'POST') {
+        const input = await readJson(request);
+        return json(response, 200, await importDeviations(db, input.site_id, user));
+      }
+      const deviation = /^\/api\/deviations\/([^/]+)$/.exec(path);
+      if (deviation && method === 'GET') {
+        const record = await getDeviation(db, deviation[1]);
+        await requireRole(db, record.site_id, user);
+        return json(response, 200, record);
       }
       if (path === '/api/attachments' && method === 'POST') {
         const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_ATTACHMENT_BYTES / 3) + 65536 });

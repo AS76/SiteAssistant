@@ -140,6 +140,9 @@ export async function createSite(db, input) {
   return await getSite(db, id);
 }
 
+// Reserved storage fields do not extend the existing task API contract.
+const publicTask = ({ kind, ...task }) => task;
+
 export async function listTasks(db, { siteId, status } = {}, user) {
   const site = text(siteId, 'siteId');
   const state = text(status, 'status');
@@ -149,15 +152,15 @@ export async function listTasks(db, { siteId, status } = {}, user) {
   if (user) { clauses.push('site_id IN (SELECT site_id FROM site_members WHERE user_id = ?)'); values.push(user.id); }
   if (site) { clauses.push('site_id = ?'); values.push(site); }
   if (state) { clauses.push('status = ?'); values.push(state); }
-  return await idLookup(() => db.all(`SELECT * FROM tasks ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
-    ORDER BY created_at, id`, ...values), []);
+  return (await idLookup(() => db.all(`SELECT * FROM tasks ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
+    ORDER BY created_at, id`, ...values), [])).map(publicTask);
 }
 
 export async function getTask(db, id) {
   const task = await idLookup(() => db.get('SELECT * FROM tasks WHERE id = ?', id));
   if (!task) fail(404, 'Task not found.', 'TASK_NOT_FOUND');
   const events = await db.all('SELECT * FROM task_events WHERE task_id = ? ORDER BY at, id', id);
-  return { ...task, events };
+  return { ...publicTask(task), events };
 }
 
 export async function createTask(db, input) {

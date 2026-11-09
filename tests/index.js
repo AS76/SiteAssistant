@@ -25,3 +25,4 @@ import './s3.test.mjs';
 import './wbs.test.mjs';
 import './hr.test.mjs';
 import './site-progress.test.mjs';
+import './deviations.test.mjs';

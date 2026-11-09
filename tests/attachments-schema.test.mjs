@@ -40,7 +40,9 @@ for (const driver of ['sqlite', 'pg']) {
     await db.run("INSERT INTO site_members VALUES (?, ?, 'owner')", site.id, user.id);
     const tables = ['sites', 'tasks', 'task_events', 'diary', 'users', 'site_members'];
     const before = await Promise.all(tables.map(table => db.all(`SELECT * FROM ${table}`)));
-    t.assert.strictEqual(await migrate(db, { driver }), 4);
+    t.assert.strictEqual(await migrate(db, { driver }), 5);
+    // Increment 12 adds only a nullable reserved column to existing task rows.
+    for (const row of before[tables.indexOf('tasks')]) row.kind = null;
     t.assert.deepStrictEqual(await Promise.all(tables.map(table => db.all(`SELECT * FROM ${table}`))), before);
     const storage = new MemoryObjectStorage();
     for (const [entity_type, entity_id] of [['site', site.id], ['task', task.id], ['diary', diary.id]]) {
