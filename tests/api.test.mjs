@@ -33,6 +33,8 @@ test('API client round-trip: sites, tasks, transitions/events and diary against 
   assert.equal(site.start, '2026-01-01');
   assert.equal(site.end, null);
   const task = await api.createTask({ siteId: site.id, title: 'Example task', assignee: 'Example executor', reviewer: 'Example verifier', due: '2026-01-02' });
+  // The legacy client sends display names; assign the reviewer's identity explicitly.
+  await db.run('UPDATE tasks SET verifier_id = ? WHERE id = ?', users.verifier.id, task.id);
   assert.equal(task.assignee, 'Example executor');
   assert.equal(task.reviewer, 'Example verifier');
   assert.equal(task.due, '2026-01-02');

@@ -123,7 +123,7 @@ test('session identity controls actions and self-review even with forged actors 
   t.assert.strictEqual(submitted.body.submitted_by_id, users.editor.id);
   t.assert.strictEqual(submitted.body.submitted_by, users.editor.name);
   for (const to of ['closed', 'in_progress']) t.assert.strictEqual((await move('editor', to)).status, 403);
-  await db.run("UPDATE site_members SET role = 'verifier' WHERE user_id = ?", users.editor.id);
+  await db.run("UPDATE site_members SET role = 'owner' WHERE user_id = ?", users.editor.id);
   await db.run("UPDATE users SET name = 'Renamed synthetic user' WHERE id = ?", users.editor.id);
   for (const to of ['closed', 'in_progress']) {
     const before = await getTask(db, task.id);
@@ -138,7 +138,70 @@ test('session identity controls actions and self-review even with forged actors 
   t.assert.strictEqual((await move('owner', 'to_verify')).body.submitted_by_id, users.editor.id);
   t.assert.strictEqual((await move('owner', 'closed')).body.events.at(-1).action, 'verify');
   await db.run("UPDATE site_members SET role = 'editor' WHERE user_id = ?", users.editor.id);
-  t.assert.strictEqual((await move('editor', 'in_progress')).body.events.at(-1).action, 'reopen');
+  const before = await getTask(db, task.id);
+  const denied = await move('editor', 'in_progress');
+  t.assert.strictEqual(denied.status, 403); t.assert.strictEqual(denied.body.code, 'FORBIDDEN');
+  t.assert.deepStrictEqual(await getTask(db, task.id), before);
+  t.assert.strictEqual((await move('verifier', 'in_progress')).body.events.at(-1).action, 'reopen');
+});
+
+for (const [action, to] of [['verify', 'closed'], ['reject', 'in_progress'], ['reopen', 'in_progress']]) {
+  for (const assigned of [true, false]) {
+    test(`${action} requires the designated verifier or site owner (verifier_id ${assigned ? 'assigned' : 'NULL'})`, async t => {
+      const { db, site, as, users } = await fixture(t);
+      // A second verifier shares the display name, but has a different identity.
+      await db.run("UPDATE site_members SET role = 'verifier' WHERE site_id = ? AND user_id = ?", site.id, users.viewer.id);
+      await db.run('UPDATE users SET name = ? WHERE id = ?', users.verifier.name, users.viewer.id);
+      for (const reviewer of ['editor', 'viewer', 'verifier', 'owner']) {
+        await t.test(reviewer === 'viewer' ? 'non-designated verifier' : `session ${reviewer}`, async t => {
+          const task = await createTask(db, {
+            siteId: site.id, title: 'Synthetic review authorization',
+            executor: users.editor.name, executor_id: users.editor.id,
+            verifier: users.verifier.name, verifier_id: assigned ? users.verifier.id : null,
+          });
+          const path = `/api/tasks/${task.id}/transition`;
+          const move = (role, target) => as(role, path, {
+            to: target, actor: users.verifier.name, verifier_id: users[role].id,
+            note: 'Synthetic evidence', reason: 'Synthetic follow-up',
+          });
+          t.assert.strictEqual((await move('editor', 'in_progress')).status, 200);
+          t.assert.strictEqual((await move('editor', 'to_verify')).status, 200);
+          if (action === 'reopen') t.assert.strictEqual((await move('owner', 'closed')).status, 200);
+          const before = await getTask(db, task.id);
+          const result = await move(reviewer, to);
+          if (reviewer === 'owner' || (assigned && reviewer === 'verifier')) {
+            t.assert.strictEqual(result.status, 200);
+            t.assert.strictEqual(result.body.status, to);
+            t.assert.strictEqual(result.body.events.at(-1).action, action);
+            t.assert.strictEqual(result.body.events.length, before.events.length + 1);
+            const after = await getTask(db, task.id);
+            t.assert.deepStrictEqual(after.events.slice(0, before.events.length), before.events);
+          } else {
+            t.assert.strictEqual(result.status, 403);
+            t.assert.strictEqual(result.body.code, 'FORBIDDEN');
+            t.assert.deepStrictEqual(await getTask(db, task.id), before);
+          }
+        });
+      }
+    });
+  }
+}
+
+test('designated verifier cannot review their own submission even after a name change', async t => {
+  const { db, task, as, users } = await fixture(t);
+  const path = `/api/tasks/${task.id}/transition`;
+  for (const to of ['in_progress', 'to_verify']) {
+    t.assert.strictEqual((await as('verifier', path, { to, note: 'Synthetic evidence' })).status, 200);
+  }
+  await db.run("UPDATE users SET name = 'Renamed synthetic verifier' WHERE id = ?", users.verifier.id);
+  const before = await getTask(db, task.id);
+  for (const to of ['closed', 'in_progress']) {
+    const result = await as('verifier', path, { to, actor: 'Forged actor', note: 'Synthetic review' });
+    t.assert.strictEqual(result.status, 409);
+    t.assert.strictEqual(result.body.code, 'INVALID_TRANSITION');
+    t.assert.deepStrictEqual(await getTask(db, task.id), before);
+  }
+  t.assert.strictEqual((await as('owner', path, { to: 'closed', note: 'Synthetic owner review' })).status, 200);
 });
 
 test('legacy submitter fallback prevents self-review and missing identity returns explicit 400', async t => {

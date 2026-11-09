@@ -59,7 +59,7 @@ async function fixture(t) {
   async function task(siteId, overrides = {}) {
     return request('/api/tasks', {
       siteId, title: 'Controllare il supporto dimostrativo',
-      executor: 'Operatore fittizio A', verifier: 'Verificatore fittizio B', ...overrides,
+      executor: 'Operatore fittizio A', verifier: 'Verificatore fittizio B', verifier_id: users.verifier.id, ...overrides,
     }, 201);
   }
   return { db, bootstrap: JSON.parse(JSON.stringify(bootstrap)), users, cookies, setRole: value => { role = value; }, reopen: database.reopen, base, request, site, task };

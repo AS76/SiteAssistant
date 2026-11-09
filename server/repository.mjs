@@ -212,7 +212,7 @@ export async function transitionTask(db, id, input, user) {
     const task = await getTask(tx, id);
     const to = text(input.to, 'to', true);
     const actor = user ? user.name : text(input.actor, 'actor', true);
-    if (user) await requireRole(tx, task.site_id, user, WRITE_ROLES);
+    const role = user ? await requireRole(tx, task.site_id, user, WRITE_ROLES) : null;
     const note = text(input.note, 'note');
     const reason = text(input.reason, 'reason');
     if (!STATUSES.includes(to)) fail(400, 'Unknown task status.', 'VALIDATION_ERROR');
@@ -220,7 +220,9 @@ export async function transitionTask(db, id, input, user) {
     if (!action) {
       fail(409, `Transition from ${task.status} to ${to} is not allowed.`, 'INVALID_TRANSITION');
     }
-    if (user && ['verify', 'reject'].includes(action)) await requireRole(tx, task.site_id, user, ['verifier', 'owner']);
+    if (user && ['verify', 'reject', 'reopen'].includes(action) && role !== 'owner' && user.id !== task.verifier_id) {
+      fail(403, 'Only the designated verifier or a site owner can perform this transition.', 'FORBIDDEN');
+    }
     if (['submit', 'verify', 'reject'].includes(action) && !note) {
       fail(400, 'A non-empty note is required.', 'NOTE_REQUIRED');
     }

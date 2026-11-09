@@ -209,7 +209,7 @@ test('HTTP 5a preserves to/actor payloads, serializes events and returns stable 
   const missingTask = await post('/api/tasks/unknown/transition', { to: 'in_progress', actor: input.executor });
   t.assert.strictEqual(missingTask.status, 404);
   t.assert.strictEqual(missingTask.body.code, 'TASK_NOT_FOUND');
-  const created = await post('/api/tasks', input);
+  const created = await post('/api/tasks', { ...input, verifier_id: users.verifier.id });
   t.assert.strictEqual(created.status, 201);
   const task = created.body;
   t.assert.strictEqual(typeof task.id, 'string');
