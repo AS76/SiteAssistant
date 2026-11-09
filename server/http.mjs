@@ -8,6 +8,7 @@ import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage } from './signup.mjs';
 import { createTaskResponse } from './idempotency.mjs';
 import { listWbs, getWbs, importWbs } from './wbs.mjs';
+import { listSiteProgress, getSiteProgressItem, importSiteProgress } from './site-progress.mjs';
 import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
@@ -186,6 +187,24 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const node = await getWbs(db, wbs[1]);
         await requireRole(db, node.site_id, user);
         return json(response, 200, node);
+      }
+      if (path === '/api/site-progress' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id');
+        if (!siteId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(siteId)) {
+          throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
+        }
+        await requireRole(db, siteId.toLowerCase(), user);
+        return json(response, 200, await listSiteProgress(db, { siteId, wbsId: url.searchParams.get('wbs_id') }));
+      }
+      if (path === '/api/site-progress/import' && method === 'POST') {
+        const input = await readJson(request);
+        return json(response, 200, await importSiteProgress(db, input.site_id, user));
+      }
+      const siteProgress = /^\/api\/site-progress\/([^/]+)$/.exec(path);
+      if (siteProgress && method === 'GET') {
+        const item = await getSiteProgressItem(db, siteProgress[1]);
+        await requireRole(db, item.site_id, user);
+        return json(response, 200, item);
       }
       if (path === '/api/attachments' && method === 'POST') {
         const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_ATTACHMENT_BYTES / 3) + 65536 });
