@@ -73,8 +73,18 @@ export async function login(db, input, { ip = '', userAgent = '', limiter }) {
   return { token, user: publicUser(user) };
 }
 
-export function sessionCookie(token, { production = process.env.NODE_ENV === 'production', clear = false } = {}) {
-  return `sa_session=${clear ? '' : token}; Path=/api; HttpOnly; SameSite=Lax; Max-Age=${clear ? 0 : SESSION_TTL / 1000}${production ? '; Secure' : ''}`;
+export function isSecureRequest(request, { production = false } = {}) {
+  if (production === true || request.socket?.encrypted === true) return true;
+  const peer = request.socket?.remoteAddress || '';
+  // Traefik runs on the same host: trust only loopback. Widening this requires an explicit CIDR.
+  const loopback = peer === '::1' || peer.toLowerCase() === '::ffff:127.0.0.1' ||
+    /^127(?:\.(?:0|[1-9]\d{0,2})){3}$/.test(peer) && peer.split('.').every(part => Number(part) <= 255);
+  const proto = request.headers?.['x-forwarded-proto'];
+  return loopback && typeof proto === 'string' && proto.split(',')[0].trim().toLowerCase() === 'https';
+}
+
+export function sessionCookie(token, { production = process.env.NODE_ENV === 'production', secure = false, clear = false } = {}) {
+  return `sa_session=${clear ? '' : token}; Path=/api; HttpOnly; SameSite=Lax; Max-Age=${clear ? 0 : SESSION_TTL / 1000}${production || secure ? '; Secure' : ''}`;
 }
 
 export async function authenticate(db, cookie = '') {

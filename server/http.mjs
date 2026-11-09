@@ -1,7 +1,7 @@
 import { createServer as createHttpServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
-import { authenticate, login, memberships, publicUser, sessionCookie, createLoginLimiter } from './auth.mjs';
+import { authenticate, login, memberships, publicUser, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
 import { createTaskResponse } from './idempotency.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
@@ -73,10 +73,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (path === '/api/health' && method === 'GET') return json(response, 200, { status: 'ok' });
       if (path === '/api/auth/login' && method === 'POST') {
         const result = await login(db, await readJson(request), {
-          // Forwarded headers are untrusted unless a future explicit proxy policy validates them.
+          // Rate limiting uses the immediate peer, never X-Forwarded-For.
           ip: request.socket?.remoteAddress || '', userAgent: request.headers['user-agent'] || '', limiter,
         });
-        response.setHeader('Set-Cookie', sessionCookie(result.token, { production }));
+        response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user });
       }
       const user = path.startsWith('/api/') ? await authenticate(db, request.headers.cookie) : null;
@@ -85,7 +85,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (path === '/api/auth/logout' && method === 'POST') {
         await db.run('UPDATE sessions SET revoked_at = ? WHERE id = ?', new Date().toISOString(), user.session_id);
-        response.setHeader('Set-Cookie', sessionCookie('', { production, clear: true }));
+        response.setHeader('Set-Cookie', sessionCookie('', { production, secure: isSecureRequest(request, { production }), clear: true }));
         return json(response, 200, { status: 'ok' });
       }
       if (path === '/api/sites' && method === 'GET') return json(response, 200, await listSites(db, user));

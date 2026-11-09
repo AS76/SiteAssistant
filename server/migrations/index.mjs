@@ -25,13 +25,17 @@ export async function migrate(db, { driver }) {
     version TEXT PRIMARY KEY,
     applied_at TEXT NOT NULL
   );`);
+  let applied = 0;
   for (const file of files) {
     const version = file.slice(0, 3);
-    await db.transaction(async tx => {
+    const changed = await db.transaction(async tx => {
       if (await tx.get('SELECT version FROM schema_migrations WHERE version = ?', version)) return;
       await applyMigration(tx, file, { driver });
       await tx.run('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)',
         version, new Date().toISOString());
+      return true;
     });
+    if (changed) applied++;
   }
+  return applied;
 }

@@ -12,6 +12,7 @@
     "test:schema": "node tests/schema.test.mjs",
     "start": "node server/index.mjs",
     "seed": "node server/seed.mjs",
+    "create-user": "node server/create-user.mjs",
     "test:pg": "DB_DRIVER=pg node --test tests/"
   },
   "devDependencies": {

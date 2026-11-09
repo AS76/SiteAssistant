@@ -3,7 +3,7 @@ import { SqliteStorage, PgStorage } from './storage/index.mjs';
 
 // DATA_DIR is the database pathname; its parent directory must already exist.
 // An explicit location overrides DATA_DIR (SQLite) or DATABASE_URL (pg).
-export async function openDb(location, { driver = process.env.DB_DRIVER || 'sqlite', schema = 'app' } = {}) {
+export async function openDb(location, { driver = process.env.DB_DRIVER || 'sqlite', schema = 'app', onMigrationsApplied } = {}) {
   if (!['sqlite', 'pg'].includes(driver)) throw new Error(`Unknown DB_DRIVER: ${driver}`);
   const db = driver === 'pg'
     ? new PgStorage(location ?? process.env.DATABASE_URL, { schema })
@@ -11,7 +11,8 @@ export async function openDb(location, { driver = process.env.DB_DRIVER || 'sqli
   try {
     if (driver === 'pg') await db.open();
     if (driver === 'sqlite') await db.exec('PRAGMA foreign_keys = ON;');
-    await migrate(db, { driver });
+    const applied = await migrate(db, { driver });
+    if (applied > 0) onMigrationsApplied?.(applied);
     return db;
   } catch (error) {
     await db.close();
