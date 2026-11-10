@@ -17,7 +17,7 @@ Un database PostgreSQL condiviso con separazione logica per organizzazione e can
 | Relazionale SQL: PostgreSQL | Dati operativi, autorizzazioni, revisioni, storico e report | Prima versione multiutente |
 | Object storage compatibile S3 | File binari: foto, PDF, disegni, allegati | Con il modulo documenti/allegati |
 | JSONB dentro PostgreSQL | Metadati opzionali, mapping e payload originali degli import | Dove la variabilità dei dati lo richiede |
-| IndexedDB nel browser | Coda locale delle operazioni e bozze offline | Dopo progettazione della sincronizzazione |
+| IndexedDB nel browser | Coda locale delle operazioni e bozze offline | Incremento 15 (offline-first) |
 | SQLite | Strumento utile per applicazioni locali o singolo dispositivo | Alternativa per un prodotto locale; PostgreSQL resta la scelta per questa web app |
 | Database documentale NoSQL | Documenti con struttura molto variabile e accessi centrati sul documento | Non selezionato per il nucleo operativo, che richiede molte relazioni e vincoli |
 
@@ -41,12 +41,17 @@ La scelta della versione Node viene fissata all'avvio del backend su una LTS sup
 flowchart LR
     U[Browser: interfaccia web] -->|HTTPS| A[API: Node.js + Fastify]
     U -->|Login| I[Provider di identità]
+    U -->|app shell + cache letture| SW[Service Worker]
+    U -->|coda scritture| IDB[(IndexedDB: coda + mirror offline)]
+    IDB -->|Background Sync (rete ok)| A
     A -->|Validazione identità| I
     A --> P[(PostgreSQL)]
     A --> O[Object storage privato]
 ```
 
 Il browser comunica con l'API, che controlla identità, cantiere, ruolo e modulo prima di ogni operazione. Credenziali del database e chiavi di storage restano sul server. L'interfaccia può nascondere azioni non disponibili, ma la decisione vincolante avviene nel backend.
+
+**Offline-first (incremento 15):** in campo, senza rete, il browser carica l'app dalla cache del Service Worker, legge i dati già aperti e accoda le scritture (attività, diario, foto) in IndexedDB. Quando torna la linea, il Background Sync replaya la coda verso l'API, con idempotenza (`Idempotency-Key`) e last-write-wins per i contenuti; le transizioni restano server-side.
 
 ## Moduli e dipendenze
 
