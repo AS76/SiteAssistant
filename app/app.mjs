@@ -180,6 +180,10 @@ function renderChrome() {
   document.title = `SiteAssistant · ${t(view)}`;
   $('#brand-sub').textContent = t('brandSub'); $('#workspace-label').textContent = t('workspace');
   $('#local-label').innerHTML = `${t('local')}<small>${t('fiction')}</small>`;
+  // The assistant only exists for a signed-in user: no fab, no panel on the login screen.
+  const fab = $('#ai-fab'), aiPanel = $('#ai-panel');
+  if (fab) fab.hidden = !session;
+  if (aiPanel && !session) aiPanel.hidden = true;
   $('#navigation').setAttribute('aria-label', t('nav'));
   $('#navigation').classList.add('core-navigation');
   $('.sidebar').classList.add('core-sidebar');

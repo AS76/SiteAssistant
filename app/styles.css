@@ -175,3 +175,5 @@ footer{font-size:11px}
 .kpi-card strong{font-size:24px;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
 .kpi-loading{grid-column:1/-1;color:var(--muted);font-size:12px}
 @media(max-width:800px){.overview-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.ai-fab[hidden]{display:none}
