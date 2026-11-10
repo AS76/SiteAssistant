@@ -196,6 +196,23 @@ export async function apply(db) {
       }
     }
 
+    // History for the curves: weekly step recordings from zero to the current percent.
+    const typedItems = await db.all(`SELECT s.id, s.progress_type_id, st.progress_type_step_id, st.percent
+      FROM site_progress_items s JOIN site_progress_item_steps st ON st.site_progress_item_id = s.id
+      WHERE s.site_id = ? AND s.progress_type_id IS NOT NULL`, siteId);
+    for (const row of typedItems) {
+      for (let week = 6; week >= 0; week--) {
+        const target = Math.round(Number(row.percent) * (7 - week) / 7);
+        const recordedAt = new Date(`${date(week * 7)}T16:00:00.000Z`).toISOString();
+        await db.run(`INSERT INTO progress_entries
+          (id, site_id, site_progress_item_id, progress_type_step_id, percent, recorded_at, recorded_by)
+          VALUES (?, ?, ?, ?, ?, ?, NULL) ON CONFLICT (id) DO NOTHING`,
+        id(`${code}:history:${row.id}:${row.progress_type_step_id}:${week}`), siteId, row.id,
+        row.progress_type_step_id, target, recordedAt);
+        bump('progressEntries');
+      }
+    }
+
     // Bookings: one per work day, rotating over the first few items.
     for (const [index, workDay] of workDays.entries()) {
       if (index % 3 === 2) continue;
