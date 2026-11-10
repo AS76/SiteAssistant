@@ -11,6 +11,7 @@ import { listWbs, getWbs, importWbs } from './wbs.mjs';
 import { listSiteProgress, getSiteProgressItem, importSiteProgress } from './site-progress.mjs';
 import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.mjs';
 import { listDeviations, getDeviation, importDeviations } from './deviations.mjs';
+import { listTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForItem } from './time_bookings.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
   transitionTask, listDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember,
@@ -205,7 +206,21 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (siteProgress && method === 'GET') {
         const item = await getSiteProgressItem(db, siteProgress[1]);
         await requireRole(db, item.site_id, user);
-        return json(response, 200, item);
+        return json(response, 200, { ...item, booked_hours: await bookedHoursForItem(db, item.id) });
+      }
+      if (path === '/api/time-bookings' && method === 'GET') {
+        return json(response, 200, await listTimeBookings(db, {
+          siteId: url.searchParams.get('site_id'),
+          siteProgressItemId: url.searchParams.get('site_progress_item_id'),
+          workDayId: url.searchParams.get('work_day_id'),
+        }, user));
+      }
+      if (path === '/api/time-bookings' && method === 'POST') {
+        return json(response, 201, await createTimeBooking(db, await readJson(request), user));
+      }
+      const timeBooking = /^\/api\/time-bookings\/([^/]+)$/.exec(path);
+      if (timeBooking && method === 'DELETE') {
+        return json(response, 200, await deleteTimeBooking(db, timeBooking[1], user));
       }
       if (path === '/api/deviations' && method === 'GET') {
         const siteId = url.searchParams.get('site_id');

@@ -199,7 +199,7 @@ for (const driver of ['sqlite', 'pg']) test(`Site Progress ${driver}: snapshots,
     t.assert.strictEqual(listed.status, 200); t.assert.strictEqual(listed.body.length, 8);
     const linked = listed.body.find(row => row.wbs_id), detailPath = `/api/site-progress/${linked.id}`;
     const detail = await request(detailPath, { cookie: auth.cookies.viewer });
-    t.assert.strictEqual(detail.status, 200); t.assert.deepStrictEqual(detail.body, linked);
+    t.assert.strictEqual(detail.status, 200); t.assert.deepStrictEqual(detail.body, { ...linked, booked_hours: 0 });
     const filtered = await request(`${listPath}&wbs_id=${linked.wbs_id}`, { cookie: auth.cookies.viewer });
     t.assert.strictEqual(filtered.status, 200); t.assert.strictEqual(filtered.body.length, 3);
     t.assert.ok(filtered.body.every(row => row.wbs_id === linked.wbs_id));
