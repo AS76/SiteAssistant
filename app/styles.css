@@ -28,3 +28,57 @@ dialog{border:1px solid var(--line);border-radius:15px;padding:0;max-width:760px
 .attachment-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line, #ddd); overflow-wrap: anywhere; }
 .attachment-section p { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 600px) { .offline-banner { margin: 12px 16px 0; } }
+
+/* Core module additions: contained board scrolling, responsive lists, shared visual tokens. */
+.core-sidebar { overflow-y: auto; }
+.core-navigation { min-width: 0; }
+.core-view { min-width: 0; max-width: 100%; }
+.core-toolbar { align-items: end; }
+.core-filter { flex: 1 1 180px; min-width: 0; max-width: 100%; }
+.core-filter select { min-width: 0; max-width: 100%; }
+.core-board { display: flex; gap: 14px; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding: 4px 3px 16px; }
+.core-column { flex: 0 0 260px; min-width: 0; scroll-snap-align: start; background: #eaf0ed; border-radius: 10px; padding: 0 12px 12px; }
+.core-unknown { margin-top: 24px; }
+.core-table-wrap { border: 1px solid var(--line); border-radius: 10px; background: white; overflow: hidden; }
+.core-table { table-layout: fixed; white-space: normal; }
+.core-table td, .core-table th { overflow-wrap: anywhere; padding: 12px; }
+.core-table td:first-child { min-width: 0; max-width: none; }
+.core-status { white-space: normal; }
+.core-status-open { background: #edf1f2; color: #53656d; }
+.core-status-approved, .core-status-notification_sent { background: #eaf0fc; color: #44699b; }
+.core-status-in_progress, .core-status-work_completed, .core-status-submitted { background: #e7f2ee; color: #226b58; }
+.core-status-closed { background: #e3f2e5; color: #377348; }
+.core-status-rejected { background: #fbeceb; color: #ac4540; }
+.core-progress { display: grid; gap: 5px; }
+.core-progress progress { width: 100%; height: 9px; accent-color: var(--green); }
+.core-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.core-kpis strong { display: block; font-size: 27px; overflow-wrap: anywhere; margin: 8px 0; }
+.core-kpis small { display: block; color: var(--muted); }
+.core-booking-form { margin-bottom: 24px; }
+.core-booking-form h2, .core-day h2, .core-unknown h2 { font-size: 17px; }
+.core-entry-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.core-stepper { display: flex; align-items: end; gap: 6px; flex-wrap: wrap; }
+.core-stepper button { padding: 10px; }
+.core-day { margin: 24px 0; }
+.core-day h2 { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.core-day small { font-size: 13px; color: var(--muted); }
+.core-details dd { white-space: pre-wrap; }
+.core-links { padding-left: 20px; overflow-wrap: anywhere; }
+.core-links li { margin: 10px 0; }
+.core-links button { text-align: left; max-width: 100%; overflow-wrap: anywhere; }
+.core-result[hidden] { display: none; }
+@media (max-width: 800px) {
+  .core-navigation { display: flex; flex-wrap: wrap; justify-content: flex-start; }
+  .core-navigation a { flex: 0 1 auto; }
+}
+@media (max-width: 719px) {
+  .core-table, .core-table tbody, .core-table tr, .core-table td { display: block; width: 100%; }
+  .core-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .core-table tr { padding: 12px; border-bottom: 1px solid var(--line); }
+  .core-table td { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 12px; border: 0; padding: 6px 0; }
+  .core-table td::before { content: attr(data-label); font-size: 11px; color: var(--muted); }
+  .core-table td > * { min-width: 0; }
+  .core-entry-grid, .core-kpis { grid-template-columns: minmax(0, 1fr); }
+  .core-column { flex-basis: min(280px, 78vw); }
+  .core-modal { width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; }
+}

@@ -1,4 +1,4 @@
-import { STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload } from './domain.mjs';
+import { STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, progressWithHours, flattenWbs } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock } from './offline.mjs';
@@ -12,7 +12,7 @@ const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 let session = null;
 let state = { sites: [], tasks: [], diary: [], attachments: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
-let view = ['overview', 'sites', 'tasks', 'wbs', 'diary'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+let view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 let filters = { search: '', status: '', person: '', priority: '' };
 let taskView = 'board';
 let wbsView = 'tree', wbsLoad = null;
@@ -39,10 +39,10 @@ function toast(message) {
   clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false;
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
-const errorKeys = { MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
+const errorKeys = { VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
-  wbsCache.clear(); wbsLoad = null;
+  wbsCache.clear(); wbsLoad = null; resetCore();
   session = null; actor = ''; siteId = undefined; loadError = null; offlineScope = undefined; pendingOps = [];
   state = { sites: [], tasks: [], diary: [], attachments: [] };
   filters = { search: '', status: '', person: '', priority: '' };
@@ -72,6 +72,7 @@ async function refreshPending() {
   state = overlayPending(state, pendingOps);
 }
 async function loadData() {
+  coreCache.clear();
   loading = true; loadError = null; render();
   try {
     await accountLock(async () => {
@@ -164,7 +165,9 @@ function renderChrome() {
   $('#brand-sub').textContent = t('brandSub'); $('#workspace-label').textContent = t('workspace');
   $('#local-label').innerHTML = `${t('local')}<small>${t('fiction')}</small>`;
   $('#navigation').setAttribute('aria-label', t('nav'));
-  $('#navigation').innerHTML = ['overview', 'sites', 'tasks', 'wbs', 'diary'].map(key => `<a href="#${key}" ${view === key ? 'class="active" aria-current="page"' : ''}>${icon(key)}${t(key)}</a>`).join('');
+  $('#navigation').classList.add('core-navigation');
+  $('.sidebar').classList.add('core-sidebar');
+  $('#navigation').innerHTML = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary'].map(key => `<a href="#${key}" ${view === key ? 'class="active" aria-current="page"' : ''}>${icon(key)}${t(key)}</a>`).join('');
   $('#skip').textContent = t('skip'); $('#site-label').textContent = t('site'); $('#actor-label').textContent = t('actor'); $('#manual-link').textContent = t('manual');
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
   $('#actor-input').value = actor;
@@ -243,15 +246,16 @@ function renderDiary() {
     }).join('') : empty('diaryEmpty', 'diaryEmptyHint', button('newEntry', 'new-entry', '', 'primary'))}</section><aside class="panel diary-aside"><div class="panel-body"><h3>${t('dayRule')}</h3><p>${t('dayRuleNote')}</p><div class="blank-message">${t('diaryLimit')}</div></div></aside></div><p class="note">${t('forDate')} ${dateLabel(reportDate)} · ${t('draft')} · ${t('diaryLimit')}</p>`;
 }
 async function loadWbs() {
-  const selected = siteId, token = {};
+  const selected = siteId, scope = offlineScope, token = {};
   wbsLoad = token;
+  token.promise = (async () => {
   try {
     let nodes;
     try {
       nodes = await api.listWbs(selected);
-      if (storageReady) await setMirror(`wbs:${offlineScope}:${selected}`, nodes);
+      if (storageReady) await setMirror(`wbs:${scope}:${selected}`, nodes);
     } catch (error) {
-      nodes = storageReady && error.code === 'NETWORK_ERROR' ? await getMirror(`wbs:${offlineScope}:${selected}`) : undefined;
+      nodes = storageReady && error.code === 'NETWORK_ERROR' ? await getMirror(`wbs:${scope}:${selected}`) : undefined;
       if (!nodes) throw error;
     }
     if (wbsLoad === token) wbsCache.set(selected, { nodes });
@@ -263,6 +267,8 @@ async function loadWbs() {
       if (view === 'wbs' && siteId === selected) render();
     }
   }
+  })();
+  return token.promise;
 }
 function renderWbs() {
   const cached = wbsCache.get(siteId);
@@ -294,6 +300,175 @@ function renderWbs() {
     $('#main').insertAdjacentHTML('beforeend', `<div class="table-scroll"><table><thead><tr>${['wbsCode', 'wbsDescription', 'wbsParent', 'wbsLevel', 'wbsOrder', 'wbsProgress', 'wbsPlannedStart', 'wbsPlannedFinish'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${rows.map(node => `<tr><td>${esc(node.wbs_code)}${node.is_synthetic ? ` <span class="badge">${t('wbsSynthetic')}</span>` : ''}</td><td>${esc(node.description ?? '—')}</td><td>${esc(byId.get(node.parent_id)?.wbs_code ?? '—')}</td><td>${node.level}</td><td>${esc(node.sort_order ?? '—')}</td><td>${node.progress_pct === null ? '—' : `${esc(node.progress_pct)}%`}</td><td>${esc(node.planned_start ?? '—')}</td><td>${esc(node.planned_finish ?? '—')}</td></tr>`).join('')}</tbody></table></div>`);
   }
 }
+// Core modules are online-only and never write to the offline operation queue.
+const role = () => session?.roles?.find(member => member.site_id === siteId)?.role;
+const permissions = () => corePermissions(role());
+const moduleResources = { deviations: ['deviations'], progress: ['progress', 'bookings', 'wbs'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'] };
+const coreCache = new Map();
+let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' } };
+let deviationView = 'board';
+function resetCore() {
+  coreCache.clear();
+  coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' } };
+}
+function coreResource(name) {
+  const selected = siteId;
+  if (!coreCache.has(selected)) coreCache.set(selected, new Map());
+  const cache = coreCache.get(selected);
+  if (cache.has(name)) return cache.get(name);
+  const entry = { pending: true };
+  cache.set(name, entry);
+  const loaders = {
+    deviations: () => freshApi.listDeviations({ siteId: selected }), progress: () => freshApi.listProgress({ siteId: selected }),
+    bookings: () => freshApi.listBookings({ siteId: selected }), impacts: () => freshApi.listImpacts({ siteId: selected }),
+    workDays: () => freshApi.listWorkDays({ siteId: selected }), employees: () => freshApi.listEmployees({ siteId: selected }),
+    wbs: async () => {
+      if (wbsLoad?.promise) await wbsLoad.promise;
+      if (siteId !== selected || coreCache.get(selected) !== cache) return [];
+      if (!wbsCache.has(selected)) await loadWbs();
+      const result = wbsCache.get(selected);
+      if (result?.error) throw result.error;
+      return flattenWbs(result?.nodes || []);
+    },
+  };
+  entry.promise = loaders[name]().then(data => { entry.data = data; }, error => { entry.error = error; }).finally(() => {
+    entry.pending = false;
+    if (coreCache.get(selected) === cache && cache.get(name) === entry && siteId === selected && moduleResources[view]?.includes(name)) render();
+  });
+  return entry;
+}
+const coreData = name => coreCache.get(siteId)?.get(name)?.data || [];
+const coreValue = value => esc(value ?? t('coreUnknown'));
+const coreStatus = value => `<span class="badge core-status core-status-${esc(value || 'unknown')}">${esc(t(value || 'coreUnknown'))}</span>`;
+const coreNumber = value => value == null ? t('coreUnknown') : new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 4 }).format(Number(value));
+const employeeLabel = employee => employee ? [employee.employeeNo, employee.firstName, employee.lastName].filter(Boolean).join(' · ') || employee.id : t('coreUnknown');
+const progressLabel = item => item?.description || item?.id || t('coreUnknown');
+function coreSelect(key, label, options, value, allLabel) {
+  return `<label class="field core-filter"><span>${t(label)}</span><select data-core-filter="${key}">${allLabel ? `<option value="">${t(allLabel)}</option>` : ''}${options.map(([id, text]) => `<option value="${esc(id)}" ${id === value ? 'selected' : ''}>${esc(text)}</option>`).join('')}</select></label>`;
+}
+function coreTable(columns, rows) {
+  return `<div class="core-table-wrap"><table class="core-table"><thead><tr>${columns.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${rows.map(cells => `<tr>${cells.map((cell, index) => `<td data-label="${t(columns[index])}">${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+const coreDetailButton = (module, row, label = row.title || row.description || row.id) => `<button type="button" data-command="core-detail" data-module="${module}" data-id="${esc(row.id)}">${esc(label)}</button>`;
+function progressBar(value) {
+  if (value == null) return t('coreUnknown');
+  return `<div class="core-progress"><span>${coreNumber(value)}%</span><progress max="100" value="${Math.min(100, Math.max(0, Number(value)))}" aria-label="${t('coreProgressPct')}"></progress></div>`;
+}
+function renderCore() {
+  $('#main').innerHTML = heading(view, `${view}Sub`, button('coreRefresh', 'core-reload'));
+  if (offline || !navigator.onLine) {
+    $('#main').insertAdjacentHTML('beforeend', empty('coreOnlineOnly', 'coreOnlineHint')); return;
+  }
+  const resources = moduleResources[view].map(coreResource);
+  if (resources.some(entry => entry.pending)) {
+    $('#main').setAttribute('aria-busy', 'true');
+    $('#main').insertAdjacentHTML('beforeend', `<p role="status">${t('loading')}</p>`); return;
+  }
+  const error = resources.find(entry => entry.error)?.error;
+  if (error) { $('#main').insertAdjacentHTML('beforeend', `<p role="alert">${esc(errorMessage(error))}</p>`); return; }
+  const content = { deviations: renderDeviations, progress: renderProgress, bookings: renderBookings, impacts: renderImpacts }[view]();
+  $('#main').insertAdjacentHTML('beforeend', `<div class="core-view">${content}</div>`);
+}
+function renderDeviations() {
+  const all = coreData('deviations'), filter = coreFilters.deviations;
+  const rows = filterSortRecords(all, filter, [{ key: 'creationDate', descending: true }, { key: 'deviationNo' }]);
+  const priorities = [...new Set(all.map(row => row.priority).filter(value => value != null))].sort();
+  let html = `<div class="toolbar core-toolbar">${coreSelect('status', 'status', [...DEVIATION_STATUSES.map(value => [value, t(value)]), ['__unknown', t('coreUnknown')]], filter.status, 'allStatuses')}${coreSelect('priority', 'priority', priorities.map(value => [value, t(value)]), filter.priority, 'allPriorities')}<div class="view-toggle">${['board', 'list'].map(value => button(value, 'deviation-view', `data-value="${value}" aria-pressed="${deviationView === value}"`, deviationView === value ? 'selected' : '')).join('')}</div></div>`;
+  const visible = filter.status === '__unknown' ? filterSortRecords(all, { ...filter, status: null }, [{ key: 'creationDate', descending: true }, { key: 'deviationNo' }]) : rows;
+  const card = row => `<button type="button" class="task-card" data-command="core-detail" data-module="deviations" data-id="${esc(row.id)}"><span class="card-code">${coreValue(row.deviationNo)}</span><h2>${esc(row.title || row.id)}</h2>${coreStatus(row.status)}<p>${t('priority')}: ${coreValue(row.priority == null ? null : t(row.priority))}</p><p>${coreValue(row.assignedTo)}</p></button>`;
+  if (deviationView === 'board') {
+    html += `<div class="core-board" tabindex="0" role="region" aria-label="${t('coreDeviationBoard')}">${DEVIATION_STATUSES.map(status => {
+      const column = visible.filter(row => row.status === status);
+      return `<section class="core-column"><div class="column-heading"><span>${t(status)}</span><span>${column.length}</span></div>${column.length ? column.map(card).join('') : `<p class="mini-empty">${t('coreEmptyColumn')}</p>`}</section>`;
+    }).join('')}</div>`;
+    const unknown = visible.filter(row => !DEVIATION_STATUSES.includes(row.status));
+    if (unknown.length) html += `<section class="core-unknown"><h2>${t('coreUnmappedStatus')}</h2>${unknown.map(card).join('')}</section>`;
+  } else html += visible.length ? coreTable(['coreReference', 'title', 'status', 'priority', 'coreAssignedTo', 'coreCreated', 'coreClosed'], visible.map(row => [coreValue(row.deviationNo), coreDetailButton('deviations', row), coreStatus(row.status), coreValue(row.priority == null ? null : t(row.priority)), coreValue(row.assignedTo), coreValue(row.creationDate), coreValue(row.closedDate)])) : empty('noResults', 'noResultsHint');
+  return html;
+}
+function renderProgress() {
+  const rows = filterSortRecords(progressWithHours(coreData('progress'), coreData('bookings')), coreFilters.progress, [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
+  return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbs', coreData('wbs').map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), coreFilters.progress.wbsId, 'coreAllWbs')}</div>` +
+    (rows.length ? coreTable(['wbsDescription', 'coreSection', 'area', 'coreProgressPct', 'coreBookedHours'], rows.map(row => [coreDetailButton('progress', row), coreValue(row.section), coreValue(row.plcArea), progressBar(row.progressPct), coreNumber(row.bookedHours)])) : empty('noResults', 'noResultsHint'));
+}
+function renderBookings() {
+  const days = coreData('workDays'), employees = coreData('employees'), items = coreData('progress');
+  const groups = groupBookings(coreData('bookings'), days, employees, items).filter(group => !coreFilters.bookings.date || group.date === coreFilters.bookings.date);
+  const dates = [...new Set(days.map(day => day.operationalDate).filter(Boolean))].sort().reverse();
+  let html = `<div class="toolbar core-toolbar">${coreSelect('date', 'reportDate', dates.map(date => [date, dateLabel(date)]), coreFilters.bookings.date, 'coreAllDays')}</div>`;
+  if (permissions().book) {
+    if (!days.length || !items.length) html += `<p class="blank-message">${t('coreBookingPrerequisites')}</p>`;
+    else html += `<form id="booking-form" class="panel panel-body core-booking-form"><h2>${t('coreBookHours')}</h2><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="core-entry-grid"><label class="field">${t('coreWorkDay')}<select name="workDayId" required><option value="">${t('coreChoose')}</option>${filterSortRecords(days, {}, [{ key: 'operationalDate', descending: true }, { key: 'employeeId' }]).map(day => `<option value="${esc(day.id)}">${esc(`${day.operationalDate} · ${employeeLabel(employees.find(employee => employee.id === day.employeeId))} · ${t(day.shift || 'coreUnknown')} · ${day.startTime ?? t('coreUnknown')}`)}</option>`).join('')}</select></label><label class="field">${t('coreProgressItem')}<select name="siteProgressItemId" required><option value="">${t('coreChoose')}</option>${items.map(item => `<option value="${esc(item.id)}">${esc(progressLabel(item))}</option>`).join('')}</select></label><label class="field">${t('coreHours')}<input name="hours" type="number" min="0" step="0.5" value="1" required></label><div class="core-stepper">${button('coreMinusHalf', 'booking-step', 'data-step="-0.5"')}${button('corePlusHalf', 'booking-step', 'data-step="0.5"')}${button('corePlusOne', 'booking-step', 'data-step="1"')}</div></div><div class="form-actions"><button type="submit" class="primary">${t('coreBookHours')}</button></div></form>`;
+  }
+  html += groups.length ? groups.map(group => `<section class="core-day"><h2>${group.date ? dateLabel(group.date) : t('coreUnknown')} <small>${coreNumber(group.hours)} ${t('coreHours')}</small></h2>${coreTable(['coreEmployee', 'coreProgressItem', 'coreHours', ...(permissions().book ? ['coreActions'] : [])], group.rows.map(row => [esc(employeeLabel(row.employee)), esc(row.item ? progressLabel(row.item) : row.siteProgressItemId), coreNumber(row.hours), ...(permissions().book ? [button('coreDelete', 'booking-delete', `data-id="${esc(row.id)}"`, 'danger small')] : [])]))}</section>`).join('') : empty('noResults', 'noResultsHint');
+  return html;
+}
+function renderImpacts() {
+  const rows = filterSortRecords(coreData('impacts'), coreFilters.impacts, [{ key: 'createdAt', descending: true }]), totals = impactTotals(rows);
+  return `<div class="core-kpis" role="status">${[['coreTotalClaim', totals.claimAmount, totals.missingClaim], ['coreTotalSettlement', totals.settlementAmount, totals.missingSettlement]].map(([label, amount, missing]) => `<div class="panel panel-body"><span>${t(label)}</span><strong>${coreValue(amount)}</strong>${missing ? `<small>${missing} ${t('coreMissingAmounts')}</small>` : ''}</div>`).join('')}</div><p class="note">${t('coreAmountsHint')}</p><div class="toolbar core-toolbar">${coreSelect('status', 'status', IMPACT_STATUSES.map(value => [value, t(value)]), coreFilters.impacts.status, 'allStatuses')}${coreSelect('result', 'coreResult', IMPACT_RESULTS.map(value => [value, t(value)]), coreFilters.impacts.result, 'coreAllResults')}</div>` +
+    (rows.length ? coreTable(['title', 'status', 'coreClaimAmount', 'coreSettlementAmount', 'coreResult'], rows.map(row => [coreDetailButton('impacts', row), coreStatus(row.status), coreValue(row.claimAmount), coreValue(row.settlementAmount), coreValue(row.result == null ? null : t(row.result))])) : empty('noResults', 'noResultsHint'));
+}
+function coreFields(row, fields) {
+  return `<dl class="detail-grid core-details">${fields.map(([key, label = key]) => `<div><dt>${t(label)}</dt><dd>${['status', 'result', 'priority'].includes(key) && row[key] != null ? esc(t(row[key])) : typeof row[key] === 'boolean' ? t(row[key] ? 'coreYes' : 'coreNo') : coreValue(row[key])}</dd></div>`).join('')}</dl>`;
+}
+async function showCoreDetail(module, id) {
+  const selected = siteId;
+  showModal(t('coreDetails'), `<p role="status">${t('loading')}</p>`);
+  $('#modal').classList.add('core-modal');
+  const version = modalVersion;
+  try {
+    if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
+    const row = await ({ deviations: freshApi.getDeviation, progress: freshApi.getProgress, impacts: freshApi.getImpact }[module])(id);
+    if (version !== modalVersion || siteId !== selected || !$('#modal').open) return;
+    if (row.siteId !== selected) throw new Error('forbidden');
+    let content;
+    if (module === 'deviations') {
+      content = coreFields(row, [['deviationNo', 'coreReference'], ['status', 'status'], ['priority', 'priority'], ['problemDescription', 'coreDescription'], ['author', 'coreAuthor'], ['assignedTo', 'coreAssignedTo'], ['plcArea', 'area'], ['creationDate', 'coreCreated'], ['dueDate', 'due'], ['approvedDate', 'coreApprovedDate'], ['closedDate', 'coreClosed'], ['actualCost', 'coreActualCost'], ['claimQuantity', 'coreClaimQuantity'], ['laborHours', 'coreLaborHours'], ['completedTasksPct', 'coreCompletedPct']]);
+      const typeLabels = { site_progress_item: 'coreProgressItem', task: 'tasks', diary: 'diary' };
+      content += `<h3>${t('coreReferences')}</h3>${row.links?.length ? `<ul class="core-links">${row.links.map(link => `<li>${esc(t(typeLabels[link.entityType] || 'coreReference'))}: ${esc(link.entityId)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`}`;
+    } else if (module === 'progress') {
+      content = progressBar(row.progressPct) + coreFields(row, [['description', 'coreDescription'], ['section', 'coreSection'], ['plcArea', 'area'], ['wbsId', 'wbs'], ['assignedTo', 'coreAssignedTo'], ['progressPct', 'coreProgressPct'], ['plannedProgressPct', 'corePlannedPct'], ['deltaProgressSource', 'coreDeltaPct'], ['bookedHours', 'coreBookedHours'], ['plannedStart', 'wbsPlannedStart'], ['plannedFinish', 'wbsPlannedFinish'], ['actualStart', 'coreActualStart'], ['expectedDelay', 'coreExpectedDelay'], ['hasFiles', 'coreHasFiles'], ['hasNotes', 'coreHasNotes'], ['hasDeviations', 'coreHasDeviations']]);
+    } else {
+      content = coreFields(row, [['status', 'status'], ['claimAmount', 'coreClaimAmount'], ['settlementAmount', 'coreSettlementAmount'], ['result', 'coreResult'], ['createdAt', 'coreCreated'], ['closedAt', 'coreClosed']]);
+      content += `<h3>${t('coreLinkedDeviations')}</h3>${row.deviations?.length ? `<ul class="core-links">${row.deviations.map(deviation => `<li>${coreDetailButton('deviations', deviation, [deviation.deviationNo, deviation.title || deviation.id].filter(Boolean).join(' · '))} ${coreStatus(deviation.status)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`}`;
+      const transitions = impactTransitions(row.status);
+      if (permissions().transition && transitions.length) content += `<form id="impact-transition-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('transitionTo')}<select name="to" required>${transitions.map(status => `<option value="${status}">${t(status)}</option>`).join('')}</select></label><label class="field core-result" id="impact-result-field" ${transitions[0] !== 'closed' ? 'hidden' : ''}>${t('coreResult')}<select name="result" ${transitions[0] === 'closed' ? 'required' : 'disabled'}><option value="">${t('coreChoose')}</option>${IMPACT_RESULTS.map(result => `<option value="${result}">${t(result)}</option>`).join('')}</select></label></div>${formActions()}</form>`;
+    }
+    showModal(row.title || row.description || t('coreDetails'), content);
+    $('#modal').classList.add('core-modal');
+  } catch (error) {
+    if (version === modalVersion && $('#modal').open) showModal(t('coreDetails'), `<p role="alert">${esc(errorMessage(error))}</p>${button('retry', 'core-detail', `data-module="${module}" data-id="${esc(id)}"`)}`);
+  }
+}
+function showBookingDelete(id) {
+  if (!permissions().book) return toast(t('forbidden'));
+  const row = coreData('bookings').find(booking => booking.id === id);
+  if (!row) return;
+  showModal(t('coreDeleteBooking'), `<form id="booking-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('coreDeleteConfirm')}</p><p>${coreNumber(row.hours)} ${t('coreHours')} · ${esc(progressLabel(coreData('progress').find(item => item.id === row.siteProgressItemId)))}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
+}
+async function submitCore(form, data) {
+  const selected = siteId, user = session?.user.id, version = modalVersion;
+  if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
+  const isImpact = form.id === 'impact-transition-form';
+  if (!(isImpact ? permissions().transition : permissions().book)) throw new Error('forbidden');
+  if (form.id === 'booking-form') {
+    const hours = Number(data.hours);
+    if (!data.hours || !Number.isFinite(hours) || hours < 0) throw new Error('invalidData');
+    await api.createBooking({ workDayId: data.workDayId, siteProgressItemId: data.siteProgressItemId, hours });
+  } else if (form.id === 'booking-delete-form') await api.deleteBooking(form.dataset.id);
+  else {
+    if (data.to === 'closed' && !IMPACT_RESULTS.includes(data.result)) throw new Error('coreResultRequired');
+    await api.transitionImpact(form.dataset.id, data);
+  }
+  if (session?.user.id !== user) return;
+  const cache = coreCache.get(selected);
+  for (const key of isImpact ? ['impacts'] : ['bookings', 'progress']) cache?.delete(key);
+  if (selected !== siteId) return;
+  if (form.id !== 'booking-form' && version === modalVersion) closeModal();
+  render(); toast(t('actionSaved'));
+  if (isImpact && version + 1 === modalVersion) void showCoreDetail('impacts', form.dataset.id);
+}
+
 function render() {
   renderChrome();
   $('#main').setAttribute('aria-busy', String(loading));
@@ -304,16 +479,17 @@ function render() {
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
   if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
-  ({ overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs })[view]();
+  ({ overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore })[view]();
 }
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
 function selectSite(id) {
   if (!state.sites.some(site => site.id === id)) return;
-  wbsLoad = null;
+  wbsLoad = null; wbsCache.clear(); resetCore(); closeModal();
   siteId = id; filters = { search: '', status: '', person: '', priority: '' }; render();
   if (!offline) void loadData();
 }
 function showModal(title, content) {
+  $('#modal').classList.remove('core-modal');
   modalVersion++;
   $('#modal-content').innerHTML = `<div class="modal-header"><h2 id="modal-title">${esc(title)}</h2><button class="close" type="button" data-command="close-modal" aria-label="${t('close')}">×</button></div><div class="modal-body">${content}</div>`;
   if (!$('#modal').open) $('#modal').showModal();
@@ -417,6 +593,11 @@ document.addEventListener('click', event => {
     'discard-op': async () => { await accountLock(async () => { await removeOp(id); }); await refreshPending(); render(); },
     'new-attachment': () => showAttachmentForm(target.dataset.entityType, id),
     'open-attachment': () => openAttachment(id),
+    'core-reload': () => { coreCache.delete(siteId); wbsCache.delete(siteId); render(); },
+    'deviation-view': () => { deviationView = target.dataset.value; render(); },
+    'core-detail': () => showCoreDetail(target.dataset.module, id),
+    'booking-delete': () => showBookingDelete(id),
+    'booking-step': () => { const input = $('#booking-form [name=hours]'); if (input) input.value = Math.max(0, (Number(input.value) || 0) + Number(target.dataset.step)); },
     'wbs-view': () => { wbsView = target.dataset.value; render(); },
     'wbs-reload': () => { wbsCache.delete(siteId); wbsLoad = null; render(); },
     'wbs-expand': () => { document.querySelectorAll('.wbs-tree details').forEach(node => { node.open = true; }); },
@@ -433,7 +614,7 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('submit', async event => {
   const form = event.target;
-  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form'].includes(form.id)) return;
+  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   const data = Object.fromEntries(new FormData(form));
@@ -443,6 +624,7 @@ document.addEventListener('submit', async event => {
   // Capture the selected context before waiting for the server.
   const selectedSite = siteId, selectedDate = reportDate;
   try {
+    if (['booking-form', 'booking-delete-form', 'impact-transition-form'].includes(form.id)) { await submitCore(form, data); return; }
     if (form.id === 'login-form') {
       await accountLock(async () => { await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
       await loadData(); await syncQueue(); return;
@@ -483,21 +665,26 @@ document.addEventListener('submit', async event => {
     if (sameModal && detail && siteId === detail.siteId) showDetail(detail.id);
     toast(t(message));
   } catch (error) {
-    if (version === modalVersion) formError(form, error);
+    if (version === modalVersion && form.isConnected) formError(form, error);
     else toast(errorMessage(error));
   } finally { delete form.dataset.saving; submit.disabled = false; }
 });
 $('#modal').addEventListener('cancel', () => { modalVersion++; });
 $('#site-select').addEventListener('change', event => selectSite(event.target.value));
 document.addEventListener('change', event => {
+  if (event.target.dataset.coreFilter && coreFilters[view]) { coreFilters[view][event.target.dataset.coreFilter] = event.target.value; render(); }
+  if (event.target.matches('#impact-transition-form [name=to]')) {
+    const closing = event.target.value === 'closed', result = $('#impact-transition-form [name=result]');
+    $('#impact-result-field').hidden = !closing; result.required = closing; result.disabled = !closing; if (!closing) result.value = '';
+  }
   if (event.target.id === 'report-date') { if (validDate(event.target.value)) { reportDate = event.target.value; renderDiary(); } else event.target.value = reportDate; }
   for (const [id, key] of [['filter-status', 'status'], ['filter-person', 'person'], ['filter-priority', 'priority']]) if (event.target.id === id) { filters[key] = event.target.value; renderTaskResults(); }
 });
 document.addEventListener('input', event => { if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
 $('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
-window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'diary'].includes(next) ? next : 'overview'; closeModal(); render(); $('#main').focus(); });
-window.addEventListener('offline', () => { offline = true; renderOffline(); });
-window.addEventListener('online', () => { offline = false; renderOffline(); void syncQueue(); });
+window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary'].includes(next) ? next : 'overview'; closeModal(); render(); $('#main').focus(); });
+window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view]) { closeModal(); render(); } });
+window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view]) render(); void syncQueue(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) void syncQueue(); });
 accountChannel?.addEventListener('message', () => { clearSession(); void loadData(); });
 navigator.serviceWorker?.addEventListener('message', event => {

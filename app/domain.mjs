@@ -72,3 +72,74 @@ export function csvCell(value) {
   if (/^[\s\u0000-\u001f]*[=+@-]/u.test(result) || /^[\t\r\n]/u.test(result)) result = `'${result}`;
   return `"${result.replaceAll('"', '""')}"`;
 }
+
+export const DEVIATION_STATUSES = ['open', 'approved', 'in_progress', 'work_completed', 'closed', 'rejected'];
+export const IMPACT_STATUSES = ['open', 'notification_sent', 'submitted', 'closed'];
+export const IMPACT_RESULTS = ['settled', 'dropped', 'rejected'];
+export function impactTransitions(status) {
+  return [...({ open: ['notification_sent', 'closed'], notification_sent: ['submitted'], submitted: ['closed'], closed: [] }[status] || [])];
+}
+export function corePermissions(role) {
+  return { book: ['editor', 'owner'].includes(role), transition: ['owner', 'verifier'].includes(role) };
+}
+// Exact matching, nulls last and ID tie-breaking keep imported lists stable without mutating the cache.
+export function filterSortRecords(records, filters = {}, sort = [{ key: 'title' }]) {
+  return records.filter(row => Object.entries(filters).every(([key, value]) =>
+    value === '' || value === undefined || row[key] === value)).sort((a, b) => {
+    for (const { key, descending = false } of sort) {
+      const av = a[key], bv = b[key];
+      if (av == null && bv == null) continue;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const order = typeof av === 'number' && typeof bv === 'number' ? av - bv
+        : String(av).localeCompare(String(bv), 'en', { numeric: true });
+      if (order) return descending ? -order : order;
+    }
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
+// Add decimal amounts without losing PostgreSQL NUMERIC precision or assuming a currency.
+function decimalTotal(values) {
+  if (!values.length) return '0';
+  let total = 0n, scale = 0, known = 0;
+  for (const value of values) {
+    if (value == null) continue;
+    const match = /^([+-]?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(String(value));
+    if (!match) continue;
+    let digits = BigInt(`${match[1] === '-' ? '-' : ''}${match[2]}${match[3] || ''}`);
+    let places = (match[3]?.length || 0) - Number(match[4] || 0);
+    if (places < 0) { digits *= 10n ** BigInt(-places); places = 0; }
+    const nextScale = Math.max(scale, places);
+    total = total * 10n ** BigInt(nextScale - scale) + digits * 10n ** BigInt(nextScale - places);
+    scale = nextScale; known++;
+  }
+  if (!known) return null;
+  const sign = total < 0n ? '-' : '', digits = (total < 0n ? -total : total).toString().padStart(scale + 1, '0');
+  return sign + (scale ? `${digits.slice(0, -scale)}.${digits.slice(-scale)}` : digits);
+}
+export function impactTotals(records) {
+  return { claimAmount: decimalTotal(records.map(row => row.claimAmount)), settlementAmount: decimalTotal(records.map(row => row.settlementAmount)),
+    missingClaim: records.filter(row => row.claimAmount == null).length, missingSettlement: records.filter(row => row.settlementAmount == null).length };
+}
+export function groupBookings(bookings, workDays, employees, items) {
+  const days = new Map(workDays.map(row => [row.id, row])), people = new Map(employees.map(row => [row.id, row]));
+  const progress = new Map(items.map(row => [row.id, row])), groups = new Map();
+  for (const booking of bookings) {
+    const day = days.get(booking.workDayId), employee = people.get(day?.employeeId);
+    const date = day?.operationalDate ?? null;
+    if (!groups.has(date)) groups.set(date, { date, hours: 0, rows: [] });
+    const group = groups.get(date);
+    group.hours += Number(booking.hours);
+    group.rows.push({ ...booking, day, employee, item: progress.get(booking.siteProgressItemId), employeeNo: employee?.employeeNo ?? null });
+  }
+  return [...groups.values()].sort((a, b) => a.date == null ? 1 : b.date == null ? -1 : b.date.localeCompare(a.date))
+    .map(group => ({ ...group, rows: filterSortRecords(group.rows, {}, [{ key: 'employeeNo' }, { key: 'siteProgressItemId' }]) }));
+}
+export function progressWithHours(items, bookings) {
+  const hours = new Map();
+  for (const row of bookings) hours.set(row.siteProgressItemId, (hours.get(row.siteProgressItemId) || 0) + Number(row.hours));
+  return items.map(item => ({ ...item, bookedHours: item.bookedHours ?? hours.get(item.id) ?? 0 }));
+}
+export function flattenWbs(nodes) {
+  return nodes.flatMap(node => [node, ...flattenWbs(node.children || [])]);
+}
