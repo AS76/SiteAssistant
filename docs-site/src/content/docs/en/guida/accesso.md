@@ -23,7 +23,7 @@ From the sign-in form you can press **Request access**:
 3. If approved, you receive a **temporary password** by email.
 4. On first sign-in the application asks you to **change the password**.
 
-A request does not create the account on its own: it needs an administrator's approval.
+A request does not create the account on its own: it needs an administrator's approval. The review link the administrator receives expires after **72 hours** and can be used once: if it has expired, the request must be sent again.
 
 ## Forgotten or temporary password
 
@@ -31,6 +31,8 @@ A request does not create the account on its own: it needs an administrator's ap
 - **Change password:** if you are using a temporary password, a notice appears with the **Change password** button. It requires your current password and a new one, different and at least **12 characters** long. Other sessions are closed.
 
 If the email service is not active, these operations are unavailable: the application tells you and asks you to try again later.
+
+Access requests, resets and password changes are rate-limited: after **10 attempts** in the same **15-minute** window the operation is suspended for a few minutes.
 
 ## When sign-in fails
 

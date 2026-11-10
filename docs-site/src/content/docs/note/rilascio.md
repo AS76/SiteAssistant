@@ -22,14 +22,19 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 ## Disponibile solo via API (non nell'interfaccia)
 
 - Gestione dei membri del cantiere.
-- Import dello snapshot Time Schedule (WBS) e delle presenze.
-- Allegati a attività, diario e cantiere.
+- Import degli snapshot Time Schedule (WBS), presenze, avanzamento di cantiere e deviazioni.
+- **Avanzamento di cantiere** in sola lettura: avanzamento e avanzamento pianificato, date, assegnatario e ritardo atteso.
+- **Deviazioni** in sola lettura, con i collegamenti espliciti a voci di avanzamento, presenze, attività e diario.
+- **Prenotazione delle ore** di una presenza su una voce di avanzamento.
+- **Impatti economici** con le deviazioni collegate e un esito di chiusura.
+- Allegati a attività, diario e cantiere, con caricamento e download.
 - Ripresa di un'attività bloccata e rifiuto di una sottomissione (transizioni non ancora esposte nell'app).
 
 ## Non disponibile
 
 - Modifica o eliminazione di cantieri, attività e voci di diario.
 - Criteri di accettazione, descrizioni lunghe, checklist.
+- Viste di avanzamento di cantiere, deviazioni e impatti economici nell'interfaccia.
 - Allegati, foto o firme nell'interfaccia.
 - Notifiche, calendario, pianificazione e mappe.
 - Funzionamento offline o sincronizzazione differita.
@@ -44,6 +49,9 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Il fuso orario e l'ora di taglio sono attributi della singola voce di diario; l'interfaccia usa i valori predefiniti.
 - La stampa usa il browser: l'aspetto dipende dal browser e dai margini scelti.
 - La lingua traduce l'interfaccia, non i contenuti inseriti.
+- Gli allegati via API sono limitati a **15 MiB** e ai soli formati immagine e PDF.
+- Il collegamento tra avanzamento e WBS avviene solo con una corrispondenza univoca di area PLC e sezione: senza corrispondenza la voce resta scollegata.
+- Gli stati delle deviazioni arrivano dal sistema di origine; uno stato non riconosciuto resta vuoto invece di essere interpretato.
 
 :::caution[Dati]
 La versione attuale è una demo operativa con dati di prova. Non inserire informazioni riservate, credenziali o dati contrattuali.

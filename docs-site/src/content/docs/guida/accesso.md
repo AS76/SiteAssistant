@@ -23,7 +23,7 @@ Dal modulo di accesso puoi premere **Richiedi accesso**:
 3. Se viene approvata, ricevi via email una **password temporanea**.
 4. Al primo accesso l'applicazione ti invita a **cambiare la password**.
 
-La richiesta non crea l'account da sola: serve l'approvazione di un amministratore.
+La richiesta non crea l'account da sola: serve l'approvazione di un amministratore. Il link di revisione che riceve l'amministratore scade dopo **72 ore** e vale una sola volta: se è scaduto, la richiesta va ripetuta.
 
 ## Password dimenticata o da cambiare
 
@@ -31,6 +31,8 @@ La richiesta non crea l'account da sola: serve l'approvazione di un amministrato
 - **Cambiare la password:** se stai usando una password temporanea, compare un avviso con il pulsante **Cambia la password**. Serve la password attuale e una nuova password, diversa e di almeno **12 caratteri**. Le altre sessioni vengono chiuse.
 
 Se il servizio email non è attivo, queste operazioni non sono disponibili: l'applicazione lo segnala con un messaggio e ti invita a riprovare.
+
+Richieste di accesso, reset e cambio password sono limitati: dopo **10 tentativi** nella stessa finestra di **15 minuti** l'operazione viene sospesa per qualche minuto.
 
 ## Quando l'accesso non riesce
 

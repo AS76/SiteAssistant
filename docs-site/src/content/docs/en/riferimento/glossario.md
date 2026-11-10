@@ -21,6 +21,11 @@ description: Italian and English terminology used in SiteAssistant.
 | Padre sintetico | Synthetic parent | WBS item rebuilt because it was missing from the Time Schedule |
 | Dipendente | Employee | Site personnel record (read-only projection) |
 | Presenza | Work day | An employee's working day, with times and shift |
+| Avanzamento di cantiere | Site progress | Imported progress item, linked to the WBS when the match is unique |
+| Deviazione | Deviation | Imported deviation, with status, priority and dates |
+| Prenotazione ore | Time booking | Hours of an attendance day assigned to a progress item |
+| Impatto economico | Cost impact | Internal claim linked to one or more deviations, with amount and result |
+| Esito | Result | Closure of a cost impact: `settled`, `dropped` or `rejected` |
 | Allegato | Attachment | File linked to a task, diary or site (API only) |
 | Richiesta di accesso | Access request | Self-service request for an account, approved by an owner |
 | Ruolo di cantiere | Site role | `owner`, `editor`, `verifier`, `viewer` |

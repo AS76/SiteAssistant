@@ -21,6 +21,11 @@ description: Terminologia italiana e inglese usata in SiteAssistant.
 | Padre sintetico | Synthetic parent | Voce WBS ricostruita perché mancava nel Time Schedule |
 | Dipendente | Employee | Record del personale di cantiere (proiezione in sola lettura) |
 | Presenza | Work day | Giornata lavorativa di un dipendente, con orari e turno |
+| Avanzamento di cantiere | Site progress | Voce di avanzamento importata, collegata alla WBS quando la corrispondenza è univoca |
+| Deviazione | Deviation | Scostamento importato, con stato, priorità e date |
+| Prenotazione ore | Time booking | Ore di una presenza attribuite a una voce di avanzamento |
+| Impatto economico | Cost impact | Richiesta interna collegata a una o più deviazioni, con importo e esito |
+| Esito | Result | Chiusura di un impatto economico: `settled`, `dropped` o `rejected` |
 | Allegato | Attachment | File collegato ad attività, diario o cantiere (solo API) |
 | Richiesta di accesso | Access request | Richiesta autonoma di un account, approvata da un owner |
 | Ruolo di cantiere | Site role | `owner`, `editor`, `verifier`, `viewer` |

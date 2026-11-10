@@ -22,14 +22,19 @@ This page describes the currently published version. It is deliberately explicit
 ## Available only via API (not in the interface)
 
 - Managing site members.
-- Importing the Time Schedule (WBS) and attendance snapshots.
-- Attachments on tasks, diary and sites.
+- Importing Time Schedule (WBS), attendance, site progress and deviations snapshots.
+- **Site progress** read-only: progress and planned progress, dates, assignee and expected delay.
+- **Deviations** read-only, with explicit links to progress items, attendance, tasks and diary.
+- **Booking hours** of an attendance day on a progress item.
+- **Cost impacts** with linked deviations and a closure result.
+- Attachments on tasks, diary and sites, with upload and download.
 - Resuming a blocked task and rejecting a submission (transitions not yet exposed in the app).
 
 ## Not available
 
 - Editing or deleting sites, tasks and diary entries.
 - Acceptance criteria, long descriptions, checklists.
+- Site progress, deviations and cost impact views in the interface.
 - Attachments, photos or signatures in the interface.
 - Notifications, calendar, planning and maps.
 - Offline operation or deferred synchronisation.
@@ -44,6 +49,9 @@ This page describes the currently published version. It is deliberately explicit
 - Timezone and cutoff time are attributes of the individual diary entry; the interface uses the default values.
 - Printing uses the browser: the appearance depends on the browser and the chosen margins.
 - The language switch translates the interface, not the entered content.
+- Attachments via API are limited to **15 MiB** and to images and PDF only.
+- The link between progress and WBS exists only with a unique match of PLC area and section: without a match the item stays unlinked.
+- Deviation statuses come from the source system; an unrecognised status stays empty instead of being interpreted.
 
 :::caution[Data]
 The current version is an operational demo with test data. Do not enter confidential information, credentials or contractual data.
