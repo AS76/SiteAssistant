@@ -208,8 +208,9 @@ function renderChrome() {
     $('#demo-banner').insertAdjacentHTML('afterend', '<section id="password-banner" class="demo-banner"></section>');
     passwordBanner = $('#password-banner');
   }
-  passwordBanner.hidden = !session?.password_change_required;
-  passwordBanner.innerHTML = `<strong>${t('passwordChangeNotice')}</strong> ${button('changePassword', 'change-password')}`;
+  const bannerDismissed = sessionStorage.getItem('sa-password-banner') === 'hidden';
+  passwordBanner.hidden = !session?.password_change_required || bannerDismissed;
+  passwordBanner.innerHTML = `<strong>${t('passwordChangeNotice')}</strong> ${button('changePassword', 'change-password')} <button type="button" class="text-button" data-command="dismiss-password-banner" aria-label="${t('close')}">×</button>`;
   logoutButton.hidden = !session; logoutButton.textContent = t('logout');
   $('#actor-input').placeholder = t('actorPlaceholder');
   $('#site-select').disabled = loading || !state.sites.length;
@@ -359,7 +360,7 @@ function renderWbs() {
     button('wbsTree', 'wbs-view', `data-value="tree" aria-pressed="${wbsView === 'tree'}"`) +
     button('wbsFlat', 'wbs-view', `data-value="flat" aria-pressed="${wbsView === 'flat'}"`) + button('retry', 'wbs-reload'));
   if (!cached) {
-    $('#main').insertAdjacentHTML('beforeend', `<p role="status">${t('loading')}</p>`);
+    $('#main').insertAdjacentHTML('beforeend', `<div class="skeleton-list" role="status" aria-label="${t('loading')}">${Array.from({ length: 6 }, () => '<span></span>').join('')}</div>`);
     $('#main').setAttribute('aria-busy', 'true');
     if (!wbsLoad) void loadWbs();
     return;
@@ -368,7 +369,7 @@ function renderWbs() {
     $('#main').insertAdjacentHTML('beforeend', `<p role="alert">${esc(errorMessage(cached.error))}</p>`); return;
   }
   if (!cached.nodes.length) { $('#main').insertAdjacentHTML('beforeend', empty('wbsEmpty', 'wbsEmptyHint')); return; }
-  const label = node => `<strong>${esc(node.wbs_code)}</strong> ${esc(node.description ?? '—')}${node.is_synthetic ? ` <span class="badge">${t('wbsSynthetic')}</span>` : ''}`;
+  const label = node => `<strong>${esc(node.wbs_code)}</strong> ${esc(node.description ?? '—')}${node.is_synthetic ? ` <span class="badge">${t('wbsSynthetic')}</span>` : ''}${node.progress_pct == null ? '' : ` <span class="badge wbs-progress">${esc(node.progress_pct)}%</span>`}`;
   const branches = nodes => `<ul class="wbs-tree">${nodes.map(node => `<li>${node.children.length
     ? `<details open><summary>${label(node)}</summary>${branches(node.children)}</details>`
     : `<div class="wbs-leaf">${label(node)}</div>`}</li>`).join('')}</ul>`;
@@ -697,9 +698,14 @@ async function showCoreDetail(module, id) {
     if (row.siteId !== selected) throw new Error('forbidden');
     let content;
     if (module === 'deviations') {
-      content = coreFields(row, [['deviationNo', 'coreReference'], ['status', 'status'], ['priority', 'priority'], ['problemDescription', 'coreDescription'], ['author', 'coreAuthor'], ['assignedTo', 'coreAssignedTo'], ['plcArea', 'area'], ['creationDate', 'coreCreated'], ['dueDate', 'due'], ['approvedDate', 'coreApprovedDate'], ['closedDate', 'coreClosed'], ['actualCost', 'coreActualCost'], ['claimQuantity', 'coreClaimQuantity'], ['laborHours', 'coreLaborHours'], ['completedTasksPct', 'coreCompletedPct']]);
       const typeLabels = { site_progress_item: 'coreProgressItem', task: 'tasks', diary: 'diary' };
-      content += `<h3>${t('coreReferences')}</h3>${row.links?.length ? `<ul class="core-links">${row.links.map(link => `<li>${esc(t(typeLabels[link.entityType] || 'coreReference'))}: ${esc(link.entityId)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`}`;
+      const details = coreFields(row, [['deviationNo', 'coreReference'], ['status', 'status'], ['priority', 'priority'], ['problemDescription', 'coreDescription'], ['author', 'coreAuthor'], ['assignedTo', 'coreAssignedTo'], ['plcArea', 'area'], ['creationDate', 'coreCreated'], ['dueDate', 'due'], ['approvedDate', 'coreApprovedDate'], ['closedDate', 'coreClosed'], ['actualCost', 'coreActualCost'], ['claimQuantity', 'coreClaimQuantity'], ['laborHours', 'coreLaborHours'], ['completedTasksPct', 'coreCompletedPct']]);
+      const references = row.links?.length ? `<ul class="core-links">${row.links.map(link => `<li>${esc(t(typeLabels[link.entityType] || 'coreReference'))}: ${esc(link.entityId)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`;
+      // Two tabs keep the sheet readable: everything about the record, then what it points to.
+      content = `<div class="detail-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected="true" class="selected" data-command="detail-tab" data-panel="data">${t('coreDetails')}</button>
+        <button type="button" role="tab" aria-selected="false" data-command="detail-tab" data-panel="refs">${t('coreReferences')}</button>
+      </div><div class="detail-panel" data-detail-panel="data">${details}</div><div class="detail-panel" data-detail-panel="refs" hidden>${references}</div>`;
     } else if (module === 'progress') {
       const wbsNodes = coreData('wbs') || [];
       const wbsCode = nodeId => wbsNodes.find(node => node.id === nodeId)?.wbs_code ?? null;
@@ -961,6 +967,18 @@ document.addEventListener('click', event => {
     csv: exportCsv, print: () => window.print(),
     'import-open': showImportForm,
     'column-filters': () => { columnFiltersOn = !columnFiltersOn; render(); },
+    'detail-tab': () => {
+      const panel = target.dataset.panel;
+      const modal = target.closest('#modal');
+      if (!modal) return;
+      modal.querySelectorAll('[data-command=detail-tab]').forEach(tab => {
+        const active = tab.dataset.panel === panel;
+        tab.classList.toggle('selected', active);
+        tab.setAttribute('aria-selected', String(active));
+      });
+      modal.querySelectorAll('[data-detail-panel]').forEach(section => { section.hidden = section.dataset.detailPanel !== panel; });
+    },
+    'dismiss-password-banner': () => { sessionStorage.setItem('sa-password-banner', 'hidden'); renderChrome(); },
     'toggle-password': () => {
       const input = document.querySelector('#login-form [name=password]') || document.querySelector('form [name=password]');
       if (!input) return;
