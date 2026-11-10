@@ -1,11 +1,11 @@
-import { STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs } from './domain.mjs';
+import { offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock } from './offline.mjs';
 
 const api = createApi({ baseUrl: new URL(document.querySelector('meta[name=siteassistant-api-base]')?.content || DEFAULT_BASE_URL, location.href).href, onUnauthorized: () => clearSession(true) });
 const freshApi = createApi({ baseUrl: api.baseUrl, fresh: true, onUnauthorized: () => clearSession(true) });
-let offlineScope, pendingOps = [], offline = !navigator.onLine, storageReady = false, storageError = false, swRegistration, syncRun;
+let offlineScope, pendingOps = [], offline = !navigator.onLine, storageReady = false, storageError = false, swUnavailable = false, swRegistration, syncRun;
 const accountChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('siteassistant-session') : null;
 const accountLock = run => navigator.locks ? withSyncLock(run) : run();
 const $ = selector => document.querySelector(selector);
@@ -150,8 +150,9 @@ const syncBadge = entity => entity?.syncStatus ? `<span class="badge sync-${enti
 function renderOffline() {
   const banner = $('#offline-banner');
   const failed = pendingOps.filter(op => op.status === 'failed' || op.status === 'uncertain');
-  banner.hidden = !offline && !pendingOps.length && !storageError;
-  banner.innerHTML = `${offline ? `<strong>${t('offlineNotice')}</strong> ` : ''}${storageError ? `<strong>${t('offlineStorageUnavailable')}</strong> ` : ''}${pendingOps.length ? `<span>${pendingOps.length} ${t('syncPending')}</span> ${button('syncNow', 'sync-now')}` : ''}${failed.length ? `<ul>${failed.map(op => `<li>${esc(op.payload.title || op.payload.filename || op.payload.task?.title || op.payload.date || '')}: ${t(op.error?.code === 'SYNC_UNCERTAIN' || op.status === 'uncertain' ? 'syncUncertain' : op.error?.code === 'DUPLICATE_DIARY' ? 'duplicateDiary' : 'syncFailed')} ${op.status === 'failed' ? button('discardOperation', 'discard-op', `data-id="${esc(op.id)}"`) : ''}</li>`).join('')}</ul>` : ''}`;
+  const state = offlineBannerState({ offline, storageError, swUnavailable, pending: pendingOps.length });
+  banner.hidden = !state.visible;
+  banner.innerHTML = `${state.offline ? `<strong>${t('offlineNotice')}</strong> ` : ''}${state.storage ? `<strong>${t('offlineStorageUnavailable')}</strong> ` : ''}${state.serviceWorker ? `<strong>${t('offlineSwUnavailable')}</strong> ` : ''}${state.pending ? `<span>${state.pending} ${t('syncPending')}</span> ${button('syncNow', 'sync-now')}` : ''}${failed.length ? `<ul>${failed.map(op => `<li>${esc(op.payload.title || op.payload.filename || op.payload.task?.title || op.payload.date || '')}: ${t(op.error?.code === 'SYNC_UNCERTAIN' || op.status === 'uncertain' ? 'syncUncertain' : op.error?.code === 'DUPLICATE_DIARY' ? 'duplicateDiary' : 'syncFailed')} ${op.status === 'failed' ? button('discardOperation', 'discard-op', `data-id="${esc(op.id)}"`) : ''}</li>`).join('')}</ul>` : ''}`;
 }
 function rememberTask(task) { state.tasks = state.tasks.map(item => item.id === task.id ? task : item); }
 function heading(title, subtitle, actions = '') {
@@ -729,7 +730,12 @@ async function start() {
     try {
       swRegistration = await navigator.serviceWorker.register('./sw.js', { type: 'module' });
       void navigator.serviceWorker.ready.then(registration => { swRegistration = registration; if (pendingOps.length) void registerSync(registration); });
-    } catch { storageError = true; }
+    } catch (error) {
+      // Without a worker the app stays usable online; offline features are simply absent.
+      // The message is logged once, with the driver text only, and never shown as a banner.
+      swUnavailable = true;
+      console.warn('offline unavailable: service worker registration failed', error?.message || error);
+    }
   }
   await loadData();
   if (pendingOps.length) { await registerSync(swRegistration); await syncQueue(); }

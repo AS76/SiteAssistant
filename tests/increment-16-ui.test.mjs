@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApi, deviationFromApi, progressFromApi, bookingFromApi, impactFromApi } from '../app/api.mjs';
-import { DEVIATION_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, progressWithHours, flattenWbs } from '../app/domain.mjs';
+import { offlineBannerState, DEVIATION_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, progressWithHours, flattenWbs } from '../app/domain.mjs';
 import { messages } from '../app/i18n.mjs';
 
 test('deviation wire mapping preserves nulls, source timestamps and raw content', () => {
@@ -102,6 +102,13 @@ test('WBS flattening reuses tree records and handles empty leaf children', () =>
   const rows = flattenWbs(nodes); assert.deepEqual(rows.map(row => row.id), ['a', 'b', 'c']); assert.equal(rows[1], nodes[0].children[0]); assert.equal(nodes[0].children.length, 2);
 });
 test('core role permissions and claim transitions match the backend contract', () => {
+  // A failed service worker registration must not paint a permanent banner while online.
+  assert.deepEqual(offlineBannerState({ swUnavailable: true }), { visible: false, offline: false, storage: false, serviceWorker: false, pending: 0 });
+  assert.deepEqual(offlineBannerState({ storageError: true, swUnavailable: true }), { visible: true, offline: false, storage: true, serviceWorker: false, pending: 0 });
+  assert.deepEqual(offlineBannerState({ offline: true, swUnavailable: true }), { visible: true, offline: true, storage: false, serviceWorker: true, pending: 0 });
+  assert.deepEqual(offlineBannerState({ pending: 2, swUnavailable: true }), { visible: true, offline: false, storage: false, serviceWorker: true, pending: 2 });
+  assert.deepEqual(offlineBannerState({ pending: 1 }), { visible: true, offline: false, storage: false, serviceWorker: false, pending: 1 });
+  assert.deepEqual(offlineBannerState({}), { visible: false, offline: false, storage: false, serviceWorker: false, pending: 0 });
   assert.deepEqual(corePermissions('owner'), { book: true, transition: true, steps: true, assign: true });
   assert.deepEqual(corePermissions('editor'), { book: true, transition: false, steps: true, assign: false });
   assert.deepEqual(corePermissions('verifier'), { book: false, transition: true, steps: false, assign: false });

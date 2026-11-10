@@ -83,6 +83,18 @@ export function corePermissions(role) {
   return { book: ['editor', 'owner'].includes(role), transition: ['owner', 'verifier'].includes(role),
     steps: ['editor', 'owner'].includes(role), assign: role === 'owner' };
 }
+// Which offline banner to show, if any. A missing service worker never raises a permanent
+// error while the app is online; the storage message is reserved for a broken IndexedDB.
+export function offlineBannerState({ offline = false, storageError = false, swUnavailable = false, pending = 0 } = {}) {
+  const queued = pending > 0;
+  return {
+    visible: Boolean(offline || storageError || queued || (swUnavailable && (offline || queued))),
+    offline: Boolean(offline),
+    storage: Boolean(storageError),
+    serviceWorker: Boolean(swUnavailable && (offline || queued)),
+    pending: queued ? pending : 0,
+  };
+}
 // Exact matching, nulls last and ID tie-breaking keep imported lists stable without mutating the cache.
 export function filterSortRecords(records, filters = {}, sort = [{ key: 'title' }]) {
   return records.filter(row => Object.entries(filters).every(([key, value]) =>
