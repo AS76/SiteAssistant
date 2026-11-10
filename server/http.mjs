@@ -13,6 +13,7 @@ import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.
 import { listDeviations, getDeviation, importDeviations } from './deviations.mjs';
 import { listCostImpacts, getCostImpact, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
 import { listTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForItem } from './time_bookings.mjs';
+import { chat as assistantChat } from './assistant.mjs';
 import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
 import { importRequest, MAX_IMPORT_BYTES } from './planning-import.mjs';
 import {
@@ -145,6 +146,15 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, { user: result.user });
       }
       const user = path.startsWith('/api/') ? await authenticate(db, request.headers.cookie) : null;
+      if (path === '/api/assistant/chat' && method === 'POST') {
+        const input = await readJson(request);
+        const siteId = input.site_id;
+        if (!siteId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(siteId)) {
+          throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
+        }
+        return json(response, 200, await assistantChat(db, { siteId: siteId.toLowerCase(), user,
+          messages: input.messages, view: input.view }));
+      }
       if (['/api/import/preview', '/api/import/apply'].includes(path) && method === 'POST') {
         const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_IMPORT_BYTES / 3) + 65536 });
         return json(response, 200, await importRequest(db, input, user, { apply: path === '/api/import/apply' }));

@@ -5,6 +5,21 @@ import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, ov
 
 const api = createApi({ baseUrl: new URL(document.querySelector('meta[name=siteassistant-api-base]')?.content || DEFAULT_BASE_URL, location.href).href, onUnauthorized: () => clearSession(true) });
 const freshApi = createApi({ baseUrl: api.baseUrl, fresh: true, onUnauthorized: () => clearSession(true) });
+// Display preferences live in this browser: currency and number formatting for money fields.
+const PREF_KEY = 'siteassistant-prefs';
+let prefs = (() => {
+  try { return { currency: 'EUR', decimals: 2, separators: 'it', ...(JSON.parse(localStorage.getItem(PREF_KEY) || '{}')) }; }
+  catch { return { currency: 'EUR', decimals: 2, separators: 'it' }; }
+})();
+const savePrefs = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch { /* private mode */ } };
+const money = value => {
+  if (value == null || value === '') return t('coreUnknown');
+  const locale = prefs.separators === 'en' ? 'en-GB' : 'it-IT';
+  try {
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: prefs.currency,
+      minimumFractionDigits: prefs.decimals, maximumFractionDigits: prefs.decimals, useGrouping: 'always' }).format(Number(value));
+  } catch { return String(value); }
+};
 let offlineScope, pendingOps = [], offline = !navigator.onLine, storageReady = false, storageError = false, swUnavailable = false, swRegistration, syncRun;
 const accountChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('siteassistant-session') : null;
 const accountLock = run => navigator.locks ? withSyncLock(run) : run();
@@ -132,10 +147,10 @@ async function writeOperation(op_type, payload, entity_id) {
   if (!offlineScope) throw new Error('authRequired');
   if (!storageReady) {
     if (offline) throw new Error('offlineStorageUnavailable');
-    if (op_type === 'create_task') state.tasks.push(await api.createTask(payload, { idempotencyKey: crypto.randomUUID() }));
-    if (op_type === 'create_diary') state.diary.push(await api.createDiary(payload));
-    if (op_type === 'transition_task') rememberTask(await api.transitionTask(payload.task, payload.input));
-    if (op_type === 'create_attachment') state.attachments.push(await api.createAttachment(payload));
+    if (op_type === 'create_task') { const task = await api.createTask(payload, { idempotencyKey: crypto.randomUUID() }); state.tasks.push(task); return task; }
+    if (op_type === 'create_diary') { const entry = await api.createDiary(payload); state.diary.push(entry); return entry; }
+    if (op_type === 'transition_task') { rememberTask(await api.transitionTask(payload.task, payload.input)); return; }
+    if (op_type === 'create_attachment') { const file = await api.createAttachment(payload); state.attachments.push(file); return file; }
     return;
   }
   const op = await enqueue({ op_type, payload, entity_id, scope: offlineScope });
@@ -367,7 +382,8 @@ function progressBar(value) {
   return `<div class="core-progress"><span>${coreNumber(value)}%</span><progress max="100" value="${Math.min(100, Math.max(0, Number(value)))}" aria-label="${t('coreProgressPct')}"></progress></div>`;
 }
 function renderCore() {
-  $('#main').innerHTML = heading(view, `${view}Sub`, button('coreRefresh', 'core-reload'));
+  $('#main').innerHTML = heading(view, `${view}Sub`,
+    button(columnFiltersOn ? 'columnFiltersHide' : 'columnFiltersShow', 'column-filters', `aria-pressed="${columnFiltersOn}"`) + button('coreRefresh', 'core-reload'));
   if (offline || !navigator.onLine) {
     $('#main').insertAdjacentHTML('beforeend', empty('coreOnlineOnly', 'coreOnlineHint')); return;
   }
@@ -380,6 +396,70 @@ function renderCore() {
   if (error) { $('#main').insertAdjacentHTML('beforeend', `<p role="alert">${esc(errorMessage(error))}</p>`); return; }
   const content = { deviations: renderDeviations, progress: renderProgress, bookings: renderBookings, impacts: renderImpacts }[view]();
   $('#main').insertAdjacentHTML('beforeend', `<div class="core-view">${content}</div>`);
+  enhanceCoreTables();
+}
+
+// Sorting and per-column filters work on the rendered table: every core view gets them the same way,
+// without teaching each view a new data shape. Filters stay off by default: six inputs above a board
+// would be noise, so they appear only when the user asks for them and never on phones.
+let columnFiltersOn = false;
+const cellNumber = value => {
+  const cleaned = String(value).replace(/ /g, ' ').replace(/[^\d,.-]/g, '');
+  if (!cleaned) return null;
+  const normalized = cleaned.replace(/\.(?=\d{3})/g, '').replace(',', '.');
+  return Number.isFinite(Number(normalized)) ? Number(normalized) : null;
+};
+function enhanceCoreTables() {
+  document.querySelectorAll('.core-table').forEach(table => {
+    if (table.dataset.enhanced) return;
+    table.dataset.enhanced = '1';
+    const headers = [...table.querySelectorAll('thead th')];
+    headers.forEach((th, index) => {
+      th.classList.add('sortable');
+      th.setAttribute('tabindex', '0');
+      th.setAttribute('role', 'button');
+      const toggle = () => {
+        const current = table.dataset.sortColumn === String(index) ? table.dataset.sortDirection : null;
+        const direction = current === 'asc' ? 'desc' : 'asc';
+        table.dataset.sortColumn = String(index); table.dataset.sortDirection = direction;
+        headers.forEach(header => { header.dataset.sort = ''; header.removeAttribute('aria-sort'); });
+        th.dataset.sort = direction; th.setAttribute('aria-sort', direction === 'asc' ? 'ascending' : 'descending');
+        const body = table.tBodies[0];
+        [...body.rows].sort((left, right) => {
+          const a = left.cells[index]?.innerText.trim() ?? '', b = right.cells[index]?.innerText.trim() ?? '';
+          const na = cellNumber(a), nb = cellNumber(b);
+          const compared = na != null && nb != null ? na - nb : a.localeCompare(b, language === 'it' ? 'it' : 'en');
+          return direction === 'asc' ? compared : -compared;
+        }).forEach(row => body.append(row));
+        applyColumnFilters(table);
+      };
+      th.addEventListener('click', toggle);
+      th.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); } });
+    });
+    if (columnFiltersOn && window.matchMedia('(min-width: 801px)').matches) {
+      const row = document.createElement('tr');
+      row.className = 'column-filters';
+      headers.forEach((th, index) => {
+        const cell = document.createElement('th');
+        cell.innerHTML = `<input type="search" aria-label="${esc(th.innerText)}" data-column="${index}" placeholder="…">`;
+        row.append(cell);
+      });
+      table.tHead.append(row);
+      row.querySelectorAll('input').forEach(input => input.addEventListener('input', () => applyColumnFilters(table)));
+    }
+    applyColumnFilters(table);
+  });
+}
+function applyColumnFilters(table) {
+  const inputs = [...table.querySelectorAll('.column-filters input')];
+  if (!inputs.length) { [...table.tBodies[0].rows].forEach(row => { row.hidden = false; }); return; }
+  for (const row of table.tBodies[0].rows) {
+    row.hidden = inputs.some(input => {
+      const needle = input.value.trim().toLowerCase();
+      if (!needle) return false;
+      return !(row.cells[Number(input.dataset.column)]?.innerText || '').toLowerCase().includes(needle);
+    });
+  }
 }
 function renderDeviations() {
   const all = coreData('deviations'), filter = coreFilters.deviations;
@@ -418,8 +498,8 @@ function renderBookings() {
 }
 function renderImpacts() {
   const rows = filterSortRecords(coreData('impacts'), coreFilters.impacts, [{ key: 'createdAt', descending: true }]), totals = impactTotals(rows);
-  return `<div class="core-kpis" role="status">${[['coreTotalClaim', totals.claimAmount, totals.missingClaim], ['coreTotalSettlement', totals.settlementAmount, totals.missingSettlement]].map(([label, amount, missing]) => `<div class="panel panel-body"><span>${t(label)}</span><strong>${coreValue(amount)}</strong>${missing ? `<small>${missing} ${t(missing === 1 ? 'coreMissingAmountOne' : 'coreMissingAmounts')}</small>` : ''}</div>`).join('')}</div><p class="note">${t('coreAmountsHint')}</p><div class="toolbar core-toolbar">${coreSelect('status', 'status', IMPACT_STATUSES.map(value => [value, t(value)]), coreFilters.impacts.status, 'allStatuses')}${coreSelect('result', 'coreResult', IMPACT_RESULTS.map(value => [value, t(value)]), coreFilters.impacts.result, 'coreAllResults')}</div>` +
-    (rows.length ? coreTable(['title', 'status', 'coreClaimAmount', 'coreSettlementAmount', 'coreResult'], rows.map(row => [coreDetailButton('impacts', row), coreStatus(row.status), coreValue(row.claimAmount), coreValue(row.settlementAmount), coreValue(row.result == null ? null : t(row.result))])) : empty('noResults', 'noResultsHint'));
+  return `<div class="core-kpis" role="status">${[['coreTotalClaim', totals.claimAmount, totals.missingClaim], ['coreTotalSettlement', totals.settlementAmount, totals.missingSettlement]].map(([label, amount, missing]) => `<div class="panel panel-body"><span>${t(label)}</span><strong class="money">${money(amount)}</strong>${missing ? `<small>${missing} ${t(missing === 1 ? 'coreMissingAmountOne' : 'coreMissingAmounts')}</small>` : ''}</div>`).join('')}</div><p class="note">${t('coreAmountsHint')}</p><div class="toolbar core-toolbar">${coreSelect('status', 'status', IMPACT_STATUSES.map(value => [value, t(value)]), coreFilters.impacts.status, 'allStatuses')}${coreSelect('result', 'coreResult', IMPACT_RESULTS.map(value => [value, t(value)]), coreFilters.impacts.result, 'coreAllResults')}</div>` +
+    (rows.length ? coreTable(['title', 'status', 'coreClaimAmount', 'coreSettlementAmount', 'coreResult'], rows.map(row => [coreDetailButton('impacts', row), coreStatus(row.status), money(row.claimAmount), money(row.settlementAmount), coreValue(row.result == null ? null : t(row.result))])) : empty('noResults', 'noResultsHint'));
 }
 function coreFields(row, fields) {
   return `<dl class="detail-grid core-details">${fields.map(([key, label = key]) => `<div><dt>${t(label)}</dt><dd>${['status', 'result', 'priority'].includes(key) && row[key] != null ? esc(t(row[key])) : typeof row[key] === 'boolean' ? t(row[key] ? 'coreYes' : 'coreNo') : coreValue(row[key])}</dd></div>`).join('')}</dl>`;
@@ -437,6 +517,43 @@ function progressStepsSection(row) {
   if (rights.assign) html += `<form id="progress-type-form" data-id="${esc(row.id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><label class="field">${t('coreAssignType')}<select name="progress_type_id"><option value="">${t('coreNoProgressType')}</option>${types.map(candidate => `<option value="${esc(candidate.id)}" ${candidate.id === row.progressTypeId ? 'selected' : ''}>${esc(`${candidate.code} · ${candidate.name}`)}</option>`).join('')}</select></label><div class="form-actions"><button type="submit" class="primary">${t('coreSaveType')}</button></div></form>`;
   return html;
 }
+// Assistant: one conversation at a time, kept in memory for the session.
+let aiMessages = [], aiBusy = false;
+const AI_SUGGESTIONS = {
+  overview: ['aiSuggestOverview'], tasks: ['aiSuggestTasks'], deviations: ['aiSuggestDeviations'],
+  progress: ['aiSuggestProgress'], bookings: ['aiSuggestBookings'], impacts: ['aiSuggestImpacts'], diary: ['aiSuggestDiary'],
+};
+const AI_MODULES = { deviations: 'deviations', site_progress_items: 'progress', cost_impacts: 'impacts' };
+function renderAssistant() {
+  const panel = $('#ai-panel');
+  if (!panel) return;
+  $('#ai-title').textContent = t('aiTitle');
+  $('#ai-form [name=message]').placeholder = t('aiPlaceholder');
+  $('#ai-form button').textContent = t('aiSend');
+  $('#ai-log').innerHTML = aiMessages.map(message => message.role === 'user'
+    ? `<p class="ai-msg ai-user">${esc(message.content)}</p>`
+    : `<div class="ai-msg ai-bot"><p>${esc(message.content).replace(/\n/g, '<br>')}</p>${
+      (message.citations || []).length ? `<p class="ai-cites">${message.citations.map(cite => AI_MODULES[cite.family]
+        ? `<button type="button" class="badge" data-command="core-detail" data-module="${AI_MODULES[cite.family]}" data-id="${esc(cite.id)}">${esc(cite.label)}</button>`
+        : `<span class="badge">${esc(cite.label)}</span>`).join(' ')}</p>` : ''}</div>`).join('');
+  $('#ai-log').scrollTop = $('#ai-log').scrollHeight;
+  const suggestions = (AI_SUGGESTIONS[view] || []).map(key => t(key));
+  $('#ai-suggestions').innerHTML = aiBusy ? `<p class="note">${t('aiThinking')}</p>`
+    : (aiMessages.length ? '' : suggestions.map(text => `<button type="button" class="ai-chip" data-command="ai-suggest" data-text="${esc(text)}">${esc(text)}</button>`).join(''));
+}
+async function askAssistant(text) {
+  if (!text || aiBusy) return;
+  aiMessages.push({ role: 'user', content: text });
+  aiBusy = true; renderAssistant();
+  try {
+    const result = await api.assistantChat({ site_id: siteId, view, messages: aiMessages.slice(-6) });
+    aiMessages.push({ role: 'assistant', content: result.reply, citations: result.citations });
+  } catch (error) {
+    aiMessages.push({ role: 'assistant', content: errorMessage(error) });
+  }
+  aiBusy = false; renderAssistant();
+}
+
 // Import runs in two steps: a preview that writes nothing, then a confirmation bound to that preview.
 let importPreview = null;
 const canImport = () => ['owner', 'editor'].includes(role());
@@ -447,6 +564,14 @@ const fileToBase64 = file => new Promise((resolve, reject) => {
   reader.onerror = () => reject(new Error('invalidData'));
   reader.readAsDataURL(file);
 });
+function showSettingsForm() {
+  showModal(t('settingsTitle'), `<form id="settings-form"><p class="note">${t('settingsHint')}</p><div class="form-grid">
+    <label class="field">${t('settingsCurrency')}<select name="currency">${['EUR', 'USD', 'GBP', 'CHF'].map(code => `<option value="${code}" ${prefs.currency === code ? 'selected' : ''}>${code}</option>`).join('')}</select></label>
+    <label class="field">${t('settingsDecimals')}<select name="decimals">${[0, 2].map(value => `<option value="${value}" ${prefs.decimals === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+    <label class="field">${t('settingsSeparators')}<select name="separators"><option value="it" ${prefs.separators === 'it' ? 'selected' : ''}>1.234,56 (IT)</option><option value="en" ${prefs.separators === 'en' ? 'selected' : ''}>1,234.56 (EN)</option></select></label>
+    </div>${formActions()}</form>`);
+}
+
 function showImportForm() {
   importPreview = null;
   showModal(t('importTitle'), `<form id="import-form"><div class="form-error" role="alert" tabindex="-1" hidden></div>` +
@@ -509,7 +634,9 @@ async function showCoreDetail(module, id) {
       content = progressBar(row.progressPct) + coreFields(row, [['description', 'coreDescription'], ['section', 'coreSection'], ['plcArea', 'area'], ['wbsId', 'wbs'], ['assignedTo', 'coreAssignedTo'], ['progressPct', 'coreProgressPct'], ['plannedProgressPct', 'corePlannedPct'], ['deltaProgressSource', 'coreDeltaPct'], ['bookedHours', 'coreBookedHours'], ['plannedStart', 'wbsPlannedStart'], ['plannedFinish', 'wbsPlannedFinish'], ['actualStart', 'coreActualStart'], ['expectedDelay', 'coreExpectedDelay'], ['hasFiles', 'coreHasFiles'], ['hasNotes', 'coreHasNotes'], ['hasDeviations', 'coreHasDeviations']]);
       content += progressStepsSection(row);
     } else {
-      content = coreFields(row, [['status', 'status'], ['claimAmount', 'coreClaimAmount'], ['settlementAmount', 'coreSettlementAmount'], ['result', 'coreResult'], ['createdAt', 'coreCreated'], ['closedAt', 'coreClosed']]);
+      content = coreFields({ ...row, claimAmount: row.claimAmount == null ? null : money(row.claimAmount),
+        settlementAmount: row.settlementAmount == null ? null : money(row.settlementAmount) },
+      [['status', 'status'], ['claimAmount', 'coreClaimAmount'], ['settlementAmount', 'coreSettlementAmount'], ['result', 'coreResult'], ['createdAt', 'coreCreated'], ['closedAt', 'coreClosed']]);
       content += `<h3>${t('coreLinkedDeviations')}</h3>${row.deviations?.length ? `<ul class="core-links">${row.deviations.map(deviation => `<li>${coreDetailButton('deviations', deviation, [deviation.deviationNo, deviation.title || deviation.id].filter(Boolean).join(' · '))} ${coreStatus(deviation.status)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`}`;
       const transitions = impactTransitions(row.status);
       if (permissions().transition && transitions.length) content += `<form id="impact-transition-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('transitionTo')}<select name="to" required>${transitions.map(status => `<option value="${status}">${t(status)}</option>`).join('')}</select></label><label class="field core-result" id="impact-result-field" ${transitions[0] !== 'closed' ? 'hidden' : ''}>${t('coreResult')}<select name="result" ${transitions[0] === 'closed' ? 'required' : 'disabled'}><option value="">${t('coreChoose')}</option>${IMPACT_RESULTS.map(result => `<option value="${result}">${t(result)}</option>`).join('')}</select></label></div>${formActions()}</form>`;
@@ -643,8 +770,46 @@ function showTransition(taskId, to) {
   showModal(`${t('transitionTo')} ${t(to)}`, `<form id="transition-form" data-task-id="${esc(taskId)}" data-to="${to}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('actor')}: ${esc(actor)}</p><input type="hidden" name="actor" value="${esc(actor)}">${field('note', 'note', '', { type: 'textarea', required: required.note })}${field('reason', 'reason', '', { type: 'textarea', required: required.reason })}${formActions()}</form>`);
 }
 function showEntryForm() {
-  showModal(t('newEntry'), `<form id="entry-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${field('shift', 'shift', '', { required: true, options: `<option value="day">${t('day')}</option><option value="night">${t('night')}</option>` })}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}</div>${formActions()}</form>`);
+  showModal(t('newEntry'), `<form id="entry-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${field('shift', 'shift', '', { required: true, options: `<option value="day">${t('day')}</option><option value="night">${t('night')}</option>` })}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}</div>
+      <label class="dropzone" id="entry-drop" for="entry-photos"><strong>${t('diaryPhotos')}</strong><span>${t('diaryPhotosHint')}</span>
+        <input id="entry-photos" name="photos" type="file" accept="image/*,application/pdf" multiple hidden></label>
+      <p class="note" id="entry-photos-count" hidden></p>${formActions()}</form>`);
+  wireDropzone();
 }
+// Photos: pick from the dialog or drop files straight from the desktop (Windows/macOS).
+function wireDropzone() {
+  const zone = document.querySelector('#entry-drop');
+  if (!zone) return;
+  const input = zone.querySelector('input[type=file]');
+  const count = () => {
+    const label = document.querySelector('#entry-photos-count');
+    if (!label) return;
+    const files = input.files || [];
+    label.hidden = !files.length;
+    label.textContent = `${files.length} ${t('diaryPhotosSelected')}`;
+  };
+  input.addEventListener('change', count);
+  const stop = event => { event.preventDefault(); event.stopPropagation(); };
+  zone.addEventListener('dragover', event => { stop(event); zone.classList.add('dragging'); });
+  zone.addEventListener('dragleave', event => { stop(event); zone.classList.remove('dragging'); });
+  zone.addEventListener('drop', event => {
+    stop(event); zone.classList.remove('dragging');
+    const dropped = event.dataTransfer?.files;
+    if (!dropped?.length) return;
+    try {
+      const transfer = new DataTransfer();
+      for (const file of dropped) if (/^(image\/|application\/pdf$)/i.test(file.type)) transfer.items.add(file);
+      input.files = transfer.files;
+      count();
+    } catch { /* older browsers cannot assign a file list */ }
+  });
+  // A file dropped anywhere else must not navigate away from the app.
+  for (const type of ['dragover', 'drop']) document.addEventListener(type, event => {
+    if (event.target.closest?.('#entry-drop')) return;
+    if (event.dataTransfer?.types?.includes('Files')) event.preventDefault();
+  });
+}
+
 function attachmentSection(entityType, entityId) {
   const files = (state.attachments || []).filter(file => file.entity_type === entityType && file.entity_id === entityId);
   return `<section class="attachment-section"><h3>${t('attachments')}</h3>${files.map(file => `<p>${button('openAttachment', 'open-attachment', `data-id="${esc(file.id)}"`)} ${esc(file.filename)} ${syncBadge(file)}</p>`).join('')}${button('addAttachment', 'new-attachment', `data-entity-type="${entityType}" data-id="${esc(entityId)}"`)}</section>`;
@@ -701,6 +866,11 @@ document.addEventListener('click', event => {
     'clear-filters': () => { filters = { search: '', status: '', person: '', priority: '' }; renderTasks(); },
     csv: exportCsv, print: () => window.print(),
     'import-open': showImportForm,
+    'column-filters': () => { columnFiltersOn = !columnFiltersOn; render(); },
+    'open-settings': showSettingsForm,
+    'ai-open': () => { const panel = $('#ai-panel'); panel.hidden = false; $('#ai-fab').setAttribute('aria-expanded', 'true'); renderAssistant(); $('#ai-form [name=message]').focus(); },
+    'ai-close': () => { $('#ai-panel').hidden = true; $('#ai-fab').setAttribute('aria-expanded', 'false'); $('#ai-fab').focus(); },
+    'ai-suggest': () => { askAssistant(target.dataset.text); },
     'more-nav': () => {
       const rest = NAV_ITEMS.filter(key => !MOBILE_PRIMARY.includes(key));
       showModal(t('more'), `<nav class="more-nav" aria-label="${t('more')}">${rest.map(key => `<a href="#${key}">${icon(key)}${t(key)}</a>`).join('')}</nav>`);
@@ -710,7 +880,14 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('submit', async event => {
   const form = event.target;
-  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'import-form'].includes(form.id)) return;
+  if (form.id === 'ai-form') {
+    event.preventDefault();
+    const text = String(new FormData(form).get('message') || '').trim();
+    form.reset();
+    void askAssistant(text);
+    return;
+  }
+  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'import-form', 'settings-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   const data = Object.fromEntries(new FormData(form));
@@ -720,6 +897,11 @@ document.addEventListener('submit', async event => {
   // Capture the selected context before waiting for the server.
   const selectedSite = siteId, selectedDate = reportDate;
   try {
+    if (form.id === 'settings-form') {
+      const data2 = Object.fromEntries(new FormData(form));
+      prefs = { currency: String(data2.currency || 'EUR'), decimals: Number(data2.decimals) === 0 ? 0 : 2, separators: data2.separators === 'en' ? 'en' : 'it' };
+      savePrefs(); closeModal(); render(); toast(t('settingsSaved')); return;
+    }
     if (form.id === 'import-form') { await handleImport(form); return; }
     if (['booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form'].includes(form.id)) { await submitCore(form, data); return; }
     if (form.id === 'login-form') {
@@ -742,7 +924,25 @@ document.addEventListener('submit', async event => {
     let message, detail;
     if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); siteId = site.id; filters = { search: '', status: '', person: '', priority: '' }; message = 'siteCreated'; }
     if (form.id === 'task-form') { const payload = { ...data, siteId: selectedSite }; taskPayload(payload); await writeOperation('create_task', payload); message = 'taskCreated'; }
-    if (form.id === 'entry-form') { const payload = { ...data, siteId: selectedSite, date: selectedDate }; diaryPayload(payload); await writeOperation('create_diary', payload); message = 'entrySaved'; }
+    if (form.id === 'entry-form') {
+      const payload = { ...data, siteId: selectedSite, date: selectedDate };
+      delete payload.photos;
+      diaryPayload(payload);
+      const entry = await writeOperation('create_diary', payload);
+      const photos = [...(form.querySelector('[name=photos]')?.files || [])];
+      for (const file of photos) {
+        if (!file.size || file.size > 15 * 1024 * 1024 || !/^(image\/[a-z0-9.+-]+|application\/pdf)$/i.test(file.type)) throw new Error('attachmentInvalid');
+      }
+      if (photos.length && entry?.id) {
+        for (const file of photos) {
+          await writeOperation('create_attachment', { site_id: selectedSite, entity_type: 'diary', entity_id: entry.id, filename: file.name, blob: file });
+        }
+      } else if (photos.length) {
+        // Queued offline: the entry has no id yet, so the photos wait for the next online save.
+        toast(t('attachmentsOnlineOnly'));
+      }
+      message = 'entrySaved';
+    }
     if (form.id === 'transition-form') {
       const task = state.tasks.find(item => item.id === form.dataset.taskId);
       const input = { ...data, to: form.dataset.to }; transitionPayload(task, input);

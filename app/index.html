@@ -25,12 +25,22 @@
   <div class="shell">
     <header class="topbar">
       <label class="site-control"><span id="site-label">Cantiere</span><select id="site-select"></select></label>
-      <div class="topbar-actions"><a id="manual-link" class="manual-link" href="https://as76.github.io/SiteAssistant/" target="_blank" rel="noopener noreferrer">Manuale</a><label class="actor-control"><span id="actor-label">Persona</span><input id="actor-input" type="text" maxlength="10000"></label><button id="language" class="language" type="button" aria-label="Switch to English">EN</button></div>
+      <div class="topbar-actions"><button id="settings-button" class="text-button" type="button" data-command="open-settings" aria-label="Impostazioni" title="Impostazioni">⚙</button><a id="manual-link" class="manual-link" href="https://as76.github.io/SiteAssistant/" target="_blank" rel="noopener noreferrer">Manuale</a><label class="actor-control"><span id="actor-label">Persona</span><input id="actor-input" type="text" maxlength="10000"></label><button id="language" class="language" type="button" aria-label="Switch to English">EN</button></div>
     </header>
     <div class="demo-banner" id="demo-banner"></div>
     <section id="offline-banner" class="offline-banner" role="status" aria-live="polite" hidden></section>
     <main id="main" tabindex="-1"></main>
-    <footer><span id="footer-note"></span></footer>
+    <button id="ai-fab" class="ai-fab" type="button" data-command="ai-open" aria-label="Assistente AI" aria-expanded="false" aria-controls="ai-panel">AI</button>
+  <aside id="ai-panel" class="ai-panel" aria-label="Assistente AI" hidden>
+    <header class="ai-head"><strong id="ai-title">Assistente</strong><button type="button" class="text-button" data-command="ai-close" aria-label="Chiudi">×</button></header>
+    <div id="ai-log" class="ai-log" role="log" aria-live="polite"></div>
+    <div id="ai-suggestions" class="ai-suggestions"></div>
+    <form id="ai-form" class="ai-form" autocomplete="off">
+      <input name="message" type="text" maxlength="500" placeholder="Chiedi sui dati del cantiere" required>
+      <button type="submit" class="primary">Invia</button>
+    </form>
+  </aside>
+  <footer><span id="footer-note"></span></footer>
   </div>
   <div id="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="modal" aria-labelledby="modal-title"><div id="modal-content"></div></dialog>
