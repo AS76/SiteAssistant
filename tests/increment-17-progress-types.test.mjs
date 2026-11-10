@@ -38,7 +38,7 @@ for (const driver of ['sqlite', 'pg']) test(`Progress types ${driver}: weighted 
   const call = (path, { method = 'GET', body, role = 'owner' } = {}) => api(path,
     { method, ...(body === undefined ? {} : { body }), ...(role ? { cookie: auth.cookies[role] } : {}) });
   const typeBody = (siteId, extra = {}) => ({ site_id: siteId, code: 'TYPE-A', name: 'Synthetic type',
-    steps: [{ code: 'S1', position: 1, weight: 3, description: 'Step one' }, { code: 'S2', position: 2, weight: 1 }], ...extra });
+    steps: [{ code: 'S1', position: 1, weight: 60, description: 'Step one' }, { code: 'S2', position: 2, weight: 40 }], ...extra });
   const createType = async (siteId, extra, role = 'owner') => call('/api/progress-types', { method: 'POST', body: typeBody(siteId, extra), role });
 
   await t.test('owner creates a type, viewer lists it, editor writes weighted step percentages', async t => {
@@ -46,7 +46,7 @@ for (const driver of ['sqlite', 'pg']) test(`Progress types ${driver}: weighted 
     const created = await createType(f.site.id);
     t.assert.strictEqual(created.status, 201);
     t.assert.strictEqual(created.body.steps.length, 2);
-    t.assert.strictEqual(created.body.steps[0].weight, 3);
+    t.assert.strictEqual(created.body.steps[0].weight, 60);
     const listed = await call(`/api/progress-types?site_id=${f.site.id}`, { role: 'viewer' });
     t.assert.strictEqual(listed.status, 200); t.assert.strictEqual(listed.body.length, 1);
     t.assert.deepStrictEqual(listed.body[0].steps.map(step => step.code), ['S1', 'S2']);
@@ -59,12 +59,12 @@ for (const driver of ['sqlite', 'pg']) test(`Progress types ${driver}: weighted 
     t.assert.strictEqual(assigned.body.steps.length, 2);
     t.assert.strictEqual(assigned.body.steps[0].percent, null);
 
-    // Free weights: (3*100 + 1*0) / 4 = 75.
+    // Weights are percentages: (60*100 + 40*0) / 100 = 60.
     const [first, second] = created.body.steps;
     const written = await call(`/api/site-progress/${f.items[0]}/steps`, { method: 'PUT', role: 'editor',
       body: { steps: [{ step_id: first.id, percent: 100 }, { step_id: second.id, percent: 0 }] } });
     t.assert.strictEqual(written.status, 200);
-    t.assert.strictEqual(written.body.progress_pct, 75);
+    t.assert.strictEqual(written.body.progress_pct, 60);
     t.assert.strictEqual(written.body.progress_pct_source, 'computed');
     t.assert.deepStrictEqual(written.body.steps.map(step => step.percent), [100, 0]);
 
@@ -74,7 +74,7 @@ for (const driver of ['sqlite', 'pg']) test(`Progress types ${driver}: weighted 
     t.assert.deepStrictEqual(writtenItem, written.body);
     const list = await call(`/api/site-progress?site_id=${f.site.id}`, { role: 'viewer' });
     const row = list.body.find(item => item.id === f.items[0]);
-    t.assert.strictEqual(row.progress_pct, 75);
+    t.assert.strictEqual(row.progress_pct, 60);
     t.assert.strictEqual(row.progress_pct_source, 'computed');
     t.assert.strictEqual(list.body.find(item => item.id === f.items[1]).progress_pct, 42);
   });
@@ -99,7 +99,7 @@ for (const driver of ['sqlite', 'pg']) test(`Progress types ${driver}: weighted 
     const stored = await db.all('SELECT COUNT(*) AS n FROM site_progress_item_steps WHERE site_progress_item_id = ?', f.items[0]);
     t.assert.strictEqual(Number(stored[0].n), 1);
     const reassigned = await call(`/api/site-progress/${f.items[0]}/progress-type`, { method: 'PATCH', body: { progress_type_id: type.id } });
-    t.assert.strictEqual(reassigned.body.progress_pct, 37.5); // (3*50)/4
+    t.assert.strictEqual(reassigned.body.progress_pct, 30); // (60*50)/100
     t.assert.strictEqual(reassigned.body.progress_pct_source, 'computed');
   });
 
@@ -131,6 +131,7 @@ for (const driver of ['sqlite', 'pg']) test(`Progress types ${driver}: weighted 
       t.assert.strictEqual(response.status, status); t.assert.strictEqual(response.body.code, code);
     };
     await err(await createType(f.site.id, { steps: [{ code: 'S', position: 1, weight: 0 }] }), 400, 'VALIDATION_ERROR');
+    await err(await createType(f.site.id, { steps: [{ code: 'S', position: 1, weight: 10 }, { code: 'T', position: 2, weight: 20 }] }), 400, 'WEIGHTS_NOT_100');
     await err(await createType(f.site.id, { steps: [{ code: 'S', position: 1, weight: 'abc' }] }), 400, 'VALIDATION_ERROR');
     await err(await createType(f.site.id, { steps: [{ code: 'S', position: 1, weight: 1 }, { code: 'S', position: 2, weight: 1 }] }), 400, 'VALIDATION_ERROR');
     await err(await createType(f.site.id, { steps: [{ code: 'S', position: 'x', weight: 1 }] }), 400, 'VALIDATION_ERROR');
@@ -182,7 +183,7 @@ for (const driver of ['sqlite', 'pg']) test(`Progress types ${driver}: weighted 
     await call(`/api/site-progress/${f.items[0]}/steps`, { method: 'PUT', role: 'editor',
       body: { steps: [{ step_id: type.steps[0].id, percent: 40 }] } });
     const before = await getSiteProgressItem(db, f.items[0]);
-    t.assert.strictEqual(before.progress_pct, 30); // (3*40)/4
+    t.assert.strictEqual(before.progress_pct, 24); // (60*40)/100
     // PostgreSQL keeps ADD COLUMN IF NOT EXISTS; SQLite cannot replay an additive column, by design.
     if (driver === 'pg') {
       await db.transaction(tx => applyMigration(tx, '014_progress_types.sql', { driver }));

@@ -77,6 +77,11 @@ export async function createProgressType(db, input, user) {
     if (await tx.get('SELECT id FROM progress_types WHERE site_id = ? AND code = ?', site, code)) {
       fail(409, 'Progress type code already exists in this site.', 'PROGRESS_TYPE_DUPLICATE');
     }
+    // Weights are percentages of the item: they must add up to exactly 100.
+    const totalWeight = steps.reduce((sum, step) => sum + step.weight, 0);
+    if (Math.abs(totalWeight - 100) > 1e-9) {
+      fail(400, `I pesi degli step devono sommare 100 (somma attuale: ${Number(totalWeight.toFixed(4))}).`, 'WEIGHTS_NOT_100');
+    }
     const id = randomUUID();
     await tx.run('INSERT INTO progress_types (id, site_id, code, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       id, site, code, name, user.id, new Date().toISOString());
@@ -121,6 +126,9 @@ export async function setStepProgress(db, itemId, steps, user) {
       VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (site_progress_item_id, progress_type_step_id)
       DO UPDATE SET percent = excluded.percent, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
     randomUUID(), item.id, step.id, step.percent, user.id, at);
+    for (const step of validated) await tx.run(`INSERT INTO progress_entries
+      (id, site_id, site_progress_item_id, progress_type_step_id, percent, recorded_at, recorded_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`, randomUUID(), item.site_id, item.id, step.id, step.percent, at, user.id);
     return getSiteProgressItem(tx, item.id);
   });
 }
@@ -145,6 +153,8 @@ export async function deleteProgressType(db, inputId, user) {
     }
     // Explicit deletion of an unused catalog type also removes its retained states.
     // Unassignment alone never deletes states.
+    await tx.run(`DELETE FROM progress_entries WHERE progress_type_step_id IN
+      (SELECT id FROM progress_type_steps WHERE progress_type_id = ?)`, id);
     await tx.run(`DELETE FROM site_progress_item_steps WHERE progress_type_step_id IN
       (SELECT id FROM progress_type_steps WHERE progress_type_id = ?)`, id);
     await tx.run('DELETE FROM progress_type_steps WHERE progress_type_id = ?', id);
