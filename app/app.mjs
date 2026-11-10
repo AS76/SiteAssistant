@@ -168,7 +168,12 @@ function renderChrome() {
   $('#navigation').setAttribute('aria-label', t('nav'));
   $('#navigation').classList.add('core-navigation');
   $('.sidebar').classList.add('core-sidebar');
-  $('#navigation').innerHTML = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary'].map(key => `<a href="#${key}" ${view === key ? 'class="active" aria-current="page"' : ''}>${icon(key)}${t(key)}</a>`).join('');
+  const compact = compactNavigation();
+  const navItems = compact ? MOBILE_PRIMARY : NAV_ITEMS;
+  const more = compact && !MOBILE_PRIMARY.includes(view);
+  const navLabel = key => t(compact && key === 'bookings' ? 'bookingsShort' : key);
+  $('#navigation').innerHTML = navItems.map(key => `<a href="#${key}" ${view === key ? 'class="active" aria-current="page"' : ''}>${icon(key)}<span>${navLabel(key)}</span></a>`).join('')
+    + (compactNavigation() ? `<button type="button" class="nav-more${more ? ' active' : ''}" data-command="more-nav">${icon('more')}${t('more')}</button>` : '');
   $('#skip').textContent = t('skip'); $('#site-label').textContent = t('site'); $('#actor-label').textContent = t('actor'); $('#manual-link').textContent = t('manual');
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
   $('#actor-input').value = actor;
@@ -305,6 +310,10 @@ function renderWbs() {
 const role = () => session?.roles?.find(member => member.site_id === siteId)?.role;
 const permissions = () => corePermissions(role());
 const moduleResources = { deviations: ['deviations'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'] };
+// Mobile keeps four destinations reachable with the thumb; the rest lives behind «Altro».
+const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary'];
+const MOBILE_PRIMARY = ['overview', 'tasks', 'deviations', 'bookings'];
+const compactNavigation = () => window.matchMedia('(max-width: 800px)').matches;
 const coreCache = new Map();
 let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' } };
 let deviationView = 'board';
@@ -637,6 +646,10 @@ document.addEventListener('click', event => {
     'close-modal': closeModal, 'task-view': () => { taskView = target.dataset.value; renderTasks(); },
     'clear-filters': () => { filters = { search: '', status: '', person: '', priority: '' }; renderTasks(); },
     csv: exportCsv, print: () => window.print(),
+    'more-nav': () => {
+      const rest = NAV_ITEMS.filter(key => !MOBILE_PRIMARY.includes(key));
+      showModal(t('more'), `<nav class="more-nav" aria-label="${t('more')}">${rest.map(key => `<a href="#${key}">${icon(key)}${t(key)}</a>`).join('')}</nav>`);
+    },
   };
   commands[command]?.();
 });
@@ -712,6 +725,7 @@ document.addEventListener('input', event => { if (event.target.id === 'filter-se
 $('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
 window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary'].includes(next) ? next : 'overview'; closeModal(); render(); $('#main').focus(); });
 window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view]) { closeModal(); render(); } });
+window.matchMedia('(max-width: 800px)').addEventListener('change', () => renderChrome());
 window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view]) render(); void syncQueue(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) void syncQueue(); });
 accountChannel?.addEventListener('message', () => { clearSession(); void loadData(); });

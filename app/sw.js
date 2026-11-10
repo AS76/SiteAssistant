@@ -4,7 +4,7 @@ import { getMirror, replayOps, SYNC_TAG } from './offline.mjs';
 const VERSION = 'siteassistant-v15-1';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data-`;
-const shellUrls = ['./', './index.html', './styles.css', './app.mjs', './api.mjs', './domain.mjs', './i18n.mjs', './offline.mjs', './manifest.webmanifest', './assets/logo.svg'].map(path => new URL(path, self.registration.scope).href);
+const shellUrls = ['./', './index.html', './styles.css', './fonts.css', './app.mjs', './api.mjs', './domain.mjs', './i18n.mjs', './offline.mjs', './manifest.webmanifest', './assets/logo.svg'].map(path => new URL(path, self.registration.scope).href);
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(SHELL).then(cache => cache.addAll(shellUrls)));
 });
