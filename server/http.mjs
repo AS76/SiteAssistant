@@ -17,6 +17,7 @@ import { chat as assistantChat } from './assistant.mjs';
 import { searchPlaces } from './geocode.mjs';
 import { dashboard } from './dashboard.mjs';
 import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
+import { progressCurve } from './progress-curve.mjs';
 import { importRequest, MAX_IMPORT_BYTES } from './planning-import.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
@@ -150,6 +151,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       const user = path.startsWith('/api/') ? await authenticate(db, request.headers.cookie) : null;
       if (path === '/api/dashboard' && method === 'GET') {
         return json(response, 200, await dashboard(db, { siteId: url.searchParams.get('site_id'), user }));
+      }
+      if (path === '/api/progress/curve' && method === 'GET') {
+        return json(response, 200, await progressCurve(db, { siteId: url.searchParams.get('site_id'), user,
+          from: url.searchParams.get('from'), to: url.searchParams.get('to') }));
       }
       if (path === '/api/location/search' && method === 'GET') {
         const query = url.searchParams.get('q') || '';

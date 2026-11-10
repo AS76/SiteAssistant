@@ -29,6 +29,7 @@ import './deviations.test.mjs';
 import './time-bookings.test.mjs';
 import './cost-impacts.test.mjs';
 import './increment-17-progress-types.test.mjs';
+import './progress-curve.test.mjs';
 import './xlsx.test.mjs';
 import './assistant.test.mjs';
 import './planning-import.test.mjs';
