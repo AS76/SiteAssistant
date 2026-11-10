@@ -106,6 +106,31 @@ for (const driver of ['sqlite', 'pg']) test(`Site Progress ${driver}: snapshots,
     t.assert.notStrictEqual((await state(f.site))[0].id, old.id);
   });
 
+  await t.test('reimport fails closed with 409 when a removed item has active time bookings', async t => {
+    const f = await fixture(); await promote(f.site);
+    const item = (await state(f.site)).find(row => row.source_row === 2);
+    const employeeId = randomUUID(), workDayId = randomUUID(), at = '2026-01-15T08:00:00.000Z';
+    await db.run('INSERT INTO employees (id, site_id, employee_no, created_at) VALUES (?, ?, ?, ?)', employeeId, f.site.id, 'SYN-409', at);
+    await db.run('INSERT INTO work_days (id, site_id, employee_id, operational_date, created_at) VALUES (?, ?, ?, ?, ?)',
+      workDayId, f.site.id, employeeId, '2026-01-15', at);
+    await db.run(`INSERT INTO time_bookings (id, site_id, work_day_id, site_progress_item_id, hours, created_by, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`, randomUUID(), f.site.id, workDayId, item.id, 2.5, auth.users.owner.id, at);
+    const before = await state(f.site), marker = await config(f.site);
+    t.assert.strictEqual(before.find(row => row.id === item.id).booked_hours, 2.5);
+    // A snapshot that drops the booked item must be rejected whole, never partially applied.
+    await siteProgressSource(db, f.site, [{ description: 'Synthetic replacement only', source_row: 30 }], { scopeId: f.scopeId });
+    await t.assert.rejects(() => promote(f.site), { status: 409, code: 'SITE_PROGRESS_ITEM_HAS_BOOKINGS' });
+    t.assert.deepStrictEqual(await state(f.site), before);
+    const unchangedMarker = await config(f.site);
+    for (const field of ['promoted_run_id', 'promoted_batch_id', 'promoted_at']) t.assert.deepStrictEqual(unchangedMarker[field], marker[field], field);
+    // The same snapshot is accepted once the booking is gone.
+    await db.run('DELETE FROM time_bookings WHERE site_progress_item_id = ?', item.id);
+    t.assert.strictEqual((await promote(f.site)).imported, 1);
+    const after = await state(f.site);
+    t.assert.strictEqual(after.length, 1); t.assert.strictEqual(after[0].description, 'Synthetic replacement only');
+    t.assert.strictEqual(after[0].booked_hours, 0);
+  });
+
   await t.test('only observed/manual entity keys are linked; unresolved keys remain valid snapshot rows', async t => {
     const f = await fixture();
     const keys = [];

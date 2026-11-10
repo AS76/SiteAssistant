@@ -154,4 +154,23 @@ for (const driver of ['sqlite', 'pg']) test(`Time bookings ${driver}: writes, ag
     t.assert.strictEqual((await detail()).body.booked_hours, 0);
     error(await api(`/api/site-progress/${f.items[0]}`, { cookie: auth.cookies.verifier }), 403, 'FORBIDDEN');
   });
+
+  await t.test('progress list carries booked_hours for each item, matching the detail view', async t => {
+    const f = await fixture(), other = await fixture();
+    const listProgress = async (role = 'viewer') => api(`/api/site-progress?site_id=${f.site.id}`, { cookie: auth.cookies[role] });
+    const initial = await listProgress();
+    t.assert.strictEqual(initial.status, 200);
+    t.assert.deepStrictEqual(initial.body.map(row => row.booked_hours), [0, 0]);
+    await post(f.input);
+    await post({ ...f.input, work_day_id: f.workDays[1], hours: 2.5 });
+    await post({ ...f.input, site_progress_item_id: f.items[1], hours: 20 });
+    await post({ ...other.input, hours: 10 });
+    const rows = (await listProgress()).body;
+    const first = rows.find(row => row.id === f.items[0]), second = rows.find(row => row.id === f.items[1]);
+    t.assert.strictEqual(first.booked_hours, 3.75);
+    t.assert.strictEqual(second.booked_hours, 20);
+    const detail = await api(`/api/site-progress/${f.items[0]}`, { cookie: auth.cookies.viewer });
+    t.assert.deepStrictEqual(detail.body, first);
+    t.assert.strictEqual((await listProgress('verifier')).status, 403);
+  });
 });

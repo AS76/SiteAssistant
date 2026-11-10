@@ -17,11 +17,17 @@ function validId(value, field) {
 }
 
 export async function listSiteProgress(db, { siteId: input, wbsId } = {}) {
-  const site = validId(input, 'site_id'), clauses = ['site_id = ?'], values = [site];
-  if (wbsId != null) { clauses.push('wbs_id = ?'); values.push(validId(wbsId, 'wbs_id')); }
+  const site = validId(input, 'site_id'), clauses = ['s.site_id = ?'], values = [site];
+  if (wbsId != null) { clauses.push('s.wbs_id = ?'); values.push(validId(wbsId, 'wbs_id')); }
   await getSite(db, site);
-  return (await db.all(`SELECT * FROM site_progress_items WHERE ${clauses.join(' AND ')}
-    ORDER BY section, plc_area, source_row, id`, ...values)).map(publicItem);
+  // List and detail expose the same aggregate so the UI never needs a second request.
+  return (await db.all(`SELECT s.*, COALESCE(b.booked_hours, 0) AS booked_hours
+    FROM site_progress_items s LEFT JOIN (
+      SELECT site_progress_item_id, SUM(hours) AS booked_hours FROM time_bookings GROUP BY site_progress_item_id
+    ) b ON b.site_progress_item_id = s.id
+    WHERE ${clauses.join(' AND ')}
+    ORDER BY s.section, s.plc_area, s.source_row, s.id`, ...values))
+    .map(row => ({ ...publicItem(row), booked_hours: Number(row.booked_hours) }));
 }
 
 export async function getSiteProgressItem(db, id) {
@@ -85,7 +91,25 @@ export async function importSiteProgress(db, inputSite, user) {
     // Rebuild the projection atomically, retaining IDs/created_at of surviving rows.
     await tx.run('UPDATE site_progress_items SET wbs_id = NULL WHERE site_id = ?', site);
     const ids = new Set(rows.map(row => row.id));
-    for (const row of existing) if (!ids.has(row.id)) await tx.run('DELETE FROM site_progress_items WHERE id = ? AND site_id = ?', row.id, site);
+    const removals = existing.filter(row => !ids.has(row.id));
+    // Fail-closed: a row with active time bookings is never deleted, silently or by cascade.
+    for (let offset = 0; offset < removals.length; offset += 500) {
+      const chunk = removals.slice(offset, offset + 500);
+      const booked = await tx.all(`SELECT DISTINCT site_progress_item_id FROM time_bookings
+        WHERE site_progress_item_id IN (${chunk.map(() => '?').join(', ')})`, ...chunk.map(row => row.id));
+      if (booked.length) fail(409, `Cannot remove ${booked.length} Site Progress item(s) with active time bookings. Delete the bookings first.`, 'SITE_PROGRESS_ITEM_HAS_BOOKINGS');
+    }
+    for (const row of removals) {
+      try {
+        await tx.run('DELETE FROM site_progress_items WHERE id = ? AND site_id = ?', row.id, site);
+      } catch (error) {
+        // A booking created after the check still fails closed instead of surfacing a driver error.
+        if (error.code === '23503' || /FOREIGN KEY constraint failed/i.test(error.message || '')) {
+          fail(409, 'Cannot remove a Site Progress item with active time bookings. Delete the bookings first.', 'SITE_PROGRESS_ITEM_HAS_BOOKINGS');
+        }
+        throw error;
+      }
+    }
     const columns = ['site_id', 'wbs_id', ...fields, 'source_row', 'source_entity_key_id'];
     const placeholders = columns.map(column => booleanFields.includes(column)
       ? "CASE ? WHEN 'true' THEN TRUE WHEN 'false' THEN FALSE ELSE NULL END" : '?');

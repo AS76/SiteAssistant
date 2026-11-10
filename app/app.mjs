@@ -1,4 +1,4 @@
-import { STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, progressWithHours, flattenWbs } from './domain.mjs';
+import { STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock } from './offline.mjs';
@@ -303,7 +303,7 @@ function renderWbs() {
 // Core modules are online-only and never write to the offline operation queue.
 const role = () => session?.roles?.find(member => member.site_id === siteId)?.role;
 const permissions = () => corePermissions(role());
-const moduleResources = { deviations: ['deviations'], progress: ['progress', 'bookings', 'wbs'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'] };
+const moduleResources = { deviations: ['deviations'], progress: ['progress', 'wbs'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'] };
 const coreCache = new Map();
 let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' } };
 let deviationView = 'board';
@@ -387,7 +387,7 @@ function renderDeviations() {
   return html;
 }
 function renderProgress() {
-  const rows = filterSortRecords(progressWithHours(coreData('progress'), coreData('bookings')), coreFilters.progress, [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
+  const rows = filterSortRecords(coreData('progress'), coreFilters.progress, [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
   return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbs', coreData('wbs').map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), coreFilters.progress.wbsId, 'coreAllWbs')}</div>` +
     (rows.length ? coreTable(['wbsDescription', 'coreSection', 'area', 'coreProgressPct', 'coreBookedHours'], rows.map(row => [coreDetailButton('progress', row), coreValue(row.section), coreValue(row.plcArea), progressBar(row.progressPct), coreNumber(row.bookedHours)])) : empty('noResults', 'noResultsHint'));
 }
