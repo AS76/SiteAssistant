@@ -7,9 +7,18 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 10 November 2026
 
-- **Site progress, deviations and cost impacts via API.** Imported progress and deviations are available read-only; cost impacts are created and closed via API, linked to deviations of the same site. See [REST API](../../riferimento/api/).
-- **Hours booked on attendance.** The hours of an attendance day can be assigned to a progress item; the total appears in the item detail. API only. See [REST API](../../riferimento/api/).
-- **Attachments with explicit limits.** Attachments on tasks, diary and sites are uploaded and downloaded via API, up to **15 MiB** and only as images or PDF. See [REST API](../../riferimento/api/).
+- **planning import from the Overview.** Owners and editors upload an xlsx file, see a preview with new, updated, unchanged, missing untouched and rejected rows, then confirm. No row is deleted. See [Import a planning export](../../amministrazione/import-pianificazione/).
+- **Data assistant.** The **AI** button at the bottom right opens a panel with contextual suggestions and answers that cite records. It reads site data and writes nothing. See [Data assistant](../../guida/assistente-ai/).
+- **Overview with counters and charts.** Four indicators (open deviations, booked hours, open claims, settled), a deviations-by-status donut, progress by section with a planned marker, and hours per week. See [Common features](../../guida/funzioni-comuni/).
+- **Amount settings.** The gear at the top right sets currency, decimals and separators. See [Settings](../../guida/impostazioni/).
+- **Photos and PDFs in tasks and diary.** Entries accept images and PDFs, including drag and drop from the desktop, up to 15 MiB per file. See [Site diary](../../moduli/diario/).
+- **Sortable tables.** Module table headers sort the list; column filters are optional and tables become cards on phones. See [Common features](../../guida/funzioni-comuni/).
+- **Mobile navigation.** On phones the bottom bar shows Overview, Tasks, Deviations, Hours and More. See [Common features](../../guida/funzioni-comuni/).
+- **Step weights and progress history.** Step weights must total 100; every recording stays in the history and feeds the curves. See [Site progress](../../moduli/avanzamento/).
+- **Core module views.** Deviations, Site progress, Time bookings and Cost impacts have an interface view; imported data stays read-only, while step completion and hour booking are recorded in the application. See [Site progress](../../moduli/avanzamento/) and [REST API](../../riferimento/api/).
+- **Site progress, deviations and cost impacts via API.** The endpoints return imported progress and deviations read-only; cost impacts are created via API and closed with a result also from the interface, linked to deviations of the same site. See [REST API](../../riferimento/api/).
+- **Hours booked on attendance.** The hours of an attendance day can be assigned to a progress item; the total appears in the item detail. See [REST API](../../riferimento/api/).
+- **Attachments with explicit limits.** Tasks and diary accept attachments from the interface; sites stay API only. Limit **15 MiB**, images or PDF only. See [REST API](../../riferimento/api/).
 
 ## 9 November 2026
 

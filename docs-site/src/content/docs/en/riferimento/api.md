@@ -52,7 +52,7 @@ The API is an HTTP service that the frontend calls directly. There are no API to
 
 ## Project structure (WBS) and attendance (HR)
 
-These areas are exposed **read-only**; importing snapshots is reserved to owners and only happens via API.
+These areas are exposed **read-only**. Importing snapshots through dedicated endpoints is reserved to owners; the planning import in the interface also covers Time schedule and work days (see [planning export import](#planning-export-import)).
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
@@ -67,19 +67,26 @@ These areas are exposed **read-only**; importing snapshots is reserved to owners
 
 ## Site progress
 
-Progress items imported from the site system are a **read-only** projection and do not have an interface view yet.
+Progress items imported from the site system are visible in the **Site progress** view. Imported fields stay read-only; step completion is recorded in the application or via API.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/site-progress?site_id=&wbs_id=` | member | Site items; optional filter by WBS item |
-| GET | `/api/site-progress/{id}` | member | Item with `booked_hours` (sum of booked hours) |
+| GET | `/api/site-progress/{id}` | member | Item with `booked_hours` (sum of booked hours) and its steps |
 | POST | `/api/site-progress/import` | owner | Promotes a progress snapshot |
+| GET | `/api/progress-types?site_id=` | member | Site progress types |
+| POST | `/api/progress-types` | owner | Creates a type; step weights must total 100 |
+| DELETE | `/api/progress-types/{id}` | owner | Deletes an unassigned type |
+| PATCH | `/api/site-progress/{id}/progress-type` | owner | Assigns or removes a type (`progress_type_id`) |
+| PUT | `/api/site-progress/{id}/steps` | owner/editor | `{ steps: [{ step_id, percent }] }`; appends a history record |
 
 Each item reports description, PLC area, section, progress and planned progress, delta, assignee, planned and actual dates, expected delay and the `has_files`, `has_notes`, `has_deviations` flags. The item is linked to a WBS node only when PLC area and section identify **a single** node; in every other case the item stays unlinked.
 
+A progress type is a list of steps with a weight. The weights must total **100**, otherwise creation is rejected with `WEIGHTS_NOT_100`. When an item has a type assigned, the returned progress is `computed` (weighted average of the steps); with no recorded step it is `0`, not the imported value. Every `PUT` inserts a row in `progress_entries`: the history is never rewritten and the curves are calculated from it.
+
 ## Deviations
 
-Deviations are imported too and stay **read-only** via API.
+Deviations are imported and available read-only in the interface; the endpoints return the same data.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
@@ -90,6 +97,8 @@ Deviations are imported too and stay **read-only** via API.
 The allowed statuses are `open`, `approved`, `in_progress`, `work_completed`, `closed`, `rejected`. An unknown or missing source status stays empty (`null`) and is counted during the import: it is never interpreted as `open`. Links point to `site_progress_item`, `work_day`, `task` or `diary`; the import neither creates nor deletes them on its own.
 
 ## Time bookings
+
+Bookings are also recorded from the **Time bookings** view.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
@@ -110,9 +119,27 @@ Hours are a finite, non-negative number. Attendance and progress item must belon
 
 An impact always starts `open`, requires a title and **at least one deviation** of the same site. The statuses are `open`, `notification_sent`, `submitted`, `closed`; the allowed moves are `open → notification_sent`, `notification_sent → submitted`, `submitted → closed` and `open → closed`. Closing requires a result among `settled`, `dropped` and `rejected` and records the closing date; amounts can be updated during the transition.
 
+## Overview and assistant
+
+| Method | Path | Access | Notes |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/dashboard?site_id=` | member | Four indicators, deviations by status, progress by section, hours per week |
+| POST | `/api/assistant/chat` | member | `{ site_id, messages, view, language }`; read-only answer with citations |
+
+The dashboard computes values from the site tables: deviations by status, average effective progress by section (with planned), hours per week and claim amounts. The assistant answers in the requested language (`it` or `en`) and cites records with `family`, `id` and `label`; if the provider is not configured it returns `503 ASSISTANT_NOT_CONFIGURED`.
+
+## planning export import
+
+| Method | Path | Access | Notes |
+| :-- | :-- | :-- | :-- |
+| POST | `/api/import/preview` | owner/editor | `{ site_id, family, filename, data_base64 }`; writes nothing |
+| POST | `/api/import/apply` | owner/editor | Same as above, plus `preview_token` |
+
+`family` is `employees`, `work_days`, `time_schedule`, `site_progress_items`, `deviations` or `daily_log`. The file is an xlsx up to **20 MiB**, sent in base64. The preview returns the `added`, `updated`, `unchanged`, `removed`, `rejected` counts, samples of rejected rows and a `preview_token` valid for **15 minutes**. The application checks that the file and family match the preview; missing rows are never deleted and the applied `removed` count is always zero.
+
 ## Attachments
 
-Attachments on tasks, diary and sites are available **only via API**; the interface does not expose them yet.
+Attachments on **tasks and diary** can also be uploaded from the interface; for sites they stay API only. Removal is API only.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
@@ -125,7 +152,7 @@ Files up to **15 MiB** are accepted, images or PDF only (`UNSUPPORTED_MEDIA_TYPE
 
 ## Errors
 
-Error responses have the shape `{ "error": "message", "code": "CODE" }`. The most common codes: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` and `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `TIME_BOOKING_DUPLICATE` (409), `LINK_EXPIRED` (410), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503).
+Error responses have the shape `{ "error": "message", "code": "CODE" }`. The most common codes: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` and `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `TIME_BOOKING_DUPLICATE` (409), `WEIGHTS_NOT_100` (400), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
 
 :::note
 The API does not expose an OpenAPI schema: the tables above are the current contract. For the full data schema see `database/README.md` in the repository.

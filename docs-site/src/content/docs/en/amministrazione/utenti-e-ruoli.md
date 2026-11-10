@@ -15,11 +15,16 @@ Permissions in SiteAssistant are **per site**, not global: the same person can b
 | Verify or reopen | Yes* | No | Yes* | No |
 | Manage site members | Yes | No | No | No |
 | Create new sites | Yes | No | No | No |
-| Import snapshots (WBS, attendance, progress, deviations) — API only | Yes | No | No | No |
-| Upload or delete attachments — API only | Yes | Yes | No | No |
-| Book hours on attendance and progress items — API only | Yes | Yes | No | No |
+| Import a planning export from the interface | Yes | Yes | No | No |
+| Import snapshots through dedicated endpoints — API only | Yes | No | No | No |
+| Assign a progress type to an item | Yes | No | No | No |
+| Record step completion | Yes | Yes | No | No |
+| Create or delete progress types — API only | Yes | No | No | No |
+| Book hours on attendance and progress items | Yes | Yes | No | No |
+| Upload attachments on tasks and diary | Yes | Yes | No | No |
+| Delete an attachment — API only | Yes | Yes | No | No |
 | Create cost impacts — API only | Yes | Yes | Yes | No |
-| Move or close a cost impact — API only | Yes | No | Yes | No |
+| Move or close a cost impact | Yes | No | Yes | No |
 
 \* Only if designated reviewer of the task, and never on their own work. An owner can verify tasks they are not the designated reviewer of, but cannot verify what they executed themselves.
 
@@ -47,7 +52,9 @@ Main rules:
 - `--site` and `--role` must be given together; the site code must exist;
 - the allowed roles are `owner`, `editor`, `verifier`, `viewer`.
 
-Capabilities marked **API only** do not have a screen yet: they are used by calling the endpoints described in [REST API](../../riferimento/api/).
+Capabilities marked **API only** are used by calling the endpoints described in [REST API](../../riferimento/api/).
+
+The import from the interface is described in [Import a planning export](../import-pianificazione/). Cost impact transitions and closure with a result are also available in the impact detail.
 
 ## Managing members
 

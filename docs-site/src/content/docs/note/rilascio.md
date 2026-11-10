@@ -15,29 +15,37 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Transizioni di stato con note e motivazioni, cronologia completa.
 - Verifica separata: chi esegue non può chiudere il proprio lavoro.
 - Diario per giorno operativo e turno, con piano, consuntivo, impedimenti e prossimo passo.
+- Foto e PDF allegati ad attività e voci di diario, anche trascinati dal desktop, fino a 15 MiB per file.
 - Vista **Struttura progetto (WBS)** in sola lettura: albero e tabella piatta.
+- Viste **Deviazioni**, **Avanzamento**, **Prenotazioni ore** e **Impatti economici**.
+- Avanzamento con tipi a step ponderati: i pesi devono sommare 100; il completamento si registra dall'applicazione.
+- Panoramica con quattro indicatori, ciambella delle deviazioni, avanzamento per sezione e ore per settimana.
+- Import degli export planning dall'interfaccia, con anteprima e conferma, per sei famiglie di dati.
+- Assistente dati in sola lettura, con citazioni dei record.
+- Impostazioni di valuta, decimali e separatori per gli importi.
+- Tabelle ordinabili, filtri per colonna opzionali e card su telefono.
+- Navigazione mobile con barra in basso.
+- Attività e diario disponibili offline; le modifiche restano in coda e vengono sincronizzate al ritorno della rete.
 - Panoramica, bacheca, elenco con filtri, esportazione CSV, stampa del diario.
 - Interfaccia italiano/inglese e layout responsive.
 
 ## Disponibile solo via API (non nell'interfaccia)
 
 - Gestione dei membri del cantiere.
-- Import degli snapshot Time Schedule (WBS), presenze, avanzamento di cantiere e deviazioni.
-- **Avanzamento di cantiere** in sola lettura: avanzamento e avanzamento pianificato, date, assegnatario e ritardo atteso.
-- **Deviazioni** in sola lettura, con i collegamenti espliciti a voci di avanzamento, presenze, attività e diario.
-- **Prenotazione delle ore** di una presenza su una voce di avanzamento.
-- **Impatti economici** con le deviazioni collegate e un esito di chiusura.
-- Allegati a attività, diario e cantiere, con caricamento e download.
-- Ripresa di un'attività bloccata e rifiuto di una sottomissione (transizioni non ancora esposte nell'app).
+- Import degli snapshot tramite endpoint dedicati (oltre all'import planning dall'interfaccia): WBS, presenze, avanzamento e deviazioni.
+- Creazione ed eliminazione dei tipi di avanzamento e dei loro pesi.
+- **Impatti economici**: consultazione e chiusura con esito sono disponibili anche dall'interfaccia; creazione e aggiornamento degli importi restano via API.
+- **Allegati al cantiere** e **eliminazione degli allegati**: caricamento e rimozione restano via API.
+- Ripristino di un'attività bloccata e rifiuto di una sottomissione (transizioni non ancora esposte nell'app).
 
 ## Non disponibile
 
 - Modifica o eliminazione di cantieri, attività e voci di diario.
+- Modifica o eliminazione dei dati importati: avanzamento, deviazioni e presenze restano in sola lettura.
 - Criteri di accettazione, descrizioni lunghe, checklist.
-- Viste di avanzamento di cantiere, deviazioni e impatti economici nell'interfaccia.
-- Allegati, foto o firme nell'interfaccia.
+- Firme nell'interfaccia.
 - Notifiche, calendario, pianificazione e mappe.
-- Funzionamento offline o sincronizzazione differita.
+- Funzionamento offline delle viste dei moduli core (Deviazioni, Avanzamento, Prenotazioni ore, Impatti economici): richiedono la connessione.
 - Connettori verso ERP, Primavera P6 o altri sistemi.
 - Report PDF generati dal server.
 
@@ -49,7 +57,11 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Il fuso orario e l'ora di taglio sono attributi della singola voce di diario; l'interfaccia usa i valori predefiniti.
 - La stampa usa il browser: l'aspetto dipende dal browser e dai margini scelti.
 - La lingua traduce l'interfaccia, non i contenuti inseriti.
-- Gli allegati via API sono limitati a **15 MiB** e ai soli formati immagine e PDF.
+- Gli allegati nell'interfaccia e via API sono limitati a **15 MiB** e ai soli formati immagine e PDF.
+- L'import planning non cancella le righe assenti dal file e non si annulla dall'interfaccia.
+- La valuta nelle impostazioni cambia simbolo e formato, non converte gli importi.
+- L'anteprima di import vale 15 minuti: oltre, va ripetuta.
+- L'assistente dati legge i dati del cantiere selezionato e non scrive nulla; richiede la connessione.
 - Il collegamento tra avanzamento e WBS avviene solo con una corrispondenza univoca di area PLC e sezione: senza corrispondenza la voce resta scollegata.
 - Gli stati delle deviazioni arrivano dal sistema di origine; uno stato non riconosciuto resta vuoto invece di essere interpretato.
 

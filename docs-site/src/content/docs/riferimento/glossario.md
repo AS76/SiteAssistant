@@ -22,6 +22,12 @@ description: Terminologia italiana e inglese usata in SiteAssistant.
 | Dipendente | Employee | Record del personale di cantiere (proiezione in sola lettura) |
 | Presenza | Work day | Giornata lavorativa di un dipendente, con orari e turno |
 | Avanzamento di cantiere | Site progress | Voce di avanzamento importata, collegata alla WBS quando la corrispondenza è univoca |
+| Tipo di avanzamento | Progress type | Insieme di step con pesi che definisce come si misura una voce |
+| Peso dello step | Step weight | Percentuale di una voce assegnata a uno step; la somma deve essere 100 |
+| Storico avanzamento | Progress history | Registrazioni in sola aggiunta da cui si calcolano le curve |
+| Import planning | planning import | Caricamento di un export xlsx con anteprima e conferma, senza cancellazioni |
+| Assistente dati | Data assistant | Pannello di domande sui dati del cantiere, in sola lettura |
+| Impostazioni | Settings | Valuta, decimali e separatori degli importi, salvati nel browser |
 | Deviazione | Deviation | Scostamento importato, con stato, priorità e date |
 | Prenotazione ore | Time booking | Ore di una presenza attribuite a una voce di avanzamento |
 | Impatto economico | Cost impact | Richiesta interna collegata a una o più deviazioni, con importo e esito |

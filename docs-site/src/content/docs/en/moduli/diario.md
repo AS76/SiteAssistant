@@ -23,6 +23,18 @@ From the **Add contribution** button:
 
 The operational day is computed by the application from the site and the time. There is **one entry per site, day and shift**: a second entry on the same combination is rejected.
 
+## Photos and documents
+
+In the **Add contribution** form, the **Photos or documents** box attaches images and PDFs to the entry:
+
+- drop the files from the desktop into the box, or tap the box and pick them;
+- you can attach several files;
+- each file can be an image or a PDF, up to **15 MiB**.
+
+Uploading attachments is reserved to **owners** and **editors**. Files are attached after the entry is saved. If the entry stays queued because you are offline, the photos are not attached: the application says so and the entry is saved anyway. In that case attach the photos when you are back online.
+
+A saved entry shows its attachments and the **Add photo or PDF** button.
+
 ## The operational day
 
 The operational day does not start at midnight:
@@ -41,5 +53,5 @@ The **Print diary** button uses the browser's print dialog. There is no server-g
 
 - Editing or deleting an entry after saving.
 - Linking a diary entry to a task.
-- Attaching photos or documents.
+- Removing an attachment from the interface: removal is available via API only.
 - Closing or formally signing the diary: contributions stay open and are saved on the server.

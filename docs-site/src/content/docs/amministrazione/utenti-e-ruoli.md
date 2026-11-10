@@ -15,11 +15,16 @@ I permessi in SiteAssistant sono **per cantiere**, non globali: la stessa person
 | Verificare o riaprire | Sì* | No | Sì* | No |
 | Gestire i membri del cantiere | Sì | No | No | No |
 | Creare nuovi cantieri | Sì | No | No | No |
-| Importare snapshot (WBS, presenze, avanzamento, deviazioni) — solo API | Sì | No | No | No |
-| Caricare o eliminare allegati — solo API | Sì | Sì | No | No |
-| Prenotare ore su presenze e avanzamento — solo API | Sì | Sì | No | No |
+| Importare un export di pianificazione dall'interfaccia | Sì | Sì | No | No |
+| Importare snapshot tramite endpoint dedicati — solo API | Sì | No | No | No |
+| Assegnare un tipo di avanzamento a una voce | Sì | No | No | No |
+| Registrare il completamento degli step | Sì | Sì | No | No |
+| Creare o eliminare tipi di avanzamento — solo API | Sì | No | No | No |
+| Prenotare ore su presenze e avanzamento | Sì | Sì | No | No |
+| Caricare allegati su attività e diario | Sì | Sì | No | No |
+| Eliminare un allegato — solo API | Sì | Sì | No | No |
 | Creare impatti economici — solo API | Sì | Sì | Sì | No |
-| Far avanzare o chiudere un impatto economico — solo API | Sì | No | Sì | No |
+| Far avanzare o chiudere un impatto economico | Sì | No | Sì | No |
 
 \* Solo se designato verificatore dell'attività, e mai sul proprio lavoro. L'owner può verificare anche attività di cui non è il verificatore designato, ma non può verificare ciò che ha eseguito lui stesso.
 
@@ -47,7 +52,9 @@ Regole principali:
 - `--site` e `--role` vanno indicati insieme; il codice cantiere deve esistere;
 - i ruoli ammessi sono `owner`, `editor`, `verifier`, `viewer`.
 
-Le capacità marcate **solo API** non hanno ancora una schermata: si usano chiamando gli endpoint descritti in [API REST](../../riferimento/api/).
+Le capacità marcate **solo API** si usano chiamando gli endpoint descritti in [API REST](../../riferimento/api/).
+
+L'import dall'interfaccia è descritto in [Importare un export di pianificazione](../import-pianificazione/). I passaggi di stato degli impatti economici e la chiusura con esito sono disponibili anche nel dettaglio dell'impatto.
 
 ## Gestire i membri
 

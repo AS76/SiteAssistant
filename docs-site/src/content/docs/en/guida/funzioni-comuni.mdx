@@ -10,7 +10,7 @@ SiteAssistant is organised into **views** that share the same context: the **sel
 
 <figure>
   <Image src={mappa} alt="Map of the SiteAssistant views" />
-  <figcaption>The SiteAssistant views: Overview, Sites, Tasks, Project structure and Diary. They all share the selected site.</figcaption>
+  <figcaption>The main SiteAssistant views: Overview, Sites, Tasks, Project structure and Diary. Navigation also includes Deviations, Site progress, Time bookings and Cost impacts. They all share the selected site.</figcaption>
 </figure>
 
 ## The header
@@ -18,17 +18,38 @@ SiteAssistant is organised into **views** that share the same context: the **sel
 The header contains, from left to right:
 
 - the **site selector**, which lists only the sites where you have a role;
-- the **navigation** between views: **Overview**, **Sites**, **Tasks**, **Project structure**, **Diary**;
+- the **navigation** between views: **Overview**, **Sites**, **Tasks**, **Project structure**, **Deviations**, **Site progress**, **Time bookings**, **Cost impacts**, **Diary**;
+- the gear for [Settings](../impostazioni/) (currency, decimals, separators);
+- the link to the manual;
 - the **language selector** (IT / EN);
 - your name and the **Sign out** button.
 
+The **AI** button at the bottom right opens the [data assistant](../assistente-ai/).
+
 ## Overview
 
-It is the at-a-glance view of the selected site:
+It is the at-a-glance view of the selected site. At the top you find four operational and financial indicators:
+
+- **Open deviations**: deviations not closed and not rejected;
+- **Booked hours**: sum of the hours recorded on work days;
+- **Open claims**: claimed amount of claims not closed;
+- **Settled**: sum of the settlement amounts recorded on claims.
+
+Below the indicators, four task counters: **To execute**, **To verify**, **Closed** and **Overdue**.
+
+The Overview also shows three charts:
+
+- **Deviations by status**: a donut with the number of deviations per status;
+- **Progress by section**: bars with the effective progress and a marker for planned progress;
+- **Hours per week**: bars of booked hours in the last six weeks present in the data.
+
+The page closes with:
 
 - the tasks to keep an eye on, ordered by urgency and due date;
 - review progress: closed tasks out of the total, with the count of blocked and awaiting-review ones;
 - the latest diary entry of the current operational day.
+
+Owners and editors also find **Import planning export** here: the upload is described in [Import a planning export](../../amministrazione/import-pianificazione/).
 
 ## Tasks: board and list
 
@@ -38,6 +59,14 @@ The **Tasks** view has two representations with the same content:
 - **List:** rows ordered by priority, due date and the people involved.
 
 The available filters are free text, status, executor and priority. On narrow screens the board becomes a horizontal carousel.
+
+## Tables
+
+In the module views with a table — **Deviations**, **Site progress**, **Time bookings**, **Cost impacts** — the headers are clickable: the first click sorts ascending, the second descending. They also work from the keyboard with Enter or Space.
+
+The **Column filters** button adds a row of fields above the table: each field filters its own column. Filters are off by default and do not appear on phones.
+
+On phones tables become **cards**: each row is a card with a label and a value, with no horizontal scrolling.
 
 ## Language
 
@@ -51,3 +80,5 @@ The IT/EN selector translates the interface labels immediately. The content you 
 ## Accessibility and devices
 
 The interface is responsive and keyboard-navigable. The input forms are modal windows with focus management; validation errors are announced in the form's message area.
+
+On phones navigation moves to a **bottom bar** with five items: **Overview**, **Tasks**, **Deviations**, **Hours** and **More**. **More** opens the list of the remaining views: Sites, Project structure, Site progress, Cost impacts and Diary.

@@ -23,6 +23,18 @@ Dal pulsante **Aggiungi contributo**:
 
 Il giorno operativo è calcolato dall'applicazione in base al cantiere e all'orario. Esiste **una sola voce per cantiere, giorno e turno**: un secondo inserimento sulla stessa combinazione viene rifiutato.
 
+## Foto e documenti
+
+Nel modulo **Aggiungi contributo**, il riquadro **Foto o documenti** allega immagini e PDF alla voce:
+
+- trascina i file dal desktop nel riquadro, oppure tocca il riquadro e scegli i file;
+- puoi allegare più file;
+- ogni file può essere un'immagine o un PDF, fino a **15 MiB**.
+
+Il caricamento degli allegati è riservato a **owner** ed **editor**. I file vengono allegati dopo il salvataggio della voce. Se la voce resta in coda perché sei offline, le foto non vengono allegate: l'applicazione lo segnala e la voce viene salvata comunque. In quel caso allega le foto quando torni online.
+
+Una voce già salvata mostra i suoi allegati e il pulsante **Aggiungi foto o PDF**.
+
 ## Il giorno operativo
 
 Il giorno operativo non coincide con la mezzanotte:
@@ -41,5 +53,5 @@ Il pulsante **Stampa diario** usa la stampa del browser. Non esiste un PDF gener
 
 - Modificare o cancellare una voce dopo il salvataggio.
 - Collegare una voce di diario a un'attività.
-- Allegare foto o documenti.
+- Rimuovere un allegato dall'interfaccia: la rimozione è disponibile solo via API.
 - Chiudere o firmare formalmente il diario: i contributi restano aperti e salvati sul server.

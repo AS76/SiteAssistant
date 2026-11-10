@@ -39,6 +39,8 @@ export default defineConfig({
           items: [
             { label: 'Accesso e sessioni', translations: { en: 'Sign in and sessions' }, slug: 'guida/accesso' },
             { label: 'Funzioni comuni', translations: { en: 'Common features' }, slug: 'guida/funzioni-comuni' },
+            { label: 'Assistente dati', translations: { en: 'Data assistant' }, slug: 'guida/assistente-ai' },
+            { label: 'Impostazioni', translations: { en: 'Settings' }, slug: 'guida/impostazioni' },
           ],
         },
         {
@@ -47,6 +49,7 @@ export default defineConfig({
           items: [
             { label: 'Cantieri', translations: { en: 'Sites' }, slug: 'moduli/cantieri' },
             { label: 'Attività e verifiche', translations: { en: 'Tasks and verification' }, slug: 'moduli/attivita' },
+            { label: 'Avanzamento di cantiere', translations: { en: 'Site progress' }, slug: 'moduli/avanzamento' },
             { label: 'Diario di cantiere', translations: { en: 'Site diary' }, slug: 'moduli/diario' },
             { label: 'Struttura progetto (WBS)', translations: { en: 'Project structure (WBS)' }, slug: 'moduli/wbs' },
           ],
@@ -57,6 +60,7 @@ export default defineConfig({
           items: [
             { label: 'Utenti e ruoli', translations: { en: 'Users and roles' }, slug: 'amministrazione/utenti-e-ruoli' },
             { label: 'Configurare un cantiere', translations: { en: 'Configure a site' }, slug: 'amministrazione/configurare-cantiere' },
+            { label: 'Importare un export di pianificazione', translations: { en: 'Import a planning export' }, slug: 'amministrazione/import-pianificazione' },
           ],
         },
         {

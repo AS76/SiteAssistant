@@ -22,6 +22,12 @@ description: Italian and English terminology used in SiteAssistant.
 | Dipendente | Employee | Site personnel record (read-only projection) |
 | Presenza | Work day | An employee's working day, with times and shift |
 | Avanzamento di cantiere | Site progress | Imported progress item, linked to the WBS when the match is unique |
+| Tipo di avanzamento | Progress type | Set of weighted steps defining how an item is measured |
+| Peso dello step | Step weight | Percentage of an item assigned to a step; the total must be 100 |
+| Storico avanzamento | Progress history | Append-only records the curves are calculated from |
+| Import planning | planning import | Upload of an xlsx export with preview and confirmation, with no deletions |
+| Assistente dati | Data assistant | Question panel over the site data, read-only |
+| Impostazioni | Settings | Currency, decimals and separators for amounts, stored in the browser |
 | Deviazione | Deviation | Imported deviation, with status, priority and dates |
 | Prenotazione ore | Time booking | Hours of an attendance day assigned to a progress item |
 | Impatto economico | Cost impact | Internal claim linked to one or more deviations, with amount and result |

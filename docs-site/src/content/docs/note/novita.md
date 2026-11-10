@@ -7,9 +7,18 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 10 novembre 2026
 
-- **Avanzamento di cantiere, deviazioni e impatti economici via API.** L'avanzamento e le deviazioni importati sono consultabili in sola lettura; gli impatti economici si creano e si chiudono via API, collegati alle deviazioni dello stesso cantiere. Vedi [API REST](../../riferimento/api/).
-- **Ore prenotate sulle presenze.** Le ore di una presenza possono essere attribuite a una voce di avanzamento; il totale compare nel dettaglio della voce. Solo via API. Vedi [API REST](../../riferimento/api/).
-- **Allegati con limiti espliciti.** Gli allegati a attività, diario e cantiere si caricano e scaricano via API, fino a **15 MiB** e solo come immagini o PDF. Vedi [API REST](../../riferimento/api/).
+- **Import export planning dalla Panoramica.** Owner ed editor caricano un file xlsx, vedono l'anteprima con nuove, aggiornate, invariate, assenti non toccate e rifiutate, poi confermano. Nessuna riga viene cancellata. Vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/).
+- **Assistente dati.** Il pulsante **AI** in basso a destra apre un pannello con suggerimenti contestuali e risposte con citazioni dei record. Legge i dati del cantiere e non scrive nulla. Vedi [Assistente dati](../../guida/assistente-ai/).
+- **Panoramica con contatori e grafici.** Quattro indicatori (deviazioni aperte, ore prenotate, claim aperti, liquidato), ciambella delle deviazioni per stato, avanzamento per sezione con marcatore pianificato e ore per settimana. Vedi [Funzioni comuni](../../guida/funzioni-comuni/).
+- **Impostazioni degli importi.** L'ingranaggio in alto a destra imposta valuta, decimali e separatori. Vedi [Impostazioni](../../guida/impostazioni/).
+- **Foto e PDF in attività e diario.** Le voci accettano immagini e PDF, anche trascinati dal desktop, fino a 15 MiB per file. Vedi [Diario di cantiere](../../moduli/diario/).
+- **Tabelle ordinabili.** Le intestazioni delle tabelle dei moduli ordinano l'elenco; i filtri per colonna sono opzionali e su telefono le tabelle diventano card. Vedi [Funzioni comuni](../../guida/funzioni-comuni/).
+- **Navigazione mobile.** Su telefono la barra in basso mostra Panoramica, Attività, Deviazioni, Ore e Altro. Vedi [Funzioni comuni](../../guida/funzioni-comuni/).
+- **Pesi degli step e storico dell'avanzamento.** I pesi degli step devono sommare 100; ogni registrazione resta in storico e alimenta le curve. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/).
+- **Viste dei moduli core.** Deviazioni, Avanzamento, Prenotazioni ore e Impatti economici hanno una vista nell'interfaccia; i dati importati restano in sola lettura, mentre completamento degli step e prenotazione delle ore si registrano dall'applicazione. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/) e [API REST](../../riferimento/api/).
+- **Avanzamento, deviazioni e impatti economici via API.** Gli endpoint restituiscono avanzamento e deviazioni importati in sola lettura; gli impatti economici si creano via API e si chiudono con un esito anche dall'interfaccia, collegati alle deviazioni dello stesso cantiere. Vedi [API REST](../../riferimento/api/).
+- **Ore prenotate sulle presenze.** Le ore di una presenza possono essere attribuite a una voce di avanzamento; il totale compare nel dettaglio della voce. Vedi [API REST](../../riferimento/api/).
+- **Allegati con limiti espliciti.** Attività e diario accettano allegati dall'interfaccia; il cantiere resta via API. Limite **15 MiB**, solo immagini o PDF. Vedi [API REST](../../riferimento/api/).
 
 ## 9 novembre 2026
 
