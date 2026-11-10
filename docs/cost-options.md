@@ -1,6 +1,6 @@
 # Demo multiutente — valutazione economica
 
-Stato: Railway scelto come piattaforma per la demo. Nessun servizio attivato; listini e condizioni non verificati in questa revisione. Le cifre condizionali sulle alternative non costituiscono un preventivo.
+Stato: **SUPERATO (2026-11-10).** Railway accantonato: il DB operativo è **Neon** (`eu-central-1`), l'app gira sul VPS Hostinger. Questo documento resta solo come confronto economico storico. Vedi [architecture.md](architecture.md).
 
 ## Obiettivo
 

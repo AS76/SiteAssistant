@@ -1,6 +1,6 @@
 # Import e archivio documenti — modalità complementare
 
-Stato: specifica proposta. Nessun collegamento a fonti, storage o account attivato. Profili e formati reali da validare su campioni autorizzati; nessun campione reale incluso nel repository.
+Stato: **aggiornato (2026-11-10).** Storage S3 iDrive e2 attivo (bucket `siteassistant`); l'import reale (profili di mapping) non è ancora attivato in produzione.
 
 ## Perimetro
 
@@ -15,7 +15,7 @@ L'interfaccia mostra separatamente **stato importato**, **dato interno** e **dat
 | Sistema sorgente | Identificativi, campi e stati ufficiali inclusi negli export |
 | Archivio S3 compatibile | Originali e versioni dei file, allegati e derivati autorizzati |
 | PostgreSQL | Record normalizzati, provenienza, indici dei documenti, snapshot, relazioni, note e storico interno |
-| Applicazione su Railway | Import guidato, controlli, Gantt e mappe, viste incrociate, accessi e operazioni interne |
+| Applicazione (VPS + Neon) | Import guidato, controlli, Gantt e mappe, viste incrociate, accessi e operazioni interne |
 | Connettori di acquisizione | Lettura di file selezionati da sorgenti autorizzate; disponibilità e permessi da verificare per ogni canale |
 
 ## Accesso ai file: API e MCP

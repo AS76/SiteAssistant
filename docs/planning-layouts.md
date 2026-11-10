@@ -100,7 +100,7 @@ Le voci riassuntive WBS derivano dalle voci elementari. Per sommare quantità oc
 | Derivati | document_derivatives: anteprima, tasselli o conversione, stato, checksum e parametri |
 | Annotazioni | map_annotations e collegamenti tipizzati a task/deviation/progress_item, con foreign key e stesso cantiere |
 
-Originali e derivati binari nello storage privato; struttura, coordinate, relazioni, progressi e storico in PostgreSQL. Elaborazioni CAD e immagini grandi possono richiedere un processo worker separato: risorse e costo su Railway vanno verificati prima di introdurlo. L'assetto iniziale app + database resta il primo nucleo.
+Originali e derivati binari nello storage privato; struttura, coordinate, relazioni, progressi e storico in PostgreSQL. Elaborazioni CAD e immagini grandi possono richiedere un processo worker separato: risorse e costo vanno verificati prima di introdurlo. L'assetto iniziale app + database resta il primo nucleo.
 
 ## Sequenza proposta e accettazione
 

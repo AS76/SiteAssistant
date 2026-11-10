@@ -1,5 +1,7 @@
 # Ripresa dello sviluppo con Codex
 
+> ⚠️ **SUPERATO (2026-11-10).** Descrive lo stato iniziale (demo localStorage, nessun backend). Lo stato reale è in [architecture.md](architecture.md): backend `node:http` + `pg` + Neon, 6 moduli del nucleo, migrazioni 001–013, auth locale, allegati S3.
+
 ## Stato del repository
 
 È implementata una demo web locale IT/EN con cantieri, attività, flusso di verifica, diario, persistenza nel browser, backup JSON, CSV e stampa. Non esistono ancora un backend applicativo, login reale, importatore operativo, connessione S3 o deploy Railway.

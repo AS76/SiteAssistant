@@ -17,7 +17,7 @@ Collegare pianificazione, lavoro eseguito, verifica e diario del cantiere in una
 | Diario | Data operativa, turno diurno/notturno, attività opzionale, piano, consuntivo, impedimenti e prossimo passo | Un'intestazione per cantiere/giorno; contributi del turno notturno riferiti esplicitamente al giorno scelto |
 | Conteggi | Da eseguire, da verificare, chiuse e scadute | Una proposta di completamento non conta come chiusura; una card da verificare può essere scaduta |
 | Portabilità | CSV filtrato, stampa diario, backup e ripristino JSON | Formule CSV neutralizzate; ripristino con validazione e conferma; errori senza cancellare dati correnti |
-| Persistenza | localStorage con gestione errori | Avviso se il salvataggio non riesce; testo dei form conservato dopo un errore |
+| Persistenza | API server + PostgreSQL (Neon); offline-first previsto (incremento 15) | Avviso se il salvataggio non riesce; testo dei form conservato dopo un errore |
 
 ## Interfaccia
 
@@ -47,4 +47,4 @@ Prima fase: attività e coordinamento, qualità/deviazioni, pianificazione/avanz
 
 L'area **Pianificazione, layout e mappe** riceverà pianificazioni Excel e documenti grafici PDF, immagini ad alta risoluzione e originali CAD. Gantt e altre viste condividono voci aggiornabili per percentuale, quantità installata o azione sì/no. Baseline, piano corrente, avanzamento dichiarato e verifica rimangono distinti. La visualizzazione/conversione CAD è soggetta a compatibilità e scelta del motore. Vedere [Specifica funzionale](planning-layouts.md); queste funzioni non sono ancora implementate.
 
-La proposta tecnica usa PostgreSQL relazionale e API server; Railway è la piattaforma scelta per applicazione e database nell'ambiente di prova. I file si integrano tramite un archivio privato compatibile S3, con configurazione e credenziali esterne al repository; accesso iniziale in sola lettura. Il metodo di autenticazione resta da definire. Entità, vincoli e sequenza di migrazione sono descritti in [Architettura proposta](architecture.md). Questa progettazione non modifica la persistenza della demo e non costituisce un'integrazione già realizzata.
+La proposta tecnica usa PostgreSQL relazionale e API server; **Neon** è il database gestito (`eu-central-1`) e l'app gira sul VPS Hostinger dietro Traefik. I file si integrano tramite S3 compatibile (iDrive e2, bucket `siteassistant`). L'autenticazione è locale (email+password). Stato reale e stack in [Architettura](architecture.md).
