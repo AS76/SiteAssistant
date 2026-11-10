@@ -3,7 +3,24 @@ title: Sites
 description: Create and select the sites you work on.
 ---
 
+import Shot from '../../../../components/Shot.astro';
+
 The **site** is the container for all the work: tasks and diary always belong to a site and are only visible to its members.
+
+## Opening a site
+
+What it is for: choosing the working context that every view must reason about.
+
+1. Open **Sites** from the navigation.
+2. Find the site card: code, name, location, dates and task counts.
+3. Press **Open** on the card. That site becomes the selected one and the card is highlighted.
+4. Go back to **Overview**, **Tasks**, **Project structure** and **Diary**: they show only the site you just opened.
+
+<Shot
+  src="/images/2026-11/sites-desktop.png"
+  alt="Sites view with the FITT-01 Cantiere dimostrativo Borgo Nuvolario card, location, 18 tasks, 13 not yet closed, dates from 1 November to 20 December and the Selected button"
+  caption="A site card: code and name, location, total and still-open tasks, dates. The active site shows Selected instead of Open."
+/>
 
 ## The site list
 
@@ -14,9 +31,15 @@ The **Sites** view shows a card for every site you belong to, with:
 - start and end dates;
 - number of total tasks and still-open tasks.
 
-The selected site is highlighted. The **Open** button sets it as the working context: from then on Overview, Tasks, Project structure and Diary show only that site.
+:::caution[If a site is missing]
+- The list only contains sites you are a **member** of: a missing site needs a role assigned by an owner, not a different search.
+- If the list is empty, the application offers **New site** only to owners; other roles must ask for access.
+- After the assignment, reload the page: the site list is read at sign-in.
+:::
 
 ## Create a site
+
+What it is for: opening a new site and becoming its owner.
 
 Creating a site is reserved to users with the **owner** role on at least one site. From the **New site** button:
 
@@ -29,6 +52,12 @@ Creating a site is reserved to users with the **owner** role on at least one sit
 | End date | No | Cannot be before the start date |
 
 Whoever creates the site automatically becomes its **owner**. An already-used code is rejected: no two sites share the same code.
+
+:::caution[If creation is rejected]
+- **Duplicate code:** choose a different code; the code cannot be changed after creation.
+- **End date before start date:** correct one of the two dates.
+- **Location:** if address search is unavailable, type the address manually in the field.
+:::
 
 ## Roles and visibility
 

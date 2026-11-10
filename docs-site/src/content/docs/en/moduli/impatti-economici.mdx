@@ -1,0 +1,64 @@
+---
+title: Cost impacts
+description: Consult the claims linked to deviations, their totals and outcomes.
+---
+
+import Shot from '../../../../components/Shot.astro';
+
+The **Cost impacts** view collects the claims linked to deviations. It shows how much has been claimed, how much has been settled and the status of each claim.
+
+## Reading the totals
+
+What it is for: knowing the value of open claims and what has already been recognised.
+
+1. Open **Cost impacts** from the navigation.
+2. Read **Total claimed** and **Total settled** at the top.
+3. Apply the **Status** and **Result** filters to narrow the list.
+4. Read the totals again: they refer to the filtered data, not to the whole site.
+5. Open a row for the claim detail and its linked deviations.
+
+<Shot
+  src="/images/2026-11/impacts-desktop.png"
+  alt="Cost impacts view with Total claimed 41.500,50 €, Total settled 11.250,00 €, the Status and Result filters and the table with Title, Status, Claimed amount, Settlement amount and Result"
+  caption="The two totals at the top and the claims table. Under the settled total the application states how many unavailable amounts were excluded."
+/>
+
+Below the totals, a note recalls that the currency is not specified by the source: symbol and format follow [Settings](../../guida/impostazioni/), the value does not. When an amount is missing, the total excludes it and says so.
+
+:::caution[If a total looks wrong]
+- **The total changes when you filter:** that is expected. Totals are calculated on the visible rows.
+- **It says “unavailable amounts excluded from total”:** the source did not provide those amounts; they are not zero.
+- **The currency is not the one you expect:** check the settings gear; changing currency does not convert amounts.
+- **Empty list:** the Status and Result filters add up; clear one of them.
+:::
+
+## The detail and transitions
+
+The detail shows status, claimed amount, settlement amount, result, creation and closure dates, and the **linked deviations** with their status.
+
+Owners and verifiers also find the status transition:
+
+1. Open the claim.
+2. Choose the target status under **Move to**.
+3. If you close the claim, choose the **result**: settled, dropped or rejected.
+4. Press **Save**. The detail refreshes with the new status.
+
+Available transitions depend on the current status: from open you move to notification sent or closed, from notification sent to submitted, from submitted to closed. A closed claim has no transitions.
+
+The claim statuses are **Open**, **Notification sent**, **Submitted** and **Closed**; the results are **Settled**, **Dropped** and **Rejected**.
+
+:::caution[If the transition is not saved]
+- **Missing result on closing:** closing requires a result among settled, dropped and rejected.
+- **“The claim has changed”:** someone else updated the record. Reopen the detail and repeat the transition.
+- **Insufficient role:** transitions are reserved to owners and verifiers; editors only consult.
+- **Offline:** the view and the transitions require a connection.
+:::
+
+## Who can do what
+
+| Action | Role |
+| :-- | :-- |
+| View totals, list and detail | Every site member |
+| Change a claim's status | owner, verifier |
+
+For linked deviations see [Deviations](../deviazioni/). For the amount format see [Settings](../../guida/impostazioni/).

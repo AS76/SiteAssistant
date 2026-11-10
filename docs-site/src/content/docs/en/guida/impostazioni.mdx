@@ -3,7 +3,25 @@ title: Settings
 description: Currency, decimals and separators for amounts.
 ---
 
+import Shot from '../../../../components/Shot.astro';
+
 The gear at the top right opens **Settings**. Preferences apply to this browser and only affect how amounts are formatted.
+
+## Setting currency and format
+
+What it is for: reading amounts with the currency and separators you use.
+
+1. Press the **gear** at the top right.
+2. Choose the **Currency**: EUR, USD, GBP or CHF.
+3. Choose **Decimals**: 0 or 2.
+4. Choose **Separators**: `1.234,56` (IT) or `1,234.56` (EN).
+5. Press **Save** and wait for the **Settings saved** confirmation at the bottom.
+
+<Shot
+  src="/images/2026-11/impacts-desktop.png"
+  alt="Cost impacts view with Total claimed 41.500,50 € and Total settled 11.250,00 €, formatted with the euro currency, two decimals and Italian separators"
+  caption="The effect of the settings: cost impact amounts with EUR, two decimals and IT separators. Totals follow the active filters."
+/>
 
 ## The three choices
 
@@ -34,4 +52,9 @@ Example: with EUR, 2 decimals and IT separators, the amount 1234.5 appears as `�
 
 Preferences stay in this browser, not on the account. On another browser or device the defaults come back. If you clear the site data, the defaults come back on this browser too.
 
-Press **Save** to apply the changes. The **Settings saved** confirmation appears at the bottom.
+:::caution[If amounts do not change]
+- Settings apply after **Save**: without confirmation the previous format stays.
+- If you changed browser or device, preferences do not follow you: set them again.
+- If the symbol changes but the number does not, that is expected: the currency does not apply an exchange rate.
+- If an amount shows **Not available**, the source did not provide it: it is not a formatting problem.
+:::

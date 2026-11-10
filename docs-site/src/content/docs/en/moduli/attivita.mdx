@@ -6,12 +6,19 @@ description: Create tasks, move them through their statuses and verify them.
 import { Image } from 'astro:assets';
 import flusso from '../../../../assets/flusso-stati-attivita.svg';
 import board from '../../../../assets/board-elenco.svg';
+import Shot from '../../../../components/Shot.astro';
 
 The **task** is the unit of work on site. Every task belongs to a site, has a distinct **executor** and **reviewer**, and only moves through allowed transitions. The golden rule: **whoever executes cannot review their own work**.
 
 ## Create a task
 
-From the **New task** button:
+What it is for: putting work on site with someone who executes it and someone who verifies it.
+
+1. Open **Tasks** and press **New task**.
+2. Fill in title, area and company.
+3. Choose **executor** and **reviewer**: they must be two different people.
+4. Choose the **priority** and, if needed, the **due date**.
+5. Press **Save**: the task starts in status `todo` and appears in the **To do** column.
 
 | Field | Required | Notes |
 | :-- | :-- | :-- |
@@ -23,7 +30,13 @@ From the **New task** button:
 | Priority | Yes | `normal`, `high`, `urgent` |
 | Due date | No | Date, pre-filled with today |
 
-The task starts in status `todo`. **The executor and the reviewer must be two different people**: the application rejects the assignment if they coincide.
+**The executor and the reviewer must be two different people**: the application rejects the assignment if they coincide.
+
+:::caution[If the task is not created]
+- **Executor and reviewer are the same person:** choose two different people; the rule applies to owners too.
+- **Required fields empty:** the form shows the error above the buttons and moves focus to the first field to fix.
+- **Task created but not visible:** check the board filters and the selected site.
+:::
 
 ## The statuses
 
@@ -42,7 +55,13 @@ The task starts in status `todo`. **The executor and the reviewer must be two di
 
 ## Move a task forward
 
-Open the task detail: the available buttons depend on the current status.
+What it is for: recording the status change with the person, the time and the note that justify it.
+
+1. Open the task detail from the card or the row.
+2. Look at the **current status** and the available buttons: they change with the status.
+3. Press the button for the move you need — for example **Start**, **Submit for review**, **Block**.
+4. Write the **note** or **reason** the move requires.
+5. Press **Save**: the **history** in the detail records who, when, from which status and with which note.
 
 | From | To | What you do | What it requires |
 | :-- | :-- | :-- | :-- |
@@ -54,7 +73,12 @@ Open the task detail: the available buttons depend on the current status.
 | `to_verify` | `blocked` | **Block** | A reason |
 | `closed` | `in_progress` | **Reopen** | A reason; only the designated reviewer or an owner |
 
-Every move records who did it, when, from which status to which status, with the note or reason: the **history** stays visible in the detail.
+:::caution[If the move is not available]
+- **No buttons in the detail:** the current status does not allow that move. Reopen the detail to refresh the data.
+- **Missing note or reason:** the form rejects the save and points to the field.
+- **Verification denied:** only the designated reviewer or an owner can close or reopen; whoever executed the work cannot verify it.
+- **Blocked task:** resuming from `blocked` is not exposed in the interface in this version.
+:::
 
 ## The review
 
@@ -70,6 +94,12 @@ Only the designated reviewer (or an owner) can close or reopen. Whoever executed
 In a task detail you can attach photos or PDFs, up to **15 MiB** per file; uploading is reserved to owners and editors. The verification evidence remains a **text note**: the attachment does not replace the note.
 
 ## Board and list
+
+<Shot
+  src="/images/2026-11/tasks-desktop.png"
+  alt="Task board with the columns To do 6, In progress 3, To verify 3, Closed 5 and Blocked 1, and cards with area, title, priority, company, team and due date"
+  caption="The board: one column per status and one card per task. The filters above the board apply to the list and the CSV export too."
+/>
 
 <figure>
   <Image src={board} alt="Board view and list view" />

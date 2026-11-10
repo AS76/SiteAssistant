@@ -3,6 +3,8 @@ title: Data assistant
 description: Ask questions about the site data and open the cited records.
 ---
 
+import Shot from '../../../../components/Shot.astro';
+
 The **data assistant** answers questions about the selected site's data. It reads records and writes nothing: changes stay in the modules, where you confirm them.
 
 ## Where it is
@@ -16,6 +18,22 @@ The panel contains:
 - the **Ask about this site's data** field and the **Send** button.
 
 On the sign-in screen the button is not there.
+
+## Asking a question
+
+What it is for: getting a figure or a list without walking through the views.
+
+1. Open the view you are interested in, so the suggestions are already in the right context.
+2. Press **AI** at the bottom right.
+3. Pick a suggestion or type your question in the **Ask about this site's data** field.
+4. Press **Send** and read the answer: cited records appear in square brackets.
+5. Open a citation when it is a button: it takes you to the record detail.
+
+<Shot
+  src="/images/2026-11/assistant-desktop.png"
+  alt="Data assistant panel open on the Diary view, with the suggestion “Cosa è stato registrato ieri in diario?”, the Ask about this site's data field and the Send button"
+  caption="The Data assistant panel opened from the Diary view. Suggestions change with the view; the field at the bottom accepts a free question."
+/>
 
 ## The suggestions
 
@@ -59,6 +77,13 @@ It does not see other sites and does not read the content of photos and PDFs.
 - **It does not write**: it does not create, edit or close records. If you ask for a change, it points to the screen to use.
 - **It does not invent**: if a piece of data is missing, it says it is not in the data.
 - **It does not compute totals it did not query**: the numbers in the answers come from queries on the data.
+
+:::caution[If the assistant does not answer]
+- **Panel shows an error on opening:** the assistant is not configured on the server. Report it to whoever administers the installation.
+- **Answer says the data is not there:** the record is not on the selected site. Check the site selector and the view you opened the panel from.
+- **No answer after Send:** a connection is required, because questions go through the server. Check the network and try again.
+- **Conversation lost:** reloading starts from scratch; the conversation is not saved.
+:::
 
 ## Practical limits
 

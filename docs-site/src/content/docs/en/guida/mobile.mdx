@@ -1,0 +1,139 @@
+---
+title: Mobile quick guide
+description: "How SiteAssistant changes on a phone: bottom bar, cards instead of tables, touch targets."
+---
+
+import Shot from '../../../../components/Shot.astro';
+
+On a phone SiteAssistant shows the **same data** and the **same permissions** as on the desktop. What changes is how you move around: navigation moves to the bottom, tables become cards and controls grow for your finger.
+
+## The bottom bar
+
+What it is for: reaching the four views you use most with your thumb, without opening a menu.
+
+1. Open the application in your phone browser and sign in.
+2. Use the **bottom bar**: **Overview**, **Tasks**, **Deviations**, **Hours**, **More**.
+3. Tap **Hours** for Time bookings: it is the same view the desktop calls *Time bookings*.
+4. Tap **More** for the remaining views: **Sites**, **Project structure**, **Site progress**, **Cost impacts**, **Diary**.
+5. The active item is highlighted; when you are in a view opened from **More**, it is **More** that looks active.
+
+<Shot
+  src="/images/2026-11/overview-mobile.png"
+  alt="Overview on a phone with the SiteAssistant header, the site selector, the top controls and the bottom bar with Overview, Tasks, Deviations, Hours and More"
+  caption="The Overview on a phone. At the top the site selector and the controls (gear, Manual, user name, Sign out, EN); at the bottom the bar with five items."
+  compact
+/>
+
+Above the content the **header** stays: full-width site selector, then the settings gear, the manual link, the user name, **Sign out** and the **EN/IT** selector.
+
+:::caution[If an item is missing]
+- The bar always has five items: if the view you want is not among the first four, it is inside **More**.
+- The bar appears only below **800 px** wide: on a landscape tablet you see the side navigation again.
+- If **More** does not open the list, reload the page: the list is a window of the application, not a separate page.
+:::
+
+## Cards instead of tables
+
+What it is for: reading a table row without horizontal scrolling.
+
+1. Open **Hours**, **Site progress** or **Cost impacts**; for **Deviations** choose **List**.
+2. Each row becomes a **card**: the record title is at the top right, labels on the left and values on the right.
+3. Scroll vertically to move from one card to the next.
+4. Use the menus above the list to filter; on a phone the **Column filters** button does not open the field row.
+
+<div class="shot-pair">
+  <Shot
+    src="/images/2026-11/bookings-mobile.png"
+    alt="Time bookings on a phone: one card per booking with employee, progress item and hours, grouped by operational day"
+    caption="Time bookings: each booking is a card with employee, progress item and hours."
+    compact
+  />
+  <Shot
+    src="/images/2026-11/progress-mobile.png"
+    alt="Site progress on a phone: one card per item with section, area, progress percentage, bar and booked hours"
+    caption="Site progress: labels stay on the left, values on the right; the bar shows the percentage."
+    compact
+  />
+</div>
+
+:::caution[If a card looks cut off]
+- Long values wrap inside the card: you do not need to rotate the phone.
+- If text leaves the screen, check the browser zoom: at 100% the card fills the available width.
+- Totals at the top of a view (for example in **Cost impacts**) refer to the filtered data, not to the whole site.
+:::
+
+## Touch targets
+
+What it is for: hitting the right control first time, even with gloves on.
+
+1. The main buttons — **New task**, **Add contribution**, **Refresh data**, **Column filters** — have a large touch area and sit on a row separate from the content.
+2. Dropdown menus are tall and full width: tap the menu and pick an item from the system list.
+3. In the task and deviation boards, scroll sideways to move from one column to the next.
+4. The **AI** button stays at the bottom right, above the content: open it for the assistant and close it with the panel's ×.
+
+<div class="shot-pair">
+  <Shot
+    src="/images/2026-11/tasks-mobile.png"
+    alt="Tasks on a phone: filters on several rows, the Board and List selector, a horizontally scrolling board and the task cards"
+    caption="Tasks: filters and the Board/List selector on separate rows, board scrolling horizontally."
+    compact
+  />
+  <Shot
+    src="/images/2026-11/deviations-mobile.png"
+    alt="Deviations on a phone: status and priority filters, the Board and List selector, scrolling board columns and the AI button above the content"
+    caption="Deviations: the board scrolls sideways; the AI button stays above the cards."
+    compact
+  />
+</div>
+
+:::caution[If a tap does not do what you expect]
+- In the board, a tap on a card opens the detail; a sideways drag scrolls the columns.
+- If the **AI** button covers a control, scroll the page slightly: the button stays fixed at the bottom right and the control becomes reachable again.
+- On very narrow screens the filter menus truncate their text: the selected value is what matters, not the label.
+:::
+
+## The remaining views
+
+**Sites**, **Cost impacts** and **Diary** keep the desktop structure, with controls stacked vertically. Open **More** to pick one.
+
+<div class="shot-pair">
+  <Shot
+    src="/images/2026-11/sites-mobile.png"
+    alt="Sites on a phone: the FITT-01 site card with code, name, location, 18 tasks, 13 not yet closed, dates and the Selected button"
+    caption="Sites: one card per site, with counts and dates; the active site shows Selected."
+    compact
+  />
+  <Shot
+    src="/images/2026-11/diary-mobile.png"
+    alt="Diary on a phone: the operational day selector, the Print diary and Add contribution buttons and the empty state of the day"
+    caption="Diary: operational day, printing and adding a contribution stay at the top of the page."
+    compact
+  />
+</div>
+
+<div class="shot-pair">
+  <Shot
+    src="/images/2026-11/impacts-mobile.png"
+    alt="Cost impacts on a phone: Total claimed 41.500,50 € and Total settled 11.250,00 € in two stacked full-width panels, then the Status filter"
+    caption="Cost impacts: the two totals become full-width panels, one above the other."
+    compact
+  />
+  <Shot
+    src="/images/2026-11/wbs-mobile.png"
+    alt="Project structure on a phone: the Tree, Flat table and Retry buttons, then the tree with Expand all and Collapse all"
+    caption="Project structure under More: tree and flat table stay reachable, with the controls at the top."
+    compact
+  />
+</div>
+
+:::caution[If a view does not load]
+- **Deviations**, **Site progress**, **Time bookings** and **Cost impacts** require a connection: offline they show a message instead of data.
+- **Overview**, **Tasks** and **Diary** remain readable offline with the data saved on the device; queued changes sync when the network returns.
+- If the data looks old, press **Refresh data** in the view or reload the page.
+:::
+
+## What does not change
+
+- Sites, roles and permissions are the same as on the desktop.
+- The **IT/EN** selector and [Settings](../impostazioni/) stay in the header.
+- CSV exports and diary printing use the phone browser's features.

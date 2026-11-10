@@ -39,6 +39,7 @@ export default defineConfig({
           items: [
             { label: 'Accesso e sessioni', translations: { en: 'Sign in and sessions' }, slug: 'guida/accesso' },
             { label: 'Funzioni comuni', translations: { en: 'Common features' }, slug: 'guida/funzioni-comuni' },
+            { label: 'Guida rapida mobile', translations: { en: 'Mobile quick guide' }, slug: 'guida/mobile' },
             { label: 'Assistente dati', translations: { en: 'Data assistant' }, slug: 'guida/assistente-ai' },
             { label: 'Impostazioni', translations: { en: 'Settings' }, slug: 'guida/impostazioni' },
           ],
@@ -49,9 +50,12 @@ export default defineConfig({
           items: [
             { label: 'Cantieri', translations: { en: 'Sites' }, slug: 'moduli/cantieri' },
             { label: 'Attività e verifiche', translations: { en: 'Tasks and verification' }, slug: 'moduli/attivita' },
-            { label: 'Avanzamento di cantiere', translations: { en: 'Site progress' }, slug: 'moduli/avanzamento' },
-            { label: 'Diario di cantiere', translations: { en: 'Site diary' }, slug: 'moduli/diario' },
             { label: 'Struttura progetto (WBS)', translations: { en: 'Project structure (WBS)' }, slug: 'moduli/wbs' },
+            { label: 'Deviazioni', translations: { en: 'Deviations' }, slug: 'moduli/deviazioni' },
+            { label: 'Avanzamento di cantiere', translations: { en: 'Site progress' }, slug: 'moduli/avanzamento' },
+            { label: 'Prenotazioni ore', translations: { en: 'Time bookings' }, slug: 'moduli/prenotazioni-ore' },
+            { label: 'Impatti economici', translations: { en: 'Cost impacts' }, slug: 'moduli/impatti-economici' },
+            { label: 'Diario di cantiere', translations: { en: 'Site diary' }, slug: 'moduli/diario' },
           ],
         },
         {

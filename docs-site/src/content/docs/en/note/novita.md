@@ -13,7 +13,10 @@ This page collects the changes visible to those who use the application. It is n
 - **Amount settings.** The gear at the top right sets currency, decimals and separators. See [Settings](../../guida/impostazioni/).
 - **Photos and PDFs in tasks and diary.** Entries accept images and PDFs, including drag and drop from the desktop, up to 15 MiB per file. See [Site diary](../../moduli/diario/).
 - **Sortable tables.** Module table headers sort the list; column filters are optional and tables become cards on phones. See [Common features](../../guida/funzioni-comuni/).
-- **Mobile navigation.** On phones the bottom bar shows Overview, Tasks, Deviations, Hours and More. See [Common features](../../guida/funzioni-comuni/).
+- **Mobile navigation.** On phones the bottom bar shows Overview, Tasks, Deviations, Hours and More. See [Mobile quick guide](../../guida/mobile/).
+- **Claim status labels.** Cost impacts use their own labels — Open, Notification sent, Submitted, Closed — instead of the task ones. See [Cost impacts](../../moduli/impatti-economici/).
+- **Diary writing for owners, editors and verifiers.** Users with the `viewer` role read the diary but do not see the button to add a contribution. See [Site diary](../../moduli/diario/).
+- **Illustrated manual.** Procedures now have numbered steps, captioned images and what to do when something fails; the new [Mobile quick guide](../../guida/mobile/) covers the bottom bar, cards and touch targets.
 - **Step weights and progress history.** Step weights must total 100; every recording stays in the history and feeds the curves. See [Site progress](../../moduli/avanzamento/).
 - **Core module views.** Deviations, Site progress, Time bookings and Cost impacts have an interface view; imported data stays read-only, while step completion and hour booking are recorded in the application. See [Site progress](../../moduli/avanzamento/) and [REST API](../../riferimento/api/).
 - **Site progress, deviations and cost impacts via API.** The endpoints return imported progress and deviations read-only; cost impacts are created via API and closed with a result also from the interface, linked to deviations of the same site. See [REST API](../../riferimento/api/).

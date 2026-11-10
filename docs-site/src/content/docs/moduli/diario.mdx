@@ -3,7 +3,7 @@ title: Diario di cantiere
 description: Registrare piano e consuntivo del turno, allegare foto e come funziona il giorno operativo.
 ---
 
-import Shot from '../../components/Shot.astro';
+import Shot from '../../../components/Shot.astro';
 
 Il **diario** racconta ogni turno: cosa era previsto, cosa è stato fatto, quali impedimenti sono emersi e cosa passa al turno successivo. È un passaggio di consegne, non un verbale formale.
 
@@ -38,7 +38,10 @@ A cosa serve: lasciare al turno successivo il piano, il consuntivo e ciò che è
 
 Il giorno operativo è calcolato dall'applicazione in base al cantiere e all'orario. Esiste **una sola voce per cantiere, giorno e turno**: un secondo inserimento sulla stessa combinazione viene rifiutato.
 
+Registrare un contributo è riservato a **owner**, **editor** e **verificatori**. Chi ha il ruolo `viewer` consulta il diario ma non vede il pulsante **Aggiungi contributo**.
+
 :::caution[Se il contributo non viene salvato]
+- **Il pulsante Aggiungi contributo non c'è:** il tuo ruolo è `viewer`. Chiedi a un owner di registrare il contributo o di cambiare il tuo ruolo sul cantiere.
 - **Contributo duplicato:** per quel giorno e quel turno esiste già una voce. Scegli l'altro turno o apri la voce esistente.
 - **Giorno sbagliato:** il campo data decide il giorno operativo; un turno notturno appartiene al giorno in cui è iniziato.
 - **Salvataggio offline:** il contributo resta in coda sul dispositivo e viene inviato al ritorno della rete; lo stato è visibile accanto alla voce.
@@ -60,7 +63,7 @@ Il caricamento degli allegati è riservato a **owner** ed **editor**.
 :::caution[Se le foto non vengono allegate]
 - **Sei offline:** la voce viene salvata comunque, ma i file non partono. L'applicazione lo segnala con «Le foto si allegano con la connessione attiva: il diario è salvato». Allega le foto quando torni online.
 - **File rifiutato:** deve essere un'immagine o un PDF, non vuoto e non oltre 15 MiB.
-- **Nessun riquadro o nessun pulsante di allegato:** il tuo ruolo non consente il caricamento; la voce di diario resta salvabile.
+- **Caricamento rifiutato:** gli allegati sono riservati a owner ed editor. Un verificatore può salvare la voce, ma le foto vengono rifiutate e la voce resta salvata.
 - **Allegato da rimuovere:** la rimozione non è disponibile dall'interfaccia, solo via API.
 :::
 

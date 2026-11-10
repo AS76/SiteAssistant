@@ -1,7 +1,9 @@
 ---
 title: Site diary
-description: Record the shift plan and results, and how the operational day works.
+description: Record the shift plan and results, attach photos and how the operational day works.
 ---
+
+import Shot from '../../../../components/Shot.astro';
 
 The **diary** tells the story of every shift: what was planned, what was actually done, which impediments came up and what is handed over to the next shift. It is a handover, not a formal record.
 
@@ -9,9 +11,22 @@ The **diary** tells the story of every shift: what was planned, what was actuall
 
 The **Diary** view shows the entries of the selected site for the chosen **operational day**. From here you open the **Add contribution** form.
 
-## Record an entry
+<Shot
+  src="/images/2026-11/diary-desktop.png"
+  alt="Diary view for 10 November 2026 with no contributions, the operational day selector, the Print diary and Add contribution buttons and the note about the operational day and shifts"
+  caption="The diary of a day still empty: at the top the operational day and the contribution count, on the right the rule of the operational day and its two shifts."
+/>
 
-From the **Add contribution** button:
+## Recording a contribution
+
+What it is for: leaving the next shift the plan, the results and what is still open.
+
+1. Choose the **operational day** with the date field.
+2. Press **Add contribution**.
+3. Choose the **shift**: day or night.
+4. Fill in **shift plan**, **actual results**, **blockers** and **next step**. The text fields are optional, but a contribution without results tells very little.
+5. Attach photos if you need them (see the next section).
+6. Press **Save**. The contribution appears in the day with the time it was recorded.
 
 | Field | Required | Notes |
 | :-- | :-- | :-- |
@@ -23,17 +38,34 @@ From the **Add contribution** button:
 
 The operational day is computed by the application from the site and the time. There is **one entry per site, day and shift**: a second entry on the same combination is rejected.
 
-## Photos and documents
+Recording a contribution is reserved to **owners**, **editors** and **verifiers**. Users with the `viewer` role read the diary but do not see the **Add contribution** button.
 
-In the **Add contribution** form, the **Photos or documents** box attaches images and PDFs to the entry:
+:::caution[If the contribution is not saved]
+- **The Add contribution button is missing:** your role is `viewer`. Ask an owner to record the contribution or to change your role on the site.
+- **Duplicate contribution:** an entry already exists for that day and shift. Choose the other shift or open the existing entry.
+- **Wrong day:** the date field decides the operational day; a night shift belongs to the day it started on.
+- **Saving offline:** the contribution stays queued on the device and is sent when the network returns; the status is visible next to the entry.
+:::
 
-- drop the files from the desktop into the box, or tap the box and pick them;
-- you can attach several files;
-- each file can be an image or a PDF, up to **15 MiB**.
+## Adding photos to the diary
 
-Uploading attachments is reserved to **owners** and **editors**. Files are attached after the entry is saved. If the entry stays queued because you are offline, the photos are not attached: the application says so and the entry is saved anyway. In that case attach the photos when you are back online.
+What it is for: attaching to the shift the images that document the work and the PDFs that go with it.
 
-A saved entry shows its attachments and the **Add photo or PDF** button.
+1. In the **Add contribution** form, find the **Photos or documents** box.
+2. Drag the files from the desktop into the box, or tap the box and pick files from the device.
+3. You can select several files: images or PDFs, up to **15 MiB** each.
+4. Check the count of selected files under the box.
+5. Press **Save**: the entry is recorded and the files are attached right after.
+6. On an entry already saved, use **Add photo or PDF** to add more attachments.
+
+Uploading attachments is reserved to **owners** and **editors**.
+
+:::caution[If photos are not attached]
+- **You are offline:** the entry is saved anyway, but the files are not sent. The application says “Photos are attached with an active connection: the diary is saved”. Attach the photos when you are back online.
+- **File rejected:** it must be an image or a PDF, not empty and not over 15 MiB.
+- **Upload rejected:** attachments are reserved to owners and editors. A verifier can save the entry, but the photos are rejected and the entry stays saved.
+- **Removing an attachment:** removal is not available in the interface, only via API.
+:::
 
 ## The operational day
 

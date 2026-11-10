@@ -3,6 +3,8 @@ title: Importare un export di pianificazione
 description: Caricare un file xlsx, vedere in anteprima cosa cambierebbe e confermare l'import.
 ---
 
+import Shot from '../../../components/Shot.astro';
+
 L'import porta in SiteAssistant i dati esportati da planning. Si parte sempre da un'**anteprima**: finché non confermi, l'applicazione non scrive nulla.
 
 ## Chi può importare
@@ -26,12 +28,21 @@ L'import è riservato a **owner** ed **editor** del cantiere. Il pulsante **Impo
 | Deviazioni | Deviazioni con stato, priorità, date e importi |
 | Diario | Voci di diario importate dal registro planning |
 
-## I due passaggi
+## Importare un file
 
-1. Premi **Importa export di pianificazione**.
-2. Scegli il **Tipo di export** e il **File xlsx**, poi premi **Anteprima**.
-3. Leggi il riepilogo **Cosa cambierebbe**.
-4. Se i numeri tornano, premi **Conferma import**.
+A cosa serve: aggiornare i dati del cantiere da un export, senza cancellare ciò che il file non contiene.
+
+1. Apri la **Panoramica** del cantiere e premi **Importa export di pianificazione**.
+2. Scegli il **Tipo di export** e il **File xlsx**.
+3. Premi **Anteprima** e attendi il riepilogo **Cosa cambierebbe**.
+4. Controlla i cinque conteggi e l'elenco delle righe rifiutate.
+5. Se i numeri tornano, premi **Conferma import**. Il pulsante cambia etichetta dopo l'anteprima.
+
+<Shot
+  src="/images/2026-11/overview-desktop.png"
+  alt="Panoramica del cantiere con l'intestazione, il selettore del cantiere, i contatori delle attività e il pulsante Nuova attività in alto a destra"
+  caption="Il punto di partenza è la Panoramica: per owner ed editor il pulsante Importa export di pianificazione compare in alto a destra, accanto a Nuova attività. Nella cattura l'account è in sola lettura, quindi il pulsante non è visibile."
+/>
 
 L'anteprima mostra cinque conteggi:
 
@@ -44,6 +55,14 @@ L'anteprima mostra cinque conteggi:
 | rifiutate | Righe non importabili, elencate con riga di origine e motivo |
 
 Esempio: una riga di presenza con un numero dipendente che non esiste nel cantiere finisce tra le **rifiutate**; una voce già presente con gli stessi valori finisce tra le **invariate**.
+
+:::caution[Se l'import non parte o non torna]
+- **Il pulsante non c'è:** il tuo ruolo non è owner o editor, oppure stai guardando un altro cantiere.
+- **«Il file supera i 20 MiB»:** riduci l'export o dividilo per famiglia.
+- **Anteprima scaduta:** vale **15 minuti**. Ripeti l'anteprima prima di confermare.
+- **Righe rifiutate:** correggi l'export e ripeti l'import; le righe rifiutate non vengono applicate.
+- **Numeri diversi dal previsto:** le righe assenti non vengono cancellate, quindi il conteggio delle rimosse resta zero. Controlla le chiavi di riconoscimento prima di confermare.
+:::
 
 ## Come vengono riconosciute le righe
 
@@ -72,8 +91,6 @@ Le righe rifiutate restano elencate nell'anteprima. Correggi l'export e ripeti l
 ## Dopo la conferma
 
 L'applicazione ricarica i dati del cantiere e aggiorna le viste. La Panoramica ricalcola i contatori e i grafici.
-
-L'anteprima vale **15 minuti**: se scade, ripeti l'anteprima prima di confermare.
 
 ## Cosa non fa
 

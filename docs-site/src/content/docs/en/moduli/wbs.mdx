@@ -5,8 +5,25 @@ description: Consult the project structure imported from the Time Schedule.
 
 import { Image } from 'astro:assets';
 import albero from '../../../../assets/albero-wbs.svg';
+import Shot from '../../../../components/Shot.astro';
 
 The **Project structure** view shows the work hierarchy (*Work Breakdown Structure*, WBS) imported from the site's Time Schedule. It is a **read-only** view: it helps you find your way around the work structure, not edit it.
+
+## Consulting the structure
+
+What it is for: finding the right WBS code to read progress, hours and linked deviations.
+
+1. Open **Project structure** from the navigation.
+2. Choose **Tree** for the expandable hierarchy, or **Flat table** for the full list.
+3. In the tree open and close a branch with the arrow next to the item; use **Expand all** and **Collapse all** for the whole structure.
+4. In the flat table read code, description, parent, level, order, imported progress and planned dates.
+5. Use the WBS code in the other views to find the same branch.
+
+<Shot
+  src="/images/2026-11/wbs-desktop.png"
+  alt="Project structure tree with the items 1 Impianto di smistamento, 1.1 Linea A, 1.2 Linea B, 2 Opere civili, 2.1 Fondazioni, 3 Impianti elettrici and the Tree, Flat table, Expand all and Collapse all buttons"
+  caption="The project structure tree: branches open and close from the arrow; the buttons at the top switch representation and reload the data."
+/>
 
 ## What you see
 
@@ -30,6 +47,13 @@ The view has two representations:
 - **Flat table:** one row per item, ordered by level, with code, description, parent, level, order, progress and planned dates.
 
 When the Time Schedule does not contain a parent item, the application rebuilds it as a **synthetic parent**: it is marked and its descriptive fields are empty.
+
+:::caution[If the structure is incomplete]
+- **A branch is missing:** the hierarchy can be partial because the Time Schedule did not contain every item; a rebuilt parent is marked as synthetic.
+- **Empty view:** no Time Schedule has been imported. An owner or editor can upload the planning export with the Time schedule family.
+- **Loading error:** press **Retry**; if it persists, check the connection and the latest import.
+- **You cannot edit items:** that is expected. Fix the structure in the export and import it again.
+:::
 
 ## Who can do what
 

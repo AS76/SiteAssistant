@@ -3,18 +3,36 @@ title: Sign in and account
 description: How to sign in to SiteAssistant, request an account and manage your password.
 ---
 
+import Shot from '../../../../components/Shot.astro';
+
 You sign in to SiteAssistant with your **email** and **password**. There is no public registration: accounts are created in two ways, both designed for people working on site.
 
 ## Sign in
+
+What it is for: opening a session on the site you need to work on.
 
 1. Open the application address in your browser, on desktop or mobile.
 2. If there is no active session, the **Sign in** form appears.
 3. Enter your **email** and **password**, then press **Sign in**.
 4. After signing in you only see the sites you belong to, and you can choose your working context from the menu at the top.
 
+<Shot
+  src="/images/2026-11/login-desktop.png"
+  alt="SiteAssistant sign-in form with the Email and Password fields, the Sign in button and the Request access and Forgot password links"
+  caption="The Sign in form. The Sign in button is to the right of the fields; at the bottom you find Request access and Forgot password."
+/>
+
 The email is case-insensitive: `Mario.Rossi@example.com` and `mario.rossi@example.com` are the same account.
 
+:::caution[If sign-in fails]
+- The error message never reveals whether the email or the password is wrong.
+- After **10 failed attempts** in the same **15-minute** window (for the same email and network address), sign-in is suspended for a while: wait a few minutes and try again.
+- If the session expires or is revoked, the application takes you back to the sign-in form.
+:::
+
 ## If you do not have an account yet
+
+What it is for: getting an account when you do not have one, without public registration.
 
 From the sign-in form you can press **Request access**:
 
@@ -25,6 +43,10 @@ From the sign-in form you can press **Request access**:
 
 A request does not create the account on its own: it needs an administrator's approval. The review link the administrator receives expires after **72 hours** and can be used once: if it has expired, the request must be sent again.
 
+:::caution[If the request does not arrive]
+The request stays pending: it does not create the account until an administrator approves it. If the approval email does not arrive, ask the administrator to check the request and send it again only if it has expired.
+:::
+
 ## Forgotten or temporary password
 
 - **Forgot password:** from the sign-in form press **Forgot password** and enter your email. If the account exists, you receive a new temporary password by email.
@@ -33,10 +55,6 @@ A request does not create the account on its own: it needs an administrator's ap
 If the email service is not active, these operations are unavailable: the application tells you and asks you to try again later.
 
 Access requests, resets and password changes are rate-limited: after **10 attempts** in the same **15-minute** window the operation is suspended for a few minutes.
-
-## When sign-in fails
-
-The error message never reveals whether the email or the password is wrong. After **10 failed attempts** in the same **15-minute** window (for the same email and network address), sign-in is suspended for a while: wait a few minutes and try again.
 
 ## How long the session lasts
 

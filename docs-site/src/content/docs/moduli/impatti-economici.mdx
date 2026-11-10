@@ -3,7 +3,7 @@ title: Impatti economici
 description: Consultare i reclami collegati alle deviazioni, i totali e gli esiti.
 ---
 
-import Shot from '../../components/Shot.astro';
+import Shot from '../../../components/Shot.astro';
 
 La vista **Impatti economici** raccoglie i reclami collegati alle deviazioni. Mostra quanto è stato reclamato, quanto è stato liquidato e in che stato si trova ogni reclamo.
 
@@ -23,7 +23,7 @@ A cosa serve: sapere quanto vale il contenzioso aperto e quanto è già stato ri
   caption="I due totali in cima e la tabella dei reclami. Sotto il totale liquidato l'applicazione indica quanti importi non disponibili sono stati esclusi."
 />
 
-Sotto i totali, una nota ricorda che la valuta non è specificata dalla sorgente: simbolo e formato seguono le [Impostazioni](../impostazioni/), il valore no. Quando un importo manca, il totale lo esclude e lo segnala.
+Sotto i totali, una nota ricorda che la valuta non è specificata dalla sorgente: simbolo e formato seguono le [Impostazioni](../../guida/impostazioni/), il valore no. Quando un importo manca, il totale lo esclude e lo segnala.
 
 :::caution[Se un totale sembra sbagliato]
 - **Il totale cambia quando filtri:** è previsto. I totali sono calcolati sulle righe visibili.
@@ -43,7 +43,9 @@ Owner e verificatori trovano anche il passaggio di stato:
 3. Se chiudi il reclamo, scegli l'**esito**: liquidato, ritirato o respinto.
 4. Premi **Salva**. Il dettaglio si aggiorna con il nuovo stato.
 
-I passaggi disponibili dipendono dallo stato corrente: da aperto si passa a notifica inviata o chiuso, da notifica inviata a presentato, da presentato a chiuso. Un reclamo chiuso non ha passaggi.
+I passaggi disponibili dipendono dallo stato corrente: da aperto si passa a notifica inviata o chiuso, da notifica inviata a inviato, da inviato a chiuso. Un reclamo chiuso non ha passaggi.
+
+Gli stati del reclamo sono **Aperto**, **Notifica inviata**, **Inviato** e **Chiuso**; gli esiti sono **Liquidato**, **Ritirato** e **Respinto**.
 
 :::caution[Se il passaggio non viene salvato]
 - **Esito mancante alla chiusura:** per chiudere serve un esito tra liquidato, ritirato e respinto.
@@ -59,4 +61,4 @@ I passaggi disponibili dipendono dallo stato corrente: da aperto si passa a noti
 | Consultare totali, elenco e dettaglio | Tutti i membri del cantiere |
 | Cambiare stato a un reclamo | owner, verifier |
 
-Per le deviazioni collegate vedi [Deviazioni](../deviazioni/). Per il formato degli importi vedi [Impostazioni](../impostazioni/).
+Per le deviazioni collegate vedi [Deviazioni](../deviazioni/). Per il formato degli importi vedi [Impostazioni](../../guida/impostazioni/).

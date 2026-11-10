@@ -3,7 +3,7 @@ title: Prenotazioni ore
 description: Registrare le ore di un dipendente su un elemento di avanzamento e rileggere i totali per giorno.
 ---
 
-import Shot from '../../components/Shot.astro';
+import Shot from '../../../components/Shot.astro';
 
 La vista **Prenotazioni ore** raccoglie le ore registrate sulle presenze del cantiere, raggruppate per **giorno operativo**. Le presenze e gli elementi di avanzamento arrivano dall'import planning; le ore si registrano qui.
 
@@ -34,6 +34,8 @@ Il menu **Giorno operativo** filtra l'elenco su un solo giorno; **Tutti i giorni
 
 ## Rileggere e correggere
 
+A cosa serve: controllare le ore del giorno e correggere una prenotazione sbagliata.
+
 1. Individua il gruppo del **giorno operativo**: l'intestazione mostra la data e il totale delle ore.
 2. Confronta le righe con le presenze del giorno: dipendente, elemento e ore.
 3. Per eliminare una prenotazione, premi **Elimina** sulla riga.
@@ -43,8 +45,8 @@ Le ore di ogni gruppo sono la somma delle righe visibili; il filtro sul giorno n
 
 :::caution[Se i totali non tornano]
 - Il totale accanto alla data somma solo le righe di quel gruppo: usa **Tutti i giorni operativi** per il quadro completo.
-- Una prenotazione su un elemento cancellato dall'import non è più modificabile; il record risulta non disponibile.
 - Se l'elenco è vuoto, il cantiere non ha ancora presenze o elementi di avanzamento: non è un problema di filtri.
+- Le ore si registrano sulla presenza importata: senza una presenza non si crea una prenotazione.
 :::
 
 ## Chi può fare cosa

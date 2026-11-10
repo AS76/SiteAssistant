@@ -5,8 +5,25 @@ description: Consultare la struttura del progetto importata dal Time Schedule.
 
 import { Image } from 'astro:assets';
 import albero from '../../../assets/albero-wbs.svg';
+import Shot from '../../../components/Shot.astro';
 
 La vista **Struttura progetto** mostra la gerarchia dei lavori (*Work Breakdown Structure*, WBS) importata dal Time Schedule del cantiere. È una vista **in sola lettura**: serve per orientarsi sulla struttura dei lavori, non per modificarli.
+
+## Consultare la struttura
+
+A cosa serve: trovare il codice WBS giusto per leggere avanzamento, ore e deviazioni collegate.
+
+1. Apri **Struttura progetto** dalla navigazione.
+2. Scegli **Albero** per la gerarchia espandibile, oppure **Tabella piatta** per l'elenco completo.
+3. Nell'albero apri e chiudi un ramo con la freccia accanto alla voce; usa **Espandi tutto** e **Comprimi tutto** per l'intera struttura.
+4. Nella tabella piatta leggi codice, descrizione, padre, livello, ordine, avanzamento importato e date pianificate.
+5. Usa il codice WBS nelle altre viste per ritrovare lo stesso ramo.
+
+<Shot
+  src="/images/2026-11/wbs-desktop.png"
+  alt="Vista Struttura progetto ad albero con le voci 1 Impianto di smistamento, 1.1 Linea A, 1.2 Linea B, 2 Opere civili, 2.1 Fondazioni, 3 Impianti elettrici, i pulsanti Albero, Tabella piatta, Espandi tutto e Comprimi tutto"
+  caption="L'albero della struttura progetto: i rami si aprono e si chiudono dalla freccia; i pulsanti in alto cambiano rappresentazione e ricaricano i dati."
+/>
 
 ## Cosa vedi
 
@@ -30,6 +47,13 @@ La vista ha due rappresentazioni:
 - **Tabella piatta:** una riga per voce, ordinata per livello, con codice, descrizione, padre, livello, ordine, avanzamento e date pianificate.
 
 Quando il Time Schedule non contiene una voce padre, l'applicazione la ricostruisce come **padre sintetico**: è indicata con un contrassegno e ha i campi descrittivi vuoti.
+
+:::caution[Se la struttura è incompleta]
+- **Manca un ramo:** la gerarchia può essere parziale perché il Time Schedule non conteneva tutte le voci; un padre ricostruito è marcato come sintetico.
+- **Vista vuota:** non è stato importato alcun Time Schedule. Un owner o un editor può caricare l'export planning con la famiglia Time Schedule.
+- **Errore di caricamento:** premi **Riprova**; se resta, controlla la connessione e l'import più recente.
+- **Non puoi modificare le voci:** è previsto. La struttura si corregge nell'export e si reimporta.
+:::
 
 ## Chi può fare cosa
 

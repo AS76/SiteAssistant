@@ -3,13 +3,32 @@ title: Site progress
 description: Consult the imported progress items, assign a type and record step completion.
 ---
 
+import Shot from '../../../../components/Shot.astro';
+
 The **Site progress** view shows the progress items of the selected site. The base data comes from the planning export; step completion is recorded in the application.
 
-## The list
+## Consulting the items
 
-Each row shows the description, section, PLC area, progress percentage and booked hours. The filter at the top limits the list to the items linked to a work structure node.
+What it is for: seeing how far each item has gone and how many hours it has absorbed.
 
-Open a row to see the details.
+1. Open **Site progress** from the navigation.
+2. Filter with the **Project structure** menu to see only the items linked to a WBS node.
+3. Read description, section, PLC area, percentage and booked hours for each row.
+4. Open a row for the detail: plan, delta, dates and flags.
+
+<Shot
+  src="/images/2026-11/progress-desktop.png"
+  alt="Site progress view with the item list, the columns Description, Section, Area asset, Progress with a bar and Booked hours, and the All WBS nodes filter"
+  caption="The progress list: the bar shows the percentage and the “computed” badge marks values recalculated from recorded steps."
+/>
+
+The filter at the top limits the list to the items linked to a work structure node: it does not change the data, only what you see.
+
+:::caution[If an item is missing]
+- The **Project structure** filter may exclude it: set it back to **All WBS nodes**.
+- Items come from the planning import: if an element is missing, fix the export and repeat the import, do not create it by hand.
+- This view requires a connection: offline it shows a message instead of the list.
+:::
 
 ## The detail
 
@@ -36,13 +55,24 @@ A type is created via API and reserved to owners. In the interface an owner can 
 
 ## Recording completion
 
+What it is for: updating an item's progress without touching imported data.
+
 1. Open the item detail.
-2. Under **Record step completion**, enter a percentage from 0 to 100 for each step.
-3. Press **Save steps**.
+2. Check that a **progress type** is assigned and read the step list with the weights.
+3. Under **Record step completion**, enter a percentage from 0 to 100 for each step.
+4. Press **Save steps**.
+5. Reopen the detail to see the recalculated progress and the new record in the history.
 
 The item's progress is recalculated as the weighted average. If an item has a type assigned but no recorded step, the computed progress is **0**: the imported value is not used.
 
 Every save appends a record to the **history**. The history is never rewritten, and progress curves are calculated from it, not from imports.
+
+:::caution[If you cannot save steps]
+- **No type assigned:** the step form does not appear. An owner must assign a type from the detail.
+- **No steps available:** the assigned type has no steps; the type needs fixing, not the item.
+- **Percentage rejected:** use values between 0 and 100. Empty fields are read as 0.
+- **Insufficient role:** recording steps is reserved to owners and editors; viewing the detail is open to every member.
+:::
 
 ## Who can do what
 

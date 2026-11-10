@@ -5,7 +5,7 @@ description: Come è organizzata l'applicazione. Navigazione, scelta del cantier
 
 import { Image } from 'astro:assets';
 import mappa from '../../../assets/mappa-moduli.svg';
-import Shot from '../../components/Shot.astro';
+import Shot from '../../../components/Shot.astro';
 
 SiteAssistant è organizzato in **viste** che condividono lo stesso contesto: il **cantiere selezionato**. Cambi cantiere, e tutte le viste mostrano i dati di quel cantiere.
 
@@ -78,7 +78,7 @@ Su schermi stretti la bacheca diventa un carosello orizzontale: vedi una colonna
 :::caution[Se non trovi un'attività]
 - Controlla i filtri attivi: un filtro su stato o esecutore può nascondere l'attività che cerchi. Il pulsante **Azzera filtri** compare quando il risultato è vuoto.
 - Le attività appartengono al cantiere selezionato: cambia cantiere dal selettore in alto.
-- Se hai appena creato l'attività e non la vedi, ricarica la vista: la bacheca mostra i dati del caricamento corrente.
+- Se hai appena creato l'attività e non la vedi, ricarica la pagina: la bacheca mostra i dati dell'ultimo caricamento.
 :::
 
 ## Ordinare e filtrare una tabella
@@ -100,7 +100,7 @@ A cosa serve: mettere in ordine le righe e restringere l'elenco senza esportare 
 L'ordinamento e i filtri lavorano sulla tabella visualizzata, non sui dati salvati: non modificano nulla sul server.
 
 :::caution[Se l'ordinamento o i filtri non rispondono]
-- Su telefono i **Filtri colonna** non compaiono: le tabelle diventano card e il filtro si fa con i menu sopra la tabella (stato, priorità, giorno, esito).
+- Su telefono il pulsante **Filtri colonna** non apre la riga di campi e le intestazioni non sono visibili: le tabelle diventano card e il filtro si fa con i menu sopra la tabella (stato, priorità, giorno, esito).
 - Se una colonna non si ordina, controlla di aver cliccato l'intestazione e non il titolo della riga.
 - I filtri colonna restano attivi finché la pagina è aperta; ricaricando tornano spenti.
 - Se l'elenco è vuoto dopo un filtro, svuota i campi uno per uno: il filtro si somma agli altri.

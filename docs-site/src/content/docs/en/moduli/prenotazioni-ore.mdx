@@ -1,0 +1,60 @@
+---
+title: Time bookings
+description: Record an employee's hours on a progress item and read the daily totals.
+---
+
+import Shot from '../../../../components/Shot.astro';
+
+The **Time bookings** view collects the hours recorded on the site's work days, grouped by **operational day**. Work days and progress items come from the planning import; hours are recorded here.
+
+## Booking hours
+
+What it is for: attributing the hours an employee worked on a given day to a progress item.
+
+1. Open **Time bookings**. On a phone the item is called **Hours**.
+2. In the **Book hours** form, choose the **work day / attendance**: the list shows date, employee, shift and start time.
+3. Choose the **progress item** to charge the hours to.
+4. Enter the **hours**. The field accepts half hours; the **−0.5 hours**, **+0.5 hours** and **+1 hour** buttons adjust the value without typing.
+5. Press **Book hours**. The booking appears in the day group, with the updated total.
+
+<Shot
+  src="/images/2026-11/bookings-desktop.png"
+  alt="Time bookings view with the Operational day filter, the 6 and 5 November groups with their hour totals and the columns Employee, Progress item and Hours"
+  caption="Bookings grouped by operational day, with the hour total next to the date. The Book hours form appears above the list only for owners and editors: here the capture account is read-only."
+/>
+
+The **Operational day** menu filters the list to a single day; **All operational days** shows the groups in descending date order.
+
+:::caution[If you cannot book]
+- **No form at the top of the page:** your role is `verifier` or `viewer`, or the prerequisites are missing. Booking hours is reserved to **owners** and **editors**.
+- **Message about prerequisites:** imported work days and progress items are required. An administrator must complete the import.
+- **Duplicate booking:** a booking already exists for that work day and that same item. Change the hours on the existing booking instead of creating a second one.
+- **Work day and item from different sites:** pick a work day and an item from the same site.
+:::
+
+## Reading and correcting
+
+What it is for: checking the day's hours and fixing a wrong booking.
+
+1. Find the **operational day** group: the heading shows the date and the total hours.
+2. Compare the rows with the day's work days: employee, item and hours.
+3. To delete a booking, press **Delete** on the row.
+4. Confirm in **Delete booking**. The operation cannot be undone from the interface.
+
+The hours of each group are the sum of the visible rows; the day filter does not change the row values.
+
+:::caution[If totals do not add up]
+- The total next to the date sums only that group's rows: use **All operational days** for the full picture.
+- If the list is empty, the site has no work days or progress items yet: it is not a filter problem.
+- Hours are recorded against the imported work day: a booking cannot be created without one.
+:::
+
+## Who can do what
+
+| Action | Role |
+| :-- | :-- |
+| View bookings and totals | Every site member |
+| Book hours | owner, editor |
+| Delete a booking | owner, editor |
+
+Work day and employee data come from the import: for the format see [Import a planning export](../../amministrazione/import-pianificazione/).

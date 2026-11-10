@@ -3,6 +3,8 @@ title: Import a planning export
 description: Upload an xlsx file, preview what would change and confirm the import.
 ---
 
+import Shot from '../../../../components/Shot.astro';
+
 The import brings data exported from planning into SiteAssistant. It always starts with a **preview**: until you confirm, the application writes nothing.
 
 ## Who can import
@@ -26,12 +28,21 @@ The import is reserved to site **owners** and **editors**. The **Import planning
 | Deviations | Deviations with status, priority, dates and amounts |
 | Daily log | Diary entries imported from the planning log |
 
-## The two steps
+## Importing a file
 
-1. Press **Import planning export**.
-2. Pick the **Export type** and the **xlsx file**, then press **Preview**.
-3. Read the **What would change** summary.
-4. If the numbers look right, press **Confirm import**.
+What it is for: refreshing site data from an export without deleting what the file does not contain.
+
+1. Open the site **Overview** and press **Import planning export**.
+2. Pick the **Export type** and the **xlsx file**.
+3. Press **Preview** and wait for the **What would change** summary.
+4. Check the five counts and the list of rejected rows.
+5. If the numbers look right, press **Confirm import**. The button label changes after the preview.
+
+<Shot
+  src="/images/2026-11/overview-desktop.png"
+  alt="Site overview with the header, the site selector, the task counters and the New task button at the top right"
+  caption="The starting point is the Overview: for owners and editors the Import planning export button appears at the top right, next to New task. In this capture the account is read-only, so the button is not visible."
+/>
 
 The preview shows five counts:
 
@@ -44,6 +55,14 @@ The preview shows five counts:
 | rejected | Rows that cannot be imported, listed with source row and reason |
 
 Example: a work-day row with an employee number that does not exist in the site ends up among the **rejected** rows; an item already present with the same values ends up among the **unchanged** rows.
+
+:::caution[If the import does not start or looks wrong]
+- **The button is missing:** your role is not owner or editor, or you are looking at another site.
+- **“The file exceeds 20 MiB”:** reduce the export or split it by family.
+- **Preview expired:** it is valid for **15 minutes**. Repeat the preview before confirming.
+- **Rejected rows:** fix the export and repeat the import; rejected rows are not applied.
+- **Unexpected numbers:** missing rows are not deleted, so the applied removed count stays zero. Check the matching keys before confirming.
+:::
 
 ## How rows are matched
 
@@ -72,8 +91,6 @@ Rejected rows stay listed in the preview. Fix the export and repeat the import.
 ## After confirmation
 
 The application reloads the site data and refreshes the views. The Overview recalculates its counters and charts.
-
-The preview is valid for **15 minutes**: if it expires, repeat the preview before confirming.
 
 ## What it does not do
 
