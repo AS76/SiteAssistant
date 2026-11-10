@@ -11,6 +11,7 @@ import { listWbs, getWbs, importWbs } from './wbs.mjs';
 import { listSiteProgress, getSiteProgressItem, importSiteProgress } from './site-progress.mjs';
 import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.mjs';
 import { listDeviations, getDeviation, importDeviations } from './deviations.mjs';
+import { listCostImpacts, getCostImpact, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
 import { listTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForItem } from './time_bookings.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
@@ -221,6 +222,27 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       const timeBooking = /^\/api\/time-bookings\/([^/]+)$/.exec(path);
       if (timeBooking && method === 'DELETE') {
         return json(response, 200, await deleteTimeBooking(db, timeBooking[1], user));
+      }
+      if (path === '/api/cost-impacts' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id');
+        if (!siteId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(siteId)) {
+          throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
+        }
+        await requireRole(db, siteId.toLowerCase(), user);
+        return json(response, 200, await listCostImpacts(db, { siteId, status: url.searchParams.get('status') }));
+      }
+      if (path === '/api/cost-impacts' && method === 'POST') {
+        return json(response, 201, await createCostImpact(db, await readJson(request), user));
+      }
+      const costImpact = /^\/api\/cost-impacts\/([^/]+)$/.exec(path);
+      if (costImpact && method === 'GET') {
+        const record = await getCostImpact(db, costImpact[1]);
+        await requireRole(db, record.site_id, user);
+        return json(response, 200, record);
+      }
+      const costImpactTransition = /^\/api\/cost-impacts\/([^/]+)\/transition$/.exec(path);
+      if (costImpactTransition && method === 'POST') {
+        return json(response, 200, await transitionCostImpact(db, costImpactTransition[1], await readJson(request), user));
       }
       if (path === '/api/deviations' && method === 'GET') {
         const siteId = url.searchParams.get('site_id');
