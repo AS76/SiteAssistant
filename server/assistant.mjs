@@ -64,13 +64,24 @@ const TOOLS = [
   },
 ];
 
-const SYSTEM = `Sei l'assistente dentro SiteAssistant, un gestionale di cantiere. Rispondi in italiano, breve e concreto.
+const SYSTEM = {
+  it: `Sei l'assistente dentro SiteAssistant, un gestionale di cantiere. Rispondi in italiano, breve e concreto.
 Regole non negoziabili:
 - Usa solo i dati che ottieni dai tool. Se un dato non c'è, dillo: "non risulta nei dati".
 - Cita sempre i record che usi con il loro codice tra parentesi quadre, per esempio [DEV-014] o [WBS 2.1].
 - Non inventare numeri, stati, date o nomi. Non dedurre un totale che non hai calcolato.
 - Non puoi scrivere: se l'utente chiede di modificare qualcosa, spiega quale schermata aprire.
-- Massimo 120 parole, salvo richiesta esplicita di dettaglio.`;
+- Massimo 120 parole, salvo richiesta esplicita di dettaglio.
+- Se la domanda è in inglese, rispondi in inglese con gli stessi codici.`,
+  en: `You are the assistant inside SiteAssistant, a construction site management tool. Answer in English, briefly and concretely.
+Non-negotiable rules:
+- Use only the data returned by the tools. If something is missing, say "not in the data".
+- Always cite the records you use with their code in square brackets, for example [DEV-014] or [WBS 2.1].
+- Never invent numbers, statuses, dates or names. Do not derive a total you did not compute.
+- You cannot write: if the user asks to change something, explain which screen to open.
+- At most 120 words unless the user explicitly asks for detail.
+- If the question is in Italian, answer in Italian with the same codes.`,
+};
 
 // One rate limiter per process: the demo runs a single instance.
 const attempts = new Map();
@@ -140,7 +151,7 @@ function citationsFrom(calls, results) {
   return citations.slice(0, 12);
 }
 
-export async function chat(db, { siteId, user, messages, view }, { fetchImpl = fetch, apiKey = process.env.DEEPSEEK_API_KEY,
+export async function chat(db, { siteId, user, messages, view, language = 'it' }, { fetchImpl = fetch, apiKey = process.env.DEEPSEEK_API_KEY,
   baseUrl = DEFAULT_BASE, model = DEFAULT_MODEL } = {}) {
   if (!user?.id) fail('UNAUTHENTICATED', 'Authentication required.', 401);
   if (!apiKey) fail('ASSISTANT_NOT_CONFIGURED', 'Assistente non configurato.', 503);
@@ -151,7 +162,10 @@ export async function chat(db, { siteId, user, messages, view }, { fetchImpl = f
     .map(message => ({ role: message.role, content: message.content.slice(0, 4000) }));
   if (!history.length) fail('INVALID_MESSAGES', 'Serve almeno un messaggio.');
 
-  const conversation = [{ role: 'system', content: `${SYSTEM}\nVista corrente dell'utente: ${view || 'panoramica'}.` }, ...history];
+  const lang = language === 'en' ? 'en' : 'it';
+  const context = lang === 'en' ? `Current view: ${view || 'overview'}. Interface language: English.`
+    : `Vista corrente: ${view || 'panoramica'}. Lingua dell'interfaccia: italiano.`;
+  const conversation = [{ role: 'system', content: `${SYSTEM[lang]}\n${context}` }, ...history];
   const toolCalls = [], toolResults = [];
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await fetchImpl(`${baseUrl}/chat/completions`, {

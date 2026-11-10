@@ -581,7 +581,7 @@ async function askAssistant(text) {
   aiMessages.push({ role: 'user', content: text });
   aiBusy = true; renderAssistant();
   try {
-    const result = await api.assistantChat({ site_id: siteId, view, messages: aiMessages.slice(-6) });
+    const result = await api.assistantChat({ site_id: siteId, view, language, messages: aiMessages.slice(-6) });
     aiMessages.push({ role: 'assistant', content: result.reply, citations: result.citations });
   } catch (error) {
     aiMessages.push({ role: 'assistant', content: errorMessage(error) });

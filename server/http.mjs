@@ -158,7 +158,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
         }
         return json(response, 200, await assistantChat(db, { siteId: siteId.toLowerCase(), user,
-          messages: input.messages, view: input.view }));
+          messages: input.messages, view: input.view, language: input.language }));
       }
       if (['/api/import/preview', '/api/import/apply'].includes(path) && method === 'POST') {
         const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_IMPORT_BYTES / 3) + 65536 });
