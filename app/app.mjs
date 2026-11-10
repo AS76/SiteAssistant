@@ -71,7 +71,7 @@ function renderChrome() {
   $('#local-label').innerHTML = `${t('local')}<small>${t('fiction')}</small>`;
   $('#navigation').setAttribute('aria-label', t('nav'));
   $('#navigation').innerHTML = ['overview', 'sites', 'tasks', 'wbs', 'diary'].map(key => `<a href="#${key}" ${view === key ? 'class="active" aria-current="page"' : ''}>${icon(key)}${t(key)}</a>`).join('');
-  $('#skip').textContent = t('skip'); $('#site-label').textContent = t('site'); $('#actor-label').textContent = t('actor');
+  $('#skip').textContent = t('skip'); $('#site-label').textContent = t('site'); $('#actor-label').textContent = t('actor'); $('#manual-link').textContent = t('manual');
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
   $('#actor-input').value = actor;
   $('#actor-input').readOnly = true;
