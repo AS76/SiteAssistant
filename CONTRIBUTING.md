@@ -75,6 +75,8 @@ Keep the change scoped. Do not include unrelated edits in a pull request.
 
 The four core views (deviations, progress, bookings, cost impacts) can be checked in a real headless browser without a database or credentials: serve `app/` from a small static server that answers `/api/*` with synthetic fixtures, then drive it with Playwright (Chromium headless shell) at 1440, 390 and 360 px. The check asserts the board columns, the rows and progress bars, the quick-entry form, the KPI panels and zero horizontal overflow, and saves screenshots for visual review.
 
+Known environment limit: the hosted demo sits behind HTTP basic auth. Browsers fetch the service worker script without the cached HTTP credentials, so the edge answers 401, `serviceWorker.register()` fails and the app runs **online only** (no offline queue, no background sync) on that origin. This is expected, not a bug: the UI degrades silently and logs a single warning. Without basic auth (local run) the worker registers normally.
+
 Keep the harness outside the repository: it needs a Chromium download and must not become a runtime or CI dependency. Cap the daily number of runs (a counter file) so the check stays cheap.
 
 ## Working together
