@@ -210,7 +210,8 @@ function renderOverview() {
     return score(b) - score(a) || (a.due || '9999').localeCompare(b.due || '9999');
   }).slice(0, 5);
   const lastEntry = state.diary.filter(item => item.siteId === siteId && item.date === today()).at(-1);
-  $('#main').innerHTML = heading('overviewTitle', 'overviewSub', button('newTask', 'new-task', '', 'primary')) +
+  $('#main').innerHTML = heading('overviewTitle', 'overviewSub',
+    (canImport() ? button('importOpen', 'import-open') : '') + button('newTask', 'new-task', '', 'primary')) +
     `<div class="date-caption">${t('today')} · ${new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}</div>` +
     `<div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div>` +
     `<div class="grid-overview"><section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section><div class="summary-stack"><section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack"><div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div><div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div></div></div></section><section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2><span class="badge">${t('draft')}</span></div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}<a class="subtitle" href="#diary">${t('openDiary')} →</a></div></section></div></div>`;
@@ -436,6 +437,59 @@ function progressStepsSection(row) {
   if (rights.assign) html += `<form id="progress-type-form" data-id="${esc(row.id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><label class="field">${t('coreAssignType')}<select name="progress_type_id"><option value="">${t('coreNoProgressType')}</option>${types.map(candidate => `<option value="${esc(candidate.id)}" ${candidate.id === row.progressTypeId ? 'selected' : ''}>${esc(`${candidate.code} · ${candidate.name}`)}</option>`).join('')}</select></label><div class="form-actions"><button type="submit" class="primary">${t('coreSaveType')}</button></div></form>`;
   return html;
 }
+// Import runs in two steps: a preview that writes nothing, then a confirmation bound to that preview.
+let importPreview = null;
+const canImport = () => ['owner', 'editor'].includes(role());
+const IMPORT_FAMILIES = ['employees', 'work_days', 'time_schedule', 'site_progress_items', 'deviations', 'daily_log'];
+const fileToBase64 = file => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+  reader.onerror = () => reject(new Error('invalidData'));
+  reader.readAsDataURL(file);
+});
+function showImportForm() {
+  importPreview = null;
+  showModal(t('importTitle'), `<form id="import-form"><div class="form-error" role="alert" tabindex="-1" hidden></div>` +
+    `<p class="note">${t('importHint')}</p>` +
+    `<div class="form-grid"><label class="field">${t('importFamily')}<select name="family" required>${IMPORT_FAMILIES.map(family => `<option value="${family}">${t(`importFamily_${family}`)}</option>`).join('')}</select></label>` +
+    `<label class="field">${t('importFile')}<input name="file" type="file" accept=".xlsx" required></label></div>` +
+    `<div id="import-result" class="import-result"></div><div class="form-actions">${button('importClose', 'close-modal')}<button type="submit" class="primary">${t('importPreview')}</button></div></form>`);
+}
+function renderImportPreview(preview) {
+  const counts = preview.counts || {};
+  const rows = [['added', 'importAdded'], ['updated', 'importUpdated'], ['unchanged', 'importUnchanged'], ['removed', 'importRemoved'], ['rejected', 'importRejected']]
+    .map(([key, label]) => `<li><strong>${counts[key] ?? 0}</strong> ${t(label)}</li>`).join('');
+  const rejected = (preview.samples?.rejected || []).slice(0, 8)
+    .map(row => `<li>${esc(row.source_row ?? '')} — ${esc(row.rejected || '')}${row.reason ? `: ${esc(row.reason)}` : ''}</li>`).join('');
+  return `<h3>${t('importPreviewTitle')}</h3><ul class="import-counts">${rows}</ul>` +
+    (rejected ? `<h4>${t('importRejectedRows')}</h4><ul class="import-rejected">${rejected}</ul>` : '');
+}
+async function handleImport(form) {
+  const data = Object.fromEntries(new FormData(form));
+  const file = data.file;
+  if (!(file instanceof File) || !file.size) throw new Error('invalidData');
+  if (file.size > 20 * 1024 * 1024) throw new Error('importTooBig');
+  const base64 = await fileToBase64(file);
+  const input = { site_id: siteId, family: data.family, filename: file.name, data_base64: base64 };
+  const result = document.querySelector('#import-result');
+  if (!importPreview) {
+    const preview = await api.previewImport(input);
+    importPreview = { token: preview.preview_token, family: data.family, name: file.name };
+    result.innerHTML = renderImportPreview(preview);
+    const submit = form.querySelector('button[type=submit]');
+    submit.textContent = t('importApply');
+    submit.dataset.step = 'apply';
+    return;
+  }
+  const applied = await api.applyImport({ ...input, preview_token: importPreview.token });
+  importPreview = null;
+  closeModal();
+  coreCache.clear();
+  await loadData();
+  toast(t('importApplied'));
+  return applied;
+}
+
 async function showCoreDetail(module, id) {
   const selected = siteId;
   showModal(t('coreDetails'), `<p role="status">${t('loading')}</p>`);
@@ -646,6 +700,7 @@ document.addEventListener('click', event => {
     'close-modal': closeModal, 'task-view': () => { taskView = target.dataset.value; renderTasks(); },
     'clear-filters': () => { filters = { search: '', status: '', person: '', priority: '' }; renderTasks(); },
     csv: exportCsv, print: () => window.print(),
+    'import-open': showImportForm,
     'more-nav': () => {
       const rest = NAV_ITEMS.filter(key => !MOBILE_PRIMARY.includes(key));
       showModal(t('more'), `<nav class="more-nav" aria-label="${t('more')}">${rest.map(key => `<a href="#${key}">${icon(key)}${t(key)}</a>`).join('')}</nav>`);
@@ -655,7 +710,7 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('submit', async event => {
   const form = event.target;
-  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form'].includes(form.id)) return;
+  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'import-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   const data = Object.fromEntries(new FormData(form));
@@ -665,6 +720,7 @@ document.addEventListener('submit', async event => {
   // Capture the selected context before waiting for the server.
   const selectedSite = siteId, selectedDate = reportDate;
   try {
+    if (form.id === 'import-form') { await handleImport(form); return; }
     if (['booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form'].includes(form.id)) { await submitCore(form, data); return; }
     if (form.id === 'login-form') {
       await accountLock(async () => { await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });

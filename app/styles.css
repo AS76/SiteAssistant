@@ -109,3 +109,10 @@ footer{font-size:11px}
 .more-nav{display:grid;gap:8px}
 .more-nav a{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:10px;text-decoration:none;font-weight:600}
 .more-nav svg{width:18px;height:18px}
+
+.import-result:empty{display:none}
+.import-result{margin:16px 0;padding:16px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.import-result h3{margin:0 0 10px;font-size:15px}
+.import-counts{list-style:none;display:flex;flex-wrap:wrap;gap:10px 18px;margin:0 0 10px;padding:0}
+.import-counts strong{font-family:var(--mono);font-size:16px;color:var(--ink);margin-right:4px}
+.import-rejected{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--muted)}
