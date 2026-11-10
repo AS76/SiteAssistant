@@ -14,6 +14,7 @@ import { listDeviations, getDeviation, importDeviations } from './deviations.mjs
 import { listCostImpacts, getCostImpact, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
 import { listTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForItem } from './time_bookings.mjs';
 import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
+import { importRequest, MAX_IMPORT_BYTES } from './planning-import.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
   transitionTask, listDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember,
@@ -144,6 +145,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, { user: result.user });
       }
       const user = path.startsWith('/api/') ? await authenticate(db, request.headers.cookie) : null;
+      if (['/api/import/preview', '/api/import/apply'].includes(path) && method === 'POST') {
+        const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_IMPORT_BYTES / 3) + 65536 });
+        return json(response, 200, await importRequest(db, input, user, { apply: path === '/api/import/apply' }));
+      }
       if (path === '/api/auth/password' && method === 'POST') {
         passwordLimiter.attempt(request.socket?.remoteAddress || '', user.id);
         await changePassword(db, user, await readJson(request));
