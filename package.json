@@ -13,7 +13,9 @@
     "start": "node server/index.mjs",
     "seed": "node server/seed.mjs",
     "create-user": "node server/create-user.mjs",
-    "test:pg": "DB_DRIVER=pg node --test tests/"
+    "test:pg": "DB_DRIVER=pg node --test tests/",
+    "seed:demo": "node server/seed-demo.mjs --apply",
+    "seed:demo:reset": "node server/seed-demo.mjs --reset"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.15"
