@@ -5,6 +5,7 @@ description: Come è organizzata l'applicazione. Navigazione, scelta del cantier
 
 import { Image } from 'astro:assets';
 import mappa from '../../../assets/mappa-moduli.svg';
+import Shot from '../../components/Shot.astro';
 
 SiteAssistant è organizzato in **viste** che condividono lo stesso contesto: il **cantiere selezionato**. Cambi cantiere, e tutte le viste mostrano i dati di quel cantiere.
 
@@ -26,47 +27,84 @@ L'intestazione contiene, da sinistra a destra:
 
 Il pulsante **AI** in basso a destra apre l'[assistente dati](../assistente-ai/).
 
-## Panoramica
+## Leggere la Panoramica
 
-È il colpo d'occhio sul cantiere selezionato. In alto trovi quattro indicatori economici e operativi:
+A cosa serve: capire in pochi secondi cosa è fermo, cosa aspetta una verifica e cosa è scaduto nel cantiere selezionato.
+
+1. Scegli il cantiere dal **selettore in alto**.
+2. Guarda i quattro indicatori economici e operativi: **Deviazioni aperte**, **Ore prenotate**, **Claim aperti**, **Liquidato**.
+3. Leggi i quattro contatori delle attività: **Da eseguire**, **Da verificare**, **Chiuse**, **Scadute**.
+4. Scorri i tre grafici: **Deviazioni per stato**, **Avanzamento per sezione**, **Ore per settimana**.
+5. Chiudi con **Da tenere d'occhio** e **Il punto del cantiere**: sono le attività ordinate per urgenza e il riepilogo delle chiusure verificate.
+
+<Shot
+  src="/images/2026-11/overview-desktop.png"
+  alt="Panoramica del cantiere FITT-01 con i contatori Da eseguire 10, Da verificare 3, Chiuse 5 e Scadute 11, l'elenco Da tenere d'occhio e il riepilogo delle chiusure verificate"
+  caption="La Panoramica del cantiere FITT-01: contatori delle attività, attività da tenere d'occhio e punto del cantiere. In questa cattura il blocco dei quattro indicatori non è caricato: l'applicazione segnala «Richiesta API non riuscita»."
+/>
+
+I quattro indicatori contano:
 
 - **Deviazioni aperte**: deviazioni non chiuse e non respinte;
 - **Ore prenotate**: somma delle ore registrate sulle presenze;
 - **Claim aperti**: importo reclamato dei reclami non chiusi;
 - **Liquidato**: somma degli importi liquidati registrati sui reclami.
 
-Sotto gli indicatori, quattro contatori delle attività: **Da eseguire**, **Da verificare**, **Chiuse** e **Scadute**.
+Owner ed editor trovano in questa pagina anche **Importa export di pianificazione**: il caricamento è descritto in [Importare un export di pianificazione](../../amministrazione/import-pianificazione/).
 
-La Panoramica mostra anche tre grafici:
-
-- **Deviazioni per stato**: una ciambella con il numero di deviazioni per stato;
-- **Avanzamento per sezione**: barre con l'avanzamento effettivo e un marcatore per l'avanzamento pianificato;
-- **Ore per settimana**: barre delle ore prenotate nelle ultime sei settimane presenti nei dati.
-
-Chiudono la pagina:
-
-- le attività da tenere d'occhio, ordinate per urgenza e scadenza;
-- l'avanzamento delle verifiche: attività chiuse sul totale, con il conteggio di bloccate e di quelle in attesa di verifica;
-- l'ultima voce di diario del giorno operativo corrente.
-
-Owner ed editor trovano qui anche **Importa export di pianificazione**: il caricamento è descritto in [Importare un export di pianificazione](../../amministrazione/import-pianificazione/).
+:::caution[Se la Panoramica non si carica]
+- Se al posto degli indicatori compare **«Richiesta API non riuscita»**, il server non ha risposto: controlla la connessione e ricarica la pagina.
+- Se i contatori restano a zero, verifica di aver scelto il cantiere giusto: ogni vista mostra solo il cantiere selezionato.
+- I grafici compaiono solo quando i dati del cantiere contengono deviazioni, sezioni e settimane sufficienti; una sezione senza dati mostra un messaggio, non un grafico vuoto.
+:::
 
 ## Attività: bacheca ed elenco
 
-La vista **Attività** ha due rappresentazioni, con lo stesso contenuto:
+A cosa serve: trovare l'attività da muovere oggi e vedere dove si trova nel flusso.
 
-- **Bacheca:** colonne per stato, per vedere a colpo d'occhio dove si trova ogni attività.
-- **Elenco:** righe ordinate con priorità, scadenza e persone coinvolte.
+1. Apri **Attività** dalla navigazione.
+2. Scegli **Board** per le colonne per stato, oppure **Elenco** per le righe con priorità, scadenza e persone.
+3. Usa i filtri: testo libero, **stato**, **esecutore**, **priorità**.
+4. Apri una scheda o una riga per il dettaglio, i passaggi disponibili e la cronologia.
 
-I filtri disponibili sono testo libero, stato, esecutore e priorità. Su schermi stretti la bacheca diventa un carosello orizzontale.
+<Shot
+  src="/images/2026-11/tasks-desktop.png"
+  alt="Vista Attività a bacheca con le colonne Da fare, In corso, Da verificare, Chiuse e Bloccata, le schede delle attività e i filtri per testo, stato, esecutore e priorità"
+  caption="La bacheca delle attività: cinque colonne per stato, una scheda per attività e i filtri sopra la bacheca. Il pulsante Elenco passa alla tabella."
+/>
 
-## Tabelle
+Su schermi stretti la bacheca diventa un carosello orizzontale: vedi una colonna alla volta e scorri lateralmente. I filtri si applicano sia alla bacheca sia all'elenco e all'esportazione CSV.
 
-Nelle viste con tabella dei moduli — **Deviazioni**, **Avanzamento**, **Prenotazioni ore**, **Impatti economici** — le intestazioni sono cliccabili: il primo clic ordina in modo crescente, il secondo in modo decrescente. Funzionano anche da tastiera con Invio o Spazio.
+:::caution[Se non trovi un'attività]
+- Controlla i filtri attivi: un filtro su stato o esecutore può nascondere l'attività che cerchi. Il pulsante **Azzera filtri** compare quando il risultato è vuoto.
+- Le attività appartengono al cantiere selezionato: cambia cantiere dal selettore in alto.
+- Se hai appena creato l'attività e non la vedi, ricarica la vista: la bacheca mostra i dati del caricamento corrente.
+:::
 
-Il pulsante **Filtri colonna** aggiunge una riga di campi sopra la tabella: ogni campo filtra la propria colonna. I filtri sono spenti per impostazione predefinita e, su telefono, non compaiono.
+## Ordinare e filtrare una tabella
 
-Su telefono le tabelle diventano **card**: ogni riga è una scheda con etichetta e valore, senza scorrimento orizzontale.
+A cosa serve: mettere in ordine le righe e restringere l'elenco senza esportare nulla.
+
+1. Apri una vista con tabella: **Deviazioni** in modalità **Elenco**, **Avanzamento**, **Prenotazioni ore** o **Impatti economici**.
+2. Clicca l'intestazione della colonna: il primo clic ordina in modo crescente, il secondo in modo decrescente.
+3. Da tastiera, porta il focus sull'intestazione con Tab e premi **Invio** o **Spazio**.
+4. Premi **Filtri colonna**: compare una riga di campi sopra la tabella, uno per colonna.
+5. Digita in un campo per filtrare quella colonna. Svuota il campo per togliere il filtro, oppure premi **Nascondi filtri** per chiudere la riga.
+
+<Shot
+  src="/images/2026-11/impacts-desktop.png"
+  alt="Tabella degli Impatti economici con le colonne Titolo, Stato, Importo reclamato, Importo liquidato ed Esito, i totali reclamato e liquidato e i filtri per stato ed esito"
+  caption="Una tabella dei moduli: le intestazioni ordinano, il pulsante Filtri colonna aggiunge i campi di filtro. Qui i totali in euro sono formattati con le impostazioni del browser."
+/>
+
+L'ordinamento e i filtri lavorano sulla tabella visualizzata, non sui dati salvati: non modificano nulla sul server.
+
+:::caution[Se l'ordinamento o i filtri non rispondono]
+- Su telefono i **Filtri colonna** non compaiono: le tabelle diventano card e il filtro si fa con i menu sopra la tabella (stato, priorità, giorno, esito).
+- Se una colonna non si ordina, controlla di aver cliccato l'intestazione e non il titolo della riga.
+- I filtri colonna restano attivi finché la pagina è aperta; ricaricando tornano spenti.
+- Se l'elenco è vuoto dopo un filtro, svuota i campi uno per uno: il filtro si somma agli altri.
+:::
 
 ## Lingua
 
@@ -81,4 +119,4 @@ Il selettore IT/EN traduce subito le etichette dell'interfaccia. I contenuti che
 
 L'interfaccia è responsive e navigabile da tastiera. I moduli di inserimento sono finestre con gestione del focus; gli errori di compilazione vengono annunciati nell'area di messaggio del modulo.
 
-Su telefono la navigazione si sposta in una **barra in basso** con cinque voci: **Panoramica**, **Attività**, **Deviazioni**, **Ore** e **Altro**. **Altro** apre l'elenco delle viste restanti: Cantieri, Struttura progetto, Avanzamento, Impatti economici e Diario.
+Su telefono la navigazione si sposta in una **barra in basso**: la descrizione completa è nella [Guida rapida mobile](../mobile/).

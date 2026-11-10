@@ -3,7 +3,25 @@ title: Impostazioni
 description: Valuta, decimali e separatori per gli importi.
 ---
 
+import Shot from '../../components/Shot.astro';
+
 L'ingranaggio in alto a destra apre le **Impostazioni**. Le preferenze valgono per questo browser e riguardano solo la formattazione degli importi.
+
+## Impostare valuta e formato
+
+A cosa serve: leggere gli importi con la valuta e i separatori che usi tu.
+
+1. Premi l'**ingranaggio** in alto a destra.
+2. Scegli la **Valuta**: EUR, USD, GBP o CHF.
+3. Scegli i **Decimali**: 0 oppure 2.
+4. Scegli i **Separatori**: `1.234,56` (IT) oppure `1,234.56` (EN).
+5. Premi **Salva** e attendi la conferma **Impostazioni salvate** in basso.
+
+<Shot
+  src="/images/2026-11/impacts-desktop.png"
+  alt="Vista Impatti economici con Totale reclamato 41.500,50 € e Totale liquidato 11.250,00 €, formattati con valuta euro, due decimali e separatori italiani"
+  caption="L'effetto delle impostazioni: gli importi degli Impatti economici con EUR, due decimali e separatori IT. I totali seguono i filtri attivi."
+/>
 
 ## Le tre scelte
 
@@ -34,4 +52,9 @@ Esempio: con valuta EUR, 2 decimali e separatori IT, l'importo 1234,5 compare co
 
 Le preferenze restano in questo browser, non sull'account. Su un altro browser o su un altro dispositivo tornano i valori predefiniti. Se cancelli i dati del sito, tornano i valori predefiniti anche su questo browser.
 
-Premi **Salva** per applicare le modifiche. La conferma **Impostazioni salvate** compare in basso.
+:::caution[Se gli importi non cambiano]
+- Le impostazioni si applicano dopo **Salva**: senza conferma il formato resta quello precedente.
+- Se hai cambiato browser o dispositivo, le preferenze non ti seguono: vanno impostate di nuovo.
+- Se il simbolo cambia ma il numero no, è il comportamento previsto: la valuta non applica un cambio.
+- Se un importo mostra **Non disponibile**, la sorgente non ha fornito quel valore: non è un problema di formato.
+:::

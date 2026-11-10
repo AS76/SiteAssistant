@@ -1,0 +1,58 @@
+---
+title: Prenotazioni ore
+description: Registrare le ore di un dipendente su un elemento di avanzamento e rileggere i totali per giorno.
+---
+
+import Shot from '../../components/Shot.astro';
+
+La vista **Prenotazioni ore** raccoglie le ore registrate sulle presenze del cantiere, raggruppate per **giorno operativo**. Le presenze e gli elementi di avanzamento arrivano dall'import planning; le ore si registrano qui.
+
+## Registrare ore
+
+A cosa serve: attribuire a un elemento di avanzamento le ore lavorate da un dipendente in un giorno.
+
+1. Apri **Prenotazioni ore**. Su telefono la voce si chiama **Ore**.
+2. Nel modulo **Registra ore**, scegli la **presenza / giorno operativo**: l'elenco mostra data, dipendente, turno e ora di inizio.
+3. Scegli l'**elemento di avanzamento** su cui imputare le ore.
+4. Inserisci le **ore**. Il campo accetta mezze ore; i pulsanti **−0,5 ore**, **+0,5 ore** e **+1 ora** correggono il valore senza digitare.
+5. Premi **Registra ore**. La prenotazione compare nel gruppo del giorno, con il totale aggiornato.
+
+<Shot
+  src="/images/2026-11/bookings-desktop.png"
+  alt="Vista Prenotazioni ore con il filtro Giorno operativo, i gruppi del 6 e 5 novembre con totale ore e le colonne Dipendente, Elemento di avanzamento e Ore"
+  caption="Le prenotazioni raggruppate per giorno operativo, con il totale delle ore accanto alla data. Il modulo Registra ore compare sopra l'elenco solo per owner ed editor: qui l'account di cattura è in sola lettura."
+/>
+
+Il menu **Giorno operativo** filtra l'elenco su un solo giorno; **Tutti i giorni operativi** mostra i gruppi in ordine di data decrescente.
+
+:::caution[Se non puoi registrare]
+- **Nessun modulo in cima alla pagina:** il tuo ruolo è `verifier` o `viewer`, oppure mancano i prerequisiti. Registrare ore è riservato a **owner** ed **editor**.
+- **Messaggio sui prerequisiti:** servono presenze ed elementi di avanzamento importati nel cantiere. Un amministratore deve completare l'import.
+- **Prenotazione duplicata:** esiste già una prenotazione per quella presenza e quello stesso elemento. Modifica le ore della prenotazione esistente invece di crearne una seconda.
+- **Presenza ed elemento di cantieri diversi:** scegli una presenza e un elemento dello stesso cantiere.
+:::
+
+## Rileggere e correggere
+
+1. Individua il gruppo del **giorno operativo**: l'intestazione mostra la data e il totale delle ore.
+2. Confronta le righe con le presenze del giorno: dipendente, elemento e ore.
+3. Per eliminare una prenotazione, premi **Elimina** sulla riga.
+4. Conferma in **Elimina prenotazione**. L'operazione non è annullabile dall'interfaccia.
+
+Le ore di ogni gruppo sono la somma delle righe visibili; il filtro sul giorno non cambia i valori delle righe.
+
+:::caution[Se i totali non tornano]
+- Il totale accanto alla data somma solo le righe di quel gruppo: usa **Tutti i giorni operativi** per il quadro completo.
+- Una prenotazione su un elemento cancellato dall'import non è più modificabile; il record risulta non disponibile.
+- Se l'elenco è vuoto, il cantiere non ha ancora presenze o elementi di avanzamento: non è un problema di filtri.
+:::
+
+## Chi può fare cosa
+
+| Azione | Ruolo |
+| :-- | :-- |
+| Consultare prenotazioni e totali | Tutti i membri del cantiere |
+| Registrare ore | owner, editor |
+| Eliminare una prenotazione | owner, editor |
+
+I dati di presenze e dipendenti arrivano dall'import: per il formato vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/).

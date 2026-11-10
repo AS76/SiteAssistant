@@ -3,7 +3,24 @@ title: Cantieri
 description: Creare e selezionare i cantieri su cui lavori.
 ---
 
+import Shot from '../../components/Shot.astro';
+
 Il **cantiere** è il contenitore di tutto il lavoro: attività e diario appartengono sempre a un cantiere e sono visibili solo a chi ne è membro.
+
+## Aprire un cantiere
+
+A cosa serve: scegliere il contesto di lavoro su cui devono ragionare tutte le viste.
+
+1. Apri **Cantieri** dalla navigazione.
+2. Individua la scheda del cantiere: codice, nome, ubicazione, date e conteggi delle attività.
+3. Premi **Apri** sulla scheda. Il cantiere diventa quello selezionato e la scheda viene evidenziata.
+4. Torna su **Panoramica**, **Attività**, **Struttura progetto** e **Diario**: mostrano solo il cantiere appena aperto.
+
+<Shot
+  src="/images/2026-11/sites-desktop.png"
+  alt="Vista Cantieri con la scheda del cantiere FITT-01 Cantiere dimostrativo Borgo Nuvolario, ubicazione, 18 attività, 13 non ancora chiuse, date dal 1 novembre al 20 dicembre e pulsante Selezionato"
+  caption="Una scheda cantiere: codice e nome, ubicazione, attività totali e ancora aperte, date. Il cantiere attivo mostra Selezionato al posto di Apri."
+/>
 
 ## L'elenco dei cantieri
 
@@ -14,7 +31,11 @@ La vista **Cantieri** mostra una scheda per ogni cantiere di cui sei membro, con
 - date di inizio e fine;
 - numero di attività totali e di attività ancora aperte.
 
-Il cantiere selezionato è evidenziato. Il pulsante **Apri** lo imposta come contesto di lavoro: da quel momento Panoramica, Attività, Struttura progetto e Diario mostrano solo quel cantiere.
+:::caution[Se un cantiere non c'è]
+- L'elenco contiene solo i cantieri di cui sei **membro**: un cantiere mancante richiede l'assegnazione di un ruolo da parte di un owner, non una ricerca diversa.
+- Se l'elenco è vuoto, l'applicazione propone **Nuovo cantiere** solo agli owner; gli altri ruoli devono chiedere l'accesso.
+- Dopo l'assegnazione, ricarica la pagina: l'elenco dei cantieri viene letto all'accesso.
+:::
 
 ## Creare un cantiere
 
@@ -29,6 +50,12 @@ Creare un cantiere è riservato a chi ha il ruolo **owner** su almeno un cantier
 | Data fine | No | Non può precedere la data di inizio |
 
 Chi crea il cantiere ne diventa automaticamente **owner**. Un codice già usato viene rifiutato: non esistono due cantieri con lo stesso codice.
+
+:::caution[Se la creazione viene rifiutata]
+- **Codice duplicato:** scegli un codice diverso; il codice non è modificabile dopo la creazione.
+- **Data fine precedente alla data inizio:** correggi una delle due date.
+- **Ubicazione:** se la ricerca indirizzi non è disponibile, scrivi l'indirizzo a mano nel campo.
+:::
 
 ## Ruoli e visibilità
 

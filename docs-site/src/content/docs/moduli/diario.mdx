@@ -1,0 +1,86 @@
+---
+title: Diario di cantiere
+description: Registrare piano e consuntivo del turno, allegare foto e come funziona il giorno operativo.
+---
+
+import Shot from '../../components/Shot.astro';
+
+Il **diario** racconta ogni turno: cosa era previsto, cosa è stato fatto, quali impedimenti sono emersi e cosa passa al turno successivo. È un passaggio di consegne, non un verbale formale.
+
+## Dove si trova
+
+La vista **Diario** mostra le voci del cantiere selezionato per il **giorno operativo** scelto. Da qui si apre il modulo **Aggiungi contributo**.
+
+<Shot
+  src="/images/2026-11/diary-desktop.png"
+  alt="Vista Diario del 10 novembre 2026 senza contributi, con il selettore del giorno operativo, il pulsante Stampa diario, Aggiungi contributo e la nota su giorno operativo e turni"
+  caption="Il diario di un giorno ancora vuoto: in alto il giorno operativo e il conteggio dei contributi, a destra la regola del giorno operativo e dei due turni."
+/>
+
+## Registrare un contributo
+
+A cosa serve: lasciare al turno successivo il piano, il consuntivo e ciò che è rimasto aperto.
+
+1. Scegli il **giorno operativo** con il campo data.
+2. Premi **Aggiungi contributo**.
+3. Scegli il **turno**: diurno o notturno.
+4. Compila **piano del turno**, **consuntivo**, **impedimenti** e **prossimo passo**. I campi testuali sono facoltativi, ma un contributo senza consuntivo racconta poco.
+5. Allega le foto, se servono (vedi il paragrafo seguente).
+6. Premi **Salva**. Il contributo compare nella giornata con l'ora di registrazione.
+
+| Campo | Obbligatorio | Note |
+| :-- | :-- | :-- |
+| Turno | Sì | `day` (diurno) o `night` (notturno) |
+| Piano | No | Cosa era previsto per il turno |
+| Consuntivo | No | Cosa è stato effettivamente eseguito |
+| Impedimenti | No | Blocchi, interferenze, scostamenti |
+| Prossimo passo | No | Cosa passa al turno successivo |
+
+Il giorno operativo è calcolato dall'applicazione in base al cantiere e all'orario. Esiste **una sola voce per cantiere, giorno e turno**: un secondo inserimento sulla stessa combinazione viene rifiutato.
+
+:::caution[Se il contributo non viene salvato]
+- **Contributo duplicato:** per quel giorno e quel turno esiste già una voce. Scegli l'altro turno o apri la voce esistente.
+- **Giorno sbagliato:** il campo data decide il giorno operativo; un turno notturno appartiene al giorno in cui è iniziato.
+- **Salvataggio offline:** il contributo resta in coda sul dispositivo e viene inviato al ritorno della rete; lo stato è visibile accanto alla voce.
+:::
+
+## Aggiungere foto al diario
+
+A cosa serve: allegare al turno le immagini che documentano il lavoro e i PDF che lo accompagnano.
+
+1. Nel modulo **Aggiungi contributo**, trova il riquadro **Foto o documenti**.
+2. Trascina i file dal desktop nel riquadro, oppure tocca il riquadro e scegli i file dal dispositivo.
+3. Puoi selezionare più file: immagini o PDF, fino a **15 MiB** ciascuno.
+4. Controlla il conteggio dei file selezionati sotto il riquadro.
+5. Premi **Salva**: la voce viene registrata e i file vengono allegati subito dopo.
+6. Su una voce già salvata, usa **Aggiungi foto o PDF** per aggiungere altri allegati.
+
+Il caricamento degli allegati è riservato a **owner** ed **editor**.
+
+:::caution[Se le foto non vengono allegate]
+- **Sei offline:** la voce viene salvata comunque, ma i file non partono. L'applicazione lo segnala con «Le foto si allegano con la connessione attiva: il diario è salvato». Allega le foto quando torni online.
+- **File rifiutato:** deve essere un'immagine o un PDF, non vuoto e non oltre 15 MiB.
+- **Nessun riquadro o nessun pulsante di allegato:** il tuo ruolo non consente il caricamento; la voce di diario resta salvabile.
+- **Allegato da rimuovere:** la rimozione non è disponibile dall'interfaccia, solo via API.
+:::
+
+## Il giorno operativo
+
+Il giorno operativo non coincide con la mezzanotte:
+
+- inizia all'ora di taglio configurata, per impostazione predefinita **06:00** nel fuso **Europe/Rome**;
+- termina alle 05:59:59 del giorno successivo;
+- un turno notturno appartiene al giorno in cui è iniziato.
+
+Esempio: un turno notturno che inizia il 12 novembre alle 22:00 e finisce il 13 alle 06:00 viene registrato sul **12 novembre**.
+
+## Stampa
+
+Il pulsante **Stampa diario** usa la stampa del browser. Non esiste un PDF generato dal server né un archivio delle stampe.
+
+## Cosa non è ancora disponibile
+
+- Modificare o cancellare una voce dopo il salvataggio.
+- Collegare una voce di diario a un'attività.
+- Rimuovere un allegato dall'interfaccia: la rimozione è disponibile solo via API.
+- Chiudere o firmare formalmente il diario: i contributi restano aperti e salvati sul server.

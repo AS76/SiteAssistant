@@ -316,10 +316,11 @@ function renderTaskResults() {
 }
 function renderDiary() {
   const entries = state.diary.filter(item => item.siteId === siteId && item.date === reportDate);
-  $('#main').innerHTML = heading('diaryTitle', 'diarySub', button('print', 'print') + button('newEntry', 'new-entry', '', 'primary')) +
+  const canWrite = ['owner', 'editor', 'verifier'].includes(role());
+  $('#main').innerHTML = heading('diaryTitle', 'diarySub', button('print', 'print') + (canWrite ? button('newEntry', 'new-entry', '', 'primary') : '')) +
     `<div class="diary-toolbar"><label for="report-date">${t('reportDate')}</label><input id="report-date" type="date" min="0001-01-01" max="9999-12-31" value="${reportDate}"><span class="badge">${t('draft')}</span><span class="subtitle">${entries.length} ${t('entries')}</span></div><div class="diary-grid"><section class="panel">${entries.length ? entries.map(entry => {
       return `<article class="diary-entry"><div class="entry-heading"><strong>${t(entry.shift)} ${syncBadge(entry)}</strong><span>${t('recordedAt')} ${timeLabel(entry.createdAt)}</span></div><div class="entry-grid">${['plan', 'actual', 'blockers', 'next'].map(key => `<section class="entry-section ${key === 'blockers' && entry[key] ? 'entry-blocker' : ''}"><h3>${t(key)}</h3><p>${esc(entry[key] || '—')}</p></section>`).join('')}</div>${attachmentSection('diary', entry.id)}</article>`;
-    }).join('') : empty('diaryEmpty', 'diaryEmptyHint', button('newEntry', 'new-entry', '', 'primary'))}</section><aside class="panel diary-aside"><div class="panel-body"><h3>${t('dayRule')}</h3><p>${t('dayRuleNote')}</p><div class="blank-message">${t('diaryLimit')}</div></div></aside></div><p class="note">${t('forDate')} ${dateLabel(reportDate)} · ${t('draft')} · ${t('diaryLimit')}</p>`;
+    }).join('') : empty('diaryEmpty', 'diaryEmptyHint', canWrite ? button('newEntry', 'new-entry', '', 'primary') : '')}</section><aside class="panel diary-aside"><div class="panel-body"><h3>${t('dayRule')}</h3><p>${t('dayRuleNote')}</p><div class="blank-message">${t('diaryLimit')}</div></div></aside></div><p class="note">${t('forDate')} ${dateLabel(reportDate)} · ${t('draft')} · ${t('diaryLimit')}</p>`;
 }
 async function loadWbs() {
   const selected = siteId, scope = offlineScope, token = {};
@@ -420,7 +421,9 @@ function coreResource(name) {
 }
 const coreData = name => coreCache.get(siteId)?.get(name)?.data || [];
 const coreValue = value => esc(value ?? t('coreUnknown'));
-const coreStatus = value => `<span class="badge core-status core-status-${esc(value || 'unknown')}">${esc(t(value || 'coreUnknown'))}</span>`;
+const coreStatus = (value, label = t(value || 'coreUnknown')) => `<span class="badge core-status core-status-${esc(value || 'unknown')}">${esc(label)}</span>`;
+// Impact statuses have their own vocabulary: the tasks labels would say «Chiuse» for a claim.
+const impactLabel = status => t({ open: 'impactOpen', notification_sent: 'impactNotification', submitted: 'impactSubmitted', closed: 'impactClosed' }[status] || status || 'coreUnknown');
 const coreNumber = value => value == null ? t('coreUnknown') : new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 4 }).format(Number(value));
 const employeeLabel = employee => employee ? [employee.employeeNo, employee.firstName, employee.lastName].filter(Boolean).join(' · ') || employee.id : t('coreUnknown');
 const progressLabel = item => item?.description || item?.id || t('coreUnknown');
@@ -553,7 +556,7 @@ function renderBookings() {
 function renderImpacts() {
   const rows = filterSortRecords(coreData('impacts'), coreFilters.impacts, [{ key: 'createdAt', descending: true }]), totals = impactTotals(rows);
   return `<div class="core-kpis" role="status">${[['coreTotalClaim', totals.claimAmount, totals.missingClaim], ['coreTotalSettlement', totals.settlementAmount, totals.missingSettlement]].map(([label, amount, missing]) => `<div class="panel panel-body"><span>${t(label)}</span><strong class="money">${money(amount)}</strong>${missing ? `<small>${missing} ${t(missing === 1 ? 'coreMissingAmountOne' : 'coreMissingAmounts')}</small>` : ''}</div>`).join('')}</div><p class="note">${t('coreAmountsHint')}</p><div class="toolbar core-toolbar">${coreSelect('status', 'status', IMPACT_STATUSES.map(value => [value, t(value)]), coreFilters.impacts.status, 'allStatuses')}${coreSelect('result', 'coreResult', IMPACT_RESULTS.map(value => [value, t(value)]), coreFilters.impacts.result, 'coreAllResults')}</div>` +
-    (rows.length ? coreTable(['title', 'status', 'coreClaimAmount', 'coreSettlementAmount', 'coreResult'], rows.map(row => [coreDetailButton('impacts', row), coreStatus(row.status), money(row.claimAmount), money(row.settlementAmount), coreValue(row.result == null ? null : t(row.result))])) : empty('noResults', 'noResultsHint'));
+    (rows.length ? coreTable(['title', 'status', 'coreClaimAmount', 'coreSettlementAmount', 'coreResult'], rows.map(row => [coreDetailButton('impacts', row), coreStatus(row.status, impactLabel(row.status)), money(row.claimAmount), money(row.settlementAmount), coreValue(row.result == null ? null : t(row.result))])) : empty('noResults', 'noResultsHint'));
 }
 function coreFields(row, fields) {
   return `<dl class="detail-grid core-details">${fields.map(([key, label = key]) => `<div><dt>${t(label)}</dt><dd>${['status', 'result', 'priority'].includes(key) && row[key] != null ? esc(t(row[key])) : typeof row[key] === 'boolean' ? t(row[key] ? 'coreYes' : 'coreNo') : coreValue(row[key])}</dd></div>`).join('')}</dl>`;
@@ -688,7 +691,7 @@ async function showCoreDetail(module, id) {
       content = progressBar(row.progressPct) + coreFields(row, [['description', 'coreDescription'], ['section', 'coreSection'], ['plcArea', 'area'], ['wbsId', 'wbs'], ['assignedTo', 'coreAssignedTo'], ['progressPct', 'coreProgressPct'], ['plannedProgressPct', 'corePlannedPct'], ['deltaProgressSource', 'coreDeltaPct'], ['bookedHours', 'coreBookedHours'], ['plannedStart', 'wbsPlannedStart'], ['plannedFinish', 'wbsPlannedFinish'], ['actualStart', 'coreActualStart'], ['expectedDelay', 'coreExpectedDelay'], ['hasFiles', 'coreHasFiles'], ['hasNotes', 'coreHasNotes'], ['hasDeviations', 'coreHasDeviations']]);
       content += progressStepsSection(row);
     } else {
-      content = coreFields({ ...row, claimAmount: row.claimAmount == null ? null : money(row.claimAmount),
+      content = coreFields({ ...row, status: impactLabel(row.status), claimAmount: row.claimAmount == null ? null : money(row.claimAmount),
         settlementAmount: row.settlementAmount == null ? null : money(row.settlementAmount) },
       [['status', 'status'], ['claimAmount', 'coreClaimAmount'], ['settlementAmount', 'coreSettlementAmount'], ['result', 'coreResult'], ['createdAt', 'coreCreated'], ['closedAt', 'coreClosed']]);
       content += `<h3>${t('coreLinkedDeviations')}</h3>${row.deviations?.length ? `<ul class="core-links">${row.deviations.map(deviation => `<li>${coreDetailButton('deviations', deviation, [deviation.deviationNo, deviation.title || deviation.id].filter(Boolean).join(' · '))} ${coreStatus(deviation.status)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`}`;

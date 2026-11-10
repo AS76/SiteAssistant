@@ -6,12 +6,19 @@ description: Creare attività, farle avanzare di stato e verificarle.
 import { Image } from 'astro:assets';
 import flusso from '../../../assets/flusso-stati-attivita.svg';
 import board from '../../../assets/board-elenco.svg';
+import Shot from '../../components/Shot.astro';
 
 L'**attività** è l'unità di lavoro in cantiere. Ogni attività appartiene a un cantiere, ha un **esecutore** e un **verificatore** distinti, e avanza solo attraverso passaggi consentiti. La regola di fondo: **chi esegue non può verificare il proprio lavoro**.
 
 ## Creare un'attività
 
-Dal pulsante **Nuova attività**:
+A cosa serve: mettere in cantiere un lavoro con qualcuno che lo esegue e qualcuno che lo verifica.
+
+1. Apri **Attività** e premi **Nuova attività**.
+2. Compila titolo, area e impresa.
+3. Scegli **esecutore** e **verificatore**: devono essere due persone diverse.
+4. Scegli la **priorità** e, se serve, la **scadenza**.
+5. Premi **Salva**: l'attività nasce in stato `todo` e compare nella colonna **Da fare**.
 
 | Campo | Obbligatorio | Note |
 | :-- | :-- | :-- |
@@ -23,7 +30,13 @@ Dal pulsante **Nuova attività**:
 | Priorità | Sì | `normal`, `high`, `urgent` |
 | Scadenza | No | Data, già impostata a oggi |
 
-L'attività nasce in stato `todo`. **Esecutore e verificatore devono essere due persone diverse**: l'applicazione rifiuta l'assegnazione se coincidono.
+**Esecutore e verificatore devono essere due persone diverse**: l'applicazione rifiuta l'assegnazione se coincidono.
+
+:::caution[Se l'attività non viene creata]
+- **Esecutore e verificatore coincidono:** scegli due persone diverse; la regola vale anche per un owner.
+- **Campi obbligatori vuoti:** il modulo segnala l'errore sopra i pulsanti e porta il focus sul primo campo da correggere.
+- **Attività creata ma non visibile:** controlla i filtri della bacheca e il cantiere selezionato.
+:::
 
 ## Gli stati
 
@@ -42,7 +55,13 @@ L'attività nasce in stato `todo`. **Esecutore e verificatore devono essere due 
 
 ## Far avanzare un'attività
 
-Apri il dettaglio dell'attività: i pulsanti disponibili dipendono dallo stato corrente.
+A cosa serve: registrare il passaggio di stato con la persona, l'ora e la nota che lo giustificano.
+
+1. Apri il dettaglio dell'attività dalla scheda o dalla riga.
+2. Guarda lo **stato corrente** e i pulsanti disponibili: cambiano con lo stato.
+3. Premi il pulsante del passaggio che devi fare — per esempio **Avvia**, **Sottoponi a verifica**, **Blocca**.
+4. Scrivi la **nota** o la **motivazione** richiesta dal passaggio.
+5. Premi **Salva**: la **cronologia** nel dettaglio registra chi, quando, da quale stato e con quale nota.
 
 | Da | A | Cosa fai | Cosa serve |
 | :-- | :-- | :-- | :-- |
@@ -54,7 +73,12 @@ Apri il dettaglio dell'attività: i pulsanti disponibili dipendono dallo stato c
 | `to_verify` | `blocked` | **Blocca** | Motivazione |
 | `closed` | `in_progress` | **Riapri** | Motivazione; solo il verificatore assegnato o un owner |
 
-Ogni passaggio registra chi l'ha fatto, quando, da quale stato a quale stato, con la nota o la motivazione: la **cronologia** resta visibile nel dettaglio.
+:::caution[Se il passaggio non è disponibile]
+- **Nessun pulsante nel dettaglio:** lo stato corrente non prevede quel passaggio. Riapri il dettaglio per aggiornare i dati.
+- **Nota o motivazione mancante:** il modulo rifiuta il salvataggio e segnala il campo.
+- **Verifica negata:** solo il verificatore assegnato o un owner può chiudere o riaprire; chi ha eseguito il lavoro non può verificarlo.
+- **Attività bloccata:** la ripresa da `blocked` non è esposta nell'interfaccia in questa versione.
+:::
 
 ## La verifica
 
@@ -70,6 +94,12 @@ Solo il verificatore assegnato (o un owner) può chiudere o riaprire. Chi ha ese
 Nel dettaglio di un'attività puoi allegare foto o PDF, fino a **15 MiB** per file; il caricamento è riservato a owner ed editor. L'evidenza della verifica resta una **nota testuale**: l'allegato non sostituisce la nota.
 
 ## Bacheca ed elenco
+
+<Shot
+  src="/images/2026-11/tasks-desktop.png"
+  alt="Bacheca delle attività con le colonne Da fare 6, In corso 3, Da verificare 3, Chiuse 5 e Bloccata 1, le schede con area, titolo, priorità, impresa, squadra e scadenza"
+  caption="La bacheca: una colonna per stato e una scheda per attività. I filtri sopra la bacheca valgono anche per l'elenco e per l'esportazione CSV."
+/>
 
 <figure>
   <Image src={board} alt="Vista bacheca e vista elenco" />

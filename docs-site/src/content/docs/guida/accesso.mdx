@@ -3,16 +3,32 @@ title: Accesso e account
 description: Come entri in SiteAssistant, come richiedi un account e come gestisci la password.
 ---
 
+import Shot from '../../components/Shot.astro';
+
 Entri in SiteAssistant con la tua **email** e la tua **password**. Non esiste una registrazione pubblica: gli account si creano in due modi, entrambi pensati per chi lavora in cantiere.
 
 ## Entrare
+
+A cosa serve: aprire una sessione sul cantiere su cui devi lavorare.
 
 1. Apri l'indirizzo dell'applicazione nel browser, da desktop o da smartphone.
 2. Se non c'è una sessione attiva, compare il modulo **Accedi**.
 3. Inserisci **email** e **password**, poi premi **Accedi**.
 4. Dopo l'accesso vedi solo i cantieri di cui sei membro e puoi scegliere il contesto di lavoro dal menu in alto.
 
+<Shot
+  src="/images/2026-11/login-desktop.png"
+  alt="Modulo di accesso di SiteAssistant con i campi Email e Password, il pulsante Accedi e i collegamenti Richiedi accesso e Password dimenticata"
+  caption="Il modulo Accedi. Il pulsante Accedi è a destra dei campi; in basso trovi Richiedi accesso e Password dimenticata."
+/>
+
 L'email non distingue maiuscole e minuscole: `Mario.Rossi@example.com` e `mario.rossi@example.com` sono lo stesso account.
+
+:::caution[Se l'accesso non riesce]
+- Il messaggio di errore non rivela mai se a essere sbagliata è l'email o la password.
+- Dopo **10 tentativi** falliti nella stessa finestra di **15 minuti** (per la stessa email e lo stesso indirizzo di rete), l'accesso viene sospeso per un po': attendi qualche minuto e riprova.
+- Se la sessione scade o viene revocata, l'applicazione ti riporta al modulo di accesso.
+:::
 
 ## Se non hai ancora un account
 
@@ -25,6 +41,10 @@ Dal modulo di accesso puoi premere **Richiedi accesso**:
 
 La richiesta non crea l'account da sola: serve l'approvazione di un amministratore. Il link di revisione che riceve l'amministratore scade dopo **72 ore** e vale una sola volta: se è scaduto, la richiesta va ripetuta.
 
+:::caution[Se la richiesta non arriva]
+La richiesta non compare subito nell'elenco degli account: resta in attesa finché un amministratore non la approva. Se l'email di approvazione non arriva, chiedi all'amministratore di controllare la richiesta e ripeti l'invio solo se è scaduta.
+:::
+
 ## Password dimenticata o da cambiare
 
 - **Password dimenticata:** dal modulo di accesso premi **Password dimenticata** e inserisci la tua email. Se l'account esiste, ricevi una nuova password temporanea via email.
@@ -33,10 +53,6 @@ La richiesta non crea l'account da sola: serve l'approvazione di un amministrato
 Se il servizio email non è attivo, queste operazioni non sono disponibili: l'applicazione lo segnala con un messaggio e ti invita a riprovare.
 
 Richieste di accesso, reset e cambio password sono limitati: dopo **10 tentativi** nella stessa finestra di **15 minuti** l'operazione viene sospesa per qualche minuto.
-
-## Quando l'accesso non riesce
-
-Il messaggio di errore non rivela mai se a essere sbagliata è l'email o la password. Dopo **10 tentativi** falliti nella stessa finestra di **15 minuti** (per la stessa email e lo stesso indirizzo di rete), l'accesso viene sospeso per un po': attendi qualche minuto e riprova.
 
 ## Quanto dura la sessione
 

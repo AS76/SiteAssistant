@@ -3,6 +3,8 @@ title: Assistente dati
 description: Fare domande sui dati del cantiere e aprire i record citati.
 ---
 
+import Shot from '../../components/Shot.astro';
+
 L'**assistente dati** risponde a domande sui dati del cantiere selezionato. Legge i record e non scrive nulla: le modifiche restano nei moduli, dove le confermi tu.
 
 ## Dove si trova
@@ -16,6 +18,22 @@ Il pannello contiene:
 - il campo **Chiedi sui dati del cantiere** e il pulsante **Invia**.
 
 Sulla schermata di accesso il pulsante non c'è.
+
+## Fare una domanda
+
+A cosa serve: ottenere un dato o un elenco senza attraversare le viste.
+
+1. Apri la vista che ti interessa, così i suggerimenti sono già nel contesto giusto.
+2. Premi **AI** in basso a destra.
+3. Scegli un suggerimento oppure scrivi la domanda nel campo **Chiedi sui dati del cantiere**.
+4. Premi **Invia** e leggi la risposta: i record citati compaiono tra parentesi quadre.
+5. Apri una citazione quando è un pulsante: porta al dettaglio del record.
+
+<Shot
+  src="/images/2026-11/assistant-desktop.png"
+  alt="Pannello Assistente dati aperto sulla vista Diario, con il suggerimento «Cosa è stato registrato ieri in diario?», il campo Chiedi sui dati del cantiere e il pulsante Invia"
+  caption="Il pannello Assistente dati aperto dalla vista Diario. I suggerimenti cambiano con la vista; il campo in basso accetta una domanda libera."
+/>
 
 ## I suggerimenti
 
@@ -59,6 +77,13 @@ Non vede altri cantieri e non legge il contenuto di foto e PDF.
 - **Non scrive**: non crea, non modifica e non chiude record. Se chiedi una modifica, indica la schermata da usare.
 - **Non inventa**: se un dato non c'è, risponde che non risulta nei dati.
 - **Non calcola totali che non ha interrogato**: i numeri delle risposte arrivano dalle query sui dati.
+
+:::caution[Se l'assistente non risponde]
+- **Pannello con un errore all'apertura:** l'assistente non è configurato sul server. Segnalalo a chi amministra l'installazione.
+- **Risposta «non risulta nei dati»:** il dato non è nel cantiere selezionato. Controlla il selettore del cantiere e la vista da cui hai aperto il pannello.
+- **Nessuna risposta dopo Invia:** serve la connessione, perché le domande passano dal server. Controlla la rete e riprova.
+- **Conversazione persa:** ricaricando la pagina si riparte da zero; la conversazione non viene salvata.
+:::
 
 ## Limiti pratici
 

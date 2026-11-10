@@ -1,0 +1,62 @@
+---
+title: Deviazioni
+description: Consultare le deviazioni importate, filtrarle per stato e priorità e leggere il dettaglio.
+---
+
+import Shot from '../../components/Shot.astro';
+
+La vista **Deviazioni** mostra le deviazioni del cantiere selezionato. Sono dati **importati da planning** e si consultano in sola lettura: nell'applicazione non si creano e non si modificano.
+
+## Consultare le deviazioni
+
+A cosa serve: sapere quali deviazioni sono aperte, chi le segue e cosa è già stato chiuso.
+
+1. Apri **Deviazioni** dalla navigazione.
+2. Filtra per **Stato** e **Priorità**. I menu includono tutti i valori presenti nei dati, più le voci «Tutti gli stati» e «Tutte le priorità».
+3. Scegli la rappresentazione: **Board** per le colonne per stato, **Elenco** per la tabella.
+4. Apri una scheda o una riga per il dettaglio.
+5. Nel dettaglio leggi stato, priorità, descrizione, autore, assegnatario, area PLC, date, importi e riferimenti collegati.
+
+<Shot
+  src="/images/2026-11/deviations-desktop.png"
+  alt="Vista Deviazioni a bacheca con i filtri Stato e Priorità, le colonne Aperto 3, Approvato 2, In corso 2 e Lavoro completato 2, e schede con codice, titolo, stato, priorità e squadra"
+  caption="La bacheca delle deviazioni: una colonna per stato con il conteggio, una scheda per deviazione. Il selettore Board/Elenco passa alla tabella."
+/>
+
+Nella **board** ogni colonna mostra il numero di deviazioni; una colonna vuota riporta «Nessuna deviazione». Le deviazioni con uno stato non riconosciuto finiscono in una sezione separata, **Stato non mappato**.
+
+Nell'**elenco** le colonne sono riferimento, titolo, stato, priorità, assegnatario, creazione e chiusura; le intestazioni ordinano la tabella.
+
+:::caution[Se una deviazione non compare]
+- Controlla i filtri **Stato** e **Priorità**: un filtro attivo restringe l'elenco senza avvisare.
+- Le deviazioni arrivano dall'import planning: una deviazione assente dal file non esiste nel cantiere. Non si crea a mano da questa vista.
+- Se lo stato non è tra quelli previsti, la scheda compare in **Stato non mappato**: va corretto l'export.
+- La vista richiede la connessione: offline mostra un messaggio al posto dei dati.
+:::
+
+## Il dettaglio
+
+Il dettaglio mostra:
+
+- riferimento, stato e priorità;
+- descrizione del problema, autore e assegnatario;
+- area PLC e date di creazione, scadenza, approvazione e chiusura;
+- costo effettivo, quantità reclamata, ore di lavoro e percentuale di attività completate;
+- i **riferimenti collegati**: voce di avanzamento, attività o voce di diario.
+
+I campi sono in sola lettura. Per cambiare una deviazione si interviene sull'export planning e si ripete l'import.
+
+:::caution[Se il dettaglio non si apre]
+- **Record non più disponibile:** i dati sono cambiati dopo il caricamento. Chiudi il dettaglio e ricarica la vista.
+- **Riferimento senza dettaglio:** per attività, diario e struttura progetto il riferimento resta un'etichetta, non un collegamento.
+- **Offline:** il dettaglio delle deviazioni richiede la connessione, anche se l'elenco era già visibile.
+:::
+
+## Chi può fare cosa
+
+| Azione | Ruolo |
+| :-- | :-- |
+| Consultare elenco, board e dettaglio | Tutti i membri del cantiere |
+| Creare o modificare una deviazione | Nessun ruolo dall'interfaccia: arrivano dall'import |
+
+Per il formato dell'export vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/). Per i reclami collegati vedi [Impatti economici](../impatti-economici/).

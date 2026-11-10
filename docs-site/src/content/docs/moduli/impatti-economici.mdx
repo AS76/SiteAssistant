@@ -1,0 +1,62 @@
+---
+title: Impatti economici
+description: Consultare i reclami collegati alle deviazioni, i totali e gli esiti.
+---
+
+import Shot from '../../components/Shot.astro';
+
+La vista **Impatti economici** raccoglie i reclami collegati alle deviazioni. Mostra quanto è stato reclamato, quanto è stato liquidato e in che stato si trova ogni reclamo.
+
+## Leggere i totali
+
+A cosa serve: sapere quanto vale il contenzioso aperto e quanto è già stato riconosciuto.
+
+1. Apri **Impatti economici** dalla navigazione.
+2. Leggi in alto **Totale reclamato** e **Totale liquidato**.
+3. Applica i filtri **Stato** ed **Esito** per restringere l'elenco.
+4. Rileggi i totali: si riferiscono ai dati filtrati, non all'intero cantiere.
+5. Apri una riga per il dettaglio del reclamo e delle deviazioni collegate.
+
+<Shot
+  src="/images/2026-11/impacts-desktop.png"
+  alt="Vista Impatti economici con Totale reclamato 41.500,50 €, Totale liquidato 11.250,00 €, i filtri Stato ed Esito e la tabella con Titolo, Stato, Importo reclamato, Importo liquidato ed Esito"
+  caption="I due totali in cima e la tabella dei reclami. Sotto il totale liquidato l'applicazione indica quanti importi non disponibili sono stati esclusi."
+/>
+
+Sotto i totali, una nota ricorda che la valuta non è specificata dalla sorgente: simbolo e formato seguono le [Impostazioni](../impostazioni/), il valore no. Quando un importo manca, il totale lo esclude e lo segnala.
+
+:::caution[Se un totale sembra sbagliato]
+- **Il totale cambia quando filtri:** è previsto. I totali sono calcolati sulle righe visibili.
+- **Compare «importi non disponibili esclusi dal totale»:** la sorgente non ha fornito quegli importi; non sono zero.
+- **La valuta non è quella attesa:** controlla l'ingranaggio delle impostazioni; il cambio valuta non converte gli importi.
+- **Elenco vuoto:** i filtri Stato ed Esito si sommano; azzera uno dei due.
+:::
+
+## Il dettaglio e i passaggi
+
+Il dettaglio mostra stato, importo reclamato, importo liquidato, esito, data di creazione e chiusura, e le **deviazioni collegate** con il loro stato.
+
+Owner e verificatori trovano anche il passaggio di stato:
+
+1. Apri il reclamo.
+2. Scegli lo stato di destinazione in **Passa a**.
+3. Se chiudi il reclamo, scegli l'**esito**: liquidato, ritirato o respinto.
+4. Premi **Salva**. Il dettaglio si aggiorna con il nuovo stato.
+
+I passaggi disponibili dipendono dallo stato corrente: da aperto si passa a notifica inviata o chiuso, da notifica inviata a presentato, da presentato a chiuso. Un reclamo chiuso non ha passaggi.
+
+:::caution[Se il passaggio non viene salvato]
+- **Esito mancante alla chiusura:** per chiudere serve un esito tra liquidato, ritirato e respinto.
+- **«Il reclamo è cambiato»:** qualcun altro ha aggiornato il record. Riapri il dettaglio e ripeti il passaggio.
+- **Ruolo insufficiente:** il passaggio è riservato a owner e verificatori; gli editor consultano soltanto.
+- **Offline:** la vista e i passaggi richiedono la connessione.
+:::
+
+## Chi può fare cosa
+
+| Azione | Ruolo |
+| :-- | :-- |
+| Consultare totali, elenco e dettaglio | Tutti i membri del cantiere |
+| Cambiare stato a un reclamo | owner, verifier |
+
+Per le deviazioni collegate vedi [Deviazioni](../deviazioni/). Per il formato degli importi vedi [Impostazioni](../impostazioni/).

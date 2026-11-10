@@ -1,0 +1,124 @@
+---
+title: Guida rapida mobile
+description: Come cambia SiteAssistant su telefono: barra in basso, card al posto delle tabelle, bersagli tattili.
+---
+
+import Shot from '../../components/Shot.astro';
+
+Su telefono SiteAssistant mostra gli **stessi dati** e gli **stessi permessi** del desktop. Cambia il modo di muoversi: la navigazione scende in basso, le tabelle diventano card e i comandi si allargano per il dito.
+
+## La barra in basso
+
+A cosa serve: raggiungere con il pollice le quattro viste che si usano di più, senza aprire menu.
+
+1. Apri l'applicazione nel browser del telefono e accedi.
+2. Usa la **barra in basso**: **Panoramica**, **Attività**, **Deviazioni**, **Ore**, **Altro**.
+3. Tocca **Ore** per le Prenotazioni ore: è la stessa vista che sul desktop si chiama *Prenotazioni ore*.
+4. Tocca **Altro** per l'elenco delle viste restanti: **Cantieri**, **Struttura progetto**, **Avanzamento**, **Impatti economici**, **Diario**.
+5. La voce attiva è evidenziata; quando sei in una vista dentro **Altro**, è **Altro** a risultare attivo.
+
+<Shot
+  src="/images/2026-11/overview-mobile.png"
+  alt="Panoramica su telefono con l'intestazione SiteAssistant, il selettore del cantiere, i comandi in alto e la barra in basso con Panoramica, Attività, Deviazioni, Ore e Altro"
+  caption="La Panoramica su telefono. In alto il selettore del cantiere e i comandi (ingranaggio, Manuale, nome utente, Esci, EN); in basso la barra con le cinque voci."
+  compact
+/>
+
+Sopra il contenuto resta l'**intestazione**: selettore del cantiere a tutta larghezza, poi ingranaggio delle impostazioni, collegamento al manuale, nome dell'utente, **Esci** e selettore **EN/IT**.
+
+:::caution[Se una voce non c'è]
+- Le voci della barra sono sempre cinque: se la vista che cerchi non è tra le prime quattro, è dentro **Altro**.
+- La barra compare solo sotto gli **800 px** di larghezza: su tablet in orizzontale rivedi la navigazione laterale.
+- Se **Altro** non apre l'elenco, ricarica la pagina: l'elenco è una finestra dell'applicazione, non una pagina separata.
+:::
+
+## Le card al posto delle tabelle
+
+A cosa serve: leggere una riga di tabella senza scorrimento orizzontale.
+
+1. Apri **Ore**, **Avanzamento**, **Impatti economici** o **Deviazioni** in modalità **Elenco**.
+2. Ogni riga diventa una **card**: il titolo del record è in alto a destra, le etichette a sinistra e i valori a destra.
+3. Scorri in verticale per passare da una card all'altra.
+4. Usa i menu sopra l'elenco per filtrare; i **Filtri colonna** del desktop non compaiono sul telefono.
+
+<div class="shot-pair">
+  <Shot
+    src="/images/2026-11/bookings-mobile.png"
+    alt="Prenotazioni ore su telefono: card per ogni prenotazione con dipendente, elemento di avanzamento e ore, raggruppate per giorno operativo"
+    caption="Prenotazioni ore: ogni prenotazione è una card con dipendente, elemento di avanzamento e ore."
+    compact
+  />
+  <Shot
+    src="/images/2026-11/progress-mobile.png"
+    alt="Avanzamento su telefono: card per ogni voce con sezione, area, percentuale di avanzamento, barra e ore prenotate"
+    caption="Avanzamento: le etichette restano a sinistra, i valori a destra; la barra mostra la percentuale."
+    compact
+  />
+</div>
+
+:::caution[Se una card sembra tagliata]
+- I valori lunghi vanno a capo dentro la card: non serve ruotare il telefono.
+- Se il testo esce dallo schermo, controlla lo zoom del browser: al 100% la card occupa la larghezza disponibile.
+- I totali in cima alla vista (per esempio in **Impatti economici**) si riferiscono ai dati filtrati, non all'intero cantiere.
+:::
+
+## I bersagli tattili
+
+A cosa serve: toccare il comando giusto al primo colpo, anche con i guanti.
+
+1. I pulsanti principali — **Nuova attività**, **Aggiungi contributo**, **Aggiorna dati**, **Filtri colonna** — hanno un'area di tocco ampia e stanno su una riga separata dal contenuto.
+2. I menu a tendina sono alti e a tutta larghezza: tocca il menu e scegli la voce dall'elenco del sistema.
+3. Nella bacheca delle attività e delle deviazioni scorri lateralmente per passare da una colonna all'altra.
+4. Il pulsante **AI** resta in basso a destra, sopra il contenuto: aprilo per l'assistente, chiudilo con la × del pannello.
+
+<div class="shot-pair">
+  <Shot
+    src="/images/2026-11/tasks-mobile.png"
+    alt="Attività su telefono: filtri su più righe, selettore Board ed Elenco, bacheca a colonne scorrevole e schede delle attività"
+    caption="Attività: filtri e selettore Board/Elenco su righe separate, bacheca scorrevole in orizzontale."
+    compact
+  />
+  <Shot
+    src="/images/2026-11/deviations-mobile.png"
+    alt="Deviazioni su telefono: filtri per stato e priorità, selettore Board ed Elenco, colonne della bacheca scorrevoli e pulsante AI sopra il contenuto"
+    caption="Deviazioni: la bacheca scorre di lato; il pulsante AI resta sopra le card."
+    compact
+  />
+</div>
+
+:::caution[Se il tocco non fa quello che vuoi]
+- Nella bacheca, un tocco su una card apre il dettaglio; un trascinamento laterale scorre le colonne.
+- Se il pulsante **AI** copre un comando, scorri di poco la pagina: il pulsante resta fisso in basso a destra e il comando torna raggiungibile.
+- Su schermi molto stretti i menu dei filtri troncano il testo («Tutti gli sta…»): il valore selezionato è quello che conta, non l'etichetta.
+:::
+
+## Il resto delle viste
+
+**Cantieri**, **Impatti economici** e **Diario** mantengono la stessa struttura del desktop, con i comandi in verticale. Da **Altro** apri l'elenco e scegli la vista.
+
+<div class="shot-pair">
+  <Shot
+    src="/images/2026-11/sites-mobile.png"
+    alt="Cantieri su telefono: scheda del cantiere FITT-01 con codice, nome, ubicazione, 18 attività, 13 non ancora chiuse, date e pulsante Selezionato"
+    caption="Cantieri: una card per cantiere, con conteggi e date; il cantiere attivo mostra Selezionato."
+    compact
+  />
+  <Shot
+    src="/images/2026-11/diary-mobile.png"
+    alt="Diario su telefono: selettore del giorno operativo, pulsanti Stampa diario e Aggiungi contributo, stato vuoto della giornata"
+    caption="Diario: giorno operativo, stampa e aggiunta del contributo restano in cima alla pagina."
+    compact
+  />
+</div>
+
+:::caution[Se una vista non carica]
+- **Deviazioni**, **Avanzamento**, **Prenotazioni ore** e **Impatti economici** richiedono la connessione: offline mostrano un messaggio e non i dati.
+- **Panoramica**, **Attività** e **Diario** restano consultabili offline con i dati salvati sul dispositivo; le modifiche in coda si sincronizzano al ritorno della rete.
+- Se i dati sembrano vecchi, premi **Aggiorna dati** nella vista o ricarica la pagina.
+:::
+
+## Cosa non cambia
+
+- Cantieri, ruoli e permessi sono gli stessi del desktop.
+- Il selettore **IT/EN** e le [Impostazioni](../impostazioni/) restano nell'intestazione.
+- Le esportazioni CSV e la stampa del diario usano le funzioni del browser del telefono.

@@ -3,13 +3,32 @@ title: Avanzamento di cantiere
 description: Consultare le voci di avanzamento importate, assegnare un tipo e registrare il completamento degli step.
 ---
 
+import Shot from '../../components/Shot.astro';
+
 La vista **Avanzamento** mostra le voci di avanzamento del cantiere selezionato. I dati di base arrivano dall'export planning; il completamento degli step si registra nell'applicazione.
 
-## L'elenco
+## Consultare le voci
 
-Ogni riga riporta la descrizione, la sezione, l'area PLC, la percentuale di avanzamento e le ore prenotate. Il filtro in alto limita l'elenco alle voci collegate a un nodo della struttura progetto.
+A cosa serve: capire quanto è avanti ogni elemento e quante ore ha assorbito.
 
-Apri una riga per vedere il dettaglio.
+1. Apri **Avanzamento** dalla navigazione.
+2. Filtra con il menu **Struttura progetto** per vedere solo le voci collegate a un nodo WBS.
+3. Leggi per ogni riga descrizione, sezione, area PLC, percentuale e ore prenotate.
+4. Apri una riga per il dettaglio: piano, scostamento, date e contrassegni.
+
+<Shot
+  src="/images/2026-11/progress-desktop.png"
+  alt="Vista Avanzamento con l'elenco delle voci, le colonne Descrizione, Sezione, Area asset, Avanzamento con barra e Ore prenotate, e il filtro Tutti i nodi WBS"
+  caption="L'elenco dell'avanzamento: la barra mostra la percentuale, il badge «calcolato» indica i valori ricalcolati dagli step registrati."
+/>
+
+Il filtro in alto limita l'elenco alle voci collegate a un nodo della struttura progetto: non cambia i dati, cambia solo cosa vedi.
+
+:::caution[Se una voce non c'è]
+- Il filtro **Struttura progetto** può escludere la voce: riportalo su **Tutti i nodi WBS**.
+- Le voci arrivano dall'import planning: se manca un elemento, va corretto l'export e ripetuto l'import, non creato a mano.
+- Questa vista richiede la connessione: offline mostra un messaggio al posto dell'elenco.
+:::
 
 ## Il dettaglio
 
@@ -36,13 +55,24 @@ Un tipo si crea via API ed è riservato agli owner. Nell'interfaccia un owner pu
 
 ## Registrare il completamento
 
+A cosa serve: aggiornare l'avanzamento di una voce senza toccare i dati importati.
+
 1. Apri il dettaglio della voce.
-2. In **Registra completamento step**, inserisci per ogni step una percentuale da 0 a 100.
-3. Premi **Salva step**.
+2. Controlla che ci sia un **tipo di avanzamento** assegnato e leggi l'elenco degli step con i pesi.
+3. In **Registra completamento step**, inserisci per ogni step una percentuale da 0 a 100.
+4. Premi **Salva step**.
+5. Riapri il dettaglio per vedere l'avanzamento ricalcolato e la nuova registrazione nello storico.
 
 L'avanzamento della voce viene ricalcolato come media pesata degli step. Se una voce ha un tipo assegnato ma nessuno step registrato, l'avanzamento calcolato è **0**: il valore importato non viene usato.
 
 Ogni salvataggio aggiunge una registrazione allo **storico**. Lo storico non viene riscritto e le curve di avanzamento si calcolano da lì, non dagli import.
+
+:::caution[Se non puoi salvare gli step]
+- **Nessun tipo assegnato:** il modulo degli step non compare. Un owner deve assegnare un tipo dal dettaglio.
+- **Nessuno step disponibile:** il tipo assegnato non ha step; va corretto il tipo, non la voce.
+- **Percentuale rifiutata:** usa valori tra 0 e 100. I campi vuoti vengono letti come 0.
+- **Ruolo insufficiente:** registrare gli step è riservato a owner ed editor; consultare il dettaglio è consentito a tutti i membri.
+:::
 
 ## Chi può fare cosa
 

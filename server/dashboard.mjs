@@ -41,7 +41,8 @@ export async function dashboard(db, { siteId, user } = {}) {
     WHERE b.site_id = ? GROUP BY w.operational_date ORDER BY w.operational_date DESC LIMIT 90`, site);
   const byWeek = new Map();
   for (const row of weeks) {
-    const day = String(row.day).slice(0, 10);
+    // PostgreSQL returns DATE columns as Date objects, SQLite as text.
+    const day = row.day instanceof Date ? row.day.toISOString().slice(0, 10) : String(row.day).slice(0, 10);
     const monday = weekStart(day);
     byWeek.set(monday, (byWeek.get(monday) || 0) + Number(row.hours));
   }
