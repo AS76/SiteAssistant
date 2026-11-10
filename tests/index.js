@@ -28,3 +28,4 @@ import './site-progress.test.mjs';
 import './deviations.test.mjs';
 import './time-bookings.test.mjs';
 import './cost-impacts.test.mjs';
+import './offline.test.mjs';

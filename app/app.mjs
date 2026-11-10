@@ -1,12 +1,17 @@
-import { STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell } from './domain.mjs';
-import { createApi } from './api.mjs';
+import { STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload } from './domain.mjs';
+import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
+import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock } from './offline.mjs';
 
-const api = createApi({ baseUrl: document.querySelector('meta[name=siteassistant-api-base]')?.content || undefined, onUnauthorized: clearSession });
+const api = createApi({ baseUrl: new URL(document.querySelector('meta[name=siteassistant-api-base]')?.content || DEFAULT_BASE_URL, location.href).href, onUnauthorized: () => clearSession(true) });
+const freshApi = createApi({ baseUrl: api.baseUrl, fresh: true, onUnauthorized: () => clearSession(true) });
+let offlineScope, pendingOps = [], offline = !navigator.onLine, storageReady = false, storageError = false, swRegistration, syncRun;
+const accountChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('siteassistant-session') : null;
+const accountLock = run => navigator.locks ? withSyncLock(run) : run();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 let session = null;
-let state = { sites: [], tasks: [], diary: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
+let state = { sites: [], tasks: [], diary: [], attachments: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
 let view = ['overview', 'sites', 'tasks', 'wbs', 'diary'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 let filters = { search: '', status: '', person: '', priority: '' };
 let taskView = 'board';
@@ -36,28 +41,116 @@ function toast(message) {
 }
 const errorKeys = { MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
-function clearSession() {
+function clearSession(invalidate = false) {
   wbsCache.clear(); wbsLoad = null;
-  session = null; actor = ''; siteId = undefined; loadError = null;
-  state = { sites: [], tasks: [], diary: [] };
+  session = null; actor = ''; siteId = undefined; loadError = null; offlineScope = undefined; pendingOps = [];
+  state = { sites: [], tasks: [], diary: [], attachments: [] };
   filters = { search: '', status: '', person: '', priority: '' };
   closeModal();
+  if (invalidate) void forgetActive().catch(() => { storageError = true; });
   if (!loading) render();
 }
+async function forgetActive() {
+  if (storageReady) await setMirror('active', null);
+  if ('caches' in window) for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.includes('-data-')) await caches.delete(key);
+}
 async function logout() {
-  try { await api.logout(); clearSession(); }
-  catch (error) { toast(errorMessage(error)); }
+  try {
+    await accountLock(async () => { await api.logout(); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
+  } catch (error) { toast(errorMessage(error)); }
+}
+async function persistState() {
+  if (!storageReady || !offlineScope) return;
+  await setMirror(`state:${offlineScope}`, {
+    ...state,
+    tasks: state.tasks.filter(item => !item.localOnly), diary: state.diary.filter(item => !item.localOnly),
+    attachments: (state.attachments || []).filter(item => !item.localOnly),
+  });
+}
+async function refreshPending() {
+  pendingOps = storageReady && offlineScope ? await listOps(offlineScope) : [];
+  state = overlayPending(state, pendingOps);
 }
 async function loadData() {
-  wbsCache.clear(); wbsLoad = null;
   loading = true; loadError = null; render();
   try {
-    session = await api.me(); actor = session.user.name;
-    const [sites, tasks, diary] = await Promise.all([api.listSites(), api.listTasks(), api.listDiary()]);
-    state = { sites, tasks, diary };
-    if (!sites.some(site => site.id === siteId)) siteId = sites[0]?.id;
+    await accountLock(async () => {
+      let active = storageReady ? await getMirror('active') : null;
+      try {
+        session = await freshApi.me(); actor = session.user.name; offline = false;
+        offlineScope = scopeFor(api.baseUrl, session.user.id);
+        active = { scope: offlineScope, baseUrl: api.baseUrl, session };
+        if (storageReady) await setMirror('active', active);
+      } catch (error) {
+        if (error.code !== 'NETWORK_ERROR' || active?.baseUrl !== api.baseUrl) throw error;
+        const saved = await getMirror(`state:${active.scope}`);
+        if (!saved) throw error;
+        offline = true; session = active.session; actor = session.user.name; offlineScope = active.scope; state = saved;
+      }
+      if (!offline) {
+        try {
+          const [sites, tasks, diary] = await Promise.all([freshApi.listSites(), freshApi.listTasks(), freshApi.listDiary()]);
+          const saved = storageReady ? await getMirror(`state:${offlineScope}`) : null;
+          state = { sites, tasks, diary, attachments: saved?.attachments || [] };
+          if (sites.length) {
+            const selected = sites.some(site => site.id === siteId) ? siteId : sites[0].id;
+            try {
+              const files = await freshApi.listAttachments({ site_id: selected });
+              state.attachments = [...state.attachments.filter(file => file.site_id !== selected), ...files];
+            } catch (error) { if (error.status === 401 || error.status === 403) throw error; }
+          }
+          try { await persistState(); } catch { storageError = true; }
+        } catch (error) {
+          const saved = storageReady && offlineScope ? await getMirror(`state:${offlineScope}`) : null;
+          if (error.code !== 'NETWORK_ERROR' || !saved) throw error;
+          state = saved; offline = true;
+        }
+      }
+      await refreshPending();
+      if (!state.sites.some(site => site.id === siteId)) siteId = state.sites[0]?.id;
+    });
   } catch (error) { loadError = error; }
   loading = false; render();
+}
+async function syncQueue() {
+  if (syncRun || !navigator.onLine || !session || !storageReady) return syncRun;
+  syncRun = (async () => {
+    try {
+      await replayOps(freshApi, { scope: offlineScope, userId: session.user.id });
+      await loadData();
+    } catch (error) {
+      if (error.code === 'NETWORK_ERROR') offline = true;
+      else toast(errorMessage(error));
+      await refreshPending(); render();
+    }
+    if (pendingOps.some(op => op.status !== 'failed')) await registerSync(swRegistration);
+  })().finally(() => { syncRun = null; });
+  return syncRun;
+}
+async function writeOperation(op_type, payload, entity_id) {
+  if (!offlineScope) throw new Error('authRequired');
+  if (!storageReady) {
+    if (offline) throw new Error('offlineStorageUnavailable');
+    if (op_type === 'create_task') state.tasks.push(await api.createTask(payload, { idempotencyKey: crypto.randomUUID() }));
+    if (op_type === 'create_diary') state.diary.push(await api.createDiary(payload));
+    if (op_type === 'transition_task') rememberTask(await api.transitionTask(payload.task, payload.input));
+    if (op_type === 'create_attachment') state.attachments.push(await api.createAttachment(payload));
+    return;
+  }
+  const op = await enqueue({ op_type, payload, entity_id, scope: offlineScope });
+  await refreshPending();
+  if (navigator.onLine && !offline) await syncQueue();
+  if (pendingOps.some(item => item.status !== 'failed')) await registerSync(swRegistration);
+  const current = pendingOps.find(item => item.id === op.id);
+  if (current?.status === 'failed') throw Object.assign(new Error('syncFailed'), current.error);
+  return op;
+}
+const syncBadge = entity => entity?.syncStatus ? `<span class="badge sync-${entity.syncStatus}">${t(entity.syncStatus === 'failed' ? 'syncFailed' : 'syncPending')}</span>` : '';
+function renderOffline() {
+  const banner = $('#offline-banner');
+  const failed = pendingOps.filter(op => op.status === 'failed' || op.status === 'uncertain');
+  banner.hidden = !offline && !pendingOps.length && !storageError;
+  banner.innerHTML = `${offline ? `<strong>${t('offlineNotice')}</strong> ` : ''}${storageError ? `<strong>${t('offlineStorageUnavailable')}</strong> ` : ''}${pendingOps.length ? `<span>${pendingOps.length} ${t('syncPending')}</span> ${button('syncNow', 'sync-now')}` : ''}${failed.length ? `<ul>${failed.map(op => `<li>${esc(op.payload.title || op.payload.filename || op.payload.task?.title || op.payload.date || '')}: ${t(op.error?.code === 'SYNC_UNCERTAIN' || op.status === 'uncertain' ? 'syncUncertain' : op.error?.code === 'DUPLICATE_DIARY' ? 'duplicateDiary' : 'syncFailed')} ${op.status === 'failed' ? button('discardOperation', 'discard-op', `data-id="${esc(op.id)}"`) : ''}</li>`).join('')}</ul>` : ''}`;
 }
 function rememberTask(task) { state.tasks = state.tasks.map(item => item.id === task.id ? task : item); }
 function heading(title, subtitle, actions = '') {
@@ -65,6 +158,7 @@ function heading(title, subtitle, actions = '') {
 }
 function empty(title, subtitle, action = '') { return `<div class="empty"><strong>${t(title)}</strong>${t(subtitle)}${action ? `<div style="margin-top:16px">${action}</div>` : ''}</div>`; }
 function renderChrome() {
+  renderOffline();
   document.documentElement.lang = language;
   document.title = `SiteAssistant · ${t(view)}`;
   $('#brand-sub').textContent = t('brandSub'); $('#workspace-label').textContent = t('workspace');
@@ -98,7 +192,7 @@ function renderChrome() {
 }
 function dueMarkup(task) { return `<span class="due ${task.status !== 'closed' && task.due && task.due < today() ? 'overdue' : ''}">${dateLabel(task.due)}</span>`; }
 function taskRow(task) {
-  return `<div class="task-row"><div><h3><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></h3><p>${esc(task.area || t('noArea'))} · ${esc(task.company)}</p>${badge(task.status)} ${priorityBadge(task.priority)}</div><div class="subtitle">${dueMarkup(task)}</div></div>`;
+  return `<div class="task-row"><div><h3><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></h3><p>${esc(task.area || t('noArea'))} · ${esc(task.company)}</p>${badge(task.status)} ${priorityBadge(task.priority)} ${syncBadge(task)}</div><div class="subtitle">${dueMarkup(task)}</div></div>`;
 }
 function renderOverview() {
   const tasks = siteTasks(), count = counts(tasks), total = tasks.length;
@@ -110,7 +204,7 @@ function renderOverview() {
   $('#main').innerHTML = heading('overviewTitle', 'overviewSub', button('newTask', 'new-task', '', 'primary')) +
     `<div class="date-caption">${t('today')} · ${new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}</div>` +
     `<div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div>` +
-    `<div class="grid-overview"><section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section><div class="summary-stack"><section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack"><div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div><div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div></div></div></section><section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2><span class="badge">${t('draft')}</span></div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p><a class="subtitle" href="#diary">${t('openDiary')} →</a></div></section></div></div>`;
+    `<div class="grid-overview"><section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section><div class="summary-stack"><section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack"><div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div><div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div></div></div></section><section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2><span class="badge">${t('draft')}</span></div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}<a class="subtitle" href="#diary">${t('openDiary')} →</a></div></section></div></div>`;
 }
 function renderSites() {
   $('#main').innerHTML = heading('sitesTitle', 'sitesSub', button('newSite', 'new-site', '', 'primary')) + `<div class="site-grid">${state.sites.map(site => {
@@ -128,7 +222,7 @@ function renderTasks() {
   renderTaskResults();
 }
 function taskCard(task) {
-  return `<button type="button" class="task-card" data-command="detail" data-id="${esc(task.id)}"><span class="card-code">${esc(task.area || t('noArea'))}</span><h2>${esc(task.title)}</h2>${priorityBadge(task.priority)}<p>${esc(task.company)}</p><p>${personName(task.assignee)}</p><div class="card-footer">${dueMarkup(task)}<span>→</span></div></button>`;
+  return `<button type="button" class="task-card" data-command="detail" data-id="${esc(task.id)}"><span class="card-code">${esc(task.area || t('noArea'))}</span><h2>${esc(task.title)}</h2>${priorityBadge(task.priority)} ${syncBadge(task)}<p>${esc(task.company)}</p><p>${personName(task.assignee)}</p><div class="card-footer">${dueMarkup(task)}<span>→</span></div></button>`;
 }
 function renderTaskResults() {
   const tasks = filteredTasks();
@@ -138,21 +232,28 @@ function renderTaskResults() {
     const column = tasks.filter(task => task.status === status);
     return `<section class="board-column" aria-label="${t(status)}"><div class="column-heading"><span>${t(status)}</span><span>${column.length}</span></div>${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</section>`;
   }).join('')}</div>`;
-  else html += `<div class="table-scroll"><table><thead><tr>${['title', 'area', 'status', 'company', 'assignee', 'reviewer', 'due'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${tasks.map(task => `<tr><td><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></td><td>${esc(task.area || '—')}</td><td>${badge(task.status)}</td><td>${esc(task.company)}</td><td>${personName(task.assignee)}</td><td>${personName(task.reviewer)}</td><td>${dueMarkup(task)}</td></tr>`).join('')}</tbody></table></div>`;
+  else html += `<div class="table-scroll"><table><thead><tr>${['title', 'area', 'status', 'company', 'assignee', 'reviewer', 'due'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${tasks.map(task => `<tr><td><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></td><td>${esc(task.area || '—')}</td><td>${badge(task.status)} ${syncBadge(task)}</td><td>${esc(task.company)}</td><td>${personName(task.assignee)}</td><td>${personName(task.reviewer)}</td><td>${dueMarkup(task)}</td></tr>`).join('')}</tbody></table></div>`;
   $('#task-results').innerHTML = html;
 }
 function renderDiary() {
   const entries = state.diary.filter(item => item.siteId === siteId && item.date === reportDate);
   $('#main').innerHTML = heading('diaryTitle', 'diarySub', button('print', 'print') + button('newEntry', 'new-entry', '', 'primary')) +
     `<div class="diary-toolbar"><label for="report-date">${t('reportDate')}</label><input id="report-date" type="date" min="0001-01-01" max="9999-12-31" value="${reportDate}"><span class="badge">${t('draft')}</span><span class="subtitle">${entries.length} ${t('entries')}</span></div><div class="diary-grid"><section class="panel">${entries.length ? entries.map(entry => {
-      return `<article class="diary-entry"><div class="entry-heading"><strong>${t(entry.shift)}</strong><span>${t('recordedAt')} ${timeLabel(entry.createdAt)}</span></div><div class="entry-grid">${['plan', 'actual', 'blockers', 'next'].map(key => `<section class="entry-section ${key === 'blockers' && entry[key] ? 'entry-blocker' : ''}"><h3>${t(key)}</h3><p>${esc(entry[key] || '—')}</p></section>`).join('')}</div></article>`;
+      return `<article class="diary-entry"><div class="entry-heading"><strong>${t(entry.shift)} ${syncBadge(entry)}</strong><span>${t('recordedAt')} ${timeLabel(entry.createdAt)}</span></div><div class="entry-grid">${['plan', 'actual', 'blockers', 'next'].map(key => `<section class="entry-section ${key === 'blockers' && entry[key] ? 'entry-blocker' : ''}"><h3>${t(key)}</h3><p>${esc(entry[key] || '—')}</p></section>`).join('')}</div>${attachmentSection('diary', entry.id)}</article>`;
     }).join('') : empty('diaryEmpty', 'diaryEmptyHint', button('newEntry', 'new-entry', '', 'primary'))}</section><aside class="panel diary-aside"><div class="panel-body"><h3>${t('dayRule')}</h3><p>${t('dayRuleNote')}</p><div class="blank-message">${t('diaryLimit')}</div></div></aside></div><p class="note">${t('forDate')} ${dateLabel(reportDate)} · ${t('draft')} · ${t('diaryLimit')}</p>`;
 }
 async function loadWbs() {
   const selected = siteId, token = {};
   wbsLoad = token;
   try {
-    const nodes = await api.listWbs(selected);
+    let nodes;
+    try {
+      nodes = await api.listWbs(selected);
+      if (storageReady) await setMirror(`wbs:${offlineScope}:${selected}`, nodes);
+    } catch (error) {
+      nodes = storageReady && error.code === 'NETWORK_ERROR' ? await getMirror(`wbs:${offlineScope}:${selected}`) : undefined;
+      if (!nodes) throw error;
+    }
     if (wbsLoad === token) wbsCache.set(selected, { nodes });
   } catch (error) {
     if (wbsLoad === token) wbsCache.set(selected, { error });
@@ -210,6 +311,7 @@ function selectSite(id) {
   if (!state.sites.some(site => site.id === id)) return;
   wbsLoad = null;
   siteId = id; filters = { search: '', status: '', person: '', priority: '' }; render();
+  if (!offline) void loadData();
 }
 function showModal(title, content) {
   modalVersion++;
@@ -246,11 +348,23 @@ async function showDetail(taskId) {
   showModal(t('details'), `<p role="status">${t('loading')}</p>`);
   const version = modalVersion;
   try {
-    const task = await api.getTask(taskId);
+    const local = state.tasks.find(item => item.id === taskId);
+    let task = local;
+    if (!offline && !local?.localOnly) {
+      try { task = await freshApi.getTask(taskId); }
+      catch (error) { if (error.code !== 'NETWORK_ERROR' || !local) throw error; offline = true; }
+    }
+    if (!task) throw new Error('apiUnavailable');
+    task = { ...task, syncStatus: local?.syncStatus };
     if (version !== modalVersion || !$('#modal').open) return;
-    rememberTask(task); render();
-    const actions = allowedTransitions(task);
-    showModal(task.title, `<p>${badge(task.status)} ${priorityBadge(task.priority)}</p><dl class="detail-grid">${['area', 'company', 'assignee', 'reviewer', 'due', 'priority'].map(key => `<div><dt>${t(key)}</dt><dd>${['assignee', 'reviewer'].includes(key) ? personName(task[key]) : key === 'due' ? dateLabel(task[key]) : key === 'priority' ? esc(t(task[key])) : esc(task[key] || '—')}</dd></div>`).join('')}</dl><div class="detail-actions">${actions.map(to => `<button type="button" data-command="transition" data-id="${esc(task.id)}" data-to="${to}">${t('transitionTo')} ${t(to)}</button>`).join('')}</div>${actions.length ? '' : `<p class="note">${t('noTransitions')}</p>`}<section class="timeline"><h3>${t('history')}</h3>${[...(task.events || [])].reverse().map(event => `<div class="event"><strong>${event.from_status ? `${esc(t(event.from_status))} → ` : ''}${esc(t(event.to_status))}</strong><div class="event-meta">${personName(event.actor)} · ${timeLabel(event.at)}</div>${event.note ? `<p>${t('note')}: ${esc(event.note)}</p>` : ''}${event.reason ? `<p>${t('reason')}: ${esc(event.reason)}</p>` : ''}</div>`).join('')}</section>`);
+    rememberTask(task);
+    if (storageReady && !task.localOnly) await accountLock(async () => {
+      const saved = await getMirror(`state:${offlineScope}`);
+      if (saved) { saved.tasks = saved.tasks.map(item => item.id === task.id ? task : item); await setMirror(`state:${offlineScope}`, saved); }
+    });
+    render();
+    const actions = pendingOps.some(op => op.entity_id === taskId && (op.op_type === 'transition_task' || op.status === 'failed')) ? [] : allowedTransitions(task);
+    showModal(task.title, `<p>${badge(task.status)} ${priorityBadge(task.priority)} ${syncBadge(task)}</p><dl class="detail-grid">${['area', 'company', 'assignee', 'reviewer', 'due', 'priority'].map(key => `<div><dt>${t(key)}</dt><dd>${['assignee', 'reviewer'].includes(key) ? personName(task[key]) : key === 'due' ? dateLabel(task[key]) : key === 'priority' ? esc(t(task[key])) : esc(task[key] || '—')}</dd></div>`).join('')}</dl><div class="detail-actions">${actions.map(to => `<button type="button" data-command="transition" data-id="${esc(task.id)}" data-to="${to}">${t('transitionTo')} ${t(to)}</button>`).join('')}</div>${actions.length ? '' : `<p class="note">${t('noTransitions')}</p>`}<section class="timeline"><h3>${t('history')}</h3>${[...(task.events || [])].reverse().map(event => `<div class="event"><strong>${event.from_status ? `${esc(t(event.from_status))} → ` : ''}${esc(t(event.to_status))}</strong><div class="event-meta">${personName(event.actor)} · ${timeLabel(event.at)}</div>${event.note ? `<p>${t('note')}: ${esc(event.note)}</p>` : ''}${event.reason ? `<p>${t('reason')}: ${esc(event.reason)}</p>` : ''}</div>`).join('')}</section>${attachmentSection('task', task.id)}`);
   } catch (error) {
     if (version === modalVersion && $('#modal').open) showModal(t('details'), `<p role="alert">${esc(errorMessage(error))}</p>${button('retry', 'detail', `data-id="${esc(taskId)}"`)}`);
   }
@@ -263,6 +377,25 @@ function showTransition(taskId, to) {
 }
 function showEntryForm() {
   showModal(t('newEntry'), `<form id="entry-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${field('shift', 'shift', '', { required: true, options: `<option value="day">${t('day')}</option><option value="night">${t('night')}</option>` })}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}</div>${formActions()}</form>`);
+}
+function attachmentSection(entityType, entityId) {
+  const files = (state.attachments || []).filter(file => file.entity_type === entityType && file.entity_id === entityId);
+  return `<section class="attachment-section"><h3>${t('attachments')}</h3>${files.map(file => `<p>${button('openAttachment', 'open-attachment', `data-id="${esc(file.id)}"`)} ${esc(file.filename)} ${syncBadge(file)}</p>`).join('')}${button('addAttachment', 'new-attachment', `data-entity-type="${entityType}" data-id="${esc(entityId)}"`)}</section>`;
+}
+function showAttachmentForm(entityType, entityId) {
+  showModal(t('addAttachment'), `<form id="attachment-form" data-entity-type="${entityType}" data-entity-id="${esc(entityId)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><label class="field">${t('attachmentFile')}<input type="file" name="file" accept="image/*,application/pdf" required></label><p class="note">${t('attachmentHint')}</p>${formActions()}</form>`);
+}
+async function openAttachment(id) {
+  const file = state.attachments.find(item => item.id === id);
+  if (!file) return;
+  if (file.blob) download(file.blob, file.blob.type, file.filename);
+  else {
+    try {
+      const response = await fetch(`${api.baseUrl}/api/attachments/${encodeURIComponent(id)}`, { credentials: 'include' });
+      if (!response.ok) throw new Error('apiError');
+      download(await response.blob(), file.mime, file.filename);
+    } catch { toast(t('apiUnavailable')); }
+  }
 }
 function download(content, type, name) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -280,6 +413,10 @@ document.addEventListener('click', event => {
   const target = event.target.closest('[data-command]'); if (!target) return;
   const command = target.dataset.command, id = target.dataset.id;
   const commands = {
+    'sync-now': () => { offline = !navigator.onLine; void syncQueue(); },
+    'discard-op': async () => { await accountLock(async () => { await removeOp(id); }); await refreshPending(); render(); },
+    'new-attachment': () => showAttachmentForm(target.dataset.entityType, id),
+    'open-attachment': () => openAttachment(id),
     'wbs-view': () => { wbsView = target.dataset.value; render(); },
     'wbs-reload': () => { wbsCache.delete(siteId); wbsLoad = null; render(); },
     'wbs-expand': () => { document.querySelectorAll('.wbs-tree details').forEach(node => { node.open = true; }); },
@@ -296,7 +433,7 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('submit', async event => {
   const form = event.target;
-  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form'].includes(form.id)) return;
+  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   const data = Object.fromEntries(new FormData(form));
@@ -306,7 +443,10 @@ document.addEventListener('submit', async event => {
   // Capture the selected context before waiting for the server.
   const selectedSite = siteId, selectedDate = reportDate;
   try {
-    if (form.id === 'login-form') { await api.login(data); await loadData(); return; }
+    if (form.id === 'login-form') {
+      await accountLock(async () => { await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
+      await loadData(); await syncQueue(); return;
+    }
     if (form.id === 'password-form') {
       if (data.new_password !== data.confirm_password) throw new Error('passwordMismatch');
       if ([...data.new_password].length < 12 || data.new_password === data.current_password) throw new Error('passwordPolicy');
@@ -322,13 +462,21 @@ document.addEventListener('submit', async event => {
     }
     let message, detail;
     if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); siteId = site.id; filters = { search: '', status: '', person: '', priority: '' }; message = 'siteCreated'; }
-    if (form.id === 'task-form') { state.tasks.push(await api.createTask({ ...data, siteId: selectedSite })); message = 'taskCreated'; }
-    if (form.id === 'entry-form') { state.diary.push(await api.createDiary({ ...data, siteId: selectedSite, date: selectedDate })); message = 'entrySaved'; }
+    if (form.id === 'task-form') { const payload = { ...data, siteId: selectedSite }; taskPayload(payload); await writeOperation('create_task', payload); message = 'taskCreated'; }
+    if (form.id === 'entry-form') { const payload = { ...data, siteId: selectedSite, date: selectedDate }; diaryPayload(payload); await writeOperation('create_diary', payload); message = 'entrySaved'; }
     if (form.id === 'transition-form') {
       const task = state.tasks.find(item => item.id === form.dataset.taskId);
-      detail = await api.transitionTask(task, { ...data, to: form.dataset.to });
-      rememberTask(detail); actor = data.actor.trim(); message = 'actionSaved';
+      const input = { ...data, to: form.dataset.to }; transitionPayload(task, input);
+      await writeOperation('transition_task', { task, input }, task.id);
+      detail = state.tasks.find(item => item.id === task.id); message = 'actionSaved';
     }
+    if (form.id === 'attachment-form') {
+      const blob = data.file;
+      if (!blob?.size || blob.size > 15 * 1024 * 1024 || !/^(image\/[a-z0-9.+-]+|application\/pdf)$/i.test(blob.type)) throw new Error('attachmentInvalid');
+      await writeOperation('create_attachment', { site_id: selectedSite, entity_type: form.dataset.entityType, entity_id: form.dataset.entityId, filename: blob.name, blob });
+      message = 'attachmentSaved';
+    }
+    if (form.id === 'site-form') await accountLock(persistState);
     const sameModal = version === modalVersion;
     if (sameModal) closeModal();
     render();
@@ -348,4 +496,28 @@ document.addEventListener('change', event => {
 document.addEventListener('input', event => { if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
 $('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
 window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'diary'].includes(next) ? next : 'overview'; closeModal(); render(); $('#main').focus(); });
-void loadData();
+window.addEventListener('offline', () => { offline = true; renderOffline(); });
+window.addEventListener('online', () => { offline = false; renderOffline(); void syncQueue(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) void syncQueue(); });
+accountChannel?.addEventListener('message', () => { clearSession(); void loadData(); });
+navigator.serviceWorker?.addEventListener('message', event => {
+  if (event.data?.scope !== offlineScope) return;
+  if (event.data.type === 'offline-synced') void loadData();
+  if (event.data.type === 'offline-access-denied') {
+    if (event.data.status === 401) clearSession(true);
+    else { void forgetActive(); state = { sites: [], tasks: [], diary: [], attachments: [] }; loadError = { status: 403 }; render(); }
+  }
+});
+setInterval(() => { if (pendingOps.some(op => op.status !== 'failed') && navigator.onLine) void syncQueue(); }, 30000);
+async function start() {
+  try { await openDb(); storageReady = true; } catch { storageError = true; }
+  if ('serviceWorker' in navigator) {
+    try {
+      swRegistration = await navigator.serviceWorker.register('./sw.js', { type: 'module' });
+      void navigator.serviceWorker.ready.then(registration => { swRegistration = registration; if (pendingOps.length) void registerSync(registration); });
+    } catch { storageError = true; }
+  }
+  await loadData();
+  if (pendingOps.length) { await registerSync(swRegistration); await syncQueue(); }
+}
+void start();

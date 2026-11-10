@@ -14,14 +14,14 @@ export class ApiError extends Error {
 }
 
 // Override via <meta name="siteassistant-api-base" content="…"> or createApi({ baseUrl }).
-export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.fetch, onUnauthorized = () => {} } = {}) {
+export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.fetch, onUnauthorized = () => {}, fresh = false } = {}) {
   const base = baseUrl.replace(/\/+$/, '');
-  async function request(path, input) {
+  async function request(path, input, { idempotencyKey } = {}) {
     let response;
     try {
-      response = await fetchImpl(`${base}${path}`, input === undefined ? { credentials: 'include' } : {
+      response = await fetchImpl(`${base}${path}`, input === undefined ? { credentials: 'include', ...(fresh ? { cache: 'reload' } : {}) } : {
         credentials: 'include',
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}) }, body: JSON.stringify(input),
       });
     } catch {
       throw new ApiError('apiUnavailable');
@@ -38,6 +38,7 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     return params.size ? `?${params}` : '';
   };
   return {
+    baseUrl: base,
     login: input => request('/api/auth/login', input),
     logout: () => request('/api/auth/logout', {}),
     me: () => request('/api/auth/me'),
@@ -48,11 +49,18 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     createSite: async input => siteFromApi(await request('/api/sites', sitePayload(input))),
     listTasks: async (filters = {}) => (await request(`/api/tasks${query(filters)}`)).map(taskFromApi),
     getTask: async id => taskFromApi(await request(`/api/tasks/${encodeURIComponent(id)}`)),
-    createTask: async input => taskFromApi(await request('/api/tasks', taskPayload(input))),
-    transitionTask: async (task, input) => taskFromApi(await request(`/api/tasks/${encodeURIComponent(task.id)}/transition`, transitionPayload(task, input))),
+    createTask: async (input, options) => taskFromApi(await request('/api/tasks', taskPayload(input), options)),
+    transitionTask: async (task, input, options) => taskFromApi(await request(`/api/tasks/${encodeURIComponent(task.id)}/transition`, transitionPayload(task, input), options)),
     listWbs: (siteId, flat = false) => request(`/api/wbs${query({ site_id: siteId, flat: flat ? 1 : undefined })}`),
     getWbs: id => request(`/api/wbs/${encodeURIComponent(id)}`),
     listDiary: async (filters = {}) => (await request(`/api/diary${query(filters)}`)).map(diaryFromApi),
-    createDiary: async input => diaryFromApi(await request('/api/diary', diaryPayload(input))),
+    createDiary: async (input, options) => diaryFromApi(await request('/api/diary', diaryPayload(input), options)),
+    listAttachments: (filters = {}) => request(`/api/attachments${query(filters)}`),
+    createAttachment: async ({ blob, ...input }, options) => {
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let binary = '';
+      for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+      return request('/api/attachments', { ...input, content_type: blob.type, data_base64: btoa(binary) }, options);
+    },
   };
 }

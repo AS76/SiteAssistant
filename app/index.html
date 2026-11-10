@@ -4,11 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#244b43">
   <meta name="description" content="SiteAssistant — cantieri, attività e diario giornaliero.">
   <meta name="siteassistant-api-base" content="/">
   <title>SiteAssistant</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.webmanifest">
   <script type="module" src="app.mjs"></script>
 </head>
 <body>
@@ -25,6 +27,7 @@
       <div class="topbar-actions"><a id="manual-link" class="manual-link" href="https://as76.github.io/SiteAssistant/" target="_blank" rel="noopener noreferrer">Manuale</a><label class="actor-control"><span id="actor-label">Persona</span><input id="actor-input" type="text" maxlength="10000"></label><button id="language" class="language" type="button" aria-label="Switch to English">EN</button></div>
     </header>
     <div class="demo-banner" id="demo-banner"></div>
+    <section id="offline-banner" class="offline-banner" role="status" aria-live="polite" hidden></section>
     <main id="main" tabindex="-1"></main>
     <footer><span id="footer-note"></span></footer>
   </div>
