@@ -227,9 +227,44 @@ function renderOverview() {
   const lastEntry = state.diary.filter(item => item.siteId === siteId && item.date === today()).at(-1);
   $('#main').innerHTML = heading('overviewTitle', 'overviewSub',
     (canImport() ? button('importOpen', 'import-open') : '') + button('newTask', 'new-task', '', 'primary')) +
-    `<div class="date-caption">${t('today')} · ${new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}</div>` +
+    `<div id="overview-kpis" class="overview-kpis" aria-live="polite"></div><div class="date-caption">${t('today')} · ${new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}</div>` +
     `<div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div>` +
     `<div class="grid-overview"><section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section><div class="summary-stack"><section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack"><div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div><div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div></div></div></section><section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2><span class="badge">${t('draft')}</span></div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}<a class="subtitle" href="#diary">${t('openDiary')} →</a></div></section></div></div>`;
+  void loadOverviewKpis();
+}
+
+// Overview KPIs: four numbers a site manager checks first. Fetched lazily and kept per site
+// so switching views does not fire four requests every time.
+const overviewCache = new Map();
+async function loadOverviewKpis() {
+  const target = document.querySelector('#overview-kpis');
+  const selected = siteId;
+  if (!target || !selected) return;
+  target.innerHTML = `<span class="kpi-loading">${t('loading')}</span>`;
+  let data = overviewCache.get(selected);
+  if (!data) {
+    try {
+      const [progress, deviations, bookings, impacts] = await Promise.all([
+        freshApi.listProgress({ siteId: selected }), freshApi.listDeviations({ siteId: selected }),
+        freshApi.listBookings({ siteId: selected }), freshApi.listImpacts({ siteId: selected }),
+      ]);
+      const values = progress.map(row => Number(row.progressPct)).filter(Number.isFinite);
+      data = {
+        progress: values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null,
+        openDeviations: deviations.filter(row => !['closed', 'rejected'].includes(row.status)).length,
+        hours: bookings.reduce((sum, row) => sum + Number(row.hours || 0), 0),
+        openClaims: impacts.filter(row => row.status !== 'closed').reduce((sum, row) => sum + Number(row.claimAmount || 0), 0),
+      };
+      overviewCache.set(selected, data);
+    } catch { target.innerHTML = `<span class="kpi-loading">${t('apiError')}</span>`; return; }
+  }
+  if (selected !== siteId || !document.body.contains(target)) return;
+  target.innerHTML = [
+    ['kpiProgress', data.progress == null ? t('coreUnknown') : `${data.progress}%`],
+    ['kpiOpenDeviations', data.openDeviations],
+    ['kpiBookedHours', new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 1 }).format(data.hours)],
+    ['kpiOpenClaims', money(data.openClaims)],
+  ].map(([label, value]) => `<div class="kpi-card"><span>${t(label)}</span><strong>${esc(String(value))}</strong></div>`).join('');
 }
 function renderSites() {
   $('#main').innerHTML = heading('sitesTitle', 'sitesSub', button('newSite', 'new-site', '', 'primary')) + `<div class="site-grid">${state.sites.map(site => {
@@ -609,7 +644,7 @@ async function handleImport(form) {
   const applied = await api.applyImport({ ...input, preview_token: importPreview.token });
   importPreview = null;
   closeModal();
-  coreCache.clear();
+  coreCache.clear(); overviewCache.clear();
   await loadData();
   toast(t('importApplied'));
   return applied;
@@ -732,8 +767,27 @@ function showPasswordForm() {
 function showEmailForm(kind) {
   showModal(t(kind === 'request' ? 'requestAccess' : 'forgotPassword'), `<form id="${kind}-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><label class="field">${t('email')}<input name="email" type="email" autocomplete="email" required maxlength="254"></label>${formActions()}</form>`);
 }
+async function fillLocationSuggestions(input) {
+  const query = input.value.trim();
+  const list = document.querySelector('#location-options');
+  const hint = document.querySelector('#location-hint');
+  if (!list) return;
+  if (query.length < 3) { list.innerHTML = ''; if (hint) hint.textContent = ''; return; }
+  try {
+    const response = await api.searchLocations(query);
+    list.innerHTML = response.results.map(row => `<option value="${esc(row.label)}"></option>`).join('');
+    if (hint) hint.textContent = response.results.length ? '' : t('locationNoResult');
+  } catch { if (hint) hint.textContent = t('locationUnavailable'); }
+}
+function wireLocationLookup() {
+  const input = document.querySelector('#field-location');
+  if (!input) return;
+  let timer;
+  input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => { void fillLocationSuggestions(input); }, 400); });
+}
 function showSiteForm() {
-  showModal(t('newSite'), `<form id="site-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('code', 'code', '', { required: true, max: 30, hint: 'codeHint' })}${field('name', 'name', '', { required: true, max: 120 })}${field('location', 'location', '', { full: true, max: 160 })}${field('startDate', 'start', today(), { type: 'date' })}${field('endDate', 'end', '', { type: 'date' })}</div>${formActions()}</form>`);
+  showModal(t('newSite'), `<form id="site-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('code', 'code', '', { required: true, max: 30, hint: 'codeHint' })}${field('name', 'name', '', { required: true, max: 120 })}<label class="field full" for="field-location"><span>${t('location')} <small>(${t('optional')})</small></span><input name="location" id="field-location" list="location-options" autocomplete="off" maxlength="160" placeholder="${t('locationHint')}"><datalist id="location-options"></datalist><small id="location-hint" class="note"></small></label>${field('startDate', 'start', today(), { type: 'date' })}${field('endDate', 'end', '', { type: 'date' })}</div>${formActions()}</form>`);
+  wireLocationLookup();
 }
 function showTaskForm() {
   showModal(t('newTask'), `<form id="task-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', '', { full: true, required: true, max: 180 })}${field('area', 'area', '', { max: 100 })}${field('company', 'company', '', { max: 100 })}${field('assignee', 'assignee', '', { required: true })}${field('reviewer', 'reviewer', '', { required: true })}${field('priority', 'priority', '', { options: PRIORITIES.map(priority => `<option value="${esc(priority)}">${esc(t(priority))}</option>`).join(''), required: true })}${field('due', 'due', today(), { type: 'date' })}</div>${formActions()}</form>`);

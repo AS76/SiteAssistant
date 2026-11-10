@@ -168,3 +168,10 @@ footer{font-size:11px}
 .core-table tr.column-filters th{padding:6px 8px;background:#f7faf9}
 .core-table tr.column-filters input{width:100%;border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:12px;font-weight:400}
 @media(max-width:800px){.core-table th.sortable{display:none}}
+
+.overview-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:0 0 22px}
+.kpi-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.kpi-card span{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+.kpi-card strong{font-size:24px;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.kpi-loading{grid-column:1/-1;color:var(--muted);font-size:12px}
+@media(max-width:800px){.overview-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
