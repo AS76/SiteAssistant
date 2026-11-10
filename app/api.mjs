@@ -83,6 +83,7 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     listEmployees: async (filters = {}) => (await request(`/api/employees${query(wireFilters(filters))}`)).map(camelRecord),
     assistantChat: input => request('/api/assistant/chat', input),
     searchLocations: async query => request(`/api/location/search?q=${encodeURIComponent(query)}`),
+    dashboard: siteId => request(`/api/dashboard?site_id=${encodeURIComponent(siteId)}`),
     previewImport: input => request('/api/import/preview', input),
     applyImport: input => request('/api/import/apply', input),
     listProgressTypes: async siteId => request(`/api/progress-types${query({ site_id: siteId })}`),

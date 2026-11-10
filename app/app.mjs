@@ -234,41 +234,56 @@ function renderOverview() {
     `<div id="overview-kpis" class="overview-kpis" aria-live="polite"></div><div class="date-caption">${t('today')} · ${new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}</div>` +
     `<div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div>` +
     `<div class="grid-overview"><section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section><div class="summary-stack"><section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack"><div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div><div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div></div></div></section><section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2><span class="badge">${t('draft')}</span></div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}<a class="subtitle" href="#diary">${t('openDiary')} →</a></div></section></div></div>`;
-  void loadOverviewKpis();
+  void loadOverviewDashboard();
 }
 
-// Overview KPIs: four numbers a site manager checks first. Fetched lazily and kept per site
-// so switching views does not fire four requests every time.
+// Overview dashboard: counters plus three small charts, computed server-side per site and cached.
 const overviewCache = new Map();
-async function loadOverviewKpis() {
+const STATUS_COLORS = { open: '#b96027', approved: '#3b69a0', in_progress: '#126c57',
+  work_completed: '#6b8f86', closed: '#377348', rejected: '#a73c37' };
+function donut(data, total) {
+  const radius = 54, circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  const arcs = data.filter(row => row.count > 0).map(row => {
+    const fraction = total ? row.count / total : 0;
+    const segment = `<circle r="${radius}" cx="70" cy="70" fill="transparent" stroke="${STATUS_COLORS[row.status] || '#94a3a3'}" stroke-width="18" stroke-dasharray="${(fraction * circumference).toFixed(2)} ${circumference.toFixed(2)}" stroke-dashoffset="${(-offset * circumference).toFixed(2)}" transform="rotate(-90 70 70)"></circle>`;
+    offset += fraction;
+    return segment;
+  }).join('');
+  return `<svg class="donut" viewBox="0 0 140 140" role="img" aria-label="${t('dashDeviations')}"><circle r="${radius}" cx="70" cy="70" fill="transparent" stroke="#edf1ef" stroke-width="18"></circle>${arcs}<text x="70" y="68" text-anchor="middle" class="donut-value">${total}</text></svg>`;
+}
+function sectionBars(rows) {
+  const max = Math.max(1, ...rows.map(row => Math.max(row.actual ?? 0, row.planned ?? 0)));
+  return `<ul class="mini-bars">${rows.map(row => `<li><span class="bar-label">${esc(row.section)}</span><span class="bar-track"><span class="bar-actual" style="width:${((row.actual ?? 0) / max * 100).toFixed(1)}%"></span>${row.planned == null ? '' : `<span class="bar-planned" style="left:${(row.planned / max * 100).toFixed(1)}%"></span>`}</span><span class="bar-value">${row.actual == null ? '—' : `${row.actual}%`}</span></li>`).join('')}</ul>`;
+}
+async function loadOverviewDashboard() {
   const target = document.querySelector('#overview-kpis');
   const selected = siteId;
   if (!target || !selected) return;
   target.innerHTML = `<span class="kpi-loading">${t('loading')}</span>`;
   let data = overviewCache.get(selected);
   if (!data) {
-    try {
-      const [progress, deviations, bookings, impacts] = await Promise.all([
-        freshApi.listProgress({ siteId: selected }), freshApi.listDeviations({ siteId: selected }),
-        freshApi.listBookings({ siteId: selected }), freshApi.listImpacts({ siteId: selected }),
-      ]);
-      const values = progress.map(row => Number(row.progressPct)).filter(Number.isFinite);
-      data = {
-        progress: values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null,
-        openDeviations: deviations.filter(row => !['closed', 'rejected'].includes(row.status)).length,
-        hours: bookings.reduce((sum, row) => sum + Number(row.hours || 0), 0),
-        openClaims: impacts.filter(row => row.status !== 'closed').reduce((sum, row) => sum + Number(row.claimAmount || 0), 0),
-      };
-      overviewCache.set(selected, data);
-    } catch { target.innerHTML = `<span class="kpi-loading">${t('apiError')}</span>`; return; }
+    try { data = await freshApi.dashboard(selected); overviewCache.set(selected, data); }
+    catch { target.innerHTML = `<span class="kpi-loading">${t('apiError')}</span>`; return; }
   }
   if (selected !== siteId || !document.body.contains(target)) return;
-  target.innerHTML = [
-    ['kpiProgress', data.progress == null ? t('coreUnknown') : `${data.progress}%`],
-    ['kpiOpenDeviations', data.openDeviations],
-    ['kpiBookedHours', new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 1 }).format(data.hours)],
-    ['kpiOpenClaims', money(data.openClaims)],
-  ].map(([label, value]) => `<div class="kpi-card"><span>${t(label)}</span><strong>${esc(String(value))}</strong></div>`).join('');
+  const total = data.deviations.reduce((sum, row) => sum + row.count, 0);
+  const openDeviations = data.deviations.filter(row => !['closed', 'rejected'].includes(row.status)).reduce((sum, row) => sum + row.count, 0);
+  const hoursTotal = data.hours.reduce((sum, row) => sum + row.hours, 0);
+  const number = value => new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 1 }).format(value);
+  const maxHours = Math.max(1, ...data.hours.map(row => row.hours));
+  target.innerHTML = `<div class="kpi-row">${[
+    ['kpiOpenDeviations', openDeviations],
+    ['kpiBookedHours', number(hoursTotal)],
+    ['kpiOpenClaims', money(data.claims.open)],
+    ['kpiSettledClaims', money(data.claims.settled)],
+  ].map(([label, value]) => `<div class="kpi-card"><span>${t(label)}</span><strong>${esc(String(value))}</strong></div>`).join('')}</div>
+  <div class="dash-grid">
+    <section class="panel"><div class="panel-header"><h2>${t('dashDeviations')}</h2></div><div class="panel-body dash-donut">${donut(data.deviations, total)}
+      <ul class="donut-legend">${data.deviations.map(row => `<li><i style="background:${STATUS_COLORS[row.status] || '#94a3a3'}"></i>${esc(t(row.status))}<strong>${row.count}</strong></li>`).join('')}</ul></div></section>
+    <section class="panel"><div class="panel-header"><h2>${t('dashProgress')}</h2></div><div class="panel-body">${data.progress.length ? sectionBars(data.progress) : `<p class="note">${t('noResults')}</p>`}</div></section>
+    <section class="panel"><div class="panel-header"><h2>${t('dashHours')}</h2></div><div class="panel-body">${data.hours.length ? `<ul class="mini-bars">${data.hours.map(row => `<li><span class="bar-label">${esc(row.week)}</span><span class="bar-track"><span class="bar-actual" style="width:${(row.hours / maxHours * 100).toFixed(1)}%"></span></span><span class="bar-value">${number(row.hours)}</span></li>`).join('')}</ul>` : `<p class="note">${t('noResults')}</p>`}</div></section>
+  </div>`;
 }
 function renderSites() {
   $('#main').innerHTML = heading('sitesTitle', 'sitesSub', button('newSite', 'new-site', '', 'primary')) + `<div class="site-grid">${state.sites.map(site => {

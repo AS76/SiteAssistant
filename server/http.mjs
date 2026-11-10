@@ -15,6 +15,7 @@ import { listCostImpacts, getCostImpact, createCostImpact, transitionCostImpact 
 import { listTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForItem } from './time_bookings.mjs';
 import { chat as assistantChat } from './assistant.mjs';
 import { searchPlaces } from './geocode.mjs';
+import { dashboard } from './dashboard.mjs';
 import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
 import { importRequest, MAX_IMPORT_BYTES } from './planning-import.mjs';
 import {
@@ -147,6 +148,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, { user: result.user });
       }
       const user = path.startsWith('/api/') ? await authenticate(db, request.headers.cookie) : null;
+      if (path === '/api/dashboard' && method === 'GET') {
+        return json(response, 200, await dashboard(db, { siteId: url.searchParams.get('site_id'), user }));
+      }
       if (path === '/api/location/search' && method === 'GET') {
         const query = url.searchParams.get('q') || '';
         return json(response, 200, { results: await searchPlaces(query) });
