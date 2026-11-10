@@ -1,8 +1,23 @@
 # SiteAssistant
 
-Prima web app per cantieri, attività e diario giornaliero, con interfaccia italiano/inglese.
+**Built on site. For people working on site.**
 
-Documentazione utente e tecnica (IT/EN): <https://as76.github.io/SiteAssistant/>. Sorgente in `docs-site/`, pubblicata automaticamente da GitHub Actions a ogni modifica su `main`.
+SiteAssistant è una web app che aiuta chi gestisce un cantiere a tenere insieme, in un solo posto, le cose che di solito vivono separate: le attività da eseguire e verificare, il diario di giornata, la struttura dei lavori (WBS), le presenze e l'avanzamento. Non è un ERP: è lo strumento che manca tra il piano e la realtà quotidiana del cantiere.
+
+Nasce dall'esperienza diretta nella gestione di cantieri industriali e di intralogistica, dove informazioni, verifiche e reporting spesso convivono in fogli e sistemi diversi. Stiamo costruendo qualcosa di utile partendo dal campo — e altre persone possono aiutarci a renderlo migliore.
+
+## Stato
+
+Progetto in sviluppo. Il nucleo (cantieri, attività con verifica, diario, allegati, WBS, presenze, avanzamento, deviazioni, ore, impatti economici) è implementato e in produzione su dati sintetici. Non è un prodotto finito: alcune funzioni esistono solo via API, e il supporto offline è in arrivo.
+
+## Documentazione
+
+- Manuale utente (IT/EN): <https://as76.github.io/SiteAssistant/>
+- Architettura e stack reale: [docs/architecture.md](docs/architecture.md)
+
+## Partecipa
+
+Contribuire non significa solo scrivere codice: una segnalazione ben descritta o una proposta su un flusso di cantiere valgono quanto una pull request. Leggi [CONTRIBUTING.md](CONTRIBUTING.md) e apri una [Issue](https://github.com/AS76/SiteAssistant/issues).
 
 ## Avvio
 

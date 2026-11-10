@@ -22,6 +22,12 @@ Questa documentazione spiega **come si usa SiteAssistant in cantiere**: cosa puo
 
 Se sai già cosa cerchi, usa la **ricerca** in alto: indicizza tutte le pagine, in italiano e in inglese.
 
+## Perché nasce SiteAssistant
+
+SiteAssistant nasce dall'esperienza diretta nella gestione di cantieri industriali e di intralogistica. In quei contesti, informazioni, attività, verifiche e reporting convivono spesso in strumenti separati — fogli, email, app diverse — e chi coordina il cantiere perde tempo a ricomporli.
+
+Non è un ERP, e non vuole esserlo. È il livello che manca tra il piano e la realtà quotidiana del cantiere: un posto unico per sapere cosa va fatto, chi lo sta facendo, cosa è stato verificato e cosa è successo oggi.
+
 <CardGrid>
   <LinkCard
     title="Accesso e account"
@@ -60,3 +66,13 @@ Se sai già cosa cerchi, usa la **ricerca** in alto: indicizza tutte le pagine, 
 :::caution[Dati reali]
 La versione attuale è una demo operativa. Non inserire informazioni riservate, credenziali o dati contrattuali. Vedi [Stato del prodotto](note/rilascio/) per il perimetro esatto.
 :::
+
+## Partecipa al progetto
+
+SiteAssistant è open source e aperto ai contributi. Contribuire non significa solo scrivere codice.
+
+- **Sviluppatori** — frontend, backend, database, test, accessibilità, documentazione.
+- **Professionisti di cantiere** — Site Manager, Installation Manager, Commissioning Engineer: condividete esigenze reali e valutate i flussi operativi.
+- **Tester e UX** — segnalate problemi di usabilità e proponete miglioramenti.
+
+Una segnalazione ben descritta o una proposta costruttiva valgono quanto una pull request. Leggi [CONTRIBUTING.md](https://github.com/AS76/SiteAssistant/blob/main/CONTRIBUTING.md) e apri una [Issue](https://github.com/AS76/SiteAssistant/issues).

@@ -22,6 +22,12 @@ This documentation explains **how to use SiteAssistant on site**: what you can d
 
 If you know what you are looking for, use the **search** box at the top: it indexes every page, in Italian and English.
 
+## Why SiteAssistant exists
+
+SiteAssistant comes from first-hand experience managing industrial and intralogistics construction sites. In those environments, information, tasks, reviews and reporting often live in separate tools — spreadsheets, email, different apps — and whoever coordinates the site spends time putting them back together.
+
+It is not an ERP, and it does not want to be one. It is the layer that is missing between the plan and the daily reality of the site: a single place to know what needs doing, who is doing it, what has been verified, and what happened today.
+
 <CardGrid>
   <LinkCard
     title="Sign in and account"
@@ -60,3 +66,13 @@ If you know what you are looking for, use the **search** box at the top: it inde
 :::caution[Real data]
 The current version is an operational demo. Do not enter confidential information, credentials or contractual data. See [Product status](note/rilascio/) for the exact scope.
 :::
+
+## Get involved
+
+SiteAssistant is open source and open to contributions. Contributing does not mean writing code only.
+
+- **Developers** — frontend, backend, database, testing, accessibility, documentation.
+- **Site & construction professionals** — Site Managers, Installation Managers, Commissioning Engineers: share real needs and review the operational flows.
+- **Testers & UX contributors** — report usability issues and propose improvements.
+
+A well-described report or a constructive proposal is as valuable as a pull request. Read [CONTRIBUTING.md](https://github.com/AS76/SiteAssistant/blob/main/CONTRIBUTING.md) and open an [Issue](https://github.com/AS76/SiteAssistant/issues).
