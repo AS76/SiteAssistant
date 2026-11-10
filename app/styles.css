@@ -197,3 +197,22 @@ footer{font-size:11px}
 .bar-value{font-variant-numeric:tabular-nums;color:var(--ink)}
 @media(max-width:1000px){.dash-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:800px){.kpi-row{grid-template-columns:repeat(2,minmax(0,1fr))}.dash-grid{grid-template-columns:1fr}.dash-donut{flex-direction:column}}
+
+/* Phones: board columns become an accordion, one status open at a time. */
+.board-accordion{display:grid;gap:10px}
+.board-status{border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}
+.board-status>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;font-weight:600;cursor:pointer;list-style:none}
+.board-status>summary::-webkit-details-marker{display:none}
+.board-status>summary::after{content:'▾';color:var(--muted);margin-left:4px}
+.board-status[open]>summary::after{content:'▴'}
+.board-status>summary .count{color:var(--muted);font-variant-numeric:tabular-nums;margin-left:auto;margin-right:6px}
+.board-status .task-card,.board-status .mini-empty{margin:0 12px 12px}
+.core-board-accordion .board-status .task-card{margin:0 12px 12px}
+
+/* Touch targets: 44px minimum for anything a gloved thumb hits in the field. */
+#settings-button,#language,.password-toggle{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+.password-row{position:relative;display:block}
+.password-row input{width:100%;padding-right:52px}
+.password-toggle{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:16px;color:var(--muted)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+@media(max-width:800px){.ai-panel{bottom:calc(84px + env(safe-area-inset-bottom));max-height:64vh}}

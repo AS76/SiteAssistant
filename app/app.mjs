@@ -288,7 +288,8 @@ async function loadOverviewDashboard() {
 function renderSites() {
   $('#main').innerHTML = heading('sitesTitle', 'sitesSub', button('newSite', 'new-site', '', 'primary')) + `<div class="site-grid">${state.sites.map(site => {
     const tasks = state.tasks.filter(task => task.siteId === site.id), count = counts(tasks);
-    return `<article class="site-card ${site.id === siteId ? 'selected' : ''}"><span class="site-code">${esc(site.code)}</span><h2>${esc(site.name)}</h2><p>${esc(site.location || '—')}</p><div class="site-counts"><span><strong>${tasks.length}</strong>${t('tasks')}</span><span><strong>${tasks.length - count.closed}</strong>${t('nonClosed')}</span></div><p>${site.start ? dateLabel(site.start) : '—'} → ${site.end ? dateLabel(site.end) : '—'}</p>${button(site.id === siteId ? 'selected' : 'openSite', 'select-site', `data-id="${esc(site.id)}"`, site.id === siteId ? 'small' : 'primary small')}</article>`;
+    return `<article class="site-card ${site.id === siteId ? 'selected' : ''}"><span class="site-code">${esc(site.code)}</span><h2>${esc(site.name)}</h2><p>${esc(site.location || '—')}</p><div class="site-counts"><span><strong>${tasks.length}</strong>${t('tasks')}</span><span><strong>${tasks.length - count.closed}</strong>${t('nonClosed')}</span></div>
+      <div class="progress-track" aria-hidden="true"><span style="width:${tasks.length ? count.closed / tasks.length * 100 : 0}%"></span></div><p>${site.start ? dateLabel(site.start) : '—'} → ${site.end ? dateLabel(site.end) : '—'}</p>${button(site.id === siteId ? 'selected' : 'openSite', 'select-site', `data-id="${esc(site.id)}"`, site.id === siteId ? 'small' : 'primary small')}</article>`;
   }).join('')}</div>`;
 }
 function filteredTasks() {
@@ -307,10 +308,15 @@ function renderTaskResults() {
   const tasks = filteredTasks();
   let html = `<p class="note" role="status">${tasks.length} ${t('resultCount')} · ${siteTasks().length - counts(siteTasks()).closed} ${t('nonClosed')}</p>`;
   if (!tasks.length) html += `<section class="panel">${empty('noResults', 'noResultsHint', button('clearFilters', 'clear-filters'))}</section>`;
-  else if (taskView === 'board') html += `<div class="board">${STATUSES.map(status => {
-    const column = tasks.filter(task => task.status === status);
-    return `<section class="board-column" aria-label="${t(status)}"><div class="column-heading"><span>${t(status)}</span><span>${column.length}</span></div>${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</section>`;
-  }).join('')}</div>`;
+  else if (taskView === 'board') {
+    const columns = STATUSES.map(status => ({ status, column: tasks.filter(task => task.status === status) }));
+    // On a phone the columns would need horizontal panning: one status open at a time, by thumb.
+    html += compactNavigation()
+      ? `<div class="board-accordion">${columns.map(({ status, column }, index) => `<details class="board-status" ${index === 0 ? 'open' : ''}>
+          <summary><span>${t(status)}</span><span class="count">${column.length}</span></summary>
+          ${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</details>`).join('')}</div>`
+      : `<div class="board">${columns.map(({ status, column }) => `<section class="board-column" aria-label="${t(status)}"><div class="column-heading"><span>${t(status)}</span><span>${column.length}</span></div>${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</section>`).join('')}</div>`;
+  }
   else html += `<div class="table-scroll"><table><thead><tr>${['title', 'area', 'status', 'company', 'assignee', 'reviewer', 'due'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${tasks.map(task => `<tr><td><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></td><td>${esc(task.area || '—')}</td><td>${badge(task.status)} ${syncBadge(task)}</td><td>${esc(task.company)}</td><td>${personName(task.assignee)}</td><td>${personName(task.reviewer)}</td><td>${dueMarkup(task)}</td></tr>`).join('')}</tbody></table></div>`;
   $('#task-results').innerHTML = html;
 }
@@ -424,7 +430,7 @@ const coreValue = value => esc(value ?? t('coreUnknown'));
 const coreStatus = (value, label = t(value || 'coreUnknown')) => `<span class="badge core-status core-status-${esc(value || 'unknown')}">${esc(label)}</span>`;
 // Impact statuses have their own vocabulary: the tasks labels would say «Chiuse» for a claim.
 const impactLabel = status => t({ open: 'impactOpen', notification_sent: 'impactNotification', submitted: 'impactSubmitted', closed: 'impactClosed' }[status] || status || 'coreUnknown');
-const coreNumber = value => value == null ? t('coreUnknown') : new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 4 }).format(Number(value));
+const coreNumber = value => value == null ? t('coreUnknown') : `<span class="mono">${new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 4 }).format(Number(value))}</span>`;
 const employeeLabel = employee => employee ? [employee.employeeNo, employee.firstName, employee.lastName].filter(Boolean).join(' · ') || employee.id : t('coreUnknown');
 const progressLabel = item => item?.description || item?.id || t('coreUnknown');
 function coreSelect(key, label, options, value, allLabel) {
@@ -526,10 +532,12 @@ function renderDeviations() {
   const visible = filter.status === '__unknown' ? filterSortRecords(all, { ...filter, status: null }, [{ key: 'creationDate', descending: true }, { key: 'deviationNo' }]) : rows;
   const card = row => `<button type="button" class="task-card" data-command="core-detail" data-module="deviations" data-id="${esc(row.id)}"><span class="card-code">${coreValue(row.deviationNo)}</span><h2>${esc(row.title || row.id)}</h2>${coreStatus(row.status)}<p>${t('priority')}: ${coreValue(row.priority == null ? null : t(row.priority))}</p><p>${coreValue(row.assignedTo)}</p></button>`;
   if (deviationView === 'board') {
-    html += `<div class="core-board" tabindex="0" role="region" aria-label="${t('coreDeviationBoard')}">${DEVIATION_STATUSES.map(status => {
-      const column = visible.filter(row => row.status === status);
-      return `<section class="core-column"><div class="column-heading"><span>${t(status)}</span><span>${column.length}</span></div>${column.length ? column.map(card).join('') : `<p class="mini-empty">${t('coreEmptyColumn')}</p>`}</section>`;
-    }).join('')}</div>`;
+    const columns = DEVIATION_STATUSES.map(status => ({ status, column: visible.filter(row => row.status === status) }));
+    html += compactNavigation()
+      ? `<div class="board-accordion core-board-accordion">${columns.map(({ status, column }, index) => `<details class="board-status" ${index === 0 ? 'open' : ''}>
+          <summary><span>${t(status)}</span><span class="count">${column.length}</span></summary>
+          ${column.length ? column.map(card).join('') : `<p class="mini-empty">${t('coreEmptyColumn')}</p>`}</details>`).join('')}</div>`
+      : `<div class="core-board" tabindex="0" role="region" aria-label="${t('coreDeviationBoard')}">${columns.map(({ status, column }) => `<section class="core-column"><div class="column-heading"><span>${t(status)}</span><span>${column.length}</span></div>${column.length ? column.map(card).join('') : `<p class="mini-empty">${t('coreEmptyColumn')}</p>`}</section>`).join('')}</div>`;
     const unknown = visible.filter(row => !DEVIATION_STATUSES.includes(row.status));
     if (unknown.length) html += `<section class="core-unknown"><h2>${t('coreUnmappedStatus')}</h2>${unknown.map(card).join('')}</section>`;
   } else html += visible.length ? coreTable(['coreReference', 'title', 'status', 'priority', 'coreAssignedTo', 'coreCreated', 'coreClosed'], visible.map(row => [coreValue(row.deviationNo), coreDetailButton('deviations', row), coreStatus(row.status), coreValue(row.priority == null ? null : t(row.priority)), coreValue(row.assignedTo), coreValue(row.creationDate), coreValue(row.closedDate)])) : empty('noResults', 'noResultsHint');
@@ -577,8 +585,13 @@ function progressStepsSection(row) {
 // Assistant: one conversation at a time, kept in memory for the session.
 let aiMessages = [], aiBusy = false;
 const AI_SUGGESTIONS = {
-  overview: ['aiSuggestOverview'], tasks: ['aiSuggestTasks'], deviations: ['aiSuggestDeviations'],
-  progress: ['aiSuggestProgress'], bookings: ['aiSuggestBookings'], impacts: ['aiSuggestImpacts'], diary: ['aiSuggestDiary'],
+  overview: ['aiSuggestOverview', 'aiSuggestOverviewHours', 'aiSuggestOverviewClaims'],
+  tasks: ['aiSuggestTasks', 'aiSuggestTasksBlocked', 'aiSuggestTasksDue'],
+  deviations: ['aiSuggestDeviations', 'aiSuggestDeviationsByArea', 'aiSuggestDeviationsOld'],
+  progress: ['aiSuggestProgress', 'aiSuggestProgressBooked', 'aiSuggestProgressSections'],
+  bookings: ['aiSuggestBookings', 'aiSuggestBookingsWeek', 'aiSuggestBookingsMissing'],
+  impacts: ['aiSuggestImpacts', 'aiSuggestImpactsOpen', 'aiSuggestImpactsSettled'],
+  diary: ['aiSuggestDiary', 'aiSuggestDiaryBlockers', 'aiSuggestDiaryWeek'],
 };
 const AI_MODULES = { deviations: 'deviations', site_progress_items: 'progress', cost_impacts: 'impacts' };
 function renderAssistant() {
@@ -688,7 +701,12 @@ async function showCoreDetail(module, id) {
       const typeLabels = { site_progress_item: 'coreProgressItem', task: 'tasks', diary: 'diary' };
       content += `<h3>${t('coreReferences')}</h3>${row.links?.length ? `<ul class="core-links">${row.links.map(link => `<li>${esc(t(typeLabels[link.entityType] || 'coreReference'))}: ${esc(link.entityId)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`}`;
     } else if (module === 'progress') {
-      content = progressBar(row.progressPct) + coreFields(row, [['description', 'coreDescription'], ['section', 'coreSection'], ['plcArea', 'area'], ['wbsId', 'wbs'], ['assignedTo', 'coreAssignedTo'], ['progressPct', 'coreProgressPct'], ['plannedProgressPct', 'corePlannedPct'], ['deltaProgressSource', 'coreDeltaPct'], ['bookedHours', 'coreBookedHours'], ['plannedStart', 'wbsPlannedStart'], ['plannedFinish', 'wbsPlannedFinish'], ['actualStart', 'coreActualStart'], ['expectedDelay', 'coreExpectedDelay'], ['hasFiles', 'coreHasFiles'], ['hasNotes', 'coreHasNotes'], ['hasDeviations', 'coreHasDeviations']]);
+      const wbsNodes = coreData('wbs') || [];
+      const wbsCode = nodeId => wbsNodes.find(node => node.id === nodeId)?.wbs_code ?? null;
+      const day = value => value ? dateLabel(String(value).slice(0, 10)) : null;
+      content = progressBar(row.progressPct) + coreFields({ ...row, wbsId: wbsCode(row.wbsId),
+        plannedStart: day(row.plannedStart), plannedFinish: day(row.plannedFinish), actualStart: day(row.actualStart) },
+      [['description', 'coreDescription'], ['section', 'coreSection'], ['plcArea', 'area'], ['wbsId', 'wbs'], ['assignedTo', 'coreAssignedTo'], ['progressPct', 'coreProgressPct'], ['plannedProgressPct', 'corePlannedPct'], ['deltaProgressSource', 'coreDeltaPct'], ['bookedHours', 'coreBookedHours'], ['plannedStart', 'wbsPlannedStart'], ['plannedFinish', 'wbsPlannedFinish'], ['actualStart', 'coreActualStart'], ['expectedDelay', 'coreExpectedDelay'], ['hasFiles', 'coreHasFiles'], ['hasNotes', 'coreHasNotes'], ['hasDeviations', 'coreHasDeviations']]);
       content += progressStepsSection(row);
     } else {
       content = coreFields({ ...row, status: impactLabel(row.status), claimAmount: row.claimAmount == null ? null : money(row.claimAmount),
@@ -749,7 +767,7 @@ function render() {
   $('#main').setAttribute('aria-busy', String(loading));
   if (loading) { $('#main').innerHTML = `<p role="status">${t('loading')}</p>`; return; }
   if (!session && (!loadError || loadError.status === 401)) {
-    $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<input name="password" type="password" autocomplete="current-password" required maxlength="1024"></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button></div></form><div class="heading-actions">${button('requestAccess', 'request-access')}${button('forgotPassword', 'forgot-password')}</div></div></section>`;
+    $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<span class="password-row"><input name="password" type="password" autocomplete="current-password" required maxlength="1024"><button type="button" class="text-button password-toggle" data-command="toggle-password" aria-label="${t('showPassword')}">◉</button></span></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button></div></form><div class="heading-actions">${button('requestAccess', 'request-access')}${button('forgotPassword', 'forgot-password')}</div></div></section>`;
     return;
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
@@ -943,6 +961,12 @@ document.addEventListener('click', event => {
     csv: exportCsv, print: () => window.print(),
     'import-open': showImportForm,
     'column-filters': () => { columnFiltersOn = !columnFiltersOn; render(); },
+    'toggle-password': () => {
+      const input = document.querySelector('#login-form [name=password]') || document.querySelector('form [name=password]');
+      if (!input) return;
+      input.type = input.type === 'password' ? 'text' : 'password';
+      input.focus();
+    },
     'open-settings': showSettingsForm,
     'ai-open': () => { const panel = $('#ai-panel'); panel.hidden = false; $('#ai-fab').setAttribute('aria-expanded', 'true'); renderAssistant(); $('#ai-form [name=message]').focus(); },
     'ai-close': () => { $('#ai-panel').hidden = true; $('#ai-fab').setAttribute('aria-expanded', 'false'); $('#ai-fab').focus(); },
