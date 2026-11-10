@@ -71,6 +71,12 @@ npm run build       # builds the site and checks internal links
 
 Keep the change scoped. Do not include unrelated edits in a pull request.
 
+### Browser check of the UI (optional, local)
+
+The four core views (deviations, progress, bookings, cost impacts) can be checked in a real headless browser without a database or credentials: serve `app/` from a small static server that answers `/api/*` with synthetic fixtures, then drive it with Playwright (Chromium headless shell) at 1440, 390 and 360 px. The check asserts the board columns, the rows and progress bars, the quick-entry form, the KPI panels and zero horizontal overflow, and saves screenshots for visual review.
+
+Keep the harness outside the repository: it needs a Chromium download and must not become a runtime or CI dependency. Cap the daily number of runs (a counter file) so the check stays cheap.
+
 ## Working together
 
 - Be respectful and constructive. Disagreement about an idea is fine; personal criticism is not.
