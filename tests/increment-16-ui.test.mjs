@@ -102,10 +102,10 @@ test('WBS flattening reuses tree records and handles empty leaf children', () =>
   const rows = flattenWbs(nodes); assert.deepEqual(rows.map(row => row.id), ['a', 'b', 'c']); assert.equal(rows[1], nodes[0].children[0]); assert.equal(nodes[0].children.length, 2);
 });
 test('core role permissions and claim transitions match the backend contract', () => {
-  assert.deepEqual(corePermissions('owner'), { book: true, transition: true });
-  assert.deepEqual(corePermissions('editor'), { book: true, transition: false });
-  assert.deepEqual(corePermissions('verifier'), { book: false, transition: true });
-  for (const role of ['viewer', undefined, 'unknown']) assert.deepEqual(corePermissions(role), { book: false, transition: false });
+  assert.deepEqual(corePermissions('owner'), { book: true, transition: true, steps: true, assign: true });
+  assert.deepEqual(corePermissions('editor'), { book: true, transition: false, steps: true, assign: false });
+  assert.deepEqual(corePermissions('verifier'), { book: false, transition: true, steps: false, assign: false });
+  for (const role of ['viewer', undefined, 'unknown']) assert.deepEqual(corePermissions(role), { book: false, transition: false, steps: false, assign: false });
   assert.deepEqual(impactTransitions('open'), ['notification_sent', 'closed']); assert.deepEqual(impactTransitions('notification_sent'), ['submitted']);
   assert.deepEqual(impactTransitions('submitted'), ['closed']); assert.deepEqual(impactTransitions('closed'), []);
   impactTransitions('open').pop(); assert.equal(impactTransitions('open').length, 2);

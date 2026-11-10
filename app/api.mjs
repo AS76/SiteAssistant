@@ -81,6 +81,11 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     })),
     listWorkDays: async (filters = {}) => (await request(`/api/work-days${query(wireFilters(filters))}`)).map(camelRecord),
     listEmployees: async (filters = {}) => (await request(`/api/employees${query(wireFilters(filters))}`)).map(camelRecord),
+    listProgressTypes: async siteId => request(`/api/progress-types${query({ site_id: siteId })}`),
+    assignProgressType: async (id, progressTypeId) => progressFromApi(await request(
+      `/api/site-progress/${encodeURIComponent(id)}/progress-type`, { progress_type_id: progressTypeId }, { method: 'PATCH' })),
+    setStepProgress: async (id, steps) => progressFromApi(await request(
+      `/api/site-progress/${encodeURIComponent(id)}/steps`, { steps }, { method: 'PUT' })),
     listWbs: (siteId, flat = false) => request(`/api/wbs${query({ site_id: siteId, flat: flat ? 1 : undefined })}`),
     getWbs: id => request(`/api/wbs/${encodeURIComponent(id)}`),
     listDiary: async (filters = {}) => (await request(`/api/diary${query(filters)}`)).map(diaryFromApi),

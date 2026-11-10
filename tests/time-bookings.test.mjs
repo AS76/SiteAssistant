@@ -170,7 +170,7 @@ for (const driver of ['sqlite', 'pg']) test(`Time bookings ${driver}: writes, ag
     t.assert.strictEqual(first.booked_hours, 3.75);
     t.assert.strictEqual(second.booked_hours, 20);
     const detail = await api(`/api/site-progress/${f.items[0]}`, { cookie: auth.cookies.viewer });
-    t.assert.deepStrictEqual(detail.body, first);
+    t.assert.deepStrictEqual(detail.body, { ...first, steps: [] });
     t.assert.strictEqual((await listProgress('verifier')).status, 403);
   });
 });

@@ -8,6 +8,13 @@ const fields = ['description', 'plc_area', 'section', 'progress_pct', 'planned_p
   'expected_delay', 'has_files', 'has_notes', 'has_deviations'];
 const dateFields = ['planned_start', 'planned_finish', 'actual_start'];
 const booleanFields = ['has_files', 'has_notes', 'has_deviations'];
+// Effective progress: computed when the item has a progress type, imported otherwise (no cycle with progress-types.mjs).
+const effectiveProgress = (row, aggregate) => {
+  const computed = row.progress_type_id != null;
+  return { progress_pct: computed ? (aggregate == null ? 0 : Number(aggregate))
+    : row.progress_pct == null ? null : Number(row.progress_pct),
+  progress_pct_source: computed ? 'computed' : 'imported' };
+};
 const publicItem = row => ({ ...row, ...Object.fromEntries(booleanFields.map(field =>
   [field, row[field] == null ? null : Boolean(row[field])])) });
 
@@ -20,21 +27,43 @@ export async function listSiteProgress(db, { siteId: input, wbsId } = {}) {
   const site = validId(input, 'site_id'), clauses = ['s.site_id = ?'], values = [site];
   if (wbsId != null) { clauses.push('s.wbs_id = ?'); values.push(validId(wbsId, 'wbs_id')); }
   await getSite(db, site);
-  // List and detail expose the same aggregate so the UI never needs a second request.
-  return (await db.all(`SELECT s.*, COALESCE(b.booked_hours, 0) AS booked_hours
+  // List and detail expose the same aggregates so the UI never needs a second request.
+  return (await db.all(`SELECT s.*, COALESCE(b.booked_hours, 0) AS booked_hours,
+      c.progress_pct_computed
     FROM site_progress_items s LEFT JOIN (
       SELECT site_progress_item_id, SUM(hours) AS booked_hours FROM time_bookings GROUP BY site_progress_item_id
-    ) b ON b.site_progress_item_id = s.id
+    ) b ON b.site_progress_item_id = s.id LEFT JOIN (
+      -- Denominator is every step of the type, so an unrecorded step counts as zero.
+      SELECT i.id AS site_progress_item_id,
+        (SELECT COALESCE(SUM(ps.weight * st.percent * 1.0), 0) FROM site_progress_item_steps st
+          JOIN progress_type_steps ps ON ps.id = st.progress_type_step_id
+          WHERE st.site_progress_item_id = i.id)
+        / (SELECT SUM(ps2.weight) FROM progress_type_steps ps2 WHERE ps2.progress_type_id = i.progress_type_id)
+        AS progress_pct_computed
+      FROM site_progress_items i WHERE i.progress_type_id IS NOT NULL
+    ) c ON c.site_progress_item_id = s.id
     WHERE ${clauses.join(' AND ')}
     ORDER BY s.section, s.plc_area, s.source_row, s.id`, ...values))
-    .map(row => ({ ...publicItem(row), booked_hours: Number(row.booked_hours) }));
+    .map(row => ({ ...publicItem(row), ...effectiveProgress(row, row.progress_pct_computed),
+      booked_hours: Number(row.booked_hours) }))
+    .map(({ progress_pct_computed, ...row }) => row);
 }
 
 export async function getSiteProgressItem(db, id) {
   const row = typeof id === 'string' && uuid.test(id)
     ? await db.get('SELECT * FROM site_progress_items WHERE id = ?', id.toLowerCase()) : null;
   if (!row) fail(404, 'Site progress item not found.', 'SITE_PROGRESS_ITEM_NOT_FOUND');
-  return publicItem(row);
+  const aggregate = row.progress_type_id == null ? null
+    : (await db.get(`SELECT (SELECT COALESCE(SUM(ps.weight * st.percent * 1.0), 0) FROM site_progress_item_steps st
+        JOIN progress_type_steps ps ON ps.id = st.progress_type_step_id WHERE st.site_progress_item_id = ?)
+        / (SELECT SUM(ps2.weight) FROM progress_type_steps ps2 WHERE ps2.progress_type_id = ?) AS progress_pct_computed`,
+      row.id, row.progress_type_id))?.progress_pct_computed ?? null;
+  const steps = row.progress_type_id == null ? [] : (await db.all(`SELECT ps.id, ps.code, ps.description, ps.position,
+      ps.weight, st.percent FROM progress_type_steps ps
+      LEFT JOIN site_progress_item_steps st ON st.progress_type_step_id = ps.id AND st.site_progress_item_id = ?
+      WHERE ps.progress_type_id = ? ORDER BY ps.position`, row.id, row.progress_type_id)).map(step => ({
+    ...step, weight: Number(step.weight), percent: step.percent == null ? null : Number(step.percent) }));
+  return { ...publicItem(row), ...effectiveProgress(row, aggregate), steps };
 }
 
 export async function importSiteProgress(db, inputSite, user) {

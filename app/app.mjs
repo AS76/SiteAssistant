@@ -303,7 +303,7 @@ function renderWbs() {
 // Core modules are online-only and never write to the offline operation queue.
 const role = () => session?.roles?.find(member => member.site_id === siteId)?.role;
 const permissions = () => corePermissions(role());
-const moduleResources = { deviations: ['deviations'], progress: ['progress', 'wbs'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'] };
+const moduleResources = { deviations: ['deviations'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'] };
 const coreCache = new Map();
 let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' } };
 let deviationView = 'board';
@@ -320,6 +320,7 @@ function coreResource(name) {
   cache.set(name, entry);
   const loaders = {
     deviations: () => freshApi.listDeviations({ siteId: selected }), progress: () => freshApi.listProgress({ siteId: selected }),
+    progressTypes: () => freshApi.listProgressTypes(selected),
     bookings: () => freshApi.listBookings({ siteId: selected }), impacts: () => freshApi.listImpacts({ siteId: selected }),
     workDays: () => freshApi.listWorkDays({ siteId: selected }), employees: () => freshApi.listEmployees({ siteId: selected }),
     wbs: async () => {
@@ -389,7 +390,8 @@ function renderDeviations() {
 function renderProgress() {
   const rows = filterSortRecords(coreData('progress'), coreFilters.progress, [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
   return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbs', coreData('wbs').map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), coreFilters.progress.wbsId, 'coreAllWbs')}</div>` +
-    (rows.length ? coreTable(['wbsDescription', 'coreSection', 'area', 'coreProgressPct', 'coreBookedHours'], rows.map(row => [coreDetailButton('progress', row), coreValue(row.section), coreValue(row.plcArea), progressBar(row.progressPct), coreNumber(row.bookedHours)])) : empty('noResults', 'noResultsHint'));
+    (rows.length ? coreTable(['wbsDescription', 'coreSection', 'area', 'coreProgressPct', 'coreBookedHours'], rows.map(row => [coreDetailButton('progress', row), coreValue(row.section), coreValue(row.plcArea),
+      progressBar(row.progressPct) + (row.progressPctSource === 'computed' ? ` <span class="badge">${t('coreComputed')}</span>` : ''), coreNumber(row.bookedHours)])) : empty('noResults', 'noResultsHint'));
 }
 function renderBookings() {
   const days = coreData('workDays'), employees = coreData('employees'), items = coreData('progress');
@@ -411,6 +413,19 @@ function renderImpacts() {
 function coreFields(row, fields) {
   return `<dl class="detail-grid core-details">${fields.map(([key, label = key]) => `<div><dt>${t(label)}</dt><dd>${['status', 'result', 'priority'].includes(key) && row[key] != null ? esc(t(row[key])) : typeof row[key] === 'boolean' ? t(row[key] ? 'coreYes' : 'coreNo') : coreValue(row[key])}</dd></div>`).join('')}</dl>`;
 }
+function progressStepsSection(row) {
+  const types = coreData('progressTypes') || [];
+  const type = types.find(candidate => candidate.id === row.progressTypeId);
+  const steps = row.steps || [], rights = permissions();
+  let html = `<h3>${t('coreProgressType')}</h3>`;
+  html += type ? `<p><strong>${esc(type.name)}</strong> <span class="badge">${esc(type.code)}</span></p>` : `<p>${t('coreNoProgressType')}</p>`;
+  if (steps.length) html += coreTable(['coreStep', 'coreDescription', 'coreWeight', 'coreStepPercent'],
+    steps.map(step => [esc(step.code), coreValue(step.description), coreNumber(step.weight),
+      step.percent == null ? t('coreUnknown') : `${coreNumber(step.percent)}%`]));
+  if (rights.steps && steps.length) html += `<form id="progress-steps-form" data-id="${esc(row.id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><h3>${t('coreRecordSteps')}</h3><div class="core-entry-grid">${steps.map(step => `<label class="field">${esc(step.code)}<input name="percent-${esc(step.id)}" type="number" min="0" max="100" step="1" value="${step.percent == null ? '' : esc(step.percent)}" placeholder="0"></label>`).join('')}</div><div class="form-actions"><button type="submit" class="primary">${t('coreSaveSteps')}</button></div></form>`;
+  if (rights.assign) html += `<form id="progress-type-form" data-id="${esc(row.id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><label class="field">${t('coreAssignType')}<select name="progress_type_id"><option value="">${t('coreNoProgressType')}</option>${types.map(candidate => `<option value="${esc(candidate.id)}" ${candidate.id === row.progressTypeId ? 'selected' : ''}>${esc(`${candidate.code} · ${candidate.name}`)}</option>`).join('')}</select></label><div class="form-actions"><button type="submit" class="primary">${t('coreSaveType')}</button></div></form>`;
+  return html;
+}
 async function showCoreDetail(module, id) {
   const selected = siteId;
   showModal(t('coreDetails'), `<p role="status">${t('loading')}</p>`);
@@ -428,6 +443,7 @@ async function showCoreDetail(module, id) {
       content += `<h3>${t('coreReferences')}</h3>${row.links?.length ? `<ul class="core-links">${row.links.map(link => `<li>${esc(t(typeLabels[link.entityType] || 'coreReference'))}: ${esc(link.entityId)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`}`;
     } else if (module === 'progress') {
       content = progressBar(row.progressPct) + coreFields(row, [['description', 'coreDescription'], ['section', 'coreSection'], ['plcArea', 'area'], ['wbsId', 'wbs'], ['assignedTo', 'coreAssignedTo'], ['progressPct', 'coreProgressPct'], ['plannedProgressPct', 'corePlannedPct'], ['deltaProgressSource', 'coreDeltaPct'], ['bookedHours', 'coreBookedHours'], ['plannedStart', 'wbsPlannedStart'], ['plannedFinish', 'wbsPlannedFinish'], ['actualStart', 'coreActualStart'], ['expectedDelay', 'coreExpectedDelay'], ['hasFiles', 'coreHasFiles'], ['hasNotes', 'coreHasNotes'], ['hasDeviations', 'coreHasDeviations']]);
+      content += progressStepsSection(row);
     } else {
       content = coreFields(row, [['status', 'status'], ['claimAmount', 'coreClaimAmount'], ['settlementAmount', 'coreSettlementAmount'], ['result', 'coreResult'], ['createdAt', 'coreCreated'], ['closedAt', 'coreClosed']]);
       content += `<h3>${t('coreLinkedDeviations')}</h3>${row.deviations?.length ? `<ul class="core-links">${row.deviations.map(deviation => `<li>${coreDetailButton('deviations', deviation, [deviation.deviationNo, deviation.title || deviation.id].filter(Boolean).join(' · '))} ${coreStatus(deviation.status)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`}`;
@@ -450,13 +466,24 @@ async function submitCore(form, data) {
   const selected = siteId, user = session?.user.id, version = modalVersion;
   if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
   const isImpact = form.id === 'impact-transition-form';
-  if (!(isImpact ? permissions().transition : permissions().book)) throw new Error('forbidden');
+  const isSteps = form.id === 'progress-steps-form', isType = form.id === 'progress-type-form';
+  if (isSteps) { if (!permissions().steps) throw new Error('forbidden'); }
+  else if (isType) { if (!permissions().assign) throw new Error('forbidden'); }
+  else if (!(isImpact ? permissions().transition : permissions().book)) throw new Error('forbidden');
   if (form.id === 'booking-form') {
     const hours = Number(data.hours);
     if (!data.hours || !Number.isFinite(hours) || hours < 0) throw new Error('invalidData');
     await api.createBooking({ workDayId: data.workDayId, siteProgressItemId: data.siteProgressItemId, hours });
   } else if (form.id === 'booking-delete-form') await api.deleteBooking(form.dataset.id);
-  else {
+  else if (isSteps) {
+    const steps = Object.entries(data).filter(([key]) => key.startsWith('percent-'))
+      .map(([key, value]) => ({ step_id: key.slice('percent-'.length), percent: value === '' ? 0 : Number(value) }))
+      .filter(step => Number.isFinite(step.percent) && step.percent >= 0 && step.percent <= 100);
+    if (!steps.length) throw new Error('invalidData');
+    await api.setStepProgress(form.dataset.id, steps);
+  } else if (isType) {
+    await api.assignProgressType(form.dataset.id, data.progress_type_id || null);
+  } else {
     if (data.to === 'closed' && !IMPACT_RESULTS.includes(data.result)) throw new Error('coreResultRequired');
     await api.transitionImpact(form.dataset.id, data);
   }
@@ -466,7 +493,7 @@ async function submitCore(form, data) {
   if (selected !== siteId) return;
   if (form.id !== 'booking-form' && version === modalVersion) closeModal();
   render(); toast(t('actionSaved'));
-  if (isImpact && version + 1 === modalVersion) void showCoreDetail('impacts', form.dataset.id);
+  if (isImpact || isSteps || isType) void showCoreDetail(isImpact ? 'impacts' : 'progress', form.dataset.id);
 }
 
 function render() {
@@ -614,7 +641,7 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('submit', async event => {
   const form = event.target;
-  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form'].includes(form.id)) return;
+  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   const data = Object.fromEntries(new FormData(form));
@@ -624,7 +651,7 @@ document.addEventListener('submit', async event => {
   // Capture the selected context before waiting for the server.
   const selectedSite = siteId, selectedDate = reportDate;
   try {
-    if (['booking-form', 'booking-delete-form', 'impact-transition-form'].includes(form.id)) { await submitCore(form, data); return; }
+    if (['booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form'].includes(form.id)) { await submitCore(form, data); return; }
     if (form.id === 'login-form') {
       await accountLock(async () => { await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
       await loadData(); await syncQueue(); return;

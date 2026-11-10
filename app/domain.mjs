@@ -80,7 +80,8 @@ export function impactTransitions(status) {
   return [...({ open: ['notification_sent', 'closed'], notification_sent: ['submitted'], submitted: ['closed'], closed: [] }[status] || [])];
 }
 export function corePermissions(role) {
-  return { book: ['editor', 'owner'].includes(role), transition: ['owner', 'verifier'].includes(role) };
+  return { book: ['editor', 'owner'].includes(role), transition: ['owner', 'verifier'].includes(role),
+    steps: ['editor', 'owner'].includes(role), assign: role === 'owner' };
 }
 // Exact matching, nulls last and ID tie-breaking keep imported lists stable without mutating the cache.
 export function filterSortRecords(records, filters = {}, sort = [{ key: 'title' }]) {

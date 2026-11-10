@@ -13,6 +13,7 @@ import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.
 import { listDeviations, getDeviation, importDeviations } from './deviations.mjs';
 import { listCostImpacts, getCostImpact, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
 import { listTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForItem } from './time_bookings.mjs';
+import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
   transitionTask, listDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember,
@@ -91,7 +92,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
     if (request.headers.origin === 'https://siteassistant.asassi.cloud') {
       response.setHeader('Access-Control-Allow-Origin', request.headers.origin);
       response.setHeader('Access-Control-Allow-Credentials', 'true');
-      response.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+      response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
       response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Idempotency-Key, Authorization, Cookie');
     }
     if (request.method === 'OPTIONS') {
@@ -208,6 +209,31 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const item = await getSiteProgressItem(db, siteProgress[1]);
         await requireRole(db, item.site_id, user);
         return json(response, 200, { ...item, booked_hours: await bookedHoursForItem(db, item.id) });
+      }
+      if (path === '/api/progress-types' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id');
+        if (!siteId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(siteId)) {
+          throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
+        }
+        await requireRole(db, siteId.toLowerCase(), user);
+        return json(response, 200, await listProgressTypes(db, { siteId }));
+      }
+      if (path === '/api/progress-types' && method === 'POST') {
+        return json(response, 201, await createProgressType(db, await readJson(request), user));
+      }
+      const progressType = /^\/api\/progress-types\/([^/]+)$/.exec(path);
+      if (progressType && method === 'DELETE') {
+        return json(response, 200, await deleteProgressType(db, progressType[1], user));
+      }
+      const progressTypeAssignment = /^\/api\/site-progress\/([^/]+)\/progress-type$/.exec(path);
+      if (progressTypeAssignment && method === 'PATCH') {
+        const input = await readJson(request);
+        return json(response, 200, await assignProgressType(db, progressTypeAssignment[1], input.progress_type_id ?? null, user));
+      }
+      const progressSteps = /^\/api\/site-progress\/([^/]+)\/steps$/.exec(path);
+      if (progressSteps && method === 'PUT') {
+        const input = await readJson(request);
+        return json(response, 200, await setStepProgress(db, progressSteps[1], input.steps, user));
       }
       if (path === '/api/time-bookings' && method === 'GET') {
         return json(response, 200, await listTimeBookings(db, {
