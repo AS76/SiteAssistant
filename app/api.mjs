@@ -21,6 +21,15 @@ export const toolPayload = input => {
   return result;
 };
 export const certificationFromApi = camelRecord;
+export const hseFromApi = camelRecord;
+export function hsePayload(input) {
+  const result = {};
+  for (const key of ['siteId', 'eventNo', 'type', 'severity', 'occurredOn', 'location', 'personsInvolved', 'measures', 'notes', 'deviationId']) {
+    const wire = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+    if (Object.hasOwn(input, key) || Object.hasOwn(input, wire)) result[wire] = Object.hasOwn(input, key) ? input[key] : input[wire];
+  }
+  return result;
+}
 const certificationFields = ['name', 'category', 'issuer', 'issuedOn', 'expiresOn', 'outcome', 'notes'];
 export const certificationPayload = input => {
   const result = {};
@@ -89,6 +98,11 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     createCertification: async input => certificationFromApi(await request('/api/certifications', certificationPayload(input))),
     updateCertification: async (id, input) => certificationFromApi(await request(`/api/certifications/${encodeURIComponent(id)}`, certificationPayload(input), { method: 'PATCH' })),
     deleteCertification: id => request(`/api/certifications/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' }),
+    listHseEvents: async (filters = {}) => (await request(`/api/hse-events${query(wireFilters(filters))}`)).map(hseFromApi),
+    hseSummary: async siteId => camelRecord(await request(`/api/hse-events${query({ site_id: siteId, summary: 1 })}`)),
+    createHseEvent: async input => hseFromApi(await request('/api/hse-events', hsePayload(input))),
+    updateHseEvent: async (id, input) => hseFromApi(await request(`/api/hse-events/${encodeURIComponent(id)}`, hsePayload(input), { method: 'PATCH' })),
+    deleteHseEvent: id => request(`/api/hse-events/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' }),
     getTask: async id => taskFromApi(await request(`/api/tasks/${encodeURIComponent(id)}`)),
     createTask: async (input, options) => taskFromApi(await request('/api/tasks', taskPayload(input), options)),
     transitionTask: async (task, input, options) => taskFromApi(await request(`/api/tasks/${encodeURIComponent(task.id)}/transition`, transitionPayload(task, input), options)),

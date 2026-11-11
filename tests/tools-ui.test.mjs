@@ -10,7 +10,7 @@ test('desktop navigation groups keep every route in the requested sections', () 
   assert.deepEqual(navGroups(), [
     { label: 'navOperations', items: ['overview', 'tasks', 'deviations', 'diary'] },
     { label: 'navSite', items: ['progress', 'bookings', 'wbs', 'impacts'] },
-    { label: 'navManagement', items: ['sites', 'tools', 'certifications'] },
+    { label: 'navManagement', items: ['sites', 'tools', 'certifications', 'hse'] },
   ]);
   const groups = navGroups();
   groups[0].items.push('report');

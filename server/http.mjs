@@ -26,6 +26,7 @@ import { progressCurve } from './progress-curve.mjs';
 import { listViews, createView, updateView, deleteView } from './view-settings.mjs';
 import { listTools, createTool, updateTool, deleteTool } from './tools.mjs';
 import { listCertifications, createCertification, updateCertification, deleteCertification, certificationSummary } from './certifications.mjs';
+import { listHseEvents, createHseEvent, updateHseEvent, deleteHseEvent, hseSummary } from './hse.mjs';
 import { importRequest, MAX_IMPORT_BYTES, listImportMappings, saveImportMapping, deleteImportMapping } from './planning-import.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, countTasks, getTask,
@@ -262,6 +263,26 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (certification && method === 'DELETE') {
         return json(response, 200, await deleteCertification(db, certification[1], user));
+      }
+      if (path === '/api/hse-events' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id') ?? url.searchParams.get('siteId');
+        if (url.searchParams.get('summary') === '1') {
+          return json(response, 200, await hseSummary(db, { siteId }, user));
+        }
+        return json(response, 200, await listHseEvents(db, {
+          siteId, type: url.searchParams.get('type'), severity: url.searchParams.get('severity'),
+          from: url.searchParams.get('from'), to: url.searchParams.get('to'),
+        }, user));
+      }
+      if (path === '/api/hse-events' && method === 'POST') {
+        return json(response, 201, await createHseEvent(db, await readJson(request), user));
+      }
+      const hseEvent = /^\/api\/hse-events\/([^/]+)$/.exec(path);
+      if (hseEvent && method === 'PATCH') {
+        return json(response, 200, await updateHseEvent(db, hseEvent[1], await readJson(request), user));
+      }
+      if (hseEvent && method === 'DELETE') {
+        return json(response, 200, await deleteHseEvent(db, hseEvent[1], user));
       }
       if (path === '/api/dashboard/layout' && method === 'GET') {
         return json(response, 200, await getDashboardLayout(db, { siteId: url.searchParams.get('site_id'), user }));

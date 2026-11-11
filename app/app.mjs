@@ -1,4 +1,4 @@
-import { defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey } from './domain.mjs';
+import { defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
@@ -28,7 +28,7 @@ const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 let session = null;
 let state = { sites: [], tasks: [], diary: [], attachments: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
-let view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'report'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+let view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'report'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 let filters = { search: '', status: '', person: '', priority: '', kind: '' };
 let taskView = 'board';
 let taskSort = defaultViewState().sort, taskColumns = [...TASK_COLUMNS];
@@ -59,7 +59,7 @@ function toast(message) {
   clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false;
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
-const errorKeys = { MODULE_FORBIDDEN: 'moduleUnavailable', ACCESS_INVALID: 'accessInvalid', LAYOUT_INVALID: 'layoutInvalid', MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
+const errorKeys = { HSE_INVALID: 'hseInvalid', HSE_FORBIDDEN: 'forbidden', HSE_NOT_FOUND: 'hseNotFound', MODULE_FORBIDDEN: 'moduleUnavailable', ACCESS_INVALID: 'accessInvalid', LAYOUT_INVALID: 'layoutInvalid', MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { if (error.code === 'MODULE_FORBIDDEN') return t('moduleUnavailable'); return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
   reportPrintIntent = null; lastReport = null;
@@ -686,18 +686,18 @@ const currentModules = () => role() === 'owner' ? {} : state.memberAccess?.[site
 const moduleVisible = module => visibleModules([module], currentModules()).length > 0;
 
 const permissions = () => corePermissions(role());
-const moduleResources = { deviations: ['deviations'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'] };
+const moduleResources = { deviations: ['deviations'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'], hse: ['hse'] };
 // Mobile keeps four destinations reachable with the thumb; the rest lives behind «Altro».
-const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications'];
+const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse'];
 const MOBILE_PRIMARY = ['overview', 'tasks', 'deviations', 'bookings'];
 const compactNavigation = () => window.matchMedia('(max-width: 800px)').matches;
 const coreCache = new Map();
-let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' } };
-let deviationView = 'board', toolEditingId = '', certEditingId = '';
+let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' }, hse: { type: '', severity: '', from: '', to: '' } };
+let deviationView = 'board', toolEditingId = '', certEditingId = '', hseEditingId = '';
 function resetCore() {
   coreCache.clear();
-  coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' } };
-  toolEditingId = ''; certEditingId = '';
+  coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' }, hse: { type: '', severity: '', from: '', to: '' } };
+  toolEditingId = ''; certEditingId = ''; hseEditingId = '';
 }
 function coreResource(name) {
   const selected = siteId;
@@ -712,6 +712,7 @@ function coreResource(name) {
     bookings: () => freshApi.listBookings({ siteId: selected }), impacts: () => freshApi.listImpacts({ siteId: selected }),
     tools: () => freshApi.listTools({ siteId: selected }),
     certifications: () => freshApi.listCertifications({ siteId: selected }),
+    hse: () => freshApi.listHseEvents({ siteId: selected }),
     workDays: () => freshApi.listWorkDays({ siteId: selected }), employees: () => freshApi.listEmployees({ siteId: selected }),
     wbs: async () => {
       if (wbsLoad?.promise) await wbsLoad.promise;
@@ -753,10 +754,12 @@ function renderCore() {
     (view === 'progress' ? button('reportPrint', 'open-report') : '')
     + (view === 'tools' && permissions().tools ? button('toolAdd', 'tool-new', '', 'primary') : '')
     + (view === 'certifications' && permissions().certificationWrite ? button('certAdd', 'cert-new', '', 'primary') : '')
+    + (view === 'hse' && permissions().hseWrite ? button('hseAdd', 'hse-new', '', 'primary') : '')
     + button(columnFiltersOn ? 'columnFiltersHide' : 'columnFiltersShow', 'column-filters', `aria-pressed="${columnFiltersOn}"`) + button('coreRefresh', 'core-reload'));
   if (offline || !navigator.onLine) {
     $('#main').insertAdjacentHTML('beforeend', empty('coreOnlineOnly', 'coreOnlineHint')); return;
   }
+  if (view === 'hse' && !permissions().hse) { $('#main').insertAdjacentHTML('beforeend', empty('forbidden', 'hseRestricted')); return; }
   const resources = moduleResources[view].map(coreResource);
   if (resources.some(entry => entry.pending)) {
     $('#main').setAttribute('aria-busy', 'true');
@@ -764,7 +767,7 @@ function renderCore() {
   }
   const error = resources.find(entry => entry.error)?.error;
   if (error) { $('#main').insertAdjacentHTML('beforeend', `<p role="alert">${esc(errorMessage(error))}</p>`); return; }
-  const content = { deviations: renderDeviations, progress: renderProgress, bookings: renderBookings, impacts: renderImpacts, tools: renderTools, certifications: renderCertifications }[view]();
+  const content = { deviations: renderDeviations, progress: renderProgress, bookings: renderBookings, impacts: renderImpacts, tools: renderTools, certifications: renderCertifications, hse: renderHse }[view]();
   $('#main').insertAdjacentHTML('beforeend', `<div class="core-view">${content}</div>`);
   enhanceCoreTables();
 }
@@ -936,6 +939,53 @@ async function submitCertification(form, data) {
   certEditingId = '';
   render();
   toast(t(form.id === 'cert-delete-form' ? 'certDeleted' : 'certSaved'));
+}
+function renderHse() {
+  const all = coreData('hse'), filter = coreFilters.hse, canWrite = permissions().hseWrite;
+  const rows = filterHseEvents(all, filter), counts = hseCounts(all);
+  const kpis = [...HSE_TYPES, 'total'].map(type => `<div class="panel panel-body"><span>${t(type === 'total' ? 'hseTotal' : `hseType_${type}`)}</span><strong class="cert-count">${counts[type]}</strong></div>`).join('');
+  const period = [['from', 'hseFrom'], ['to', 'hseTo']].map(([key, label]) => `<label class="field core-filter"><span>${t(label)}</span><input type="date" min="0001-01-01" max="9999-12-31" data-core-filter="${key}" value="${esc(filter[key])}"></label>`).join('');
+  let html = `<p class="note">${t('hsePrivacy')}</p><div class="core-kpis" role="status">${kpis}</div><p class="note">${t('hseSummaryHint')}</p>`;
+  html += `<div class="toolbar core-toolbar">${coreSelect('type', 'hseType', HSE_TYPES.map(type => [type, t(`hseType_${type}`)]), filter.type, 'hseAllTypes')}${coreSelect('severity', 'hseSeverity', HSE_SEVERITIES.map(severity => [severity, t(`hseSeverity_${severity}`)]), filter.severity, 'hseAllSeverities')}${period}</div>`;
+  if (filter.from && filter.to && filter.from > filter.to) return html + `<p role="alert">${t('hsePeriodInvalid')}</p>`;
+  html += rows.length ? coreTable(['hseOccurredOn', 'hseEventNo', 'hseType', 'hseSeverity', 'hseLocation', 'hsePersons', 'hseMeasures', ...(canWrite ? ['coreActions'] : [])], rows.map(row => [
+    coreValue(row.occurredOn), coreValue(row.eventNo), t(`hseType_${row.type}`), coreStatus(row.severity, t(`hseSeverity_${row.severity}`)),
+    coreValue(row.location), coreNumber(row.personsInvolved), coreValue(row.measures),
+    ...(canWrite ? [`<div class="tool-actions">${button('edit', 'hse-edit', `data-id="${esc(row.id)}"`, 'small')}${button('coreDelete', 'hse-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`] : []),
+  ])) : empty('hseEmpty', 'hseEmptyHint');
+  return html;
+}
+function showHseForm() {
+  if (!permissions().hseWrite) return toast(t('forbidden'));
+  const editing = hseEditingId ? coreData('hse').find(row => row.id === hseEditingId) : null;
+  if (hseEditingId && !editing) return toast(t('hseNotFound'));
+  const options = (values, prefix, selected) => values.map(value => `<option value="${value}" ${selected === value ? 'selected' : ''}>${t(`${prefix}_${value}`)}</option>`).join('');
+  showModal(t(editing ? 'hseEdit' : 'hseAdd'), `<form id="hse-form" data-id="${esc(editing?.id || '')}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('hsePrivacy')}</p><div class="form-grid">${field('hseOccurredOn', 'occurredOn', editing?.occurredOn || '', { type: 'date', required: true })}${field('hseEventNo', 'eventNo', editing?.eventNo || '', { max: 120 })}${field('hseType', 'type', editing?.type || 'near_miss', { required: true, options: options(HSE_TYPES, 'hseType', editing?.type || 'near_miss') })}${field('hseSeverity', 'severity', editing?.severity || 'low', { required: true, options: options(HSE_SEVERITIES, 'hseSeverity', editing?.severity || 'low') })}${field('hseLocation', 'location', editing?.location || '', { max: 200 })}<label class="field"><span>${t('hsePersons')} <small>(${t('optional')})</small></span><input type="number" name="personsInvolved" min="0" max="2147483647" step="1" value="${esc(editing?.personsInvolved ?? '')}"><small>${t('hsePersonsHint')}</small></label>${field('hseMeasures', 'measures', editing?.measures || '', { type: 'textarea', full: true, max: 2000 })}${field('hseNotes', 'notes', editing?.notes || '', { type: 'textarea', full: true, max: 2000 })}</div>${formActions()}</form>`);
+}
+function showHseDelete(id) {
+  if (!permissions().hseWrite) return toast(t('forbidden'));
+  const row = coreData('hse').find(candidate => candidate.id === id);
+  if (!row) return toast(t('hseNotFound'));
+  showModal(t('hseDelete'), `<form id="hse-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('hseDeleteConfirm')}</p><p><strong>${esc(row.occurredOn)}</strong> · ${esc(t(`hseType_${row.type}`))}${row.eventNo ? ` · ${esc(row.eventNo)}` : ''}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
+}
+async function submitHse(form, data) {
+  const selected = siteId, user = session?.user.id, version = modalVersion;
+  if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
+  if (!permissions().hseWrite) throw new Error('forbidden');
+  if (form.id === 'hse-delete-form') await api.deleteHseEvent(form.dataset.id);
+  else {
+    const input = { siteId: selected, eventNo: data.eventNo, type: data.type, severity: data.severity,
+      occurredOn: data.occurredOn, location: data.location, personsInvolved: data.personsInvolved === '' ? null : Number(data.personsInvolved),
+      measures: data.measures, notes: data.notes };
+    if (form.dataset.id) await api.updateHseEvent(form.dataset.id, input);
+    else await api.createHseEvent(input);
+  }
+  if (session?.user.id !== user) return;
+  coreCache.get(selected)?.delete('hse');
+  if (selected !== siteId) return;
+  if (version === modalVersion) closeModal();
+  hseEditingId = '';
+  render(); toast(t(form.id === 'hse-delete-form' ? 'hseDeleted' : 'hseSaved'));
 }
 function renderImpacts() {
   const rows = filterSortRecords(coreData('impacts'), coreFilters.impacts, [{ key: 'createdAt', descending: true }]), totals = impactTotals(rows);
@@ -1288,7 +1338,7 @@ function render() {
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
   if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
   if (!moduleVisible(view)) { $('#main').innerHTML = empty('moduleUnavailable', 'moduleUnavailableHint'); return; }
-  ({ report: renderReport, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore, tools: renderCore, certifications: renderCore })[view]();
+  ({ report: renderReport, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore, tools: renderCore, certifications: renderCore, hse: renderCore })[view]();
 }
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
 function selectSite(id) {
@@ -1481,6 +1531,9 @@ document.addEventListener('click', event => {
     'tool-new': () => { toolEditingId = ''; showToolForm(); },
     'tool-edit': () => { toolEditingId = id; showToolForm(); },
     'tool-delete': () => showToolDelete(id),
+    'hse-new': () => { hseEditingId = ''; showHseForm(); },
+    'hse-edit': () => { hseEditingId = id; showHseForm(); },
+    'hse-delete': () => showHseDelete(id),
     'cert-new': () => { certEditingId = ''; showCertificationForm(); },
     'cert-edit': () => { certEditingId = id; showCertificationForm(); },
     'cert-delete': () => showCertificationDelete(id),
@@ -1570,6 +1623,7 @@ document.addEventListener('submit', async event => {
     if (form.id === 'import-form') { await handleImport(form); return; }
     if (['booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'progress-hours-form'].includes(form.id)) { await submitCore(form, data); return; }
     if (['tool-form', 'tool-delete-form'].includes(form.id)) { await submitTool(form, data); return; }
+    if (['hse-form', 'hse-delete-form'].includes(form.id)) { await submitHse(form, data); return; }
     if (['cert-form', 'cert-delete-form'].includes(form.id)) { await submitCertification(form, data); return; }
     if (form.id === 'login-form') {
       await accountLock(async () => { await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
@@ -1690,7 +1744,7 @@ document.addEventListener('input', event => {
   }
   if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
 $('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
-window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'report'].includes(next) ? next : 'overview'; if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
+window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'report'].includes(next) ? next : 'overview'; if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
 window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view]) { closeModal(); render(); } });
 window.matchMedia('(max-width: 800px)').addEventListener('change', () => renderChrome());
 window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view]) render(); void syncQueue(); });

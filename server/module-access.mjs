@@ -3,7 +3,7 @@ import { RepositoryError, requireRole } from './repository.mjs';
 
 export const MODULES = Object.freeze([
   'overview', 'tasks', 'deviations', 'diary', 'progress', 'bookings', 'wbs', 'impacts',
-  'tools', 'certifications', 'sites',
+  'tools', 'certifications', 'hse', 'sites',
 ]);
 const alwaysAllowed = new Set(['sites', 'overview']);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

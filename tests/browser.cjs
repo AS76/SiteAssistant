@@ -100,6 +100,64 @@ async function run() {
     assert.equal(await page.locator('[data-metric="review"]').textContent(), '0');
     await page.screenshot({ path: path.join(os.tmpdir(), 'siteassistant-desktop.png'), fullPage: true });
 
+    // HSE is a separate register: factual fields only, with restricted reads and writes.
+    await page.locator('#navigation a[href="#hse"]').click();
+    await contains(page.locator('#main'), 'Nessun dato sanitario: si registrano fatti, luoghi e misure.');
+    await page.locator('[data-command="hse-new"]').click();
+    await page.locator('#hse-form [name="occurredOn"]').fill('2026-11-10');
+    await page.locator('#hse-form [name="eventNo"]').fill('SYN-HSE-001');
+    await page.locator('#hse-form [name="location"]').fill('Synthetic zone A');
+    await page.locator('#hse-form [name="personsInvolved"]').fill('0');
+    await page.locator('#hse-form [name="measures"]').fill('<b>Barrier installed</b>');
+    assert.equal(await page.locator('#hse-form [name="employeeId"]').count(), 0);
+    await page.locator('#hse-form [type="submit"]').click();
+    await page.waitForSelector('#modal', { state: 'hidden' });
+    await contains(page.locator('.core-table tbody'), 'SYN-HSE-001');
+    assert.equal(await page.locator('.core-table tbody b').count(), 0);
+    await page.locator('[data-command="hse-edit"]').click();
+    assert.equal(await page.locator('#hse-form [name="personsInvolved"]').inputValue(), '0');
+    await page.locator('#hse-form [name="type"]').selectOption('observation');
+    await page.locator('#hse-form [name="severity"]').selectOption('high');
+    await page.locator('#hse-form [type="submit"]').click();
+    await page.waitForSelector('#modal', { state: 'hidden' });
+    await contains(page.locator('.core-table tbody'), 'Osservazioni');
+    await page.locator('[data-core-filter="type"]').selectOption('near_miss');
+    await contains(page.locator('#main'), 'Nessun evento HSE');
+    await page.locator('[data-core-filter="type"]').selectOption('observation');
+    await page.locator('[data-core-filter="severity"]').selectOption('high');
+    await page.locator('[data-core-filter="from"]').fill('2026-11-10');
+    await page.locator('[data-core-filter="from"]').dispatchEvent('change');
+    await page.locator('[data-core-filter="to"]').fill('2026-11-10');
+    await page.locator('[data-core-filter="to"]').dispatchEvent('change');
+    await contains(page.locator('.core-table tbody'), 'SYN-HSE-001');
+    await page.locator('#language').click();
+    await contains(page.locator('#main'), 'No health data: record facts, locations and measures.');
+    await page.locator('#language').click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'mobile overflow: HSE');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    for (const role of ['editor', 'verifier', 'viewer']) {
+      await page.locator('#logout').click(); await page.waitForSelector('#login-form');
+      await signIn(role);
+      await page.evaluate(() => { location.hash = 'hse'; });
+      if (role === 'viewer') await contains(page.locator('#main'), 'Il registro HSE è riservato');
+      else {
+        await contains(page.locator('.core-table tbody'), 'SYN-HSE-001');
+        assert.equal(await page.locator('[data-command="hse-edit"]').count(), role === 'editor' ? 1 : 0);
+      }
+      assert.equal(await page.locator('[data-command="hse-new"]').count(), role === 'editor' ? 1 : 0);
+    }
+    await page.locator('#logout').click(); await page.waitForSelector('#login-form');
+    await signIn('owner');
+    await page.evaluate(() => { location.hash = 'hse'; });
+    await page.locator('[data-command="hse-delete"]').click();
+    await contains(page.locator('#hse-delete-form'), 'SYN-HSE-001');
+    await page.locator('#hse-delete-form [type="submit"]').click();
+    await page.waitForSelector('#modal', { state: 'hidden' });
+    await contains(page.locator('#main'), 'Nessun evento HSE');
+    await page.evaluate(() => { location.hash = 'overview'; });
+    await page.waitForSelector('[data-metric="execution"]');
+
     // Module access: owner matrix, locked anchors, effective navigation, hash denial and site isolation.
     const accessSite = await page.locator('#site-select').inputValue();
     const otherAccessSite = await page.locator('#site-select option').evaluateAll(options => options.map(option => option.value).find(id => id !== document.querySelector('#site-select').value));
@@ -112,7 +170,7 @@ async function run() {
       assert.equal(await accessCheckbox(module).isDisabled(), true);
     }
     const ownerChecks = page.locator(`[data-member-access][data-member="${owner.id}"]`);
-    assert.equal(await ownerChecks.count(), 11);
+    assert.equal(await ownerChecks.count(), 12);
     assert.equal(await ownerChecks.evaluateAll(inputs => inputs.every(input => input.checked && input.disabled)), true);
     const denyAccess = page.waitForResponse(response => response.url().includes('/api/member-access') && response.request().method() === 'PUT');
     await accessCheckbox('tasks').uncheck();

@@ -160,7 +160,7 @@ export const TOOL_STATUS_LABELS = Object.freeze({
 const NAV_GROUPS = Object.freeze([
   Object.freeze({ label: 'navOperations', items: Object.freeze(['overview', 'tasks', 'deviations', 'diary']) }),
   Object.freeze({ label: 'navSite', items: Object.freeze(['progress', 'bookings', 'wbs', 'impacts']) }),
-  Object.freeze({ label: 'navManagement', items: Object.freeze(['sites', 'tools', 'certifications']) }),
+  Object.freeze({ label: 'navManagement', items: Object.freeze(['sites', 'tools', 'certifications', 'hse']) }),
 ]);
 export function visibleModules(items, modules = {}) {
   return items.filter(module => ['sites', 'overview'].includes(module) || modules[module] !== false);
@@ -206,7 +206,21 @@ export function corePermissions(role) {
     steps: ['editor', 'owner'].includes(role), assign: role === 'owner',
     tools: ['owner', 'editor', 'verifier'].includes(role),
     certifications: ['owner', 'editor', 'verifier'].includes(role),
-    certificationWrite: ['owner', 'editor'].includes(role) };
+    certificationWrite: ['owner', 'editor'].includes(role),
+    hse: ['owner', 'editor', 'verifier'].includes(role),
+    hseWrite: ['owner', 'editor'].includes(role) };
+}
+export const HSE_TYPES = Object.freeze(['near_miss', 'accident', 'observation']);
+export const HSE_SEVERITIES = Object.freeze(['low', 'medium', 'high']);
+export function filterHseEvents(events = [], { type = '', severity = '', from = '', to = '' } = {}) {
+  return events.filter(row => (!type || row.type === type) && (!severity || row.severity === severity)
+    && (!from || row.occurredOn >= from) && (!to || row.occurredOn <= to))
+    .sort((a, b) => b.occurredOn.localeCompare(a.occurredOn) || a.id.localeCompare(b.id));
+}
+export function hseCounts(events = []) {
+  const byType = Object.fromEntries(HSE_TYPES.map(type => [type, 0]));
+  for (const row of events) if (Object.hasOwn(byType, row.type)) byType[row.type] += 1;
+  return { ...byType, total: events.length };
 }
 // Which offline banner to show, if any. A missing service worker never raises a permanent
 // error while the app is online; the storage message is reserved for a broken IndexedDB.

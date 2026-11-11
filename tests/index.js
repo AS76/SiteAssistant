@@ -47,6 +47,8 @@ import './earned-value.test.mjs';
 import './tools.test.mjs';
 import './tools-ui.test.mjs';
 import './certifications.test.mjs';
+import './hse.test.mjs';
+import './hse-ui.test.mjs';
 
 import './dashboard-layouts.test.mjs';
 import './module-access.test.mjs';

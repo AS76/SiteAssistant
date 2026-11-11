@@ -114,10 +114,10 @@ test('core role permissions and claim transitions match the backend contract', (
   assert.deepEqual(offlineBannerState({ pending: 2, swUnavailable: true }), { visible: true, offline: false, storage: false, serviceWorker: true, pending: 2 });
   assert.deepEqual(offlineBannerState({ pending: 1 }), { visible: true, offline: false, storage: false, serviceWorker: false, pending: 1 });
   assert.deepEqual(offlineBannerState({}), { visible: false, offline: false, storage: false, serviceWorker: false, pending: 0 });
-  assert.deepEqual(corePermissions('owner'), { book: true, transition: true, steps: true, assign: true, tools: true, certifications: true, certificationWrite: true });
-  assert.deepEqual(corePermissions('editor'), { book: true, transition: false, steps: true, assign: false, tools: true, certifications: true, certificationWrite: true });
-  assert.deepEqual(corePermissions('verifier'), { book: false, transition: true, steps: false, assign: false, tools: true, certifications: true, certificationWrite: false });
-  for (const role of ['viewer', undefined, 'unknown']) assert.deepEqual(corePermissions(role), { book: false, transition: false, steps: false, assign: false, tools: false, certifications: false, certificationWrite: false });
+  assert.deepEqual(corePermissions('owner'), { book: true, transition: true, steps: true, assign: true, tools: true, certifications: true, certificationWrite: true, hse: true, hseWrite: true });
+  assert.deepEqual(corePermissions('editor'), { book: true, transition: false, steps: true, assign: false, tools: true, certifications: true, certificationWrite: true, hse: true, hseWrite: true });
+  assert.deepEqual(corePermissions('verifier'), { book: false, transition: true, steps: false, assign: false, tools: true, certifications: true, certificationWrite: false, hse: true, hseWrite: false });
+  for (const role of ['viewer', undefined, 'unknown']) assert.deepEqual(corePermissions(role), { book: false, transition: false, steps: false, assign: false, tools: false, certifications: false, certificationWrite: false, hse: false, hseWrite: false });
   assert.deepEqual(impactTransitions('open'), ['notification_sent', 'closed']); assert.deepEqual(impactTransitions('notification_sent'), ['submitted']);
   assert.deepEqual(impactTransitions('submitted'), ['closed']); assert.deepEqual(impactTransitions('closed'), []);
   impactTransitions('open').pop(); assert.equal(impactTransitions('open').length, 2);
