@@ -55,6 +55,7 @@ export default defineConfig({
             { label: 'Avanzamento di cantiere', translations: { en: 'Site progress' }, slug: 'moduli/avanzamento' },
             { label: 'Prenotazioni ore', translations: { en: 'Time bookings' }, slug: 'moduli/prenotazioni-ore' },
             { label: 'Impatti economici', translations: { en: 'Cost impacts' }, slug: 'moduli/impatti-economici' },
+            { label: 'Attrezzature', translations: { en: 'Tools' }, slug: 'moduli/attrezzature' },
             { label: 'Diario di cantiere', translations: { en: 'Site diary' }, slug: 'moduli/diario' },
           ],
         },
