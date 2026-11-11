@@ -57,6 +57,7 @@ export default defineConfig({
             { label: 'Impatti economici', translations: { en: 'Cost impacts' }, slug: 'moduli/impatti-economici' },
             { label: 'Attrezzature', translations: { en: 'Tools' }, slug: 'moduli/attrezzature' },
             { label: 'Idoneità', translations: { en: 'Fitness' }, slug: 'moduli/idoneita' },
+            { label: 'HSE', translations: { en: 'HSE' }, slug: 'moduli/hse' },
             { label: 'Diario di cantiere', translations: { en: 'Site diary' }, slug: 'moduli/diario' },
           ],
         },
