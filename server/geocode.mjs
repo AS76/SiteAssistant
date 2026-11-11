@@ -1,7 +1,8 @@
 // Address lookup for the site form. Nominatim (OpenStreetMap) needs no key and is
 // acceptable for a demo; a Google Geocoding key can be plugged in later by setting
 // GOOGLE_MAPS_API_KEY on a project with that API enabled.
-const UA = 'SiteAssistant/0.1 (site management demo; contact: maintainer@siteassistant.invalid)';
+// Public demo: the identifying string carries the project address, never a personal contact.
+const UA = 'SiteAssistant/0.1 (site management demo; +https://github.com/AS76/SiteAssistant)';
 const MIN_QUERY = 3;
 const CACHE_TTL = 10 * 60 * 1000;
 const cache = new Map();
