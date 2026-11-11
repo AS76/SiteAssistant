@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { createApi, deviationFromApi, progressFromApi, bookingFromApi, impactFromApi } from '../app/api.mjs';
 import { offlineBannerState, DEVIATION_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, progressWithHours, flattenWbs } from '../app/domain.mjs';
@@ -122,4 +123,14 @@ test('new UI labels and workflow values are translated in both languages', () =>
   for (const key of keys) if (key.startsWith('core') || ['deviations', 'progress', 'bookings', 'impacts'].some(prefix => key.startsWith(prefix)) || DEVIATION_STATUSES.includes(key) || IMPACT_RESULTS.includes(key)) {
     assert.equal(typeof messages.it[key], 'string', `Italian ${key}`); assert.equal(typeof messages.en[key], 'string', `English ${key}`);
   }
+});
+
+test('create actions are gated by role in the UI source', async () => {
+  const source = await readFile(new URL('../app/app.mjs', import.meta.url), 'utf8');
+  // Tasks: viewers must not see a create button the server would refuse.
+  assert.match(source, /canWriteTask\(\) \? button\('newTask'/);
+  // Sites: only an owner may create one.
+  assert.match(source, /canCreateSite\(\) \? button\('newSite'/);
+  assert.match(source, /const canWriteTask = \(\) => \['owner', 'editor', 'verifier'\]\.includes\(role\(\)\)/);
+  assert.match(source, /const canCreateSite = \(\) => role\(\) === 'owner'/);
 });

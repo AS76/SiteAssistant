@@ -236,7 +236,7 @@ function renderOverview() {
   }).slice(0, 5);
   const lastEntry = state.diary.filter(item => item.siteId === siteId && item.date === today()).at(-1);
   $('#main').innerHTML = heading('overviewTitle', 'overviewSub',
-    button('reportPrint', 'open-report') + (canImport() ? button('importOpen', 'import-open') : '') + button('newTask', 'new-task', '', 'primary')) +
+    button('reportPrint', 'open-report') + (canImport() ? button('importOpen', 'import-open') : '') + (canWriteTask() ? button('newTask', 'new-task', '', 'primary') : '')) +
     `<div id="overview-kpis" class="overview-kpis" aria-live="polite"></div><div class="date-caption">${t('today')} · ${new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}</div>` +
     `<div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div>` +
     `<div class="grid-overview"><section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section><div class="summary-stack"><section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack"><div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div><div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div></div></div></section><section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2><span class="badge">${t('draft')}</span></div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}<a class="subtitle" href="#diary">${t('openDiary')} →</a></div></section></div></div>`;
@@ -344,7 +344,7 @@ async function loadOverviewDashboard() {
   </div>`;
 }
 function renderSites() {
-  $('#main').innerHTML = heading('sitesTitle', 'sitesSub', button('newSite', 'new-site', '', 'primary')) + `<div class="site-grid">${state.sites.map(site => {
+  $('#main').innerHTML = heading('sitesTitle', 'sitesSub', canCreateSite() ? button('newSite', 'new-site', '', 'primary') : '') + `<div class="site-grid">${state.sites.map(site => {
     const tasks = state.tasks.filter(task => task.siteId === site.id), count = counts(tasks);
     return `<article class="site-card ${site.id === siteId ? 'selected' : ''}"><span class="site-code">${esc(site.code)}</span><h2>${esc(site.name)}</h2><p>${esc(site.location || '—')}</p><div class="site-counts"><span><strong>${tasks.length}</strong>${t('tasks')}</span><span><strong>${tasks.length - count.closed}</strong>${t('nonClosed')}</span></div>
       <div class="progress-track" aria-hidden="true"><span style="width:${tasks.length ? count.closed / tasks.length * 100 : 0}%"></span></div><p>${site.start ? dateLabel(site.start) : '—'} → ${site.end ? dateLabel(site.end) : '—'}</p>${button(site.id === siteId ? 'selected' : 'openSite', 'select-site', `data-id="${esc(site.id)}"`, site.id === siteId ? 'small' : 'primary small')}</article>`;
@@ -357,6 +357,8 @@ function filteredTasks() {
 const currentViewState = () => viewStatePayload({ filters, sort: taskSort, columns: taskColumns, layout: taskView });
 const selectedSavedView = () => savedViewsCache?.data?.find(item => item.id === selectedViewId);
 const canCreateView = () => ['owner', 'editor', 'verifier'].includes(role());
+const canWriteTask = () => ['owner', 'editor', 'verifier'].includes(role());
+const canCreateSite = () => role() === 'owner';
 const canEditView = item => Boolean(item && session && (item.owner_id === session.user.id || role() === 'owner'));
 function applyViewState(payload) {
   const next = sanitizeViewState(payload);
@@ -435,7 +437,7 @@ async function updateSelectedView() {
 }
 function renderTasks() {
   loadSavedViews();
-  $('#main').innerHTML = heading('tasksTitle', 'tasksSub', button('exportCsv', 'csv') + button('newTask', 'new-task', '', 'primary')) +
+  $('#main').innerHTML = heading('tasksTitle', 'tasksSub', button('exportCsv', 'csv') + (canWriteTask() ? button('newTask', 'new-task', '', 'primary') : '')) +
     `<div id="saved-views" class="toolbar saved-views"></div><div class="toolbar"><input class="search" id="filter-search" maxlength="512" aria-label="${t('search')}" placeholder="${t('search')}" value="${esc(filters.search)}"><select id="filter-status" aria-label="${t('status')}"><option value="">${t('allStatuses')}</option>${STATUSES.map(status => `<option value="${status}" ${filters.status === status ? 'selected' : ''}>${t(status)}</option>`).join('')}</select><select id="filter-person" aria-label="${t('assignee')}"><option value="">${t('allPeople')}</option>${[...new Set([...siteTasks().map(task => task.assignee), ...(filters.person ? [filters.person] : [])])].map(person => `<option value="${esc(person)}" ${filters.person === person ? 'selected' : ''}>${personName(person)}</option>`).join('')}</select><select id="filter-priority" aria-label="${t('priority')}"><option value="">${t('allPriorities')}</option>${PRIORITIES.map(priority => `<option value="${priority}" ${filters.priority === priority ? 'selected' : ''}>${t(priority)}</option>`).join('')}</select><div class="view-toggle">${button('board', 'task-view', `data-value="board" aria-pressed="${taskView === 'board'}"`, taskView === 'board' ? 'selected' : '')}${button('list', 'task-view', `data-value="list" aria-pressed="${taskView === 'list'}"`, taskView === 'list' ? 'selected' : '')}</div></div>${taskView === 'list' ? taskListControls() : ''}<div id="task-results"></div>`;
   renderSavedViews(); renderTaskResults();
 }

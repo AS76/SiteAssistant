@@ -131,3 +131,24 @@ test('password client retains the session on wrong current password but clears e
   for (const method of ['requestAccess', 'forgotPassword']) await t.assert.rejects(() => api[method]({ email: 'synthetic@example.invalid' }));
   t.assert.deepStrictEqual(calls.slice(2).map(call => new URL(call.url).pathname), ['/api/auth/request', '/api/auth/forgot']);
 });
+
+test('task and diary lists accept site_id and siteId, and refuse unknown query parameters', async t => {
+  const { baseUrl, bootstrap, cookie } = await fixture(t);
+  const request = path => fetch(`${baseUrl}${path}`, { headers: { cookie } });
+  for (const path of [`/api/tasks?site_id=${bootstrap.id}`, `/api/tasks?siteId=${bootstrap.id}`]) {
+    const response = await request(path);
+    assert.equal(response.status, 200, path);
+    assert.ok(Array.isArray(await response.json()), path);
+  }
+  for (const path of [`/api/diary?site_id=${bootstrap.id}`, `/api/diary?siteId=${bootstrap.id}`]) {
+    assert.equal((await request(path)).status, 200, path);
+  }
+  // A mistyped parameter must be an error, not a silently unfiltered list.
+  for (const path of [`/api/tasks?site_id=${bootstrap.id}&nope=1`, `/api/diary?site_id=${bootstrap.id}&nope=1`]) {
+    const response = await request(path);
+    assert.equal(response.status, 400, path);
+    assert.equal((await response.json()).code, 'VALIDATION_ERROR', path);
+  }
+  const bothNames = await request(`/api/tasks?site_id=${bootstrap.id}&siteId=${bootstrap.id}&status=`);
+  assert.equal(bothNames.status, 200);
+});

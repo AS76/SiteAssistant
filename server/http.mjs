@@ -87,6 +87,16 @@ function html(response, status, message, review) {
 }
 
 // The caller owns the connection and closes it after the HTTP server stops.
+// The task and diary lists historically read `siteId`; every other list reads
+// `site_id`. Accept both and refuse unknown parameters, so a mistyped filter is
+// an error instead of a silently ignored one.
+function siteFromQuery(url, allowed) {
+  for (const key of url.searchParams.keys()) {
+    if (!allowed.includes(key)) throw new RepositoryError(400, `Unknown query parameter: ${key}.`, 'VALIDATION_ERROR');
+  }
+  return url.searchParams.get('site_id') ?? url.searchParams.get('siteId');
+}
+
 export function createServer(db, { limiter = createLoginLimiter(), production = process.env.NODE_ENV === 'production',
   mailer = sendMail, ownerEmail = process.env.OWNER_EMAIL,
   publicUrl = process.env.PUBLIC_URL || 'https://api.siteassistant.asassi.cloud',
@@ -391,9 +401,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (members && method === 'GET') return json(response, 200, await listMembers(db, members[1], user));
       if (members && method === 'POST') return json(response, 200, await setMember(db, members[1], await readJson(request), user));
       if (path === '/api/tasks' && method === 'GET') {
-        if (url.searchParams.get('siteId')) await requireRole(db, url.searchParams.get('siteId'), user);
+        const siteId = siteFromQuery(url, ['site_id', 'siteId', 'status']);
+        if (siteId) await requireRole(db, siteId, user);
         return json(response, 200, await listTasks(db, {
-          siteId: url.searchParams.get('siteId'), status: url.searchParams.get('status'),
+          siteId, status: url.searchParams.get('status'),
         }, user));
       }
       if (path === '/api/tasks' && method === 'POST') {
@@ -417,8 +428,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, await transitionTask(db, transition[1], await readJson(request), user));
       }
       if (path === '/api/diary' && method === 'GET') {
-        if (url.searchParams.get('siteId')) await requireRole(db, url.searchParams.get('siteId'), user);
-        return json(response, 200, await listDiary(db, { siteId: url.searchParams.get('siteId') }, user));
+        const siteId = siteFromQuery(url, ['site_id', 'siteId']);
+        if (siteId) await requireRole(db, siteId, user);
+        return json(response, 200, await listDiary(db, { siteId }, user));
       }
       if (path === '/api/diary' && method === 'POST') {
         const input = await readJson(request);
