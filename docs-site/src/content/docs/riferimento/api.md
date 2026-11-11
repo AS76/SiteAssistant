@@ -80,7 +80,7 @@ Le voci di avanzamento importate dal sistema di cantiere sono visibili nella vis
 | PATCH | `/api/site-progress/{id}/progress-type` | owner | Assegna o toglie un tipo (`progress_type_id`) |
 | PUT | `/api/site-progress/{id}/steps` | owner/editor | `{ steps: [{ step_id, percent }] }`; aggiunge una registrazione allo storico |
 
-Ogni voce riporta descrizione, area PLC, sezione, avanzamento e avanzamento pianificato, scostamento, assegnatario, date pianificate ed effettive, ritardo atteso e i contrassegni `has_files`, `has_notes`, `has_deviations`. Il collegamento alla voce WBS avviene solo quando area PLC e sezione individuano **un solo** nodo; in tutti gli altri casi la voce resta senza collegamento.
+Ogni voce riporta descrizione, area PLC, sezione, avanzamento e avanzamento pianificato, scostamento, assegnatario, date pianificate ed effettive, ritardo atteso e i contrassegni `has_files`, `has_notes`, `has_deviations`. Quando la voce è collegata a un nodo WBS, la risposta include anche `wbs_code` e `wbs_description` del nodo; senza collegamento i due campi sono `null`. Il collegamento alla voce WBS avviene solo quando area PLC e sezione individuano **un solo** nodo; in tutti gli altri casi la voce resta senza collegamento.
 
 Un tipo di avanzamento è un elenco di step con un peso. La somma dei pesi deve essere **100**, altrimenti la creazione è rifiutata con `WEIGHTS_NOT_100`. Se una voce ha un tipo assegnato, l'avanzamento restituito è `computed` (media pesata degli step); senza step registrati vale `0`, non il valore importato. Ogni `PUT` inserisce una riga in `progress_entries`: lo storico non viene riscritto e le curve si calcolano da lì.
 

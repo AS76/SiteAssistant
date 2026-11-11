@@ -8,6 +8,7 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 ## 11 novembre 2026
 
 - **Viste salvate nelle Attività.** Filtri, board o elenco, ordinamento e colonne visibili si salvano con un nome; una vista può essere personale o condivisa con il cantiere e si aggiorna, rinomina o elimina dal menu. Vedi [Attività e verifiche](../../moduli/attivita/#viste-salvate).
+- **Codice e descrizione WBS nel dettaglio avanzamento.** Il dettaglio di una voce di avanzamento mostra il nodo collegato come codice seguito dalla descrizione, invece del solo codice. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/#il-dettaglio).
 
 ## 10 novembre 2026
 

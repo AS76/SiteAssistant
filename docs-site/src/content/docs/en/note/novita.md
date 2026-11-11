@@ -8,6 +8,7 @@ This page collects the changes visible to those who use the application. It is n
 ## 11 November 2026
 
 - **Saved views in Tasks.** Filters, board or list, sorting and visible columns are saved under a name; a view can be personal or shared with the site, and can be updated, renamed or deleted from the menu. See [Tasks and reviews](../../moduli/attivita/#saved-views).
+- **WBS code and description in the progress detail.** The detail of a progress item shows the linked node as the code followed by the description, instead of the code alone. See [Site progress](../../moduli/avanzamento/#the-detail).
 
 ## 10 November 2026
 

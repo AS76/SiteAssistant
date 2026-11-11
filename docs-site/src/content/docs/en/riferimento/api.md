@@ -80,7 +80,7 @@ Progress items imported from the site system are visible in the **Site progress*
 | PATCH | `/api/site-progress/{id}/progress-type` | owner | Assigns or removes a type (`progress_type_id`) |
 | PUT | `/api/site-progress/{id}/steps` | owner/editor | `{ steps: [{ step_id, percent }] }`; appends a history record |
 
-Each item reports description, PLC area, section, progress and planned progress, delta, assignee, planned and actual dates, expected delay and the `has_files`, `has_notes`, `has_deviations` flags. The item is linked to a WBS node only when PLC area and section identify **a single** node; in every other case the item stays unlinked.
+Each item reports description, PLC area, section, progress and planned progress, delta, assignee, planned and actual dates, expected delay and the `has_files`, `has_notes`, `has_deviations` flags. When the item is linked to a WBS node, the response also includes the node's `wbs_code` and `wbs_description`; without a link both fields are `null`. The item is linked to a WBS node only when PLC area and section identify **a single** node; in every other case the item stays unlinked.
 
 A progress type is a list of steps with a weight. The weights must total **100**, otherwise creation is rejected with `WEIGHTS_NOT_100`. When an item has a type assigned, the returned progress is `computed` (weighted average of the steps); with no recorded step it is `0`, not the imported value. Every `PUT` inserts a row in `progress_entries`: the history is never rewritten and the curves are calculated from it.
 
