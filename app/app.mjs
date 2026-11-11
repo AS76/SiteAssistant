@@ -289,7 +289,8 @@ async function loadReport(target) {
       + `<h3>${t('earnedValueTitle')}</h3>` + earnedValueSummary(data.earnedValue) + '</section>'
       + table('deviations', ['reportArea', 'reportTotal', 'reportOpen', 'reportClosed', 'reportByStatus'],
         data.deviations.map(row => [esc(row.area), coreNumber(row.total), coreNumber(row.open), coreNumber(row.closed),
-          row.by_status.map(entry => `<span class="report-status">${esc(entry.status == null ? t('coreUnknown') : t(entry.status))}: ${coreNumber(entry.count)}</span>`).join(' ')]));
+          row.by_status.map(entry => `<span class="report-status">${esc(entry.status == null ? t('coreUnknown') : t(entry.status))}: ${coreNumber(entry.count)}</span>`).join(' ')]))
+      + reconciliationReport(data.reconciliation);
     target.setAttribute('aria-busy', 'false');
     lastReport = data;
     for (const command of ['open-report', 'report-csv-progress', 'report-csv-deviations']) {
@@ -689,17 +690,19 @@ const currentModules = () => role() === 'owner' ? {} : state.memberAccess?.[site
 const moduleVisible = module => visibleModules([module], currentModules()).length > 0;
 
 const permissions = () => corePermissions(role());
-const moduleResources = { deviations: ['deviations'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'], hse: ['hse'] };
+const moduleResources = { deviations: ['deviations', 'reconciliation'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'], hse: ['hse'] };
 // Mobile keeps four destinations reachable with the thumb; the rest lives behind «Altro».
 const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse'];
 const MOBILE_PRIMARY = ['overview', 'tasks', 'deviations', 'bookings'];
 const compactNavigation = () => window.matchMedia('(max-width: 800px)').matches;
 const coreCache = new Map();
 let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' }, hse: { type: '', severity: '', from: '', to: '' } };
+let reconciliationFilter = '', reconciliationOpen = true;
 let deviationView = 'board', toolEditingId = '', certEditingId = '', hseEditingId = '';
 function resetCore() {
   coreCache.clear();
   coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' }, hse: { type: '', severity: '', from: '', to: '' } };
+  reconciliationFilter = ''; reconciliationOpen = true;
   toolEditingId = ''; certEditingId = ''; hseEditingId = '';
 }
 async function loadBookingRows(selected) {
@@ -719,6 +722,7 @@ function coreResource(name) {
   cache.set(name, entry);
   const loaders = {
     deviations: () => freshApi.listDeviations({ siteId: selected }), progress: () => freshApi.listProgress({ siteId: selected }),
+    reconciliation: () => freshApi.deviationReconciliation(selected),
     progressTypes: () => freshApi.listProgressTypes(selected),
     bookings: () => loadBookingRows(selected), impacts: () => freshApi.listImpacts({ siteId: selected }),
     tools: () => freshApi.listTools({ siteId: selected }),
@@ -752,8 +756,8 @@ const progressLabel = item => item?.description || item?.id || t('coreUnknown');
 function coreSelect(key, label, options, value, allLabel) {
   return `<label class="field core-filter"><span>${t(label)}</span><select data-core-filter="${key}">${allLabel ? `<option value="">${t(allLabel)}</option>` : ''}${options.map(([id, text]) => `<option value="${esc(id)}" ${id === value ? 'selected' : ''}>${esc(text)}</option>`).join('')}</select></label>`;
 }
-function coreTable(columns, rows) {
-  return `<div class="core-table-wrap"><table class="core-table"><thead><tr>${columns.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${rows.map(cells => `<tr>${cells.map((cell, index) => `<td data-label="${t(columns[index])}">${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+function coreTable(columns, rows, rowAttributes = []) {
+  return `<div class="core-table-wrap"><table class="core-table"><thead><tr>${columns.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${rows.map((cells, rowIndex) => `<tr${rowAttributes[rowIndex] ? ` ${rowAttributes[rowIndex]}` : ''}>${cells.map((cell, index) => `<td data-label="${t(columns[index])}">${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 const coreDetailButton = (module, row, label = row.title || row.description || row.id) => `<button type="button" data-command="core-detail" data-module="${module}" data-id="${esc(row.id)}">${esc(label)}</button>`;
 function progressBar(value) {
@@ -780,6 +784,8 @@ function renderCore() {
   if (error) { $('#main').insertAdjacentHTML('beforeend', `<p role="alert">${esc(errorMessage(error))}</p>`); return; }
   const content = { deviations: renderDeviations, progress: renderProgress, bookings: renderBookings, impacts: renderImpacts, tools: renderTools, certifications: renderCertifications, hse: renderHse }[view]();
   $('#main').insertAdjacentHTML('beforeend', `<div class="core-view">${content}</div>`);
+  const reconciliationPanel = $('#deviation-reconciliation');
+  if (reconciliationPanel) reconciliationPanel.addEventListener('toggle', () => { reconciliationOpen = reconciliationPanel.open; });
   enhanceCoreTables();
 }
 
@@ -845,11 +851,47 @@ function applyColumnFilters(table) {
     });
   }
 }
+const RECONCILIATION_KINDS = ['closed_without_date', 'close_before_approval', 'status_gap'];
+const reconciliationColumns = ['coreReference', 'title', 'reconciliationOfficial', 'reconciliationInternal', 'reconciliationDays', 'reconciliationReason'];
+function reconciliationCells(row, interactive = false) {
+  return [coreValue(row.deviation_no), interactive
+    ? coreDetailButton('deviations', row, row.title || row.deviation_no || row.id) : coreValue(row.title),
+  coreStatus(row.official_status), coreStatus(row.internal_status), coreNumber(row.disagreement_days),
+  esc(t(`reconciliation_${row.kind}`))];
+}
+function reconciliationNotes(data) {
+  return `<p class="note">${t('reconciliationReadOnly')}</p><p class="note">${t('reconciliationImported')}</p>`
+    + (data.history_source === 'unavailable' ? `<p class="note">${t('reconciliationUnavailable')}</p>` : '');
+}
+function renderReconciliation() {
+  const data = coreData('reconciliation');
+  const items = data.items.filter(row => !reconciliationFilter || row.kind === reconciliationFilter);
+  const body = !data.items.length ? `<p role="status">${t('reconciliationAligned')}</p>`
+    : items.length ? coreTable(reconciliationColumns, items.map(row => reconciliationCells(row, true)),
+      items.map(row => `data-command="core-detail" data-module="deviations" data-id="${esc(row.id)}"`))
+      : `<p role="status">${t('noResults')}</p>`;
+  return `<details id="deviation-reconciliation" class="panel reconciliation-panel" ${reconciliationOpen ? 'open' : ''}>
+    <summary>${t('reconciliationTitle')}</summary><div class="panel-body">${reconciliationNotes(data)}
+    <div class="toolbar reconciliation-counts">${RECONCILIATION_KINDS.map(kind => `<button type="button" data-command="reconciliation-filter"
+      data-kind="${kind}" aria-pressed="${reconciliationFilter === kind}" ${kind === 'status_gap' && data.history_source === 'unavailable' ? `aria-describedby="reconciliation-history-note"` : ''}>
+      ${t(`reconciliation_${kind}`)}: <strong>${coreNumber(data.counts[kind])}</strong></button>`).join('')}</div>
+    ${data.history_source === 'unavailable' ? `<p id="reconciliation-history-note" class="note">${t('reconciliationNotEvaluable')}</p>` : ''}
+    ${body}</div></details>`;
+}
+function reconciliationReport(data) {
+  const first = data.items.slice(0, 10);
+  return `<section class="reconciliation-report"><h3>${t('reconciliationReportTitle')}</h3>${reconciliationNotes(data)}
+    ${data.items.length ? `<p>${RECONCILIATION_KINDS.map(kind => `${t(`reconciliation_${kind}`)}: ${coreNumber(data.counts[kind])}`).join(' · ')}</p>
+      <div class="report-table-wrap"><table class="report-table"><thead><tr>${reconciliationColumns.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead>
+      <tbody>${first.map(row => `<tr>${reconciliationCells(row).map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      <p class="note">${t('reconciliationFirstRows')}: ${first.length} / ${data.items.length}</p>`
+      : `<p>${t('reconciliationAligned')}</p>`}</section>`;
+}
 function renderDeviations() {
   const all = coreData('deviations'), filter = coreFilters.deviations;
   const rows = filterSortRecords(all, filter, [{ key: 'creationDate', descending: true }, { key: 'deviationNo' }]);
   const priorities = [...new Set(all.map(row => row.priority).filter(value => value != null))].sort();
-  let html = `<div class="toolbar core-toolbar">${coreSelect('status', 'status', [...DEVIATION_STATUSES.map(value => [value, t(value)]), ['__unknown', t('coreUnknown')]], filter.status, 'allStatuses')}${coreSelect('priority', 'priority', priorities.map(value => [value, t(value)]), filter.priority, 'allPriorities')}<div class="view-toggle">${['board', 'list'].map(value => button(value, 'deviation-view', `data-value="${value}" aria-pressed="${deviationView === value}"`, deviationView === value ? 'selected' : '')).join('')}</div></div>`;
+  let html = renderReconciliation() + `<div class="toolbar core-toolbar">${coreSelect('status', 'status', [...DEVIATION_STATUSES.map(value => [value, t(value)]), ['__unknown', t('coreUnknown')]], filter.status, 'allStatuses')}${coreSelect('priority', 'priority', priorities.map(value => [value, t(value)]), filter.priority, 'allPriorities')}<div class="view-toggle">${['board', 'list'].map(value => button(value, 'deviation-view', `data-value="${value}" aria-pressed="${deviationView === value}"`, deviationView === value ? 'selected' : '')).join('')}</div></div>`;
   const visible = filter.status === '__unknown' ? filterSortRecords(all, { ...filter, status: null }, [{ key: 'creationDate', descending: true }, { key: 'deviationNo' }]) : rows;
   const card = row => `<button type="button" class="task-card" data-command="core-detail" data-module="deviations" data-id="${esc(row.id)}"><span class="card-code">${coreValue(row.deviationNo)}</span><h2>${esc(row.title || row.id)}</h2>${coreStatus(row.status)}<p>${t('priority')}: ${coreValue(row.priority == null ? null : t(row.priority))}</p><p>${coreValue(row.assignedTo)}</p></button>`;
   if (deviationView === 'board') {
@@ -1548,6 +1590,7 @@ document.addEventListener('click', event => {
     'new-attachment': () => showAttachmentForm(target.dataset.entityType, id),
     'open-attachment': () => openAttachment(id),
     'core-reload': () => { coreCache.delete(siteId); wbsCache.delete(siteId); render(); },
+    'reconciliation-filter': () => { reconciliationFilter = reconciliationFilter === target.dataset.kind ? '' : target.dataset.kind; render(); },
     'deviation-view': () => { deviationView = target.dataset.value; render(); },
     'core-detail': () => showCoreDetail(target.dataset.module, id),
     'booking-delete': () => showBookingDelete(id),

@@ -14,6 +14,7 @@ import { listWbs, getWbs, importWbs } from './wbs.mjs';
 import { listSiteProgress, countSiteProgress, getSiteProgressItem, importSiteProgress, updateSiteProgressItem } from './site-progress.mjs';
 import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.mjs';
 import { listDeviations, countDeviations, getDeviation, importDeviations } from './deviations.mjs';
+import { deviationReconciliation } from './deviation-reconciliation.mjs';
 import { listCostImpacts, getCostImpact, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
 import { listTimeBookings, countTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForItem } from './time_bookings.mjs';
 import { chat as assistantChat } from './assistant.mjs';
@@ -481,6 +482,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (path === '/api/deviations/import' && method === 'POST') {
         const input = await readJson(request);
         return json(response, 200, await importDeviations(db, input.site_id, user));
+      }
+      if (path === '/api/deviations/reconciliation' && method === 'GET') {
+        return json(response, 200, await deviationReconciliation(db, { siteId: url.searchParams.get('site_id') }, user));
       }
       const deviation = /^\/api\/deviations\/([^/]+)$/.exec(path);
       if (deviation && method === 'GET') {

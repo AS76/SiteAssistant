@@ -27,6 +27,7 @@ import './wbs.test.mjs';
 import './hr.test.mjs';
 import './site-progress.test.mjs';
 import './deviations.test.mjs';
+import './deviation-reconciliation.test.mjs';
 import './time-bookings.test.mjs';
 import './booking-hours.test.mjs';
 import './cost-impacts.test.mjs';

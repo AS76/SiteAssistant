@@ -108,6 +108,7 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     transitionTask: async (task, input, options) => taskFromApi(await request(`/api/tasks/${encodeURIComponent(task.id)}/transition`, transitionPayload(task, input), options)),
     listDeviations: async (filters = {}) => (await request(`/api/deviations${query(wireFilters({ limit: 200, ...filters }))}`)).map(deviationFromApi),
     getDeviation: async id => deviationFromApi(await request(`/api/deviations/${encodeURIComponent(id)}`)),
+    deviationReconciliation: siteId => request(`/api/deviations/reconciliation${query({ site_id: siteId })}`),
     listProgress: async (filters = {}) => (await request(`/api/site-progress${query(wireFilters({ limit: 200, ...filters }))}`)).map(progressFromApi),
     getProgress: async id => progressFromApi(await request(`/api/site-progress/${encodeURIComponent(id)}`)),
     updateProgress: async (id, input) => progressFromApi(await request(

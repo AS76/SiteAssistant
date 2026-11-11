@@ -329,3 +329,10 @@ footer{font-size:11px}
 .module-access .table-scroll { overflow-x: auto; }
 .module-access th, .module-access td { padding: 10px; text-align: left; }
 .module-access input[type=checkbox] { width: 20px; height: 20px; }
+.reconciliation-panel { margin-bottom: 20px; }
+.reconciliation-panel > summary { padding: 16px; cursor: pointer; font-weight: 700; }
+.reconciliation-counts { flex-wrap: wrap; }
+.reconciliation-counts [aria-pressed="true"] { border-color: var(--green); background: var(--pale); }
+
+.reconciliation-panel tr[data-command] { cursor: pointer; }
+.reconciliation-panel tr[data-command]:hover { background: var(--pale); }

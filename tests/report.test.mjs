@@ -54,7 +54,7 @@ for (const driver of ['sqlite', 'pg']) test(`Report ${driver}`, async t => {
     await f.deviation('Area A', 'closed');
     await f.deviation('Area A', null);
     const before = Date.now(), result = await f.read();
-    t.assert.deepStrictEqual(Object.keys(result), ['site', 'generated_at', 'progress', 'deviations', 'earnedValue']);
+    t.assert.deepStrictEqual(Object.keys(result), ['site', 'generated_at', 'progress', 'deviations', 'earnedValue', 'reconciliation']);
     t.assert.deepStrictEqual(result.site, { code: f.site.code, name: f.site.name });
     t.assert.strictEqual(new Date(result.generated_at).toISOString(), result.generated_at);
     t.assert.ok(Date.parse(result.generated_at) >= before && Date.parse(result.generated_at) <= Date.now());
