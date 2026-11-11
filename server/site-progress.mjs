@@ -28,9 +28,12 @@ export async function listSiteProgress(db, { siteId: input, wbsId } = {}) {
   if (wbsId != null) { clauses.push('s.wbs_id = ?'); values.push(validId(wbsId, 'wbs_id')); }
   await getSite(db, site);
   // List and detail expose the same aggregates so the UI never needs a second request.
-  return (await db.all(`SELECT s.*, COALESCE(b.booked_hours, 0) AS booked_hours,
+  return (await db.all(`SELECT s.*, ps.wbs_code AS wbs_code, ps.description AS wbs_description,
+      COALESCE(b.booked_hours, 0) AS booked_hours,
       c.progress_pct_computed
-    FROM site_progress_items s LEFT JOIN (
+    FROM site_progress_items s
+    LEFT JOIN project_structure ps ON ps.id = s.wbs_id
+    LEFT JOIN (
       SELECT site_progress_item_id, SUM(hours) AS booked_hours FROM time_bookings GROUP BY site_progress_item_id
     ) b ON b.site_progress_item_id = s.id LEFT JOIN (
       -- Denominator is every step of the type, so an unrecorded step counts as zero.
@@ -51,7 +54,9 @@ export async function listSiteProgress(db, { siteId: input, wbsId } = {}) {
 
 export async function getSiteProgressItem(db, id) {
   const row = typeof id === 'string' && uuid.test(id)
-    ? await db.get('SELECT * FROM site_progress_items WHERE id = ?', id.toLowerCase()) : null;
+    ? await db.get(`SELECT s.*, ps.wbs_code AS wbs_code, ps.description AS wbs_description
+        FROM site_progress_items s LEFT JOIN project_structure ps ON ps.id = s.wbs_id
+        WHERE s.id = ?`, id.toLowerCase()) : null;
   if (!row) fail(404, 'Site progress item not found.', 'SITE_PROGRESS_ITEM_NOT_FOUND');
   const aggregate = row.progress_type_id == null ? null
     : (await db.get(`SELECT (SELECT COALESCE(SUM(ps.weight * st.percent * 1.0), 0) FROM site_progress_item_steps st

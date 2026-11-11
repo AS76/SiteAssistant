@@ -15,7 +15,7 @@ for (const driver of ['sqlite', 'pg']) test(`Site Progress ${driver}: snapshots,
     const site = await createSite(db, { code: randomUUID(), name: 'Synthetic progress site' });
     for (const [role, user] of Object.entries(auth.users)) await db.run('INSERT INTO site_members VALUES (?, ?, ?)', site.id, user.id, role);
     await wbsSource(db, site, [
-      { wbs_code: '1', level: 0, section: 'Unique', plc_area: 'Area A' },
+      { wbs_code: '1', description: 'Synthetic WBS description', level: 0, section: 'Unique', plc_area: 'Area A' },
       { wbs_code: '2', level: 0, section: 'Ambiguous', plc_area: 'Area B' },
       { wbs_code: '3', level: 0, section: 'Ambiguous', plc_area: 'Area C' },
       { wbs_code: '4.1', level: 1 },
@@ -74,6 +74,27 @@ for (const driver of ['sqlite', 'pg']) test(`Site Progress ${driver}: snapshots,
     t.assert.deepStrictEqual(await listSiteProgress(db, { siteId: f.site.id, wbsId: foreignNode.id }), []);
     const expected = await db.all('SELECT id FROM site_progress_items WHERE site_id = ? ORDER BY section, plc_area, source_row, id', f.site.id);
     t.assert.deepStrictEqual(rows.map(row => row.id), expected.map(row => row.id));
+  });
+
+  await t.test('list and detail expose WBS labels or nulls while preserving every item field', async t => {
+    const f = await fixture(); await promote(f.site);
+    const rows = await state(f.site);
+    const stored = await db.all('SELECT * FROM site_progress_items WHERE site_id = ?', f.site.id);
+    t.assert.strictEqual(rows.length, stored.length);
+    t.assert.ok(rows.some(row => row.wbs_id != null));
+    t.assert.ok(rows.some(row => row.wbs_id == null));
+    for (const item of stored) {
+      const expected = { ...item,
+        progress_pct: item.progress_pct == null ? null : Number(item.progress_pct),
+        progress_pct_source: 'imported',
+        wbs_code: item.wbs_id == null ? null : '1',
+        wbs_description: item.wbs_id == null ? null : 'Synthetic WBS description' };
+      for (const field of ['has_files', 'has_notes', 'has_deviations']) {
+        expected[field] = item[field] == null ? null : Boolean(item[field]);
+      }
+      t.assert.deepStrictEqual(rows.find(row => row.id === item.id), { ...expected, booked_hours: 0 });
+      t.assert.deepStrictEqual(await getSiteProgressItem(db, item.id), { ...expected, steps: [] });
+    }
   });
 
   await t.test('repeated and concurrent imports preserve IDs, created_at, rows and promotion markers', async t => {

@@ -796,10 +796,8 @@ async function showCoreDetail(module, id) {
         <button type="button" role="tab" aria-selected="false" data-command="detail-tab" data-panel="refs">${t('coreReferences')}</button>
       </div><div class="detail-panel" data-detail-panel="data">${details}</div><div class="detail-panel" data-detail-panel="refs" hidden>${references}</div>`;
     } else if (module === 'progress') {
-      const wbsNodes = coreData('wbs') || [];
-      const wbsCode = nodeId => wbsNodes.find(node => node.id === nodeId)?.wbs_code ?? null;
       const day = value => value ? dateLabel(String(value).slice(0, 10)) : null;
-      content = progressBar(row.progressPct) + coreFields({ ...row, wbsId: wbsCode(row.wbsId),
+      content = progressBar(row.progressPct) + coreFields({ ...row, wbsId: [row.wbsCode, row.wbsDescription].filter(Boolean).join(' · ') || '—',
         plannedStart: day(row.plannedStart), plannedFinish: day(row.plannedFinish), actualStart: day(row.actualStart) },
       [['description', 'coreDescription'], ['section', 'coreSection'], ['plcArea', 'area'], ['wbsId', 'wbs'], ['assignedTo', 'coreAssignedTo'], ['progressPct', 'coreProgressPct'], ['plannedProgressPct', 'corePlannedPct'], ['deltaProgressSource', 'coreDeltaPct'], ['bookedHours', 'coreBookedHours'], ['plannedStart', 'wbsPlannedStart'], ['plannedFinish', 'wbsPlannedFinish'], ['actualStart', 'coreActualStart'], ['expectedDelay', 'coreExpectedDelay'], ['hasFiles', 'coreHasFiles'], ['hasNotes', 'coreHasNotes'], ['hasDeviations', 'coreHasDeviations']]);
       content += progressStepsSection(row);
