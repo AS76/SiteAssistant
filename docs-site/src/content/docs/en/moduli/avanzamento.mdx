@@ -100,17 +100,20 @@ What it is for: putting the site's progress and deviations on paper, or into a s
 
 The **Print PDF** button appears on the **Overview** and in the **Site progress** view. It opens the **Site report** view and, once the data is loaded, starts the browser print dialog: choose “Save as PDF” there. There is no server-generated PDF.
 
-The report contains two tables and an **Earned value** block:
+The report contains two tables, an **Earned value** block and a reconciliation section:
 
 - **Cockpit · actual and planned** — for each macro-area: number of items, actual progress, planned progress and the source of the value (**Computed**, **Imported** or **Mixed**).
 - **Earned value** — EV, PV and AC in hours, with CPI and SPI. EV is the earned value, PV the planned value and AC the actual cost, equal to the booked hours; CPI is EV divided by AC and SPI is EV divided by PV.
 - **Deviations** — for each macro-area: total, open, closed or rejected and the count by status.
+- **Inconsistent timelines** — the count of the three deviation checks and the first ten findings.
 
 A macro-area's actual value is the average of its items: those with a progress type use the value computed from the steps, the others the imported value. Items without a value show **Not available**; in the CSV the cell stays empty.
 
 Earned value uses the planned hours of the items or, when an item has none, those of the linked WBS node. `EV = planned hours × actual progress / 100`, `PV = planned hours × planned progress / 100`, `AC = booked hours`. If the site has no planned hours at all, a notice appears instead of the figures (`NO_PLANNED_HOURS`); items without hours are excluded and their number is shown below the block. CPI and SPI stay empty when the denominator is zero or missing.
 
 Deviations are grouped by **PLC area**, because imported data has no zone or section; those without an area go under **Senza sezione** (no section). **Closed / rejected** adds the `closed` and `rejected` statuses: rejected is terminal. A deviation with a missing status stays among the open ones.
+
+The **Inconsistent timelines** section repeats in the report the checks of the **To reconcile** panel in the Deviations view: deviations closed without a date, closed before approval and with conflicting statuses. It shows the count of each check and a table with the first ten findings, saying how many there are in total. It is a read: no date is corrected. While the internal history of deviations is unavailable, statuses cannot be compared and the report says so. See [Deviations](../deviazioni/#to-reconcile).
 
 The generation date and time are shown in **UTC**, on the printed copy too. Printing uses A4 portrait, without navigation or buttons.
 
