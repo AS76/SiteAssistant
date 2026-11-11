@@ -10,7 +10,7 @@ import { createTaskResponse } from './idempotency.mjs';
 import { createRateLimiter } from './limits.mjs';
 import { readPagination } from './pagination.mjs';
 import { listWbs, getWbs, importWbs } from './wbs.mjs';
-import { listSiteProgress, countSiteProgress, getSiteProgressItem, importSiteProgress } from './site-progress.mjs';
+import { listSiteProgress, countSiteProgress, getSiteProgressItem, importSiteProgress, updateSiteProgressItem } from './site-progress.mjs';
 import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.mjs';
 import { listDeviations, countDeviations, getDeviation, importDeviations } from './deviations.mjs';
 import { listCostImpacts, getCostImpact, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
@@ -351,6 +351,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, await importSiteProgress(db, input.site_id, user));
       }
       const siteProgress = /^\/api\/site-progress\/([^/]+)$/.exec(path);
+      if (siteProgress && method === 'PATCH') {
+        return json(response, 200, await updateSiteProgressItem(db, siteProgress[1], await readJson(request), user));
+      }
       if (siteProgress && method === 'GET') {
         const item = await getSiteProgressItem(db, siteProgress[1]);
         await requireRole(db, item.site_id, user);

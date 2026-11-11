@@ -94,6 +94,8 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     getDeviation: async id => deviationFromApi(await request(`/api/deviations/${encodeURIComponent(id)}`)),
     listProgress: async (filters = {}) => (await request(`/api/site-progress${query(wireFilters({ limit: 200, ...filters }))}`)).map(progressFromApi),
     getProgress: async id => progressFromApi(await request(`/api/site-progress/${encodeURIComponent(id)}`)),
+    updateProgress: async (id, input) => progressFromApi(await request(
+      `/api/site-progress/${encodeURIComponent(id)}`, input, { method: 'PATCH' })),
     listBookings: async (filters = {}) => (await request(`/api/time-bookings${query(wireFilters({ limit: 200, ...filters }))}`)).map(bookingFromApi),
     createBooking: async input => bookingFromApi(await request('/api/time-bookings', {
       work_day_id: input.workDayId, site_progress_item_id: input.siteProgressItemId, hours: input.hours,

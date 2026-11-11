@@ -261,7 +261,8 @@ for (const driver of ['sqlite', 'pg']) test(`Site Progress ${driver}: snapshots,
     const other = await createSite(db, { code: randomUUID(), name: 'Synthetic unrelated site' });
     const forbidden = await request(importPath, { method: 'POST', cookie: auth.cookies.owner, body: { site_id: other.id } });
     t.assert.strictEqual(forbidden.status, 403); t.assert.strictEqual(forbidden.body.code, 'FORBIDDEN');
-    for (const path of [listPath, detailPath]) t.assert.strictEqual((await request(path, { method: 'PATCH', cookie: auth.cookies.owner, body: {} })).status, 404);
+    t.assert.strictEqual((await request(listPath, { method: 'PATCH', cookie: auth.cookies.owner, body: {} })).status, 404);
+    t.assert.strictEqual((await request(detailPath, { method: 'PATCH', cookie: auth.cookies.owner, body: {} })).status, 400);
   });
 
   await t.test('migration replay preserves rows; foreign keys, row uniqueness, types and index are enforced', async t => {

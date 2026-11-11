@@ -54,7 +54,7 @@ for (const driver of ['sqlite', 'pg']) test(`Report ${driver}`, async t => {
     await f.deviation('Area A', 'closed');
     await f.deviation('Area A', null);
     const before = Date.now(), result = await f.read();
-    t.assert.deepStrictEqual(Object.keys(result), ['site', 'generated_at', 'progress', 'deviations']);
+    t.assert.deepStrictEqual(Object.keys(result), ['site', 'generated_at', 'progress', 'deviations', 'earnedValue']);
     t.assert.deepStrictEqual(result.site, { code: f.site.code, name: f.site.name });
     t.assert.strictEqual(new Date(result.generated_at).toISOString(), result.generated_at);
     t.assert.ok(Date.parse(result.generated_at) >= before && Date.parse(result.generated_at) <= Date.now());
@@ -73,7 +73,7 @@ for (const driver of ['sqlite', 'pg']) test(`Report ${driver}`, async t => {
       t.assert.strictEqual(row.by_status.reduce((sum, entry) => sum + entry.count, 0), row.total);
     }
     const dash = await dashboard(db, f.options);
-    t.assert.deepStrictEqual(Object.keys(dash), ['deviations', 'progress', 'hours', 'claims']);
+    t.assert.deepStrictEqual(Object.keys(dash), ['earnedValue', 'deviations', 'progress', 'hours', 'claims']);
     t.assert.deepStrictEqual(dash.progress, result.progress.map(({ area, items, actual, planned }) => ({ section: area, items, actual, planned })));
     t.assert.deepStrictEqual(dash.deviations, STATUS_ORDER.map(status => ({ status,
       count: result.deviations.reduce((sum, row) => sum + row.by_status.find(entry => entry.status === status).count, 0),

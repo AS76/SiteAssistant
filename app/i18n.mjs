@@ -1,5 +1,10 @@
 export const messages = {
   it: {
+    earnedValueTitle: 'Earned value', earnedValueEV: 'EV (ore)', earnedValuePV: 'PV (ore)', earnedValueAC: 'AC (ore)',
+    earnedValueCPI: 'CPI', earnedValueSPI: 'SPI',
+    earnedValueNoHours: 'Ore pianificate non disponibili (NO_PLANNED_HOURS). Aggiungerle agli elementi o ai nodi WBS collegati.',
+    earnedValueMissingHours: 'Elementi esclusi perché privi di ore pianificate', corePlannedHours: 'Ore pianificate',
+    corePlannedHoursHint: 'Lascia vuoto per usare le ore del nodo WBS collegato, se disponibili.',
     report: 'Report del cantiere', reportSub: 'Stato attuale per macro-area · avanzamento e deviazioni.',
     reportPrint: 'Stampa PDF', reportGenerated: 'Generato il', reportCockpit: 'Cockpit · effettivo e pianificato',
     reportArea: 'Macro-area', reportItems: 'Elementi', reportActual: 'Effettivo', reportPlanned: 'Pianificato',
@@ -280,6 +285,11 @@ export const messages = {
     actorPlaceholder:"Nome della persona",loading:"Caricamento…",retry:"Riprova",apiUnavailable:"API non raggiungibile. Controlla la connessione e riprova.",apiError:"Richiesta API non riuscita. Controlla i dati e riprova.",duplicateDiary:"Esiste già un contributo per questo cantiere, giorno e turno.",noteRequired:"Inserisci una nota di esecuzione o verifica.",verifierRequired:"Solo il verificatore assegnato può chiudere questa attività.",transitionTo:"Passa a",noTransitions:"Nessuna transizione disponibile per questo stato.",reason:"Motivazione",noSites:"Nessun cantiere",noSitesHint:"Crea il primo cantiere per iniziare.",
   },
   en: {
+    earnedValueTitle: 'Earned value', earnedValueEV: 'EV (hours)', earnedValuePV: 'PV (hours)', earnedValueAC: 'AC (hours)',
+    earnedValueCPI: 'CPI', earnedValueSPI: 'SPI',
+    earnedValueNoHours: 'Planned hours are unavailable (NO_PLANNED_HOURS). Add them to items or linked WBS nodes.',
+    earnedValueMissingHours: 'Items excluded because planned hours are missing', corePlannedHours: 'Planned hours',
+    corePlannedHoursHint: 'Leave blank to use the linked WBS node’s hours, when available.',
     report: 'Site report', reportSub: 'Current state by macro-area · progress and deviations.',
     reportPrint: 'Print PDF', reportGenerated: 'Generated at', reportCockpit: 'Cockpit · actual and planned',
     reportArea: 'Macro-area', reportItems: 'Items', reportActual: 'Actual', reportPlanned: 'Planned',

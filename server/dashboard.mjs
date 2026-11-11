@@ -1,6 +1,8 @@
 // Dashboard figures for the overview. Everything is computed from the application tables,
 // scoped to one site: no caching layer, no rollup tables until the volumes justify them.
 import { RepositoryError, requireRole } from './repository.mjs';
+import { effectiveProgressSql } from './site-progress.mjs';
+import { earnedValue } from './earned-value.mjs';
 
 const fail = (code, message, status = 400) => { throw new RepositoryError(status, message, code); };
 
@@ -22,12 +24,7 @@ export async function progressByArea(db, site) {
   const rows = await db.all(`SELECT COALESCE(s.section, s.plc_area, 'Senza sezione') AS area,
       COUNT(*) AS items,
       SUM(CASE WHEN s.progress_type_id IS NOT NULL THEN 1 ELSE 0 END) AS computed_items,
-      AVG(CASE WHEN s.progress_type_id IS NULL THEN s.progress_pct ELSE COALESCE((
-        SELECT SUM(ps.weight * st.percent * 1.0)
-        FROM site_progress_item_steps st JOIN progress_type_steps ps ON ps.id = st.progress_type_step_id
-        WHERE st.site_progress_item_id = s.id AND ps.progress_type_id = s.progress_type_id
-      ) / NULLIF((SELECT SUM(ps2.weight) FROM progress_type_steps ps2
-        WHERE ps2.progress_type_id = s.progress_type_id), 0), 0) END) AS actual,
+      AVG(${effectiveProgressSql}) AS actual,
       AVG(s.planned_progress_pct) AS planned
     FROM site_progress_items s WHERE s.site_id = ?
     GROUP BY COALESCE(s.section, s.plc_area, 'Senza sezione') ORDER BY items DESC, area ASC`, site);
@@ -71,6 +68,7 @@ export async function dashboard(db, options = {}) {
   }), { claimed: 0, settled: 0 });
 
   return {
+    earnedValue: await earnedValue(db, { siteId: site }),
     deviations: deviationsByStatus,
     progress,
     hours,

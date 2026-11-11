@@ -15,7 +15,15 @@ const effectiveProgress = (row, aggregate) => {
     : row.progress_pct == null ? null : Number(row.progress_pct),
   progress_pct_source: computed ? 'computed' : 'imported' };
 };
-const publicItem = row => ({ ...row, ...Object.fromEntries(booleanFields.map(field =>
+// SQL fragment for queries whose site_progress_items alias is s.
+export const effectiveProgressSql = `CASE WHEN s.progress_type_id IS NULL THEN s.progress_pct ELSE COALESCE((
+  SELECT SUM(ps.weight * st.percent * 1.0)
+  FROM site_progress_item_steps st JOIN progress_type_steps ps ON ps.id = st.progress_type_step_id
+  WHERE st.site_progress_item_id = s.id AND ps.progress_type_id = s.progress_type_id
+) / NULLIF((SELECT SUM(ps2.weight) FROM progress_type_steps ps2
+  WHERE ps2.progress_type_id = s.progress_type_id), 0), 0) END`;
+
+const publicItem = row => ({ ...row, planned_hours: row.planned_hours == null ? null : Number(row.planned_hours), ...Object.fromEntries(booleanFields.map(field =>
   [field, row[field] == null ? null : Boolean(row[field])])) });
 
 function validId(value, field) {
@@ -79,6 +87,24 @@ export async function getSiteProgressItem(db, id) {
       WHERE ps.progress_type_id = ? ORDER BY ps.position`, row.id, row.progress_type_id)).map(step => ({
     ...step, weight: Number(step.weight), percent: step.percent == null ? null : Number(step.percent) }));
   return { ...publicItem(row), ...effectiveProgress(row, aggregate), steps };
+}
+
+export async function updateSiteProgressItem(db, id, input, user) {
+  if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
+  return db.transaction(async tx => {
+    const item = await getSiteProgressItem(tx, id);
+    await requireRole(tx, item.site_id, user, ['owner', 'editor']);
+    if (!input || typeof input !== 'object' || Array.isArray(input)
+      || Object.keys(input).length !== 1 || !Object.hasOwn(input, 'planned_hours')) {
+      fail(400, 'Only planned_hours can be updated.', 'VALIDATION_ERROR');
+    }
+    const hours = input.planned_hours;
+    if (hours !== null && (typeof hours !== 'number' || !Number.isFinite(hours) || hours < 0 || hours > 1e6)) {
+      fail(400, 'planned_hours must be null or a number between 0 and 1000000.', 'VALIDATION_ERROR');
+    }
+    await tx.run('UPDATE site_progress_items SET planned_hours = ? WHERE id = ?', hours, item.id);
+    return getSiteProgressItem(tx, item.id);
+  });
 }
 
 export async function importSiteProgress(db, inputSite, user) {

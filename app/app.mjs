@@ -271,8 +271,9 @@ async function loadReport(target) {
     }).format(new Date(data.generated_at));
     target.innerHTML = `<header class="report-header"><h2>${esc(data.site.code)} · ${esc(data.site.name)}</h2>
       <p>${t('reportGenerated')}: <time datetime="${esc(data.generated_at)}">${esc(generated)} UTC</time></p></header>`
-      + table('reportCockpit', ['reportArea', 'reportItems', 'reportActual', 'reportPlanned', 'reportSource'],
+      + '<section>' + table('reportCockpit', ['reportArea', 'reportItems', 'reportActual', 'reportPlanned', 'reportSource'],
         data.progress.map(row => [esc(row.area), coreNumber(row.items), percent(row.actual), percent(row.planned), esc(t(`reportSource_${row.source}`))]))
+      + `<h3>${t('earnedValueTitle')}</h3>` + earnedValueSummary(data.earnedValue) + '</section>'
       + table('deviations', ['reportArea', 'reportTotal', 'reportOpen', 'reportClosed', 'reportByStatus'],
         data.deviations.map(row => [esc(row.area), coreNumber(row.total), coreNumber(row.open), coreNumber(row.closed),
           row.by_status.map(entry => `<span class="report-status">${esc(entry.status == null ? t('coreUnknown') : t(entry.status))}: ${coreNumber(entry.count)}</span>`).join(' ')]));
@@ -300,6 +301,14 @@ async function loadReport(target) {
 
 // Overview dashboard: counters plus three small charts, computed server-side per site and cached.
 const overviewCache = new Map();
+function earnedValueSummary(value) {
+  if (!value?.available) return `<p class="note">${t('earnedValueNoHours')}</p>`;
+  return `<dl class="detail-grid core-details">${[
+    ['earnedValueEV', value.ev_hours], ['earnedValuePV', value.pv_hours], ['earnedValueAC', value.ac_hours],
+    ['earnedValueCPI', value.cpi], ['earnedValueSPI', value.spi],
+  ].map(([label, number]) => `<div><dt>${t(label)}</dt><dd>${coreNumber(number)}</dd></div>`).join('')}</dl>`
+    + (value.items_without_hours ? `<p class="note">${t('earnedValueMissingHours')}: ${coreNumber(value.items_without_hours)}</p>` : '');
+}
 const STATUS_COLORS = { open: '#b96027', approved: '#3b69a0', in_progress: '#126c57',
   work_completed: '#6b8f86', closed: '#377348', rejected: '#a73c37' };
 function donut(data, total) {
@@ -344,6 +353,7 @@ async function loadOverviewDashboard() {
       <ul class="donut-legend">${data.deviations.map(row => `<li><i style="background:${STATUS_COLORS[row.status] || '#94a3a3'}"></i>${esc(t(row.status))}<strong>${row.count}</strong></li>`).join('')}</ul></div></section>
     <section class="panel"><div class="panel-header"><h2>${t('dashProgress')}</h2></div><div class="panel-body">${data.progress.length ? sectionBars(data.progress) : `<p class="note">${t('noResults')}</p>`}</div></section>
     <section class="panel"><div class="panel-header"><h2>${t('dashHours')}</h2></div><div class="panel-body">${data.hours.length ? `<ul class="mini-bars">${data.hours.map(row => `<li><span class="bar-label">${esc(row.week)}</span><span class="bar-track"><span class="bar-actual" style="width:${(row.hours / maxHours * 100).toFixed(1)}%"></span></span><span class="bar-value">${number(row.hours)}</span></li>`).join('')}</ul>` : `<p class="note">${t('noResults')}</p>`}</div></section>
+    <section class="panel"><div class="panel-header"><h2>${t('earnedValueTitle')}</h2></div><div class="panel-body">${earnedValueSummary(data.earnedValue)}</div></section>
   </div>`;
 }
 function renderSites() {
@@ -800,7 +810,9 @@ function progressStepsSection(row) {
   const types = coreData('progressTypes') || [];
   const type = types.find(candidate => candidate.id === row.progressTypeId);
   const steps = row.steps || [], rights = permissions();
-  let html = `<h3>${t('coreProgressType')}</h3>`;
+  let html = rights.steps ? `<form id="progress-hours-form" data-id="${esc(row.id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><label class="field">${t('corePlannedHours')}<input name="planned_hours" type="number" min="0" max="1000000" step="any" value="${row.plannedHours == null ? '' : esc(row.plannedHours)}"></label><p class="note">${t('corePlannedHoursHint')}</p><div class="form-actions"><button type="submit" class="primary">${t('save')}</button></div></form>`
+    : `<p>${t('corePlannedHours')}: ${coreNumber(row.plannedHours)}</p>`;
+  html += `<h3>${t('coreProgressType')}</h3>`;
   html += type ? `<p><strong>${esc(type.name)}</strong> <span class="badge">${esc(type.code)}</span></p>` : `<p>${t('coreNoProgressType')}</p>`;
   if (steps.length) html += coreTable(['coreStep', 'coreDescription', 'coreWeight', 'coreStepPercent'],
     steps.map(step => [esc(step.code), coreValue(step.description), coreNumber(step.weight),
@@ -1090,10 +1102,15 @@ async function submitCore(form, data) {
   if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
   const isImpact = form.id === 'impact-transition-form';
   const isSteps = form.id === 'progress-steps-form', isType = form.id === 'progress-type-form';
-  if (isSteps) { if (!permissions().steps) throw new Error('forbidden'); }
+  const isHours = form.id === 'progress-hours-form';
+  if (isSteps || isHours) { if (!permissions().steps) throw new Error('forbidden'); }
   else if (isType) { if (!permissions().assign) throw new Error('forbidden'); }
   else if (!(isImpact ? permissions().transition : permissions().book)) throw new Error('forbidden');
-  if (form.id === 'booking-form') {
+  if (isHours) {
+    const hours = data.planned_hours === '' ? null : Number(data.planned_hours);
+    if (hours !== null && (!Number.isFinite(hours) || hours < 0 || hours > 1e6)) throw new Error('invalidData');
+    await api.updateProgress(form.dataset.id, { planned_hours: hours });
+  } else if (form.id === 'booking-form') {
     const hours = Number(data.hours);
     if (!data.hours || !Number.isFinite(hours) || hours < 0) throw new Error('invalidData');
     await api.createBooking({ workDayId: data.workDayId, siteProgressItemId: data.siteProgressItemId, hours });
@@ -1112,11 +1129,12 @@ async function submitCore(form, data) {
   }
   if (session?.user.id !== user) return;
   const cache = coreCache.get(selected);
+  overviewCache.delete(selected);
   for (const key of isImpact ? ['impacts'] : ['bookings', 'progress']) cache?.delete(key);
   if (selected !== siteId) return;
   if (form.id !== 'booking-form' && version === modalVersion) closeModal();
   render(); toast(t('actionSaved'));
-  if (isImpact || isSteps || isType) void showCoreDetail(isImpact ? 'impacts' : 'progress', form.dataset.id);
+  if (isImpact || isSteps || isType || isHours) void showCoreDetail(isImpact ? 'impacts' : 'progress', form.dataset.id);
 }
 
 function render() {
@@ -1385,7 +1403,7 @@ document.addEventListener('submit', async event => {
     void askAssistant(text);
     return;
   }
-  if (!['saved-view-form', 'site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'tool-form', 'tool-delete-form', 'cert-form', 'cert-delete-form', 'import-form', 'settings-form'].includes(form.id)) return;
+  if (!['saved-view-form', 'site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'progress-hours-form', 'tool-form', 'tool-delete-form', 'cert-form', 'cert-delete-form', 'import-form', 'settings-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   const data = Object.fromEntries(new FormData(form));
@@ -1406,7 +1424,7 @@ document.addEventListener('submit', async event => {
       savePrefs(); closeModal(); render(); toast(t('settingsSaved')); return;
     }
     if (form.id === 'import-form') { await handleImport(form); return; }
-    if (['booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form'].includes(form.id)) { await submitCore(form, data); return; }
+    if (['booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'progress-hours-form'].includes(form.id)) { await submitCore(form, data); return; }
     if (['tool-form', 'tool-delete-form'].includes(form.id)) { await submitTool(form, data); return; }
     if (['cert-form', 'cert-delete-form'].includes(form.id)) { await submitCertification(form, data); return; }
     if (form.id === 'login-form') {

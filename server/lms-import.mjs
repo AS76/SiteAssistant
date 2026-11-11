@@ -84,6 +84,7 @@ export const FAMILIES = {
     'Sort Order': col('sort_order', integer), 'Summary Task': col('summary_task', boolean), 'Planned Hours': col('planned_hours', number),
   }, ['Time Schedule Item No']),
   site_progress_items: definition('site_progress_items', {
+    'Planned Hours': col('planned_hours', number), 'Planned Hours Total': col('planned_hours', number),
     ...common, 'Planned Progress': col('planned_progress_pct', number), 'Planned Progress %': col('planned_progress_pct', number),
     'Delta Progress': col('delta_progress_source', number),
     'Expected Delay': col('expected_delay'), 'Has Files': col('has_files', boolean),

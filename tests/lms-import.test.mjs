@@ -220,6 +220,22 @@ for (const driver of ['sqlite', 'pg']) test(`planning import ${driver}: preview,
     return { preview: preview.body, result: result.body };
   };
 
+  await t.test('optional progress planned hours aliases import, repeat without duplication and preserve absent hours', async () => {
+    const site = await fixture(), sample = { ...samples.site_progress_items,
+      rows: samples.site_progress_items.rows.map(row => [...row.slice(0, -1), 'False']) };
+    for (const header of ['Planned Hours', 'Planned Hours Total']) {
+      const input = { header: [...sample.header, header], rows: sample.rows.map(row => [...row, '120,5']) };
+      const parsed = parseFamily(xlsx(input.header, input.rows), 'site_progress_items');
+      assert.deepEqual(parsed.rows.map(row => row.values.planned_hours), [120.5, 120.5]);
+      assert.deepEqual(parsed.unmapped_columns, []);
+      await apply(site, 'site_progress_items', input);
+    }
+    await apply(site, 'site_progress_items', sample);
+    const rows = await db.all('SELECT planned_hours FROM site_progress_items WHERE site_id = ?', site.id);
+    assert.equal(rows.length, 2);
+    assert.deepEqual(rows.map(row => Number(row.planned_hours)), [120.5, 120.5]);
+  });
+
   for (const family of Object.keys(samples)) await t.test(`${family}: add, unchanged, update, no deletion`, async () => {
     const site = await fixture();
     if (family === 'work_days') await apply(site, 'employees');

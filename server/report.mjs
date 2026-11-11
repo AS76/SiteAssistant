@@ -1,4 +1,5 @@
 import { progressByArea, requireDashboardSite, STATUS_ORDER } from './dashboard.mjs';
+import { earnedValue } from './earned-value.mjs';
 
 export async function report(db, options = {}) {
   const siteId = await requireDashboardSite(db, options);
@@ -22,5 +23,6 @@ export async function report(db, options = {}) {
   }
   const deviations = [...areas.values()].sort((a, b) => b.total - a.total
     || (a.area < b.area ? -1 : a.area > b.area ? 1 : 0));
-  return { site: { code: site.code, name: site.name }, generated_at: new Date().toISOString(), progress, deviations };
+  return { site: { code: site.code, name: site.name }, generated_at: new Date().toISOString(), progress, deviations,
+    earnedValue: await earnedValue(db, { siteId }) };
 }

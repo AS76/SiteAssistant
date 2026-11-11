@@ -207,13 +207,13 @@ export async function apply(db) {
       itemIds.push(itemId);
       const typeCode = index % 3 === 0 ? TYPES[code][0].code : index % 3 === 1 ? TYPES[code][TYPES[code].length - 1].code : null;
       await db.run(`INSERT INTO site_progress_items (id, site_id, wbs_id, description, section, plc_area, progress_pct,
-          planned_progress_pct, assigned_to, planned_start, planned_finish, has_files, has_notes, has_deviations, source_row, created_at, progress_type_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          planned_progress_pct, assigned_to, planned_start, planned_finish, has_files, has_notes, has_deviations, source_row, created_at, progress_type_id, planned_hours)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (id) DO UPDATE SET description = excluded.description, progress_pct = excluded.progress_pct,
-          wbs_id = excluded.wbs_id, progress_type_id = excluded.progress_type_id`,
+          wbs_id = excluded.wbs_id, progress_type_id = excluded.progress_type_id, planned_hours = excluded.planned_hours`,
       itemId, siteId, wbsCode ? wbsIds.get(wbsCode) ?? null : null, description, section, area, progress,
       Math.min(100, progress + 10), 'Squadra sintetica', '2026-10-19', '2026-12-20', index % 5 === 0, index % 7 === 0, index % 6 === 0,
-      index + 1, at2, typeCode ? typeIds[typeCode].id : null);
+      index + 1, at2, typeCode ? typeIds[typeCode].id : null, 40 * (1 + index % 10));
       bump('items');
       if (typeCode) {
         const stepCount = typeIds[typeCode].steps.length;
