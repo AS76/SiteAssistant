@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createSite } from '../server/repository.mjs';
 import { createServer } from '../server/http.mjs';
-import { parseFamily, diffFamily, applyFamily, previewToken, verifyPreviewToken, MAX_IMPORT_BYTES } from '../server/planning-import.mjs';
+import { parseFamily, diffFamily, applyFamily, previewToken, verifyPreviewToken, MAX_IMPORT_BYTES, resolveMapping, DEFAULT_IDENTITIES, importRequest, saveImportMapping } from '../server/planning-import.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
 import { isPg, openTestDb, openSqliteTestDb } from './helpers/db.mjs';
 import { wbsDatabase } from './helpers/wbs.mjs';
@@ -119,6 +119,72 @@ test('planning parser: explicit rejection reasons and empty/invalid input', () =
   assert.equal(parseFamily(xlsx(['Time Schedule Item No', 'Progress %'], [['1', 'invalid']]), 'time_schedule').rejected[0].rejected, 'INVALID_NUMBER');
 });
 
+const customMapping = (family, aliases, identity = DEFAULT_IDENTITIES[family]) => resolveMapping(family,
+  { aliases_json: JSON.stringify(aliases), identity_json: JSON.stringify(identity) });
+
+test('planning mappings: defaults retain historical keys and all six parser results', () => {
+  const expectedKeys = { employees: 'E-1', work_days: '["2026-07-15","E-1"]', time_schedule: '1',
+    deviations: 'D-1', daily_log: '["2026-01-15","day"]' };
+  for (const family of Object.keys(samples)) {
+    const sample = samples[family], buffer = xlsx(sample.header, sample.rows);
+    const result = parseFamily(buffer, family);
+    assert.deepEqual(result, parseFamily(buffer, family, { mapping: resolveMapping(family, null) }));
+    assert.deepEqual(result, parseFamily(buffer, family, { mapping: customMapping(family, {}) }));
+    if (family in expectedKeys) assert.equal(result.rows[0].key, expectedKeys[family]);
+  }
+  const progressKey = JSON.stringify([JSON.stringify(['synthetic item', '2026-01-15t07:30:00.000000z',
+    '2026-07-15t06:30:00.000000z', 'a', 's']), 1]);
+  assert.equal(parsed('site_progress_items').rows[0].key, progressKey);
+});
+
+test('planning mappings: aliases replace mandatory headers and reuse field normalizers', () => {
+  const sample = samples.work_days, mapping = customMapping('work_days', { operational_date: ['Working date'], employee_no: ['Worker'], work_time: ['Hours'] });
+  const header = sample.header.map(name => ({ Date: 'Working date', 'Employee No': 'Worker', 'Work Time': 'Hours' })[name] || name);
+  assert.deepEqual(parseFamily(xlsx(header, sample.rows), 'work_days', { mapping }), parsed('work_days'));
+  const deviations = customMapping('deviations', { status: ['State'] });
+  assert.equal(parseFamily(xlsx(['Deviation No', 'State'], [['D-1', '05 Closed']]), 'deviations', { mapping: deviations }).rows[0].values.status, 'closed');
+  const blankCanonical = parseFamily(xlsx(['Deviation No', 'Deviation Status', 'State'], [['D-1', '', '05 Closed']]),
+    'deviations', { mapping: deviations });
+  assert.equal(blankCanonical.rows[0].values.status, 'closed');
+  const progress = customMapping('site_progress_items', { description: ['Item'] }, ['description']);
+  const input = xlsx(['Item', 'Planned Start', 'Planned Finish', 'PLC-Area', 'Section'], [['Synthetic', null, null, null, null]]);
+  assert.equal(parseFamily(input, 'site_progress_items', { mapping: progress }).rows.length, 1);
+  const special = customMapping('employees', { employee_no: ['__proto__'] });
+  const missingSpecial = parseFamily(xlsx(['Employee No', 'First Name'], [[null, 'Synthetic']]), 'employees', { mapping: special });
+  assert.equal(missingSpecial.rejected[0].rejected, 'MISSING_VALUE');
+  const presentSpecial = parseFamily(xlsx(['__proto__', 'First Name'], [['E-1', 'Synthetic']]), 'employees', { mapping: special });
+  assert.equal(presentSpecial.rows[0].values.employee_no, 'E-1');
+  const conflicting = parseFamily(xlsx(['Employee No', 'Worker'], [['E-1', 'E-2']]), 'employees',
+    { mapping: customMapping('employees', { employee_no: ['Worker'] }) });
+  assert.equal(conflicting.rejected[0].rejected, 'AMBIGUOUS_COLUMNS');
+});
+
+test('planning mappings: ordered normalized identity and progress occurrences are configurable', () => {
+  const sample = samples.employees, buffer = xlsx(sample.header, sample.rows);
+  const mapping = customMapping('employees', {}, ['first_name', 'employee_no']);
+  assert.equal(parseFamily(buffer, 'employees', { mapping }).rows[0].key, '["Synthetic","E-1"]');
+  assert.equal(parseFamily(buffer, 'employees', { mapping: customMapping('employees', {}, ['employee_no', 'first_name']) }).rows[0].key, '["E-1","Synthetic"]');
+  const progress = samples.site_progress_items;
+  const result = parseFamily(xlsx(progress.header, progress.rows), 'site_progress_items',
+    { mapping: customMapping('site_progress_items', {}, ['progress_pct']) });
+  assert.deepEqual(result.rows.map(row => JSON.parse(row.key)), [['[25.5]', 1], ['[50]', 1]]);
+  assert.deepEqual(result.rows.map(row => row.identity_state), ['observed', 'observed']);
+  const repeated = parseFamily(xlsx(progress.header, progress.rows), 'site_progress_items',
+    { mapping: customMapping('site_progress_items', {}, ['description']) });
+  assert.equal(repeated.rows[1].identity_state, 'unresolved');
+  assert.throws(() => parseFamily(xlsx(['Employee No'], [['E-1']]), 'employees', { mapping }), errorCode('MISSING_COLUMNS'));
+});
+
+test('planning mappings: a mapping change invalidates a token even when the parsed rows are unchanged', () => {
+  const sample = samples.employees, buffer = xlsx(sample.header, sample.rows);
+  const binding = { buffer, family: 'employees', siteId: randomUUID(), ...parsed('employees') };
+  const token = previewToken(binding);
+  const mapping = customMapping('employees', { employee_no: ['Unused alias'] });
+  assert.deepEqual(parseFamily(buffer, 'employees', { mapping }), parsed('employees'));
+  assert.throws(() => verifyPreviewToken(token, { ...binding, mapping }), errorCode('PREVIEW_MISMATCH'));
+  assert.throws(() => verifyPreviewToken(token, { ...binding, mapping: customMapping('employees', {}, ['first_name']) }), errorCode('PREVIEW_MISMATCH'));
+});
+
 test('planning token: signature, normalized rows, scope, family, file and fifteen-minute expiry', () => {
   const f = samples.employees, buffer = xlsx(f.header, f.rows), binding = { buffer, family: 'employees', siteId: randomUUID(), ...parsed('employees') };
   const token = previewToken(binding, { now: 1000 });
@@ -190,6 +256,110 @@ for (const driver of ['sqlite', 'pg']) test(`planning import ${driver}: preview,
     const noDelete = await applyFamily(db, { siteId: site.id, family, rows: [], user: auth.users.owner });
     assert.equal(noDelete.counts.removed, 0);
     assert.equal(Number((await db.get(`SELECT COUNT(*) AS n FROM ${table[family]} WHERE site_id = ?`, site.id)).n), samples[family].rows.length);
+  });
+
+  await t.test('mapping API: alias import, identity changes, token invalidation and reset', async () => {
+    const site = await fixture(), other = await fixture();
+    const endpoint = `/api/import-mappings?site_id=${site.id}`;
+    const save = (family, aliases, identity) => api('/api/import-mappings', { method: 'PUT',
+      cookie: auth.cookies.editor, body: { site_id: site.id, family, aliases, identity } });
+    const defaults = await api(endpoint, { cookie: auth.cookies.owner });
+    assert.equal(defaults.status, 200); assert.equal(defaults.body.length, 6);
+    assert.ok(defaults.body.every(item => !item.custom));
+    const initial = body(site, 'employees'), preview = await call('preview', initial);
+    const saved = await save('employees', { employee_no: ['Worker'] }, ['employee_no']);
+    assert.equal(saved.status, 200); assert.equal(saved.body.custom, true);
+    const mismatch = await call('apply', { ...initial, preview_token: preview.body.preview_token });
+    assert.equal(mismatch.status, 409); assert.equal(mismatch.body.code, 'PREVIEW_MISMATCH');
+    assert.equal(Number((await db.get('SELECT COUNT(*) AS n FROM planning_import_runs WHERE site_id = ?', site.id)).n), 0);
+    const aliasSample = { ...samples.employees, header: samples.employees.header.map(name => name === 'Employee No' ? 'Worker' : name) };
+    const imported = await apply(site, 'employees', aliasSample);
+    assert.equal(imported.result.counts.added, 1);
+    const employee = await db.get('SELECT * FROM employees WHERE site_id = ?', site.id);
+    const createdBinding = await db.get('SELECT * FROM planning_import_keys WHERE site_id = ?', site.id);
+    const repeat = await apply(site, 'employees', aliasSample);
+    assert.equal(repeat.result.counts.unchanged, 1);
+    assert.deepEqual((await db.get('SELECT created_at FROM planning_import_keys WHERE site_id = ?', site.id)).created_at, createdBinding.created_at);
+    assert.equal((await save('employees', { employee_no: ['Worker'] }, ['first_name', 'employee_no'])).status, 200);
+    const changedIdentity = await apply(site, 'employees', aliasSample);
+    assert.equal(changedIdentity.result.counts.unchanged, 1);
+    assert.equal(changedIdentity.preview.samples.unchanged[0].key, '["Synthetic","E-1"]');
+    assert.equal((await db.get('SELECT id FROM employees WHERE site_id = ?', site.id)).id, employee.id);
+    assert.equal(Number((await db.get('SELECT COUNT(*) AS n FROM planning_import_keys WHERE site_id = ?', site.id)).n), 1);
+    const otherMappings = await api(`/api/import-mappings?site_id=${other.id}`, { cookie: auth.cookies.editor });
+    assert.ok(otherMappings.body.every(item => !item.custom));
+    const customPreview = await call('preview', body(site, 'employees', aliasSample));
+    const reset = await api(`/api/import-mappings/employees?site_id=${site.id}`, { method: 'DELETE', cookie: auth.cookies.owner });
+    assert.equal(reset.status, 200); assert.equal(reset.body.custom, false);
+    assert.deepEqual(reset.body.identity, ['employee_no']); assert.deepEqual(reset.body.aliases, {});
+    assert.equal((await call('apply', { ...body(site, 'employees', aliasSample), preview_token: customPreview.body.preview_token })).body.code, 'PREVIEW_MISMATCH');
+    const restored = await apply(site, 'employees');
+    assert.equal(restored.result.counts.unchanged, 1);
+    assert.equal(Number((await db.get('SELECT COUNT(*) AS n FROM employees WHERE site_id = ?', site.id)).n), 1);
+    for (let i = 0; i < 2; i++) await db.transaction(tx => applyMigration(tx, '020_import_mappings.sql', { driver }));
+    assert.equal(Number((await db.get('SELECT COUNT(*) AS n FROM planning_import_runs WHERE site_id = ?', site.id)).n), 4);
+  });
+
+  await t.test('WBS custom identity preserves hierarchy and existing ids', async () => {
+    const site = await fixture();
+    await apply(site, 'time_schedule');
+    const before = await db.all('SELECT id FROM project_structure WHERE site_id = ? ORDER BY id', site.id);
+    const saved = await api('/api/import-mappings', { method: 'PUT', cookie: auth.cookies.owner,
+      body: { site_id: site.id, family: 'time_schedule', aliases: {}, identity: ['description'] } });
+    assert.equal(saved.status, 200);
+    const result = await apply(site, 'time_schedule');
+    assert.equal(result.result.counts.unchanged, 3);
+    assert.deepEqual(await db.all('SELECT id FROM project_structure WHERE site_id = ? ORDER BY id', site.id), before);
+    const nodes = await db.all('SELECT * FROM project_structure WHERE site_id = ?', site.id);
+    assert.equal(nodes.find(node => node.wbs_code === '1.1').parent_id, nodes.find(node => node.wbs_code === '1').id);
+  });
+
+  await t.test('progress custom identity preserves occurrences, ids and repeatability', async () => {
+    const site = await fixture(); await apply(site, 'site_progress_items');
+    const original = await db.all('SELECT id FROM site_progress_items WHERE site_id = ? ORDER BY id', site.id);
+    for (const identity of [['description', 'progress_pct'], ['description']]) {
+      const saved = await api('/api/import-mappings', { method: 'PUT', cookie: auth.cookies.owner,
+        body: { site_id: site.id, family: 'site_progress_items', aliases: {}, identity } });
+      assert.equal(saved.status, 200);
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await apply(site, 'site_progress_items');
+        assert.equal(result.result.counts.unchanged, 2);
+        assert.equal(result.result.counts.added, 0);
+        assert.deepEqual(await db.all('SELECT id FROM site_progress_items WHERE site_id = ? ORDER BY id', site.id), original);
+      }
+      const keys = await db.all('SELECT identity_state FROM planning_import_keys WHERE site_id = ?', site.id);
+      assert.equal(keys.filter(row => row.identity_state === 'unresolved').length, identity.length === 1 ? 1 : 0);
+    }
+  });
+
+  await t.test('mapping change immediately before the apply transaction rejects the token without writes', async () => {
+    const site = await fixture(), input = body(site, 'employees');
+    const preview = await call('preview', input);
+    const racing = { get: (...args) => db.get(...args), all: (...args) => db.all(...args),
+      transaction: async fn => {
+        await saveImportMapping(db, { site_id: site.id, family: 'employees', aliases: { first_name: ['Given name'] }, identity: ['employee_no'] }, auth.users.owner);
+        return db.transaction(fn);
+      } };
+    await assert.rejects(importRequest(racing, { ...input, preview_token: preview.body.preview_token }, auth.users.owner, { apply: true }), errorCode('PREVIEW_MISMATCH'));
+    assert.equal(Number((await db.get('SELECT COUNT(*) AS n FROM employees WHERE site_id = ?', site.id)).n), 0);
+    assert.equal(Number((await db.get('SELECT COUNT(*) AS n FROM planning_import_runs WHERE site_id = ?', site.id)).n), 0);
+  });
+
+  await t.test('custom identity conflicts with fixed target uniqueness require reconciliation in preview', async () => {
+    const site = await fixture(); await apply(site, 'employees');
+    const save = await api('/api/import-mappings', { method: 'PUT', cookie: auth.cookies.owner,
+      body: { site_id: site.id, family: 'employees', aliases: {}, identity: ['first_name'] } });
+    assert.equal(save.status, 200);
+    const conflicting = structuredClone(samples.employees); conflicting.rows[0][1] = 'Another synthetic name';
+    const rejected = await apply(site, 'employees', conflicting);
+    assert.equal(rejected.preview.samples.rejected[0].rejected, 'AMBIGUOUS_KEY');
+    assert.equal(rejected.result.counts.rejected, 1); assert.equal(rejected.result.counts.added, 0);
+    assert.equal((await db.get('SELECT first_name FROM employees WHERE site_id = ?', site.id)).first_name, 'Synthetic');
+    const empty = await fixture();
+    await api('/api/import-mappings', { method: 'PUT', cookie: auth.cookies.owner,
+      body: { site_id: empty.id, family: 'employees', aliases: {}, identity: ['first_name'] } });
+    const duplicates = await apply(empty, 'employees', { header: ['Employee No', 'First Name'], rows: [['E-1', 'Synthetic A'], ['E-1', 'Synthetic B']] });
+    assert.equal(duplicates.result.counts.added, 1); assert.equal(duplicates.result.counts.rejected, 1);
   });
 
   await t.test('rejected rows retain their reasons; unknown employees are site-scoped', async () => {

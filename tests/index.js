@@ -34,6 +34,7 @@ import './progress-curve.test.mjs';
 import './xlsx.test.mjs';
 import './assistant.test.mjs';
 import './planning-import.test.mjs';
+import './import-mappings.test.mjs';
 import './offline.test.mjs';
 
 import './increment-16-ui.test.mjs';

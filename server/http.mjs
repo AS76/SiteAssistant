@@ -24,7 +24,7 @@ import { progressCurve } from './progress-curve.mjs';
 import { listViews, createView, updateView, deleteView } from './view-settings.mjs';
 import { listTools, createTool, updateTool, deleteTool } from './tools.mjs';
 import { listCertifications, createCertification, updateCertification, deleteCertification, certificationSummary } from './certifications.mjs';
-import { importRequest, MAX_IMPORT_BYTES } from './planning-import.mjs';
+import { importRequest, MAX_IMPORT_BYTES, listImportMappings, saveImportMapping, deleteImportMapping } from './planning-import.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, countTasks, getTask,
   transitionTask, listDiary, countDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember,
@@ -274,6 +274,16 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         }
         return json(response, 200, await assistantChat(db, { siteId: siteId.toLowerCase(), user,
           messages: input.messages, view: input.view, language: input.language }));
+      }
+      if (path === '/api/import-mappings' && method === 'GET') {
+        return json(response, 200, await listImportMappings(db, url.searchParams.get('site_id'), user));
+      }
+      if (path === '/api/import-mappings' && method === 'PUT') {
+        return json(response, 200, await saveImportMapping(db, await readJson(request), user));
+      }
+      const importMapping = /^\/api\/import-mappings\/([^/]+)$/.exec(path);
+      if (importMapping && method === 'DELETE') {
+        return json(response, 200, await deleteImportMapping(db, url.searchParams.get('site_id'), importMapping[1], user));
       }
       if (['/api/import/preview', '/api/import/apply'].includes(path) && method === 'POST') {
         const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_IMPORT_BYTES / 3) + 65536 });

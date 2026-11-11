@@ -58,7 +58,7 @@ function toast(message) {
   clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false;
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
-const errorKeys = { VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
+const errorKeys = { MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
   reportPrintIntent = null; lastReport = null;
@@ -855,6 +855,17 @@ async function askAssistant(text) {
 let importPreview = null;
 const canImport = () => ['owner', 'editor'].includes(role());
 const IMPORT_FAMILIES = ['employees', 'work_days', 'time_schedule', 'site_progress_items', 'deviations', 'daily_log'];
+const formatImportAliases = aliases => aliases.map(alias => alias.replaceAll('\\', '\\\\').replaceAll(',', '\\,')).join(', ');
+function parseImportAliases(input) {
+  const aliases = [''];
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (char === '\\' && [',', '\\'].includes(input[i + 1])) aliases[aliases.length - 1] += input[++i];
+    else if (char === ',') aliases.push('');
+    else aliases[aliases.length - 1] += char;
+  }
+  return aliases.map(alias => alias.trim());
+}
 const fileToBase64 = file => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
@@ -869,13 +880,71 @@ function showSettingsForm() {
     </div>${formActions()}</form>`);
 }
 
-function showImportForm() {
+async function showImportForm() {
   importPreview = null;
   showModal(t('importTitle'), `<form id="import-form"><div class="form-error" role="alert" tabindex="-1" hidden></div>` +
     `<p class="note">${t('importHint')}</p>` +
     `<div class="form-grid"><label class="field">${t('importFamily')}<select name="family" required>${IMPORT_FAMILIES.map(family => `<option value="${family}">${t(`importFamily_${family}`)}</option>`).join('')}</select></label>` +
     `<label class="field">${t('importFile')}<input name="file" type="file" accept=".xlsx" required></label></div>` +
-    `<div id="import-result" class="import-result"></div><div class="form-actions">${button('importClose', 'close-modal')}<button type="submit" class="primary">${t('importPreview')}</button></div></form>`);
+    `<details id="import-mapping"><summary>${t('importMappingTitle')}</summary><p class="note">${t('importMappingHint')}</p><fieldset disabled><div id="import-mapping-fields"></div>` +
+    `<p id="import-identity-order" class="note" aria-live="polite"></p><div class="form-actions">${button('importMappingSave', 'import-mapping-save')}${button('importMappingReset', 'import-mapping-reset')}</div></fieldset></details>` +
+    `<p id="import-preview-hint" class="note" role="status">${t('importPreviewRequired')}</p><div id="import-result" class="import-result"></div><div class="form-actions">${button('importClose', 'close-modal')}<button type="submit" class="primary" disabled>${t('importPreview')}</button></div></form>`);
+  const form = $('#import-form'), selected = siteId, version = modalVersion;
+  form.dataset.siteId = selected;
+  try {
+    const mappings = await freshApi.listImportMappings(selected);
+    if (!form.isConnected || version !== modalVersion || siteId !== selected) return;
+    form.importMappings = mappings;
+    renderImportMapping(form);
+  } catch (error) { if (form.isConnected && version === modalVersion) formError(form, error); }
+}
+function renderImportMapping(form) {
+  const mapping = form.importMappings.find(item => item.family === form.elements.family.value);
+  form.importIdentity = [...mapping.identity];
+  form.mappingDirty = false;
+  form.querySelector('#import-mapping-fields').innerHTML = mapping.fields.map(field =>
+    `<div class="form-grid"><label class="field">${esc(field)} — ${t('importMappingAliases')}<input type="text" data-import-alias="${esc(field)}" value="${esc(formatImportAliases(mapping.aliases[field] || []))}"></label>` +
+    `<label><input type="checkbox" data-import-identity="${esc(field)}" ${mapping.identity.includes(field) ? 'checked' : ''}> ${t('importMappingIdentity')} (${esc(field)})</label></div>`).join('');
+  form.querySelector('#import-mapping fieldset').disabled = false;
+  updateImportIdentityOrder(form);
+  invalidateImportPreview(form);
+}
+function updateImportIdentityOrder(form) {
+  form.querySelector('#import-identity-order').textContent = `${t('importMappingOrder')}: ${form.importIdentity.join(' → ')}`;
+}
+function invalidateImportPreview(form) {
+  importPreview = null;
+  form.importRevision = (form.importRevision || 0) + 1;
+  form.querySelector('#import-result').innerHTML = '';
+  form.querySelector('#import-preview-hint').textContent = t(form.mappingDirty ? 'importMappingUnsaved' : 'importPreviewRequired');
+  const submit = form.querySelector('[type=submit]');
+  submit.textContent = t('importPreview'); delete submit.dataset.step;
+  submit.disabled = !!form.dataset.saving || !form.importMappings || form.mappingDirty;
+}
+async function changeImportMapping(reset = false) {
+  const form = $('#import-form');
+  if (!form || form.dataset.saving || !form.importMappings) return;
+  form.dataset.saving = 'true';
+  const family = form.elements.family.value, selected = form.dataset.siteId, version = modalVersion;
+  const aliases = Object.fromEntries([...form.querySelectorAll('[data-import-alias]')]
+    .filter(input => input.value.trim()).map(input => [input.dataset.importAlias, parseImportAliases(input.value)]));
+  const identity = [...form.importIdentity];
+  invalidateImportPreview(form);
+  form.querySelector('#import-mapping fieldset').disabled = true;
+  form.elements.family.disabled = true; form.elements.file.disabled = true;
+  try {
+    const mapping = reset ? await api.deleteImportMapping(selected, family) : await api.saveImportMapping({ site_id: selected, family, aliases, identity });
+    if (!form.isConnected || version !== modalVersion || siteId !== selected) return;
+    form.importMappings = form.importMappings.map(item => item.family === family ? mapping : item);
+    form.querySelector('.form-error').hidden = true;
+    renderImportMapping(form);
+  } catch (error) { if (form.isConnected && version === modalVersion) formError(form, error); }
+  finally {
+    delete form.dataset.saving;
+    form.querySelector('#import-mapping fieldset').disabled = false;
+    form.elements.family.disabled = false; form.elements.file.disabled = false;
+    form.querySelector('[type=submit]').disabled = !form.importMappings || form.mappingDirty;
+  }
 }
 function renderImportPreview(preview) {
   const counts = preview.counts || {};
@@ -887,23 +956,49 @@ function renderImportPreview(preview) {
     (rejected ? `<h4>${t('importRejectedRows')}</h4><ul class="import-rejected">${rejected}</ul>` : '');
 }
 async function handleImport(form) {
+  if (!form.importMappings || form.mappingDirty) throw new Error('importMappingUnsaved');
+  const revision = form.importRevision, version = modalVersion, selected = form.dataset.siteId;
+  const current = () => form.isConnected && modalVersion === version && siteId === selected && form.importRevision === revision;
   const data = Object.fromEntries(new FormData(form));
-  const file = data.file;
+  const file = form.elements.file.files[0];
   if (!(file instanceof File) || !file.size) throw new Error('invalidData');
   if (file.size > 20 * 1024 * 1024) throw new Error('importTooBig');
+  form.querySelector('.form-error').hidden = true;
+  const previous = importPreview;
   const base64 = await fileToBase64(file);
-  const input = { site_id: siteId, family: data.family, filename: file.name, data_base64: base64 };
-  const result = document.querySelector('#import-result');
-  if (!importPreview) {
+  if (!current()) return;
+  const input = { site_id: selected, family: data.family, filename: file.name, data_base64: base64 };
+  if (!previous) {
     const preview = await api.previewImport(input);
-    importPreview = { token: preview.preview_token, family: data.family, name: file.name };
-    result.innerHTML = renderImportPreview(preview);
+    if (!current()) return;
+    importPreview = { token: preview.preview_token, family: data.family, file, revision };
+    form.querySelector('#import-result').innerHTML = renderImportPreview(preview);
+    form.querySelector('#import-preview-hint').textContent = t('importPreviewCurrent');
     const submit = form.querySelector('button[type=submit]');
-    submit.textContent = t('importApply');
-    submit.dataset.step = 'apply';
+    submit.textContent = t('importApply'); submit.dataset.step = 'apply';
     return;
   }
-  const applied = await api.applyImport({ ...input, preview_token: importPreview.token });
+  if (previous.family !== data.family || previous.file !== file || previous.revision !== revision) {
+    invalidateImportPreview(form); throw new Error('importPreviewStale');
+  }
+  let applied;
+  form.elements.family.disabled = true; form.elements.file.disabled = true;
+  form.querySelector('#import-mapping fieldset').disabled = true;
+  try { applied = await api.applyImport({ ...input, preview_token: previous.token }); }
+  catch (error) {
+    if (current() && ['PREVIEW_MISMATCH', 'PREVIEW_EXPIRED'].includes(error.code)) {
+      invalidateImportPreview(form);
+      try {
+        const mappings = await freshApi.listImportMappings(selected);
+        if (form.isConnected && version === modalVersion && siteId === selected) { form.importMappings = mappings; renderImportMapping(form); }
+      } catch { form.importMappings = null; }
+    }
+    throw error;
+  } finally {
+    form.elements.family.disabled = false; form.elements.file.disabled = false;
+    form.querySelector('#import-mapping fieldset').disabled = !form.importMappings;
+  }
+  if (!current()) return;
   importPreview = null;
   closeModal();
   coreCache.clear(); overviewCache.clear();
@@ -1249,6 +1344,8 @@ document.addEventListener('click', event => {
     'open-report': () => { reportPrintIntent = { site: siteId, user: session?.user.id }; go('report'); },
     'report-retry': () => render(),
     'import-open': showImportForm,
+    'import-mapping-save': () => changeImportMapping(),
+    'import-mapping-reset': () => changeImportMapping(true),
     'column-filters': () => { columnFiltersOn = !columnFiltersOn; render(); },
     'detail-tab': () => {
       const panel = target.dataset.panel;
@@ -1372,11 +1469,21 @@ document.addEventListener('submit', async event => {
   } catch (error) {
     if (version === modalVersion && form.isConnected) formError(form, error);
     else toast(errorMessage(error));
-  } finally { delete form.dataset.saving; submit.disabled = false; }
+  } finally { delete form.dataset.saving; submit.disabled = form.id === 'import-form' && (!form.importMappings || form.mappingDirty); }
 });
 $('#modal').addEventListener('cancel', () => { modalVersion++; });
 $('#site-select').addEventListener('change', event => selectSite(event.target.value));
 document.addEventListener('change', event => {
+  const importForm = event.target.closest('#import-form');
+  if (importForm) {
+    if (event.target.name === 'family' && importForm.importMappings) renderImportMapping(importForm);
+    else if (event.target.dataset.importIdentity) {
+      const field = event.target.dataset.importIdentity;
+      importForm.importIdentity = importForm.importIdentity.filter(value => value !== field);
+      if (event.target.checked) importForm.importIdentity.push(field);
+      importForm.mappingDirty = true; updateImportIdentityOrder(importForm); invalidateImportPreview(importForm);
+    } else if (event.target.name === 'file') invalidateImportPreview(importForm);
+  }
   if (event.target.id === 'saved-view-select') {
     selectedViewId = event.target.value;
     applyViewState(selectedSavedView()?.payload); renderTasks();
@@ -1398,7 +1505,13 @@ document.addEventListener('change', event => {
   if (event.target.id === 'report-date') { if (validDate(event.target.value)) { reportDate = event.target.value; renderDiary(); } else event.target.value = reportDate; }
   for (const [id, key] of [['filter-status', 'status'], ['filter-person', 'person'], ['filter-priority', 'priority']]) if (event.target.id === id) { filters[key] = event.target.value; renderTaskResults(); }
 });
-document.addEventListener('input', event => { if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
+document.addEventListener('input', event => {
+  const form = event.target.closest('#import-form');
+  if (form) {
+    if (event.target.dataset.importAlias) form.mappingDirty = true;
+    invalidateImportPreview(form);
+  }
+  if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
 $('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
 window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'report'].includes(next) ? next : 'overview'; if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
 window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view]) { closeModal(); render(); } });
