@@ -38,17 +38,19 @@ async function run() {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     const origin = 'https://siteassistant.asassi.cloud';
-    let failReads = false, failWrites = false;
+    let failReads = false, failWrites = false, failLayoutReads = false, failLayoutWrites = false;
     await context.route('**/*', async route => {
       const request = route.request(), url = new URL(request.url());
       if (url.origin === 'https://api.siteassistant.asassi.cloud') {
+        if (url.pathname === '/api/dashboard/layout' && ((failLayoutReads && request.method() === 'GET')
+          || (failLayoutWrites && request.method() !== 'GET'))) return route.abort('failed');
         if ((failReads && request.method() === 'GET') || (failWrites && request.method() === 'POST')) return route.abort('failed');
         const response = await route.fetch({ url: `${apiUrl}${url.pathname}${url.search}`, headers: { ...request.headers(), origin } });
         return route.fulfill({ response });
       }
       if (url.origin === origin) {
         const file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-        if (!['index.html', 'app.mjs', 'api.mjs', 'domain.mjs', 'i18n.mjs', 'styles.css'].includes(file)) return route.fulfill({ status: 404, body: '' });
+        if (!['index.html', 'app.mjs', 'api.mjs', 'domain.mjs', 'dashboard-layout.mjs', 'offline.mjs', 'i18n.mjs', 'styles.css'].includes(file)) return route.fulfill({ status: 404, body: '' });
         const contentType = file.endsWith('.html') ? 'text/html' : file.endsWith('.css') ? 'text/css' : 'text/javascript';
         return route.fulfill({ contentType, body: await fs.readFile(path.join(__dirname, '../app', file)) });
       }
@@ -97,6 +99,77 @@ async function run() {
     assert.equal(await page.locator('#site-select option').count(), 2);
     assert.equal(await page.locator('[data-metric="review"]').textContent(), '0');
     await page.screenshot({ path: path.join(os.tmpdir(), 'siteassistant-desktop.png'), fullPage: true });
+
+    // Personal overview: selection, stable order, empty data, cancel, errors and site scoping.
+    const allWidgets = ['kpi_open_deviations', 'kpi_booked_hours', 'kpi_open_claims', 'kpi_settled_claims',
+      'deviations_by_status', 'progress_by_section', 'hours_by_week', 'earned_value', 'priority_work', 'daily_pulse', 'journal_today'];
+    const overviewReady = () => page.waitForSelector('#overview-widgets[aria-busy="false"]');
+    const visibleWidgets = () => page.locator('#overview-widgets [data-widget]').evaluateAll(rows => rows.map(row => row.dataset.widget));
+    const openLayout = async () => {
+      await page.locator('[data-command="layout-open"]').click();
+      await page.waitForSelector('#dashboard-layout-form');
+    };
+    const layoutRow = id => page.locator(`[data-layout-widget="${id}"]`);
+    await overviewReady();
+    assert.deepEqual(await visibleWidgets(), allWidgets);
+    await openLayout();
+    assert.equal(await page.locator('.layout-widgets input:checked').count(), 11);
+    assert.ok(await layoutRow('kpi_open_deviations').locator('[data-direction=up]').isDisabled());
+    assert.ok(await layoutRow('journal_today').locator('[data-direction=down]').isDisabled());
+    await layoutRow('daily_pulse').locator('input').uncheck();
+    await page.locator('#dashboard-layout-form [data-command="close-modal"]').click();
+    assert.deepEqual(await visibleWidgets(), allWidgets);
+    assert.equal(await db.get('SELECT id FROM dashboard_layouts'), undefined);
+    await openLayout();
+    for (const input of await page.locator('.layout-widgets input').all()) await input.uncheck();
+    await page.locator('#dashboard-layout-form [type=submit]').click();
+    await contains(page.locator('#dashboard-layout-form .form-error'), 'Scegli da 1 a 11');
+    const chosenWidgets = ['journal_today', 'kpi_booked_hours', 'kpi_open_deviations', 'hours_by_week', 'earned_value'];
+    for (const id of chosenWidgets) await layoutRow(id).locator('input').check();
+    await layoutRow('kpi_booked_hours').locator('[data-direction=up]').click();
+    for (let i = 0; i < 10; i++) await layoutRow('journal_today').locator('[data-direction=up]').click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'mobile overview editor overflow');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    failLayoutWrites = true;
+    await page.locator('#dashboard-layout-form [type=submit]').click();
+    await contains(page.locator('#dashboard-layout-form .form-error'), 'non raggiungibile');
+    assert.equal(await page.locator('.layout-widgets input:checked').count(), 5);
+    failLayoutWrites = false;
+    await page.locator('#dashboard-layout-form [type=submit]').click();
+    await page.waitForSelector('#modal', { state: 'hidden' });
+    await overviewReady();
+    const visualOrder = ['kpi_booked_hours', 'kpi_open_deviations', 'journal_today', 'hours_by_week', 'earned_value'];
+    assert.deepEqual(await visibleWidgets(), visualOrder);
+    assert.deepEqual(JSON.parse((await db.get('SELECT widgets_json FROM dashboard_layouts')).widgets_json), chosenWidgets);
+    await contains(page.locator('[data-widget="hours_by_week"]'), 'Nessun risultato');
+    await contains(page.locator('[data-widget="earned_value"]'), 'NO_PLANNED_HOURS');
+    const overviewSite = await page.locator('#site-select').inputValue();
+    await page.locator('#site-select').selectOption({ index: 1 });
+    await overviewReady();
+    assert.deepEqual(await visibleWidgets(), allWidgets);
+    await page.locator('#site-select').selectOption(overviewSite);
+    await overviewReady();
+    assert.deepEqual(await visibleWidgets(), visualOrder);
+    await page.reload();
+    await overviewReady();
+    assert.deepEqual(await visibleWidgets(), visualOrder);
+    failLayoutReads = true;
+    await page.locator('a[href="#tasks"]').click();
+    await page.locator('a[href="#overview"]').click();
+    await overviewReady();
+    assert.deepEqual(await visibleWidgets(), allWidgets);
+    await openLayout();
+    await contains(page.locator('#dashboard-layout-form'), 'Layout non disponibile');
+    await page.keyboard.press('Escape');
+    failLayoutReads = false;
+    await openLayout();
+    assert.equal(await page.locator('.layout-widgets input:checked').count(), 5);
+    await page.locator('[data-command="layout-reset"]').click();
+    await page.waitForSelector('#modal', { state: 'hidden' });
+    await overviewReady();
+    assert.deepEqual(await visibleWidgets(), allWidgets);
+    assert.equal(await db.get('SELECT id FROM dashboard_layouts'), undefined);
 
     await page.locator('a[href="#wbs"]').click();
     await page.waitForSelector('.wbs-tree');
@@ -260,7 +333,7 @@ async function run() {
     await page.waitForSelector('#task-results');
     assert.equal(await page.locator('#password-banner').isVisible(), false);
     assert.deepEqual(errors, []);
-    console.log('PASS: WBS tree/flat/synthetic parents/site switching/error recovery, API loading/creation, transitions/events, login/logout, HttpOnly cookie, independent session verification, blocked state, CSV, diary uniqueness, escaping, IT/EN, reload, mobile, network error recovery, signup request/rejection, forgot password, non-blocking password banner and password change.');
+    console.log('PASS: personal overview widgets/ordering/reset/site scoping/empty states/error fallback/mobile, WBS tree/flat/synthetic parents/site switching/error recovery, API loading/creation, transitions/events, login/logout, HttpOnly cookie, independent session verification, blocked state, CSV, diary uniqueness, escaping, IT/EN, reload, mobile, network error recovery, signup request/rejection, forgot password, non-blocking password banner and password change.');
   } finally {
     if (browser) await browser.close();
     if (server.listening) await new Promise(resolve => server.close(resolve));

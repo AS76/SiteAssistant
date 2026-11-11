@@ -1,5 +1,12 @@
 export const messages = {
   it: {
+    layoutCustomize: 'Personalizza', layoutReset: 'Ripristina default',
+    layoutHint: 'Scegli almeno un widget e usa le frecce per ordinarli. I KPI restano in cima; i pannelli seguono il loro ordine relativo. Il layout è personale per questo cantiere.',
+    layoutMoveUp: 'Sposta su', layoutMoveDown: 'Sposta giù',
+    layoutInvalid: 'Scegli da 1 a 11 widget del catalogo, senza duplicati.',
+    layoutSaved: 'Panoramica salvata.', layoutResetDone: 'Panoramica ripristinata ai default.',
+    layoutFallback: 'Layout non disponibile: sono mostrati i default.',
+
     earnedValueTitle: 'Earned value', earnedValueEV: 'EV (ore)', earnedValuePV: 'PV (ore)', earnedValueAC: 'AC (ore)',
     earnedValueCPI: 'CPI', earnedValueSPI: 'SPI',
     earnedValueNoHours: 'Ore pianificate non disponibili (NO_PLANNED_HOURS). Aggiungerle agli elementi o ai nodi WBS collegati.',
@@ -285,6 +292,13 @@ export const messages = {
     actorPlaceholder:"Nome della persona",loading:"Caricamento…",retry:"Riprova",apiUnavailable:"API non raggiungibile. Controlla la connessione e riprova.",apiError:"Richiesta API non riuscita. Controlla i dati e riprova.",duplicateDiary:"Esiste già un contributo per questo cantiere, giorno e turno.",noteRequired:"Inserisci una nota di esecuzione o verifica.",verifierRequired:"Solo il verificatore assegnato può chiudere questa attività.",transitionTo:"Passa a",noTransitions:"Nessuna transizione disponibile per questo stato.",reason:"Motivazione",noSites:"Nessun cantiere",noSitesHint:"Crea il primo cantiere per iniziare.",
   },
   en: {
+    layoutCustomize: 'Customize', layoutReset: 'Restore defaults',
+    layoutHint: 'Choose at least one widget and use the arrows to reorder them. KPIs stay at the top; panels keep their relative order. This layout is personal to you for this site.',
+    layoutMoveUp: 'Move up', layoutMoveDown: 'Move down',
+    layoutInvalid: 'Choose 1 to 11 catalog widgets, without duplicates.',
+    layoutSaved: 'Overview saved.', layoutResetDone: 'Overview restored to defaults.',
+    layoutFallback: 'Layout unavailable: showing defaults.',
+
     earnedValueTitle: 'Earned value', earnedValueEV: 'EV (hours)', earnedValuePV: 'PV (hours)', earnedValueAC: 'AC (hours)',
     earnedValueCPI: 'CPI', earnedValueSPI: 'SPI',
     earnedValueNoHours: 'Planned hours are unavailable (NO_PLANNED_HOURS). Add them to items or linked WBS nodes.',

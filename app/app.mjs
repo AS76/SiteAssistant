@@ -1,6 +1,7 @@
 import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
+import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock } from './offline.mjs';
 
 const api = createApi({ baseUrl: new URL(document.querySelector('meta[name=siteassistant-api-base]')?.content || DEFAULT_BASE_URL, location.href).href, onUnauthorized: () => clearSession(true) });
@@ -58,11 +59,12 @@ function toast(message) {
   clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false;
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
-const errorKeys = { MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
+const errorKeys = { LAYOUT_INVALID: 'layoutInvalid', MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
   reportPrintIntent = null; lastReport = null;
   resetSavedViews();
+  overviewCache.clear();
   wbsCache.clear(); wbsLoad = null; resetCore();
   session = null; actor = ''; siteId = undefined; loadError = null; offlineScope = undefined; pendingOps = [];
   state = { sites: [], tasks: [], diary: [], attachments: [] };
@@ -93,7 +95,7 @@ async function refreshPending() {
   state = overlayPending(state, pendingOps);
 }
 async function loadData() {
-  coreCache.clear();
+  coreCache.clear(); overviewCache.clear();
   loading = true; loadError = null; render();
   try {
     await accountLock(async () => {
@@ -232,18 +234,27 @@ function taskRow(task) {
   return `<div class="task-row"><div><h3><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></h3><p>${esc(task.area || t('noArea'))} · ${esc(task.company)}</p>${badge(task.status)} ${priorityBadge(task.priority)} ${syncBadge(task)}</div><div class="subtitle">${dueMarkup(task)}</div></div>`;
 }
 function renderOverview() {
+  $('#main').innerHTML = heading('overviewTitle', 'overviewSub',
+    button('layoutCustomize', 'layout-open') + button('reportPrint', 'open-report')
+    + (canImport() ? button('importOpen', 'import-open') : '')
+    + (canWriteTask() ? button('newTask', 'new-task', '', 'primary') : ''))
+    + `<div class="date-caption">${t('today')} · ${new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}</div>`
+    + `<div id="overview-widgets" aria-live="polite" aria-busy="true"><p role="status">${t('loading')}</p></div>`;
+  void loadOverviewDashboard();
+}
+
+function localOverviewWidgets() {
   const tasks = siteTasks(), count = counts(tasks), total = tasks.length;
   const attention = tasks.filter(task => task.status !== 'closed').sort((a, b) => {
     const score = task => (task.status === 'blocked' ? 10 : task.status === 'to_verify' ? 6 : 0) + (task.due && task.due < today() ? 12 : 0) + PRIORITIES.indexOf(task.priority);
     return score(b) - score(a) || (a.due || '9999').localeCompare(b.due || '9999');
   }).slice(0, 5);
   const lastEntry = state.diary.filter(item => item.siteId === siteId && item.date === today()).at(-1);
-  $('#main').innerHTML = heading('overviewTitle', 'overviewSub',
-    button('reportPrint', 'open-report') + (canImport() ? button('importOpen', 'import-open') : '') + (canWriteTask() ? button('newTask', 'new-task', '', 'primary') : '')) +
-    `<div id="overview-kpis" class="overview-kpis" aria-live="polite"></div><div class="date-caption">${t('today')} · ${new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}</div>` +
-    `<div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div>` +
-    `<div class="grid-overview"><section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section><div class="summary-stack"><section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack"><div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div><div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div></div></div></section><section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2><span class="badge">${t('draft')}</span></div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}<a class="subtitle" href="#diary">${t('openDiary')} →</a></div></section></div></div>`;
-  void loadOverviewDashboard();
+  return {
+    priority_work: `<section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section>`,
+    daily_pulse: `<section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack"><div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div><div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div></div></div></section>`,
+    journal_today: `<section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2><span class="badge">${t('draft')}</span></div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}<a class="subtitle" href="#diary">${t('openDiary')} →</a></div></section>`,
+  };
 }
 
 // Every report opening fetches current data; a late response cannot print another site or view.
@@ -326,35 +337,115 @@ function sectionBars(rows) {
   const max = Math.max(1, ...rows.map(row => Math.max(row.actual ?? 0, row.planned ?? 0)));
   return `<ul class="mini-bars">${rows.map(row => `<li><span class="bar-label">${esc(row.section)}</span><span class="bar-track"><span class="bar-actual" style="width:${((row.actual ?? 0) / max * 100).toFixed(1)}%"></span>${row.planned == null ? '' : `<span class="bar-planned" style="left:${(row.planned / max * 100).toFixed(1)}%"></span>`}</span><span class="bar-value">${row.actual == null ? '—' : `${row.actual}%`}</span></li>`).join('')}</ul>`;
 }
-async function loadOverviewDashboard() {
-  const target = document.querySelector('#overview-kpis');
-  const selected = siteId;
-  if (!target || !selected) return;
-  target.innerHTML = `<span class="kpi-loading">${t('loading')}</span>`;
-  let data = overviewCache.get(selected);
-  if (!data) {
-    try { data = await freshApi.dashboard(selected); overviewCache.set(selected, data); }
-    catch { target.innerHTML = `<span class="kpi-loading">${t('apiError')}</span>`; return; }
+function renderOverviewWidgets(target, widgets, data, failed = false) {
+  const content = localOverviewWidgets();
+  const panel = (label, body) => `<section class="panel"><div class="panel-header"><h2>${t(label)}</h2></div><div class="panel-body">${body}</div></section>`;
+  const unavailable = `<p class="note" role="status">${t(failed ? 'apiError' : 'loading')}</p>`;
+  const kpis = {};
+  if (data) {
+    const total = data.deviations.reduce((sum, row) => sum + row.count, 0);
+    kpis.kpi_open_deviations = data.deviations.filter(row => !['closed', 'rejected'].includes(row.status)).reduce((sum, row) => sum + row.count, 0);
+    const number = value => new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 1 }).format(value);
+    kpis.kpi_booked_hours = number(data.hours.reduce((sum, row) => sum + row.hours, 0));
+    kpis.kpi_open_claims = money(data.claims.open);
+    kpis.kpi_settled_claims = money(data.claims.settled);
+    const maxHours = Math.max(1, ...data.hours.map(row => row.hours));
+    content.deviations_by_status = panel('dashDeviations', `<div class="dash-donut">${donut(data.deviations, total)}
+      <ul class="donut-legend">${data.deviations.map(row => `<li><i style="background:${STATUS_COLORS[row.status] || '#94a3a3'}"></i>${esc(t(row.status))}<strong>${row.count}</strong></li>`).join('')}</ul></div>`);
+    content.progress_by_section = panel('dashProgress', data.progress.length ? sectionBars(data.progress) : `<p class="note">${t('noResults')}</p>`);
+    content.hours_by_week = panel('dashHours', data.hours.length ? `<ul class="mini-bars">${data.hours.map(row => `<li><span class="bar-label">${esc(row.week)}</span><span class="bar-track"><span class="bar-actual" style="width:${(row.hours / maxHours * 100).toFixed(1)}%"></span></span><span class="bar-value">${number(row.hours)}</span></li>`).join('')}</ul>` : `<p class="note">${t('noResults')}</p>`);
+    content.earned_value = panel('earnedValueTitle', earnedValueSummary(data.earnedValue));
   }
-  if (selected !== siteId || !document.body.contains(target)) return;
-  const total = data.deviations.reduce((sum, row) => sum + row.count, 0);
-  const openDeviations = data.deviations.filter(row => !['closed', 'rejected'].includes(row.status)).reduce((sum, row) => sum + row.count, 0);
-  const hoursTotal = data.hours.reduce((sum, row) => sum + row.hours, 0);
-  const number = value => new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 1 }).format(value);
-  const maxHours = Math.max(1, ...data.hours.map(row => row.hours));
-  target.innerHTML = `<div class="kpi-row">${[
-    ['kpiOpenDeviations', openDeviations],
-    ['kpiBookedHours', number(hoursTotal)],
-    ['kpiOpenClaims', money(data.claims.open)],
-    ['kpiSettledClaims', money(data.claims.settled)],
-  ].map(([label, value]) => `<div class="kpi-card"><span>${t(label)}</span><strong>${esc(String(value))}</strong></div>`).join('')}</div>
-  <div class="dash-grid">
-    <section class="panel"><div class="panel-header"><h2>${t('dashDeviations')}</h2></div><div class="panel-body dash-donut">${donut(data.deviations, total)}
-      <ul class="donut-legend">${data.deviations.map(row => `<li><i style="background:${STATUS_COLORS[row.status] || '#94a3a3'}"></i>${esc(t(row.status))}<strong>${row.count}</strong></li>`).join('')}</ul></div></section>
-    <section class="panel"><div class="panel-header"><h2>${t('dashProgress')}</h2></div><div class="panel-body">${data.progress.length ? sectionBars(data.progress) : `<p class="note">${t('noResults')}</p>`}</div></section>
-    <section class="panel"><div class="panel-header"><h2>${t('dashHours')}</h2></div><div class="panel-body">${data.hours.length ? `<ul class="mini-bars">${data.hours.map(row => `<li><span class="bar-label">${esc(row.week)}</span><span class="bar-track"><span class="bar-actual" style="width:${(row.hours / maxHours * 100).toFixed(1)}%"></span></span><span class="bar-value">${number(row.hours)}</span></li>`).join('')}</ul>` : `<p class="note">${t('noResults')}</p>`}</div></section>
-    <section class="panel"><div class="panel-header"><h2>${t('earnedValueTitle')}</h2></div><div class="panel-body">${earnedValueSummary(data.earnedValue)}</div></section>
-  </div>`;
+  const chosen = widgets.map(id => DASHBOARD_WIDGETS.find(widget => widget.id === id));
+  const cards = chosen.filter(widget => widget.kind === 'kpi').map(widget => `<div class="kpi-card" data-widget="${widget.id}"><span>${t(widget.label)}</span><strong>${data ? esc(String(kpis[widget.id])) : esc(t(failed ? 'apiError' : 'loading'))}</strong></div>`).join('');
+  const panels = chosen.filter(widget => widget.kind === 'panel').map(widget => `<div data-widget="${widget.id}">${content[widget.id] || panel(widget.label, unavailable)}</div>`).join('');
+  target.innerHTML = (cards ? `<div class="kpi-row">${cards}</div>` : '') + (panels ? `<div class="dash-grid">${panels}</div>` : '');
+}
+
+async function readOverviewLayout(selected) {
+  try {
+    const layout = await freshApi.dashboardLayout(selected);
+    if (validDashboardWidgets(layout.widgets)) return layout;
+  } catch { /* A layout failure must not prevent use of the overview. */ }
+  return { ...defaultDashboardLayout(), fallback: true };
+}
+
+async function loadOverviewDashboard() {
+  const target = $('#overview-widgets'), selected = siteId, user = session?.user.id;
+  if (!target || !selected) return;
+  const current = () => view === 'overview' && siteId === selected && session?.user.id === user && document.body.contains(target);
+  // Fetch independently: local widgets and layout still work if the figures fail.
+  const figures = (overviewCache.has(selected) ? Promise.resolve(overviewCache.get(selected)) : freshApi.dashboard(selected)).catch(() => null);
+  const layout = await readOverviewLayout(selected);
+  if (!current()) return;
+  renderOverviewWidgets(target, layout.widgets, null);
+  const data = await figures;
+  if (!current()) return;
+  if (data) overviewCache.set(selected, data);
+  renderOverviewWidgets(target, layout.widgets, data, !data);
+  target.setAttribute('aria-busy', 'false');
+}
+
+async function showDashboardLayoutForm() {
+  const selected = siteId, user = session?.user.id;
+  showModal(t('layoutCustomize'), `<p role="status">${t('loading')}</p>`);
+  const version = modalVersion;
+  const layout = await readOverviewLayout(selected);
+  if (version !== modalVersion || siteId !== selected || session?.user.id !== user || !$('#modal').open) return;
+  // Hidden widgets remain in the editor and can be re-enabled without losing edits.
+  const order = [...layout.widgets, ...DASHBOARD_WIDGETS.map(widget => widget.id).filter(id => !layout.widgets.includes(id))];
+  showModal(t('layoutCustomize'), `<form id="dashboard-layout-form" data-site="${esc(selected)}" data-user="${esc(user)}">
+    <div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('layoutHint')}</p>
+    ${layout.fallback ? `<p class="note" role="status">${t('layoutFallback')}</p>` : ''}
+    <ol class="layout-widgets">${order.map(id => {
+      const widget = DASHBOARD_WIDGETS.find(widget => widget.id === id);
+      return `<li data-layout-widget="${id}"><label><input type="checkbox" value="${id}" ${layout.widgets.includes(id) ? 'checked' : ''}> ${t(widget.label)}</label>
+        <div class="layout-arrows">${['up', 'down'].map(direction => `<button type="button" data-command="layout-move" data-direction="${direction}" aria-label="${t(direction === 'up' ? 'layoutMoveUp' : 'layoutMoveDown')}: ${esc(t(widget.label))}">${direction === 'up' ? '↑' : '↓'}</button>`).join('')}</div></li>`;
+    }).join('')}</ol>
+    <div class="form-actions layout-actions">${button('layoutReset', 'layout-reset')}${button('cancel', 'close-modal')}<button type="submit" class="primary">${t('save')}</button></div></form>`);
+  updateLayoutArrows($('#dashboard-layout-form'));
+}
+
+function updateLayoutArrows(form) {
+  const rows = [...form.querySelectorAll('[data-layout-widget]')];
+  rows.forEach((row, index) => {
+    row.querySelector('[data-direction=up]').disabled = index === 0;
+    row.querySelector('[data-direction=down]').disabled = index === rows.length - 1;
+  });
+}
+function moveLayoutWidget(control) {
+  const form = control.closest('form'), row = control.closest('[data-layout-widget]');
+  if (!form || form.dataset.saving) return;
+  const sibling = control.dataset.direction === 'up' ? row.previousElementSibling : row.nextElementSibling;
+  if (!sibling) return;
+  if (control.dataset.direction === 'up') row.parentNode.insertBefore(row, sibling);
+  else row.parentNode.insertBefore(sibling, row);
+  updateLayoutArrows(form);
+  row.querySelector('input').focus();
+}
+async function submitDashboardLayout(form, reset = false) {
+  if (!form || form.dataset.saving || form.dataset.site !== siteId || form.dataset.user !== session?.user.id) return;
+  const selected = siteId, user = session.user.id, version = modalVersion;
+  const widgets = [...form.querySelectorAll('input:checked')].map(input => input.value);
+  form.dataset.saving = 'true';
+  const controls = form.querySelectorAll('input, button:not([data-command=close-modal])');
+  controls.forEach(control => { control.disabled = true; });
+  try {
+    if (!reset && !validDashboardWidgets(widgets)) throw new Error('layoutInvalid');
+    if (reset) await freshApi.deleteDashboardLayout(selected);
+    else await freshApi.saveDashboardLayout(selected, widgets);
+    if (session?.user.id !== user || siteId !== selected) return;
+    overviewCache.delete(selected);
+    if (version === modalVersion) closeModal();
+    if (view === 'overview') renderOverview();
+    toast(t(reset ? 'layoutResetDone' : 'layoutSaved'));
+  } catch (error) {
+    if (version === modalVersion && form.isConnected) formError(form, error);
+  } finally {
+    delete form.dataset.saving;
+    controls.forEach(control => { control.disabled = false; });
+    updateLayoutArrows(form);
+  }
 }
 function renderSites() {
   $('#main').innerHTML = heading('sitesTitle', 'sitesSub', canCreateSite() ? button('newSite', 'new-site', '', 'primary') : '') + `<div class="site-grid">${state.sites.map(site => {
@@ -1361,6 +1452,9 @@ document.addEventListener('click', event => {
     csv: exportCsv, print: () => window.print(),
     'open-report': () => { reportPrintIntent = { site: siteId, user: session?.user.id }; go('report'); },
     'report-retry': () => render(),
+    'layout-open': showDashboardLayoutForm,
+    'layout-move': () => moveLayoutWidget(target),
+    'layout-reset': () => submitDashboardLayout(target.closest('form'), true),
     'import-open': showImportForm,
     'import-mapping-save': () => changeImportMapping(),
     'import-mapping-reset': () => changeImportMapping(true),
@@ -1396,6 +1490,7 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('submit', async event => {
   const form = event.target;
+  if (form.id === 'dashboard-layout-form') { event.preventDefault(); await submitDashboardLayout(form); return; }
   if (form.id === 'ai-form') {
     event.preventDefault();
     const text = String(new FormData(form).get('message') || '').trim();

@@ -298,3 +298,17 @@ footer{font-size:11px}
   .diary-toolbar { row-gap: 10px; }
   .diary-toolbar .badge { white-space: normal; max-width: 100%; }
 }
+
+/* Personal overview layout: KPI cards first, panels in the selected order. */
+#overview-widgets .dash-grid > [data-widget]{min-width:0}
+#overview-widgets .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#overview-widgets .metric{padding:12px;min-width:0}
+#overview-widgets .metric-top{flex-wrap:wrap;gap:4px}
+#overview-widgets .metric small{white-space:normal}
+.layout-widgets{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.layout-widgets li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.layout-widgets label{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;overflow-wrap:anywhere}
+.layout-widgets input{flex:none}
+.layout-arrows{display:flex;gap:5px;flex:none}
+.layout-arrows button{min-width:40px;min-height:40px;padding:6px}
+.layout-actions{flex-wrap:wrap}

@@ -18,6 +18,7 @@ import { listTimeBookings, countTimeBookings, createTimeBooking, deleteTimeBooki
 import { chat as assistantChat } from './assistant.mjs';
 import { searchPlaces } from './geocode.mjs';
 import { dashboard } from './dashboard.mjs';
+import { getDashboardLayout, saveDashboardLayout, deleteDashboardLayout } from './dashboard-layouts.mjs';
 import { report } from './report.mjs';
 import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
 import { progressCurve } from './progress-curve.mjs';
@@ -251,6 +252,16 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (certification && method === 'DELETE') {
         return json(response, 200, await deleteCertification(db, certification[1], user));
+      }
+      if (path === '/api/dashboard/layout' && method === 'GET') {
+        return json(response, 200, await getDashboardLayout(db, { siteId: url.searchParams.get('site_id'), user }));
+      }
+      if (path === '/api/dashboard/layout' && method === 'PUT') {
+        const input = await readJson(request);
+        return json(response, 200, await saveDashboardLayout(db, { siteId: input.site_id, widgets: input.widgets, user }));
+      }
+      if (path === '/api/dashboard/layout' && method === 'DELETE') {
+        return json(response, 200, await deleteDashboardLayout(db, { siteId: url.searchParams.get('site_id'), user }));
       }
       if (path === '/api/dashboard' && method === 'GET') {
         return json(response, 200, await dashboard(db, { siteId: url.searchParams.get('site_id'), user }));
