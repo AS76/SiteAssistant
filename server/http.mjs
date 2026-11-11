@@ -23,6 +23,7 @@ import { listProgressTypes, createProgressType, assignProgressType, setStepProgr
 import { progressCurve } from './progress-curve.mjs';
 import { listViews, createView, updateView, deleteView } from './view-settings.mjs';
 import { listTools, createTool, updateTool, deleteTool } from './tools.mjs';
+import { listCertifications, createCertification, updateCertification, deleteCertification, certificationSummary } from './certifications.mjs';
 import { importRequest, MAX_IMPORT_BYTES } from './planning-import.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, countTasks, getTask,
@@ -229,6 +230,27 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (tool && method === 'DELETE') {
         return json(response, 200, await deleteTool(db, tool[1], user));
+      }
+      if (path === '/api/certifications' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id') ?? url.searchParams.get('siteId');
+        if (url.searchParams.get('summary') === '1') {
+          return json(response, 200, await certificationSummary(db, { siteId, within: url.searchParams.get('within') }, user));
+        }
+        return json(response, 200, await listCertifications(db, {
+          siteId, employeeId: url.searchParams.get('employee_id') ?? url.searchParams.get('employeeId'),
+          status: url.searchParams.get('status'), category: url.searchParams.get('category'),
+          within: url.searchParams.get('within'),
+        }, user));
+      }
+      if (path === '/api/certifications' && method === 'POST') {
+        return json(response, 201, await createCertification(db, await readJson(request), user));
+      }
+      const certification = /^\/api\/certifications\/([^/]+)$/.exec(path);
+      if (certification && method === 'PATCH') {
+        return json(response, 200, await updateCertification(db, certification[1], await readJson(request), user));
+      }
+      if (certification && method === 'DELETE') {
+        return json(response, 200, await deleteCertification(db, certification[1], user));
       }
       if (path === '/api/dashboard' && method === 'GET') {
         return json(response, 200, await dashboard(db, { siteId: url.searchParams.get('site_id'), user }));

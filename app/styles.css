@@ -49,6 +49,18 @@ dialog{border:1px solid var(--line);border-radius:15px;padding:0;max-width:760px
 .core-table td, .core-table th { overflow-wrap: anywhere; padding: 12px; }
 .core-table td:first-child { min-width: 0; max-width: none; }
 .core-status { white-space: normal; }
+.cert-status { white-space: normal; }
+.cert-status-expired { background: #fbe9e9; color: #97302a; }
+.cert-status-expiring { background: #fdf1df; color: #8a5a12; }
+.cert-status-valid { background: #e3f2e5; color: #377348; }
+.cert-status-no_expiry { background: #edf1f2; color: #53656d; }
+.cert-count { font-size: 28px; display: block; font-weight: 700; }
+.cert-count-expired { color: #97302a; }
+.cert-count-expiring { color: #8a5a12; }
+.cert-count-valid { color: #377348; }
+.cert-count-no_expiry { color: #53656d; }
+.cert-overdue { color: #97302a; }
+
 .core-status-open { background: #edf1f2; color: #53656d; }
 .core-status-approved, .core-status-notification_sent { background: #eaf0fc; color: #44699b; }
 .core-status-in_progress, .core-status-work_completed, .core-status-submitted { background: #e7f2ee; color: #226b58; }

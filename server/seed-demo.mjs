@@ -86,7 +86,7 @@ async function reset(db) {
   const sites = await db.all(`SELECT id, code FROM sites WHERE code IN (?, ?)`, ...SITES);
   let removed = 0;
   for (const site of sites) {
-    for (const [table, column] of [['site_progress_item_steps', null], ['time_bookings', 'site_id'], ['cost_impact_deviations', null],
+    for (const [table, column] of [['site_progress_item_steps', null], ['employee_certifications', 'site_id'], ['time_bookings', 'site_id'], ['cost_impact_deviations', null],
       ['cost_impacts', 'site_id'], ['deviations', 'site_id'], ['site_progress_items', 'site_id'], ['progress_type_steps', null],
       ['progress_types', 'site_id'], ['work_days', 'site_id'], ['employees', 'site_id'], ['project_structure', 'site_id'],
       ['task_events', null], ['tasks', 'site_id'], ['diary', 'site_id']]) {
@@ -151,6 +151,38 @@ export async function apply(db) {
         ON CONFLICT (id) DO UPDATE SET first_name = excluded.first_name, last_name = excluded.last_name`,
       employeeId, siteId, employeeNo, firstName, lastName, at2);
       bump('employees');
+    }
+
+    // Personnel fitness records: the picture a site clerk actually needs to see — a few
+    // already expired, a few about to lapse, most valid, one without any expiry.
+    const todayIso = () => new Date().toISOString().slice(0, 10);
+    const todayPlus = days => { const value = new Date(`${todayIso()}T12:00:00.000Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10); };
+    const certPlan = [
+      ['qualification', 'Patentino PLE', 'Ente certificatore sintetico', -400, -120],
+      ['medical', 'Visita medica periodica', 'Medico competente sintetico', -370, -10],
+      ['training', 'Corso sicurezza 4 ore', 'Ente formazione sintetico', -370, -1],
+      ['medical', 'Visita medica periodica', 'Medico competente sintetico', -360, 5],
+      ['qualification', 'Abilitazione gru', 'Ente certificatore sintetico', -344, 18],
+      ['training', 'Formazione primo soccorso', 'Ente formazione sintetico', -350, 30],
+      ['medical', 'Visita medica periodica', 'Medico competente sintetico', -160, 200],
+      ['qualification', 'Patentino carrello elevatore', 'Ente certificatore sintetico', -200, 365],
+      ['training', 'Corso PES-PAV', 'Ente formazione sintetico', -120, 540],
+      ['qualification', 'Abilitazione ponteggi', 'Ente certificatore sintetico', -90, 800],
+      ['medical', 'Visita medica periodica', 'Medico competente sintetico', -30, 1200],
+      ['training', 'Formazione anticaduta', 'Ente formazione sintetico', -600, null],
+    ];
+    for (const [index, [category, name, issuer, issuedOffset, expiresOffset]] of certPlan.entries()) {
+      const employeeId = employeeIds[index % employeeIds.length];
+      if (!employeeId) break;
+      const certId = id(`${code}:cert:${index}:${category}`);
+      await db.run(`INSERT INTO employee_certifications
+        (id, site_id, employee_id, category, name, issuer, issued_on, expires_on, outcome, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+        ON CONFLICT (id) DO UPDATE SET name = excluded.name, expires_on = excluded.expires_on`,
+      certId, siteId, employeeId, category, name, issuer,
+      todayPlus(issuedOffset), expiresOffset == null ? null : todayPlus(expiresOffset),
+      category === 'medical' ? 'Idoneo' : null, at2, at2);
+      bump('certifications');
     }
 
     const workDays = [];

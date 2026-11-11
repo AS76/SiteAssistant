@@ -44,3 +44,4 @@ import './report.test.mjs';
 
 import './tools.test.mjs';
 import './tools-ui.test.mjs';
+import './certifications.test.mjs';

@@ -144,7 +144,7 @@ export const TOOL_STATUS_LABELS = Object.freeze({
 const NAV_GROUPS = Object.freeze([
   Object.freeze({ label: 'navOperations', items: Object.freeze(['overview', 'tasks', 'deviations', 'diary']) }),
   Object.freeze({ label: 'navSite', items: Object.freeze(['progress', 'bookings', 'wbs', 'impacts']) }),
-  Object.freeze({ label: 'navManagement', items: Object.freeze(['sites', 'tools']) }),
+  Object.freeze({ label: 'navManagement', items: Object.freeze(['sites', 'tools', 'certifications']) }),
 ]);
 export function navGroups() {
   return NAV_GROUPS.map(group => ({ label: group.label, items: [...group.items] }));
@@ -165,13 +165,28 @@ export function filterTools(tools = [], { company = '', status = '' } = {}) {
         || String(a.id ?? '').localeCompare(String(b.id ?? ''));
     });
 }
+export const CERT_CATEGORIES = Object.freeze(['qualification', 'medical', 'training', 'other']);
+export const CERT_STATUSES = Object.freeze(['expired', 'expiring', 'valid', 'no_expiry']);
+export const certCategoryLabelKey = category => CERT_CATEGORIES.includes(category) ? `certCategory_${category}` : 'coreUnknown';
+export const certStatusLabelKey = status => CERT_STATUSES.includes(status) ? `certStatus_${status}` : 'coreUnknown';
+export function filterCertifications(certifications = [], { employee = '', category = '', status: state = '' } = {}) {
+  return certifications.filter(cert => (!employee || cert.employee_id === employee)
+    && (!category || cert.category === category) && (!state || cert.status === state));
+}
+export function certificationCounts(certifications = []) {
+  const counts = { expired: 0, expiring: 0, valid: 0, no_expiry: 0 };
+  for (const cert of certifications) if (counts[cert.status] !== undefined) counts[cert.status] += 1;
+  return counts;
+}
 export function impactTransitions(status) {
   return [...({ open: ['notification_sent', 'closed'], notification_sent: ['submitted'], submitted: ['closed'], closed: [] }[status] || [])];
 }
 export function corePermissions(role) {
   return { book: ['editor', 'owner'].includes(role), transition: ['owner', 'verifier'].includes(role),
     steps: ['editor', 'owner'].includes(role), assign: role === 'owner',
-    tools: ['owner', 'editor', 'verifier'].includes(role) };
+    tools: ['owner', 'editor', 'verifier'].includes(role),
+    certifications: ['owner', 'editor', 'verifier'].includes(role),
+    certificationWrite: ['owner', 'editor'].includes(role) };
 }
 // Which offline banner to show, if any. A missing service worker never raises a permanent
 // error while the app is online; the storage message is reserved for a broken IndexedDB.

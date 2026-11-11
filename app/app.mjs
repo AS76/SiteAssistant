@@ -1,4 +1,4 @@
-import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, toolCompanies, filterTools, toolStatusLabelKey } from './domain.mjs';
+import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock } from './offline.mjs';
@@ -27,7 +27,7 @@ const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 let session = null;
 let state = { sites: [], tasks: [], diary: [], attachments: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
-let view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'report'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+let view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'report'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 let filters = { search: '', status: '', person: '', priority: '', kind: '' };
 let taskView = 'board';
 let taskSort = defaultViewState().sort, taskColumns = [...TASK_COLUMNS];
@@ -538,18 +538,18 @@ function renderWbs() {
 // Core modules are online-only and never write to the offline operation queue.
 const role = () => session?.roles?.find(member => member.site_id === siteId)?.role;
 const permissions = () => corePermissions(role());
-const moduleResources = { deviations: ['deviations'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'], tools: ['tools'] };
+const moduleResources = { deviations: ['deviations'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'] };
 // Mobile keeps four destinations reachable with the thumb; the rest lives behind «Altro».
-const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools'];
+const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications'];
 const MOBILE_PRIMARY = ['overview', 'tasks', 'deviations', 'bookings'];
 const compactNavigation = () => window.matchMedia('(max-width: 800px)').matches;
 const coreCache = new Map();
-let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' } };
-let deviationView = 'board', toolEditingId = '';
+let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' } };
+let deviationView = 'board', toolEditingId = '', certEditingId = '';
 function resetCore() {
   coreCache.clear();
-  coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' } };
-  toolEditingId = '';
+  coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' } };
+  toolEditingId = ''; certEditingId = '';
 }
 function coreResource(name) {
   const selected = siteId;
@@ -563,6 +563,7 @@ function coreResource(name) {
     progressTypes: () => freshApi.listProgressTypes(selected),
     bookings: () => freshApi.listBookings({ siteId: selected }), impacts: () => freshApi.listImpacts({ siteId: selected }),
     tools: () => freshApi.listTools({ siteId: selected }),
+    certifications: () => freshApi.listCertifications({ siteId: selected }),
     workDays: () => freshApi.listWorkDays({ siteId: selected }), employees: () => freshApi.listEmployees({ siteId: selected }),
     wbs: async () => {
       if (wbsLoad?.promise) await wbsLoad.promise;
@@ -602,6 +603,7 @@ function renderCore() {
   $('#main').innerHTML = heading(view, `${view}Sub`,
     (view === 'progress' ? button('reportPrint', 'open-report') : '')
     + (view === 'tools' && permissions().tools ? button('toolAdd', 'tool-new', '', 'primary') : '')
+    + (view === 'certifications' && permissions().certificationWrite ? button('certAdd', 'cert-new', '', 'primary') : '')
     + button(columnFiltersOn ? 'columnFiltersHide' : 'columnFiltersShow', 'column-filters', `aria-pressed="${columnFiltersOn}"`) + button('coreRefresh', 'core-reload'));
   if (offline || !navigator.onLine) {
     $('#main').insertAdjacentHTML('beforeend', empty('coreOnlineOnly', 'coreOnlineHint')); return;
@@ -613,7 +615,7 @@ function renderCore() {
   }
   const error = resources.find(entry => entry.error)?.error;
   if (error) { $('#main').insertAdjacentHTML('beforeend', `<p role="alert">${esc(errorMessage(error))}</p>`); return; }
-  const content = { deviations: renderDeviations, progress: renderProgress, bookings: renderBookings, impacts: renderImpacts, tools: renderTools }[view]();
+  const content = { deviations: renderDeviations, progress: renderProgress, bookings: renderBookings, impacts: renderImpacts, tools: renderTools, certifications: renderCertifications }[view]();
   $('#main').insertAdjacentHTML('beforeend', `<div class="core-view">${content}</div>`);
   enhanceCoreTables();
 }
@@ -726,6 +728,65 @@ function renderTools() {
     ...(canWrite ? [`<div class="tool-actions">${button('edit', 'tool-edit', `data-id="${esc(row.id)}"`, 'small')}${button('coreDelete', 'tool-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`] : []),
   ])) : empty('toolEmpty', 'toolEmptyHint');
   return html;
+}
+function certificationStatusBadge(status) {
+  return `<span class="badge cert-status cert-status-${esc(status)}">${esc(t(certStatusLabelKey(status)))}</span>`;
+}
+function certDaysLeft(row) {
+  if (row.daysLeft == null) return t('coreUnknown');
+  if (row.daysLeft < 0) return `<span class="cert-overdue">${esc(t('certDaysOverdue').replace('{days}', String(Math.abs(row.daysLeft))))}</span>`;
+  return esc(t('certDaysLeft').replace('{days}', String(row.daysLeft)));
+}
+function renderCertifications() {
+  const all = coreData('certifications'), employees = coreData('employees');
+  const filter = coreFilters.certifications, canWrite = permissions().certificationWrite;
+  const rows = filterCertifications(all, filter), counts = certificationCounts(all);
+  const byEmployee = new Map(employees.map(employee => [employee.id, employee]));
+  const kpis = [['certExpired', counts.expired, 'cert-count-expired'], ['certExpiring', counts.expiring, 'cert-count-expiring'],
+    ['certValid', counts.valid, 'cert-count-valid'], ['certNoExpiry', counts.no_expiry, 'cert-count-no_expiry']]
+    .map(([label, value, css]) => `<div class="panel panel-body"><span>${t(label)}</span><strong class="cert-count ${css}">${value}</strong></div>`).join('');
+  let html = `<div class="core-kpis" role="status">${kpis}</div><p class="note">${t('certHint')}</p>`;
+  html += `<div class="toolbar core-toolbar">${coreSelect('employee', 'coreEmployee', employees.map(employee => [employee.id, employeeLabel(employee)]), filter.employee, 'coreAllEmployees')}${coreSelect('category', 'certCategory', CERT_CATEGORIES.map(category => [category, t(certCategoryLabelKey(category))]), filter.category, 'certAllCategories')}${coreSelect('status', 'status', CERT_STATUSES.map(status => [status, t(certStatusLabelKey(status))]), filter.status, 'allStatuses')}</div>`;
+  html += rows.length ? coreTable(['coreEmployee', 'certCategory', 'certName', 'certIssuer', 'certIssuedOn', 'certExpiresOn', 'certDays', 'status', ...(canWrite ? ['coreActions'] : [])],
+    rows.map(row => [esc(employeeLabel(byEmployee.get(row.employeeId))), t(certCategoryLabelKey(row.category)), `<strong>${esc(row.name)}</strong>`,
+      coreValue(row.issuer), coreValue(row.issuedOn), coreValue(row.expiresOn), certDaysLeft(row), certificationStatusBadge(row.status),
+      ...(canWrite ? [`<div class="tool-actions">${button('edit', 'cert-edit', `data-id="${esc(row.id)}"`, 'small')}${button('coreDelete', 'cert-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`] : [])])) : empty('certEmpty', 'certEmptyHint');
+  return html;
+}
+function showCertificationForm() {
+  if (!permissions().certificationWrite) return toast(t('forbidden'));
+  const editing = certEditingId ? coreData('certifications').find(cert => cert.id === certEditingId) : null;
+  const employees = coreData('employees');
+  const employeeOptions = employees.map(employee => `<option value="${esc(employee.id)}" ${(editing?.employeeId || '') === employee.id ? 'selected' : ''}>${esc(employeeLabel(employee))}</option>`).join('');
+  const categoryOptions = CERT_CATEGORIES.map(category => `<option value="${category}" ${(editing?.category || 'qualification') === category ? 'selected' : ''}>${t(certCategoryLabelKey(category))}</option>`).join('');
+  showModal(t(editing ? 'certEdit' : 'certAdd'), `<form id="cert-form" data-id="${esc(editing?.id || '')}"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('coreEmployee', 'employeeId', editing?.employeeId || '', { required: true, options: employeeOptions })}${field('certCategory', 'category', editing?.category || 'qualification', { required: true, options: categoryOptions })}${field('certName', 'name', editing?.name || '', { required: true, max: 120 })}${field('certIssuer', 'issuer', editing?.issuer || '', { max: 200 })}${field('certIssuedOn', 'issuedOn', editing?.issuedOn || '', { type: 'date' })}${field('certExpiresOn', 'expiresOn', editing?.expiresOn || '', { type: 'date' })}${field('certOutcome', 'outcome', editing?.outcome || '', { max: 500, full: true })}${field('certNotes', 'notes', editing?.notes || '', { type: 'textarea', full: true, max: 2000 })}</div><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="primary">${t(editing ? 'certSaveChanges' : 'certSave')}</button></div></form>`);
+}
+function showCertificationDelete(id) {
+  if (!permissions().certificationWrite) return toast(t('forbidden'));
+  const row = coreData('certifications').find(cert => cert.id === id);
+  if (!row) return toast(t('certNotFound'));
+  const employee = coreData('employees').find(candidate => candidate.id === row.employeeId);
+  showModal(t('certDelete'), `<form id="cert-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('certDeleteConfirm')}</p><p><strong>${esc(row.name)}</strong> · ${esc(employeeLabel(employee))}${row.expiresOn ? ` · ${esc(row.expiresOn)}` : ''}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
+}
+async function submitCertification(form, data) {
+  const selected = siteId, user = session?.user.id, version = modalVersion;
+  if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
+  if (!permissions().certificationWrite) throw new Error('forbidden');
+  if (form.id === 'cert-delete-form') {
+    await api.deleteCertification(form.dataset.id);
+  } else {
+    const input = { siteId: selected, employeeId: data.employeeId, category: data.category, name: data.name,
+      issuer: data.issuer, issuedOn: data.issuedOn, expiresOn: data.expiresOn, outcome: data.outcome, notes: data.notes };
+    if (form.dataset.id) await api.updateCertification(form.dataset.id, input);
+    else await api.createCertification(input);
+  }
+  if (session?.user.id !== user) return;
+  coreCache.get(selected)?.delete('certifications');
+  if (selected !== siteId) return;
+  if (version === modalVersion) closeModal();
+  certEditingId = '';
+  render();
+  toast(t(form.id === 'cert-delete-form' ? 'certDeleted' : 'certSaved'));
 }
 function renderImpacts() {
   const rows = filterSortRecords(coreData('impacts'), coreFilters.impacts, [{ key: 'createdAt', descending: true }]), totals = impactTotals(rows);
@@ -974,7 +1035,7 @@ function render() {
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
   if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
-  ({ report: renderReport, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore, tools: renderCore })[view]();
+  ({ report: renderReport, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore, tools: renderCore, certifications: renderCore })[view]();
 }
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
 function selectSite(id) {
@@ -1167,6 +1228,9 @@ document.addEventListener('click', event => {
     'tool-new': () => { toolEditingId = ''; showToolForm(); },
     'tool-edit': () => { toolEditingId = id; showToolForm(); },
     'tool-delete': () => showToolDelete(id),
+    'cert-new': () => { certEditingId = ''; showCertificationForm(); },
+    'cert-edit': () => { certEditingId = id; showCertificationForm(); },
+    'cert-delete': () => showCertificationDelete(id),
     'wbs-view': () => { wbsView = target.dataset.value; render(); },
     'wbs-reload': () => { wbsCache.delete(siteId); wbsLoad = null; render(); },
     'wbs-expand': () => { document.querySelectorAll('.wbs-tree details').forEach(node => { node.open = true; }); },
@@ -1224,7 +1288,7 @@ document.addEventListener('submit', async event => {
     void askAssistant(text);
     return;
   }
-  if (!['saved-view-form', 'site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'tool-form', 'tool-delete-form', 'import-form', 'settings-form'].includes(form.id)) return;
+  if (!['saved-view-form', 'site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'tool-form', 'tool-delete-form', 'cert-form', 'cert-delete-form', 'import-form', 'settings-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   const data = Object.fromEntries(new FormData(form));
@@ -1247,6 +1311,7 @@ document.addEventListener('submit', async event => {
     if (form.id === 'import-form') { await handleImport(form); return; }
     if (['booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form'].includes(form.id)) { await submitCore(form, data); return; }
     if (['tool-form', 'tool-delete-form'].includes(form.id)) { await submitTool(form, data); return; }
+    if (['cert-form', 'cert-delete-form'].includes(form.id)) { await submitCertification(form, data); return; }
     if (form.id === 'login-form') {
       await accountLock(async () => { await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
       await loadData(); await syncQueue(); return;
@@ -1335,7 +1400,7 @@ document.addEventListener('change', event => {
 });
 document.addEventListener('input', event => { if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
 $('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
-window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'report'].includes(next) ? next : 'overview'; if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
+window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'report'].includes(next) ? next : 'overview'; if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
 window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view]) { closeModal(); render(); } });
 window.matchMedia('(max-width: 800px)').addEventListener('change', () => renderChrome());
 window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view]) render(); void syncQueue(); });

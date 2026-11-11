@@ -20,6 +20,15 @@ export const toolPayload = input => {
   for (const field of toolFields) if (Object.hasOwn(input, field)) result[field] = input[field];
   return result;
 };
+export const certificationFromApi = camelRecord;
+const certificationFields = ['name', 'category', 'issuer', 'issuedOn', 'expiresOn', 'outcome', 'notes'];
+export const certificationPayload = input => {
+  const result = {};
+  if (Object.hasOwn(input, 'siteId') || Object.hasOwn(input, 'site_id')) result.site_id = input.siteId ?? input.site_id;
+  if (Object.hasOwn(input, 'employeeId') || Object.hasOwn(input, 'employee_id')) result.employee_id = input.employeeId ?? input.employee_id;
+  for (const field of certificationFields) if (Object.hasOwn(input, field)) result[field] = input[field];
+  return result;
+};
 const wireFilters = filters => Object.fromEntries(Object.entries(filters).map(([key, value]) =>
   [key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`), value]));
 
@@ -74,6 +83,10 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     createTool: async input => toolFromApi(await request('/api/tools', toolPayload(input))),
     updateTool: async (id, input) => toolFromApi(await request(`/api/tools/${encodeURIComponent(id)}`, toolPayload(input), { method: 'PATCH' })),
     deleteTool: id => request(`/api/tools/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' }),
+    listCertifications: async (filters = {}) => (await request(`/api/certifications${query(wireFilters(filters))}`)).map(certificationFromApi),
+    createCertification: async input => certificationFromApi(await request('/api/certifications', certificationPayload(input))),
+    updateCertification: async (id, input) => certificationFromApi(await request(`/api/certifications/${encodeURIComponent(id)}`, certificationPayload(input), { method: 'PATCH' })),
+    deleteCertification: id => request(`/api/certifications/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' }),
     getTask: async id => taskFromApi(await request(`/api/tasks/${encodeURIComponent(id)}`)),
     createTask: async (input, options) => taskFromApi(await request('/api/tasks', taskPayload(input), options)),
     transitionTask: async (task, input, options) => taskFromApi(await request(`/api/tasks/${encodeURIComponent(task.id)}/transition`, transitionPayload(task, input), options)),
