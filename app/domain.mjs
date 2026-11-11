@@ -1,6 +1,19 @@
 export const STATUSES = ['todo', 'in_progress', 'to_verify', 'closed', 'blocked'];
 export const PRIORITIES = ['normal', 'high', 'urgent'];
 export const TASK_COLUMNS = Object.freeze(['title', 'area', 'status', 'company', 'assignee', 'reviewer', 'due']);
+export const REPORT_PROGRESS_COLUMNS = ['reportArea', 'reportItems', 'reportActual', 'reportPlanned', 'reportSource'];
+export const REPORT_DEVIATION_COLUMNS = ['reportArea', 'reportTotal', 'reportOpen', 'reportClosed', 'reportByStatus'];
+
+// CSV rows for the printable report. Values stay raw so the caller applies labels;
+// a missing number becomes an empty cell instead of the word "null".
+export function reportProgressRows(progress) {
+  return (progress || []).map(row => [row.area, row.items, row.actual ?? '', row.planned ?? '', row.source]);
+}
+export function reportDeviationRows(deviations, label = status => status ?? 'unknown') {
+  return (deviations || []).map(row => [row.area, row.total, row.open, row.closed,
+    (row.by_status || []).map(entry => `${label(entry.status)}: ${entry.count}`).join('; ')]);
+}
+
 
 export function defaultViewState() {
   return { filters: { search: '', status: '', person: '', priority: '' },

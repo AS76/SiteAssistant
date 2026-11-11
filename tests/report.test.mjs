@@ -1,8 +1,10 @@
 import test from 'node:test';
+import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createSite } from '../server/repository.mjs';
 import { report } from '../server/report.mjs';
+import { reportProgressRows, reportDeviationRows, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS } from '../app/domain.mjs';
 import { dashboard, STATUS_ORDER } from '../server/dashboard.mjs';
 import { listSiteProgress } from '../server/site-progress.mjs';
 import { createProgressType } from '../server/progress-types.mjs';
@@ -161,8 +163,21 @@ test('Report UI entry points, translations and print rules are present without a
   t.assert.match(app, /reportPrintIntent = null;\s*window\.print\(\)/);
   t.assert.match(css, /@page\s*\{\s*size: A4 portrait/);
   t.assert.match(css, /\.report-table tr\s*\{[^}]*break-inside: avoid/);
-  t.assert.match(css, /#ai-fab, #ai-panel, #offline-banner, button, nav\s*\{\s*display: none !important/);
+  t.assert.match(css, /#ai-fab, #ai-panel, #offline-banner\s*\{\s*display: none !important[\s\S]*\.report-view button, \.report-view nav\s*\{\s*display: none !important/);
   for (const language of ['it', 'en']) for (const key of Object.keys(messages.it).filter(key => key.startsWith('report'))) {
     t.assert.ok(messages[language][key], `${language}: ${key}`);
   }
+});
+
+test('report CSV rows keep raw numbers, blank missing values and label-free status counts', () => {
+  const progress = [{ area: 'Linea A', items: 5, actual: 47.4, planned: null, source: 'mixed' }];
+  assert.deepEqual(reportProgressRows(progress), [['Linea A', 5, 47.4, '', 'mixed']]);
+  assert.deepEqual(reportProgressRows(null), []);
+  const deviations = [{ area: 'Senza sezione', total: 12, open: 9, closed: 3,
+    by_status: [{ status: 'open', count: 3 }, { status: null, count: 1 }] }];
+  assert.deepEqual(reportDeviationRows(deviations), [['Senza sezione', 12, 9, 3, 'open: 3; unknown: 1']]);
+  assert.deepEqual(reportDeviationRows(undefined), []);
+  // The header keys are the contract used by the export handler.
+  assert.deepEqual(REPORT_PROGRESS_COLUMNS, ['reportArea', 'reportItems', 'reportActual', 'reportPlanned', 'reportSource']);
+  assert.deepEqual(REPORT_DEVIATION_COLUMNS, ['reportArea', 'reportTotal', 'reportOpen', 'reportClosed', 'reportByStatus']);
 });

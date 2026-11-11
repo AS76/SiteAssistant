@@ -1,4 +1,4 @@
-import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs } from './domain.mjs';
+import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock } from './offline.mjs';
@@ -35,7 +35,7 @@ let selectedViewId = '', savedViewsCache = null;
 let wbsView = 'tree', wbsLoad = null;
 const wbsCache = new Map();
 let reportDate = today();
-let reportPrintIntent = null;
+let reportPrintIntent = null, lastReport = null;
 const t = key => Object.hasOwn(messages[language], key) ? messages[language][key] : key;
 const personName = name => esc(name || '—');
 const currentSite = () => state.sites.find(site => site.id === siteId);
@@ -60,7 +60,7 @@ function toast(message) {
 const errorKeys = { VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
-  reportPrintIntent = null;
+  reportPrintIntent = null; lastReport = null;
   resetSavedViews();
   wbsCache.clear(); wbsLoad = null; resetCore();
   session = null; actor = ''; siteId = undefined; loadError = null; offlineScope = undefined; pendingOps = [];
@@ -245,7 +245,8 @@ function renderOverview() {
 
 // Every report opening fetches current data; a late response cannot print another site or view.
 function renderReport() {
-  $('#main').innerHTML = heading('report', 'reportSub', button('reportPrint', 'open-report', 'disabled'))
+  $('#main').innerHTML = heading('report', 'reportSub', button('reportCsvProgress', 'report-csv-progress', 'disabled')
+    + button('reportCsvDeviations', 'report-csv-deviations', 'disabled') + button('reportPrint', 'open-report', 'disabled'))
     + `<div id="site-report" class="site-report" aria-busy="true"><p role="status">${t('loading')}</p></div>`;
   void loadReport($('#site-report'));
 }
@@ -273,7 +274,11 @@ async function loadReport(target) {
         data.deviations.map(row => [esc(row.area), coreNumber(row.total), coreNumber(row.open), coreNumber(row.closed),
           row.by_status.map(entry => `<span class="report-status">${esc(entry.status == null ? t('coreUnknown') : t(entry.status))}: ${coreNumber(entry.count)}</span>`).join(' ')]));
     target.setAttribute('aria-busy', 'false');
-    $('#main [data-command="open-report"]').disabled = false;
+    lastReport = data;
+    for (const command of ['open-report', 'report-csv-progress', 'report-csv-deviations']) {
+      const control = $('#main [data-command="' + command + '"]');
+      if (control) control.disabled = false;
+    }
     if (reportPrintIntent?.site === selected && reportPrintIntent?.user === user) {
       const intent = reportPrintIntent;
       await document.fonts?.ready;
@@ -1072,6 +1077,19 @@ function download(content, type, name) {
   const anchor = document.createElement('a'); anchor.href = url; anchor.download = name; anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+function exportReportCsv(kind) {
+  if (!lastReport) return toast(t('emptyExport'));
+  const progress = kind === 'progress';
+  const columns = progress ? REPORT_PROGRESS_COLUMNS : REPORT_DEVIATION_COLUMNS;
+  const rows = progress ? reportProgressRows(lastReport.progress)
+    : reportDeviationRows(lastReport.deviations, status => t(status ?? 'coreUnknown'));
+  if (!rows.length) return toast(t('emptyExport'));
+  const body = [columns.map(t), ...rows.map(row => row.map((value, index) => progress && index === 4
+    ? t(`reportSource_${value}`) : value))];
+  download('\ufeff' + body.map(row => row.map(csvCell).join(',')).join('\r\n'), 'text/csv;charset=utf-8',
+    `siteassistant-report-${kind}-${today()}.csv`);
+  toast(t('csvDone'));
+}
 function exportCsv() {
   const tasks = filteredTasks();
   if (!tasks.length) return toast(t('emptyExport'));
@@ -1103,6 +1121,7 @@ document.addEventListener('click', event => {
     'view-create': () => showSavedViewForm('create'), 'view-rename': () => showSavedViewForm('rename'),
     'view-delete': () => showSavedViewForm('delete'), 'view-update': updateSelectedView,
     'views-retry': () => { savedViewsCache = null; selectedViewId = ''; renderTasks(); },
+    'report-csv-progress': () => exportReportCsv('progress'), 'report-csv-deviations': () => exportReportCsv('deviations'),
     'close-modal': closeModal, 'task-view': () => { taskView = target.dataset.value; renderTasks(); },
     'clear-filters': () => { filters = { search: '', status: '', person: '', priority: '' }; renderTasks(); },
     csv: exportCsv, print: () => window.print(),
