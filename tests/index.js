@@ -37,3 +37,4 @@ import './offline.test.mjs';
 
 import './increment-16-ui.test.mjs';
 import './view-settings.test.mjs';
+import './saved-views-ui.test.mjs';

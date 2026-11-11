@@ -1,5 +1,13 @@
 export const messages = {
   it: {
+    viewSelector: 'Vista salvata', viewNone: 'Nessuna vista', viewShared: 'Condivisa', viewSaveAs: 'Salva come vista',
+    viewUpdate: 'Aggiorna allo stato attuale', viewRename: 'Rinomina', viewDelete: 'Elimina vista', viewName: 'Nome della vista',
+    viewShareWithSite: 'Condividi con i membri del cantiere', viewReadOnly: 'Vista in sola lettura: le modifiche locali non cambiano la vista salvata.',
+    viewModified: 'Modificata · non salvata', viewSortKey: 'Ordina per', viewSortDirection: 'Direzione',
+    viewAscending: 'Crescente', viewDescending: 'Decrescente', viewColumns: 'Colonne visibili',
+    viewDeleteConfirm: 'Eliminare questa vista salvata?', viewSaved: 'Vista salvata.', viewDeleted: 'Vista eliminata.',
+    viewNameTaken: 'Esiste già una vista con questo nome. Scegli un altro nome.',
+    viewNotFound: 'La vista non è più disponibile. Ricarica le viste.', viewInvalid: 'Controlla il nome e i dati della vista.',
     coreRecordGone: 'Il record non è più disponibile. Aggiorna i dati.', coreYes: 'Sì', coreNo: 'No', coreHasFiles: 'File presenti', coreHasNotes: 'Note presenti', coreHasDeviations: 'Deviazioni presenti',
     deviations: "Deviazioni",
     progress: "Avanzamento",
@@ -184,6 +192,14 @@ export const messages = {
     actorPlaceholder:"Nome della persona",loading:"Caricamento…",retry:"Riprova",apiUnavailable:"API non raggiungibile. Controlla la connessione e riprova.",apiError:"Richiesta API non riuscita. Controlla i dati e riprova.",duplicateDiary:"Esiste già un contributo per questo cantiere, giorno e turno.",noteRequired:"Inserisci una nota di esecuzione o verifica.",verifierRequired:"Solo il verificatore assegnato può chiudere questa attività.",transitionTo:"Passa a",noTransitions:"Nessuna transizione disponibile per questo stato.",reason:"Motivazione",noSites:"Nessun cantiere",noSitesHint:"Crea il primo cantiere per iniziare.",
   },
   en: {
+    viewSelector: 'Saved view', viewNone: 'No view', viewShared: 'Shared', viewSaveAs: 'Save as view',
+    viewUpdate: 'Update to current state', viewRename: 'Rename', viewDelete: 'Delete view', viewName: 'View name',
+    viewShareWithSite: 'Share with site members', viewReadOnly: 'Read-only view: local changes do not change the saved view.',
+    viewModified: 'Modified · unsaved', viewSortKey: 'Sort by', viewSortDirection: 'Direction',
+    viewAscending: 'Ascending', viewDescending: 'Descending', viewColumns: 'Visible columns',
+    viewDeleteConfirm: 'Delete this saved view?', viewSaved: 'View saved.', viewDeleted: 'View deleted.',
+    viewNameTaken: 'A view with this name already exists. Choose another name.',
+    viewNotFound: 'This view is no longer available. Reload the views.', viewInvalid: 'Check the view name and data.',
     coreRecordGone: 'This record is no longer available. Refresh the data.', coreYes: 'Yes', coreNo: 'No', coreHasFiles: 'Has files', coreHasNotes: 'Has notes', coreHasDeviations: 'Has deviations',
     deviations: "Deviations",
     progress: "Site progress",

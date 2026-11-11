@@ -224,3 +224,19 @@ footer{font-size:11px}
 .skeleton-list{display:grid;gap:10px;margin:18px 0}
 .skeleton-list span{display:block;height:18px;border-radius:6px;background:linear-gradient(90deg,#eef2f1 25%,#f7faf9 37%,#eef2f1 63%);background-size:400% 100%;animation:skeleton 1.4s ease infinite}
 @keyframes skeleton{0%{background-position:100% 50%}100%{background-position:0 50%}}
+.saved-views { align-items: end; }
+.saved-view-select { flex: 1 1 220px; min-width: 0; max-width: 100%; }
+.saved-view-select select { width: 100%; min-width: 0; max-width: 100%; }
+.saved-view-actions { display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%; }
+.saved-view-actions button { white-space: normal; }
+.saved-views .note, .saved-view-error { flex-basis: 100%; overflow-wrap: anywhere; }
+.saved-views .note:empty { display: none; }
+.task-list-controls { align-items: end; }
+.task-list-controls > .field { flex: 1 1 150px; min-width: 0; }
+.task-list-controls select { min-width: 0; max-width: 100%; }
+.task-column-options { display: flex; flex-wrap: wrap; gap: 8px 16px; flex: 2 1 360px; min-width: 0; margin: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px; }
+.task-column-options legend { color: var(--muted); font-size: 12px; }
+.view-checkbox { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 12px; }
+.view-checkbox input[type=checkbox] { min-width: 18px; width: 18px; height: 18px; padding: 0; accent-color: var(--green); }
+.saved-view-sharing { margin-top: 16px; }
+@media print { .saved-views, .task-list-controls { display: none !important; } }

@@ -1,5 +1,47 @@
 export const STATUSES = ['todo', 'in_progress', 'to_verify', 'closed', 'blocked'];
 export const PRIORITIES = ['normal', 'high', 'urgent'];
+export const TASK_COLUMNS = Object.freeze(['title', 'area', 'status', 'company', 'assignee', 'reviewer', 'due']);
+
+export function defaultViewState() {
+  return { filters: { search: '', status: '', person: '', priority: '' },
+    sort: { key: 'due', direction: 'asc' }, columns: [...TASK_COLUMNS], layout: 'board' };
+}
+// Read only contract fields, without traversing arbitrary stored objects. Bounded text
+// and column input keep even malformed legacy payloads small and cheap to sanitize.
+export function sanitizeViewState(payload) {
+  const result = defaultViewState();
+  const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const own = (value, key) => object(value) && Object.hasOwn(value, key) ? value[key] : undefined;
+  try {
+    const filters = own(payload, 'filters'), sort = own(payload, 'sort');
+    for (const key of ['search', 'person']) {
+      const value = own(filters, key);
+      if (typeof value === 'string') result.filters[key] = value.slice(0, 512);
+    }
+    for (const [key, allowed] of [['status', STATUSES], ['priority', PRIORITIES]]) {
+      const value = own(filters, key);
+      if (allowed.includes(value)) result.filters[key] = value;
+    }
+    const key = own(sort, 'key'), direction = own(sort, 'direction');
+    if (TASK_COLUMNS.includes(key)) result.sort.key = key;
+    if (['asc', 'desc'].includes(direction)) result.sort.direction = direction;
+    const columns = own(payload, 'columns');
+    if (Array.isArray(columns)) {
+      const known = new Set(columns.slice(0, 64));
+      const visible = TASK_COLUMNS.filter(column => known.has(column));
+      // At least one column remains visible, in the established table order.
+      if (visible.length) result.columns = visible;
+    }
+    const layout = own(payload, 'layout');
+    if (['board', 'list'].includes(layout)) result.layout = layout;
+    return result;
+  } catch {
+    // Non-JSON callers may supply throwing getters or revoked proxies.
+    return defaultViewState();
+  }
+}
+export function viewStatePayload(state) { return sanitizeViewState(state); }
+
 const transitions = {
   todo: ['in_progress', 'blocked'],
   in_progress: ['to_verify', 'blocked'],

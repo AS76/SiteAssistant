@@ -1,4 +1,4 @@
-import { offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs } from './domain.mjs';
+import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock } from './offline.mjs';
@@ -30,6 +30,8 @@ let state = { sites: [], tasks: [], diary: [], attachments: [] }, language = 'it
 let view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 let filters = { search: '', status: '', person: '', priority: '' };
 let taskView = 'board';
+let taskSort = defaultViewState().sort, taskColumns = [...TASK_COLUMNS];
+let selectedViewId = '', savedViewsCache = null;
 let wbsView = 'tree', wbsLoad = null;
 const wbsCache = new Map();
 let reportDate = today();
@@ -54,9 +56,10 @@ function toast(message) {
   clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false;
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
-const errorKeys = { VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
+const errorKeys = { VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
+  resetSavedViews();
   wbsCache.clear(); wbsLoad = null; resetCore();
   session = null; actor = ''; siteId = undefined; loadError = null; offlineScope = undefined; pendingOps = [];
   state = { sites: [], tasks: [], diary: [], attachments: [] };
@@ -123,7 +126,7 @@ async function loadData() {
         }
       }
       await refreshPending();
-      if (!state.sites.some(site => site.id === siteId)) siteId = state.sites[0]?.id;
+      if (!state.sites.some(site => site.id === siteId)) { resetSavedViews(); siteId = state.sites[0]?.id; }
     });
   } catch (error) { loadError = error; }
   loading = false; render();
@@ -297,10 +300,90 @@ function filteredTasks() {
   const needle = filters.search.trim().toLocaleLowerCase();
   return siteTasks().filter(task => (!filters.status || task.status === filters.status) && (!filters.person || task.assignee === filters.person) && (!filters.priority || task.priority === filters.priority) && (!needle || `${task.title} ${task.area} ${task.company}`.toLocaleLowerCase().includes(needle)));
 }
+const currentViewState = () => viewStatePayload({ filters, sort: taskSort, columns: taskColumns, layout: taskView });
+const selectedSavedView = () => savedViewsCache?.data?.find(item => item.id === selectedViewId);
+const canCreateView = () => ['owner', 'editor', 'verifier'].includes(role());
+const canEditView = item => Boolean(item && session && (item.owner_id === session.user.id || role() === 'owner'));
+function applyViewState(payload) {
+  const next = sanitizeViewState(payload);
+  filters = next.filters; taskSort = next.sort; taskColumns = next.columns; taskView = next.layout;
+}
+function resetSavedViews() {
+  savedViewsCache = null; selectedViewId = ''; applyViewState(defaultViewState());
+}
+function loadSavedViews() {
+  if (savedViewsCache || !siteId || !session) return;
+  const selected = siteId, user = session.user.id;
+  const cache = savedViewsCache = { data: [], pending: true, error: null, saving: false };
+  freshApi.listViews(selected, 'tasks').then(data => { cache.data = data; }, error => { cache.error = error; }).finally(() => {
+    cache.pending = false;
+    if (savedViewsCache === cache && siteId === selected && session?.user.id === user && view === 'tasks') renderSavedViews();
+  });
+}
+function renderViewDirty() {
+  const target = $('#saved-view-dirty'), selected = selectedSavedView();
+  if (target) target.textContent = selected && JSON.stringify(currentViewState()) !== JSON.stringify(viewStatePayload(selected.payload)) ? t('viewModified') : '';
+}
+function renderSavedViews() {
+  const target = $('#saved-views');
+  if (!target) return;
+  const cache = savedViewsCache, selected = selectedSavedView();
+  const disabled = cache?.pending || cache?.saving ? 'disabled' : '';
+  const views = [...(cache?.data || [])].sort((a, b) => a.name.localeCompare(b.name, language) || a.id.localeCompare(b.id));
+  target.innerHTML = `<label class="field saved-view-select"><span>${t('viewSelector')}</span><select id="saved-view-select" ${disabled}><option value="">${t('viewNone')}</option>${views.map(item => `<option value="${esc(item.id)}" ${item.id === selectedViewId ? 'selected' : ''}>${esc(item.name)}${item.shared ? ` · ${t('viewShared')}` : ''}</option>`).join('')}</select></label>
+    <div class="saved-view-actions">${canCreateView() ? button('viewSaveAs', 'view-create', disabled) : ''}${canEditView(selected) ? button('viewUpdate', 'view-update', disabled) + button('viewRename', 'view-rename', disabled) + button('viewDelete', 'view-delete', disabled) : ''}</div>
+    <span id="saved-view-dirty" class="note" role="status"></span>${selected && !canEditView(selected) ? `<span class="note">${t('viewReadOnly')}</span>` : ''}
+    ${cache?.pending ? `<span class="note" role="status">${t('loading')}</span>` : ''}${cache?.error ? `<div class="saved-view-error" role="alert">${esc(errorMessage(cache.error))} ${button('retry', 'views-retry')}</div>` : ''}`;
+  renderViewDirty();
+}
+function taskListControls() {
+  return `<div class="toolbar task-list-controls"><label class="field"><span>${t('viewSortKey')}</span><select id="task-sort-key">${TASK_COLUMNS.map(key => `<option value="${key}" ${taskSort.key === key ? 'selected' : ''}>${t(key)}</option>`).join('')}</select></label>
+    <label class="field"><span>${t('viewSortDirection')}</span><select id="task-sort-direction">${['asc', 'desc'].map(direction => `<option value="${direction}" ${taskSort.direction === direction ? 'selected' : ''}>${t(direction === 'asc' ? 'viewAscending' : 'viewDescending')}</option>`).join('')}</select></label>
+    <fieldset class="task-column-options"><legend>${t('viewColumns')}</legend>${TASK_COLUMNS.map(key => `<label class="view-checkbox"><input type="checkbox" data-task-column="${key}" ${taskColumns.includes(key) ? 'checked' : ''} ${taskColumns.length === 1 && taskColumns.includes(key) ? 'disabled' : ''}>${t(key)}</label>`).join('')}</fieldset></div>`;
+}
+function showSavedViewForm(action) {
+  const item = selectedSavedView();
+  if (savedViewsCache?.saving || (action === 'create' ? !canCreateView() : !canEditView(item))) return;
+  const title = { create: 'viewSaveAs', rename: 'viewRename', delete: 'viewDelete' }[action];
+  showModal(t(title), `<form id="saved-view-form" data-action="${action}" data-id="${esc(item?.id || '')}"><div class="form-error" role="alert" tabindex="-1" hidden></div>
+    ${action === 'delete' ? `<p>${t('viewDeleteConfirm')}</p><p class="prewrap">${esc(item.name)}</p>` : field('viewName', 'name', action === 'rename' ? item.name : '', { required: true, max: 80 })}
+    ${action === 'create' ? `<label class="view-checkbox saved-view-sharing"><input type="checkbox" name="shared">${t('viewShareWithSite')}</label>` : ''}
+    <div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="${action === 'delete' ? 'danger' : 'primary'}">${t(action === 'delete' ? 'viewDelete' : 'save')}</button></div></form>`);
+}
+async function saveViewChange(action, { id = selectedViewId, name, shared = false } = {}) {
+  const cache = savedViewsCache, selected = siteId, user = session?.user.id;
+  if (!cache || cache.saving) return;
+  const item = cache.data.find(row => row.id === id);
+  if (action === 'create' ? !canCreateView() : !canEditView(item)) throw new Error('forbidden');
+  if (['create', 'rename'].includes(action) && !name?.trim()) throw new Error('viewInvalid');
+  cache.saving = true; renderSavedViews();
+  try {
+    const result = action === 'create' ? await api.createView({ site_id: selected, module: 'tasks', name: name.trim(), shared, payload: currentViewState() })
+      : action === 'delete' ? await api.deleteView(id)
+        : await api.updateView(id, action === 'rename' ? { name: name.trim() } : { payload: currentViewState() });
+    // Ignore responses from a previous site/session, including a switch away and back.
+    if (savedViewsCache !== cache || siteId !== selected || session?.user.id !== user) return;
+    if (action === 'delete') {
+      cache.data = cache.data.filter(row => row.id !== id);
+      if (selectedViewId === id) selectedViewId = '';
+    } else {
+      cache.data = [...cache.data.filter(row => row.id !== result.id), result];
+      if (action === 'create') selectedViewId = result.id;
+    }
+    toast(t(action === 'delete' ? 'viewDeleted' : 'viewSaved'));
+  } finally {
+    cache.saving = false;
+    if (savedViewsCache === cache && view === 'tasks') renderSavedViews();
+  }
+}
+async function updateSelectedView() {
+  try { await saveViewChange('update'); } catch (error) { toast(errorMessage(error)); }
+}
 function renderTasks() {
+  loadSavedViews();
   $('#main').innerHTML = heading('tasksTitle', 'tasksSub', button('exportCsv', 'csv') + button('newTask', 'new-task', '', 'primary')) +
-    `<div class="toolbar"><input class="search" id="filter-search" aria-label="${t('search')}" placeholder="${t('search')}" value="${esc(filters.search)}"><select id="filter-status" aria-label="${t('status')}"><option value="">${t('allStatuses')}</option>${STATUSES.map(status => `<option value="${status}" ${filters.status === status ? 'selected' : ''}>${t(status)}</option>`).join('')}</select><select id="filter-person" aria-label="${t('assignee')}"><option value="">${t('allPeople')}</option>${[...new Set(siteTasks().map(task => task.assignee))].map(person => `<option value="${esc(person)}" ${filters.person === person ? 'selected' : ''}>${personName(person)}</option>`).join('')}</select><select id="filter-priority" aria-label="${t('priority')}"><option value="">${t('allPriorities')}</option>${PRIORITIES.map(priority => `<option value="${priority}" ${filters.priority === priority ? 'selected' : ''}>${t(priority)}</option>`).join('')}</select><div class="view-toggle">${button('board', 'task-view', `data-value="board" aria-pressed="${taskView === 'board'}"`, taskView === 'board' ? 'selected' : '')}${button('list', 'task-view', `data-value="list" aria-pressed="${taskView === 'list'}"`, taskView === 'list' ? 'selected' : '')}</div></div><div id="task-results"></div>`;
-  renderTaskResults();
+    `<div id="saved-views" class="toolbar saved-views"></div><div class="toolbar"><input class="search" id="filter-search" maxlength="512" aria-label="${t('search')}" placeholder="${t('search')}" value="${esc(filters.search)}"><select id="filter-status" aria-label="${t('status')}"><option value="">${t('allStatuses')}</option>${STATUSES.map(status => `<option value="${status}" ${filters.status === status ? 'selected' : ''}>${t(status)}</option>`).join('')}</select><select id="filter-person" aria-label="${t('assignee')}"><option value="">${t('allPeople')}</option>${[...new Set([...siteTasks().map(task => task.assignee), ...(filters.person ? [filters.person] : [])])].map(person => `<option value="${esc(person)}" ${filters.person === person ? 'selected' : ''}>${personName(person)}</option>`).join('')}</select><select id="filter-priority" aria-label="${t('priority')}"><option value="">${t('allPriorities')}</option>${PRIORITIES.map(priority => `<option value="${priority}" ${filters.priority === priority ? 'selected' : ''}>${t(priority)}</option>`).join('')}</select><div class="view-toggle">${button('board', 'task-view', `data-value="board" aria-pressed="${taskView === 'board'}"`, taskView === 'board' ? 'selected' : '')}${button('list', 'task-view', `data-value="list" aria-pressed="${taskView === 'list'}"`, taskView === 'list' ? 'selected' : '')}</div></div>${taskView === 'list' ? taskListControls() : ''}<div id="task-results"></div>`;
+  renderSavedViews(); renderTaskResults();
 }
 function taskCard(task) {
   return `<button type="button" class="task-card" data-command="detail" data-id="${esc(task.id)}"><span class="card-code">${esc(task.area || t('noArea'))}</span><h2>${esc(task.title)}</h2>${priorityBadge(task.priority)} ${syncBadge(task)}<p>${esc(task.company)}</p><p>${personName(task.assignee)}</p><div class="card-footer">${dueMarkup(task)}<span>→</span></div></button>`;
@@ -318,7 +401,13 @@ function renderTaskResults() {
           ${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</details>`).join('')}</div>`
       : `<div class="board">${columns.map(({ status, column }) => `<section class="board-column" aria-label="${t(status)}"><div class="column-heading"><span>${t(status)}</span><span>${column.length}</span></div>${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</section>`).join('')}</div>`;
   }
-  else html += `<div class="table-scroll"><table><thead><tr>${['title', 'area', 'status', 'company', 'assignee', 'reviewer', 'due'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${tasks.map(task => `<tr><td><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></td><td>${esc(task.area || '—')}</td><td>${badge(task.status)} ${syncBadge(task)}</td><td>${esc(task.company)}</td><td>${personName(task.assignee)}</td><td>${personName(task.reviewer)}</td><td>${dueMarkup(task)}</td></tr>`).join('')}</tbody></table></div>`;
+  else {
+    const sorted = filterSortRecords(tasks, {}, [{ key: taskSort.key, descending: taskSort.direction === 'desc' }]);
+    const cell = (task, key) => key === 'status' ? `${badge(task.status)} ${syncBadge(task)}` : key === 'due' ? dueMarkup(task)
+      : ['assignee', 'reviewer'].includes(key) ? personName(task[key]) : esc(task[key] || '—');
+    html += `<div class="table-scroll"><table><thead><tr>${taskColumns.map(key => `<th scope="col" ${key === taskSort.key ? `aria-sort="${taskSort.direction === 'asc' ? 'ascending' : 'descending'}"` : ''}>${t(key)}</th>`).join('')}</tr></thead><tbody>${sorted.map(task => `<tr>${taskColumns.map((key, index) => `<td>${index === 0 ? `<button data-command="detail" data-id="${esc(task.id)}" aria-label="${esc(task.title)}">${cell(task, key)}</button>` : cell(task, key)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  }
+  renderViewDirty();
   $('#task-results').innerHTML = html;
 }
 function renderDiary() {
@@ -783,7 +872,7 @@ function render() {
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
 function selectSite(id) {
   if (!state.sites.some(site => site.id === id)) return;
-  wbsLoad = null; wbsCache.clear(); resetCore(); closeModal();
+  wbsLoad = null; wbsCache.clear(); resetCore(); resetSavedViews(); closeModal();
   siteId = id; filters = { search: '', status: '', person: '', priority: '' }; render();
   if (!offline) void loadData();
 }
@@ -962,6 +1051,9 @@ document.addEventListener('click', event => {
     logout, 'new-site': showSiteForm, 'new-task': showTaskForm, reload: loadData,
     'select-site': () => { selectSite(id); go('overview'); }, detail: () => showDetail(id),
     transition: () => showTransition(id, target.dataset.to), 'new-entry': showEntryForm,
+    'view-create': () => showSavedViewForm('create'), 'view-rename': () => showSavedViewForm('rename'),
+    'view-delete': () => showSavedViewForm('delete'), 'view-update': updateSelectedView,
+    'views-retry': () => { savedViewsCache = null; selectedViewId = ''; renderTasks(); },
     'close-modal': closeModal, 'task-view': () => { taskView = target.dataset.value; renderTasks(); },
     'clear-filters': () => { filters = { search: '', status: '', person: '', priority: '' }; renderTasks(); },
     csv: exportCsv, print: () => window.print(),
@@ -1005,7 +1097,7 @@ document.addEventListener('submit', async event => {
     void askAssistant(text);
     return;
   }
-  if (!['site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'import-form', 'settings-form'].includes(form.id)) return;
+  if (!['saved-view-form', 'site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'import-form', 'settings-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   const data = Object.fromEntries(new FormData(form));
@@ -1015,6 +1107,11 @@ document.addEventListener('submit', async event => {
   // Capture the selected context before waiting for the server.
   const selectedSite = siteId, selectedDate = reportDate;
   try {
+    if (form.id === 'saved-view-form') {
+      await saveViewChange(form.dataset.action, { id: form.dataset.id, name: data.name, shared: data.shared === 'on' });
+      if (version === modalVersion) closeModal();
+      return;
+    }
     if (form.id === 'settings-form') {
       const data2 = Object.fromEntries(new FormData(form));
       prefs = { currency: String(data2.currency || 'EUR'), decimals: Number(data2.decimals) === 0 ? 0 : 2, separators: data2.separators === 'en' ? 'en' : 'it' };
@@ -1040,7 +1137,7 @@ document.addEventListener('submit', async event => {
       toast(t('emailAccepted')); return;
     }
     let message, detail;
-    if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); siteId = site.id; filters = { search: '', status: '', person: '', priority: '' }; message = 'siteCreated'; }
+    if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); resetSavedViews(); siteId = site.id; filters = { search: '', status: '', person: '', priority: '' }; message = 'siteCreated'; }
     if (form.id === 'task-form') { const payload = { ...data, siteId: selectedSite }; taskPayload(payload); await writeOperation('create_task', payload); message = 'taskCreated'; }
     if (form.id === 'entry-form') {
       const payload = { ...data, siteId: selectedSite, date: selectedDate };
@@ -1087,6 +1184,18 @@ document.addEventListener('submit', async event => {
 $('#modal').addEventListener('cancel', () => { modalVersion++; });
 $('#site-select').addEventListener('change', event => selectSite(event.target.value));
 document.addEventListener('change', event => {
+  if (event.target.id === 'saved-view-select') {
+    selectedViewId = event.target.value;
+    applyViewState(selectedSavedView()?.payload); renderTasks();
+  }
+  if (event.target.id === 'task-sort-key') { taskSort.key = event.target.value; renderTaskResults(); }
+  if (event.target.id === 'task-sort-direction') { taskSort.direction = event.target.value; renderTaskResults(); }
+  if (event.target.dataset.taskColumn) {
+    const checked = [...document.querySelectorAll('[data-task-column]:checked')].map(input => input.dataset.taskColumn);
+    if (checked.length) taskColumns = checked;
+    document.querySelectorAll('[data-task-column]').forEach(input => { input.disabled = taskColumns.length === 1 && taskColumns.includes(input.dataset.taskColumn); });
+    renderTaskResults();
+  }
   if (event.target.dataset.coreFilter && coreFilters[view]) { coreFilters[view][event.target.dataset.coreFilter] = event.target.value; render(); }
   if (event.target.matches('#impact-transition-form [name=to]')) {
     const closing = event.target.value === 'closed', result = $('#impact-transition-form [name=result]');
