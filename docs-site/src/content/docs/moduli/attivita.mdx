@@ -46,7 +46,7 @@ Il **tipo** distingue il lavoro previsto dall'intervento che corregge qualcosa:
 - **Ordinaria**: il lavoro pianificato. È il valore predefinito e non viene memorizzato come tipo, quindi le attività create prima di questa classificazione restano ordinarie.
 - **Correttiva**: un intervento che corregge un difetto o una non conformità. Sulle schede della bacheca compare il badge **Correttiva**.
 
-Il tipo si sceglie alla creazione e non si modifica dopo: le attività non sono modificabili. Il filtro **Tipo** nella barra dei filtri vale per la bacheca, per l'elenco e per l'esportazione CSV, che ha una colonna **Tipo** con l'etichetta tradotta.
+Il tipo si sceglie alla creazione e non si modifica dopo: le attività non sono modificabili. Il filtro **Tipo** nella barra dei filtri vale per la bacheca, per l'elenco, per la vista **Attività leggere** e per l'esportazione CSV, che ha una colonna **Tipo** con l'etichetta tradotta.
 
 ## Gli stati
 
@@ -103,7 +103,7 @@ Solo il verificatore assegnato (o un owner) può chiudere o riaprire. Chi ha ese
 
 Nel dettaglio di un'attività puoi allegare foto o PDF, fino a **15 MiB** per file; il caricamento è riservato a owner ed editor. L'evidenza della verifica resta una **nota testuale**: l'allegato non sostituisce la nota.
 
-## Bacheca ed elenco
+## Bacheca, elenco e attività leggere
 
 <Shot
   src="/images/2026-11/tasks-desktop.png"
@@ -116,14 +116,28 @@ Nel dettaglio di un'attività puoi allegare foto o PDF, fino a **15 MiB** per fi
   <figcaption>A sinistra la bacheca, con le colonne per stato; a destra l'elenco, con una riga per attività.</figcaption>
 </figure>
 
-La **bacheca** raggruppa le attività per stato, l'**elenco** le ordina per scadenza e priorità. Da entrambe si apre il dettaglio con i campi e la cronologia completa. I filtri (testo, stato, esecutore, priorità, tipo) si applicano a entrambe le viste e all'esportazione CSV.
+La **bacheca** raggruppa le attività per stato, l'**elenco** le ordina per scadenza e priorità, la vista **Attività leggere** è una tabella essenziale per chiudere o riaprire in fretta. Da bacheca ed elenco si apre il dettaglio con i campi e la cronologia completa. I filtri (testo, stato, esecutore, priorità, tipo) si applicano a tutte e tre le viste e all'esportazione CSV.
+
+## Attività leggere
+
+A cosa serve: chiudere o riaprire le attività ordinarie che passano da una verifica, senza aprire il dettaglio.
+
+1. Apri **Attività** e scegli **Attività leggere** accanto a **Board** ed **Elenco**.
+2. Imposta la ricerca e i filtri come nelle altre viste: valgono anche qui.
+3. Leggi la tabella: **Attività**, **Area**, **Esecutore**, **Scadenza**, **Stato** e **Azione**.
+4. Premi **Chiudi** su un'attività da verificare, oppure **Riapri** su un'attività chiusa.
+5. Il pulsante avvia il passaggio: se richiede una nota o una motivazione si apre la finestra consueta — la chiusura chiede la nota di verifica, la riapertura la motivazione — e il passaggio viene registrato alla conferma.
+
+La vista mostra solo le attività **ordinarie**: le correttive restano in bacheca e in elenco. L'ordine mette prima le attività aperte e poi le chiuse; dentro ciascun gruppo, prima quelle con una scadenza, dalla più vicina, poi quelle senza scadenza, quindi per titolo.
+
+Il pulsante è l'unico comando della riga e non aggira le regole del flusso: la chiusura resta riservata al verificatore assegnato o a un owner, e la riapertura richiede la motivazione. Resta disabilitato quando lo stato non consente il passaggio — per esempio un'attività ancora **Da fare** o **In corso** non si chiude con un clic, deve prima essere sottoposta a verifica — e mentre una modifica sulla stessa attività è ancora in coda o è fallita. Chi ha ruolo `viewer` vede un trattino al posto del pulsante.
 
 ## Viste salvate
 
 A cosa serve: ritrovare in un clic i filtri, l'ordinamento e le colonne che usi ogni giorno.
 
 1. Apri **Attività**: sopra i filtri trovi **Vista salvata**, con la voce **Nessuna vista**.
-2. Imposta i filtri e scegli **Board** o **Elenco**; nell'elenco imposta anche **Ordina per**, **Direzione** e le **Colonne visibili**.
+2. Imposta i filtri e scegli **Board**, **Elenco** o **Attività leggere**; nell'elenco imposta anche **Ordina per**, **Direzione** e le **Colonne visibili**.
 3. Premi **Salva come vista**, dai un nome (massimo 80 caratteri) e, se vuoi, seleziona **Condividi con i membri del cantiere**.
 4. Scegli la vista dal menu per riapplicarla; la selezione vale per il cantiere corrente.
 5. Dopo una modifica, accanto al menu compare **Modificata · non salvata**: premi **Aggiorna allo stato attuale** per salvare i nuovi filtri, oppure **Rinomina** o **Elimina vista**.
@@ -134,7 +148,7 @@ Le viste sono **personali** per impostazione predefinita; una vista **condivisa*
 - **Nome già usato:** per lo stesso cantiere e la stessa persona i nomi devono essere unici; scegline un altro.
 - **Vista in sola lettura:** è condivisa e non l'hai creata tu. Per cambiarla, salva una tua copia con **Salva come vista**.
 - **Vista non più disponibile:** è stata eliminata o hai cambiato cantiere. Ricarica la pagina e scegli di nuovo **Nessuna vista**.
-- **Le colonne non cambiano:** ordinamento e colonne si impostano in modalità **Elenco**; la bacheca usa i filtri salvati ma non ha colonne da scegliere.
+- **Le colonne non cambiano:** ordinamento e colonne si impostano in modalità **Elenco**; la bacheca usa i filtri salvati ma non ha colonne da scegliere, e **Attività leggere** ha colonne fisse.
 :::
 
 ## Cosa non è ancora disponibile

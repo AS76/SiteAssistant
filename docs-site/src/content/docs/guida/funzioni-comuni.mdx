@@ -19,7 +19,7 @@ SiteAssistant è organizzato in **viste** che condividono lo stesso contesto: il
 L'intestazione contiene, da sinistra a destra:
 
 - il **selettore del cantiere**, che elenca solo i cantieri in cui hai un ruolo;
-- la **navigazione** tra le viste, raccolta su desktop in tre gruppi: **Operazioni** (Panoramica, Attività, Deviazioni, Diario), **Cantiere** (Avanzamento, Prenotazioni ore, Struttura progetto, Impatti economici) e **Gestione** (Cantieri, [Attrezzature](../../moduli/attrezzature/), [Idoneità](../../moduli/idoneita/));
+- la **navigazione** tra le viste, raccolta su desktop in tre gruppi: **Operazioni** (Panoramica, Attività, Deviazioni, Diario), **Cantiere** (Avanzamento, Prenotazioni ore, Struttura progetto, Impatti economici) e **Gestione** (Cantieri, [Attrezzature](../../moduli/attrezzature/), [Idoneità](../../moduli/idoneita/), [HSE](../../moduli/hse/));
 - l'ingranaggio delle [Impostazioni](../impostazioni/) (valuta, decimali, separatori);
 - il collegamento al manuale;
 - il **selettore di lingua** (IT / EN);
@@ -29,7 +29,7 @@ Il pulsante **AI** in basso a destra apre l'[assistente dati](../assistente-ai/)
 
 ## I gruppi della navigazione
 
-Su desktop la navigazione laterale mostra un'intestazione per gruppo: **Operazioni** per il lavoro quotidiano, **Cantiere** per avanzamento e dati economici, **Gestione** per cantieri, attrezzature e idoneità. Le voci sono le stesse di sempre, cambia solo l'ordine con cui sono raccolte. Su telefono la barra in basso non usa i gruppi e resta descritta nella [Guida rapida mobile](../mobile/).
+Su desktop la navigazione laterale mostra un'intestazione per gruppo: **Operazioni** per il lavoro quotidiano, **Cantiere** per avanzamento e dati economici, **Gestione** per cantieri, attrezzature, idoneità e registro HSE. Le voci sono le stesse di sempre, cambia solo l'ordine con cui sono raccolte. Su telefono la barra in basso non usa i gruppi e resta descritta nella [Guida rapida mobile](../mobile/).
 
 Se un owner ha escluso un modulo dal tuo accesso, la voce non compare nella navigazione e un collegamento diretto alla vista mostra **Modulo non disponibile**. Gli accessi per modulo sono descritti in [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/#accessi-per-modulo).
 
@@ -39,7 +39,7 @@ A cosa serve: capire in pochi secondi cosa è fermo, cosa aspetta una verifica e
 
 1. Scegli il cantiere dal **selettore in alto**.
 2. Se vuoi vedere solo alcuni blocchi, premi **Personalizza** e scegli quali mostrare e in che ordine: la scelta è personale e vale per il cantiere selezionato.
-3. Guarda i quattro indicatori economici e operativi: **Deviazioni aperte**, **Ore prenotate**, **Claim aperti**, **Liquidato**.
+3. Guarda i quattro indicatori economici e operativi: **Deviazioni aperte**, **Ore prenotate in app**, **Claim aperti**, **Liquidato**.
 4. Leggi i quattro contatori delle attività: **Da eseguire**, **Da verificare**, **Chiuse**, **Scadute**.
 5. Scorri i tre grafici: **Deviazioni per stato**, **Avanzamento per sezione**, **Ore per settimana**, e il pannello **Earned value**.
 6. Chiudi con **Da tenere d'occhio** e **Il punto del cantiere**: sono le attività ordinate per urgenza e il riepilogo delle chiusure verificate.
@@ -53,9 +53,11 @@ A cosa serve: capire in pochi secondi cosa è fermo, cosa aspetta una verifica e
 I quattro indicatori contano:
 
 - **Deviazioni aperte**: deviazioni non chiuse e non respinte;
-- **Ore prenotate**: somma delle ore registrate sulle presenze;
+- **Ore prenotate in app**: somma delle ore prenotate dall'applicazione nelle **ultime sei settimane**; le ore lavorate e le ore prenotate della sorgente restano misure separate, nel grafico settimanale;
 - **Claim aperti**: importo reclamato dei reclami non chiusi;
 - **Liquidato**: somma degli importi liquidati registrati sui reclami.
+
+Il pannello **Ore per settimana** copre le ultime sei settimane e accosta, per ognuna, le ore prenotate in app alle ore lavorate della sorgente. Le due misure non si sommano: la prima è modificabile dall'applicazione, la seconda è quella dell'export.
 
 Sotto i grafici, il pannello **Earned value** mostra EV, PV e AC in ore, con CPI e SPI, calcolati dalle ore pianificate delle voci e dalle ore prenotate. Se il cantiere non ha ore pianificate, il pannello lo segnala invece di mostrare numeri. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/#ore-pianificate).
 
@@ -96,7 +98,7 @@ Su schermi stretti la bacheca diventa una **fisarmonica per stato**: vedi un gru
 
 A cosa serve: mettere in ordine le righe e restringere l'elenco senza esportare nulla.
 
-1. Apri una vista con tabella: **Deviazioni** in modalità **Elenco**, **Avanzamento**, **Prenotazioni ore**, **Impatti economici**, **Attrezzature** o **Idoneità**.
+1. Apri una vista con tabella: **Deviazioni** in modalità **Elenco**, **Avanzamento**, **Prenotazioni ore**, **Impatti economici**, **Attrezzature**, **Idoneità** o **HSE**.
 2. Clicca l'intestazione della colonna: il primo clic ordina in modo crescente, il secondo in modo decrescente.
 3. Da tastiera, porta il focus sull'intestazione con Tab e premi **Invio** o **Spazio**.
 4. Premi **Filtri colonna**: compare una riga di campi sopra la tabella, uno per colonna.

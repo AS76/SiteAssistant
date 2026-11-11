@@ -7,6 +7,7 @@ description: Italian and English terminology used in SiteAssistant.
 | :-- | :-- | :-- |
 | Cantiere | Site | Organisational unit that collects tasks and diary |
 | Attività | Task | Unit of work with a distinct executor and reviewer |
+| HSE | HSE | Site register of near misses, accidents and observations, with no health data |
 | Esecutore | Executor | The person who physically executes the task |
 | Verificatore | Verifier | The person who checks and closes the work |
 | Sottomissione | Submission | Move to `to_verify` with an execution note |

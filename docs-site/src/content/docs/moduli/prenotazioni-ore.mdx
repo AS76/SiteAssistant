@@ -1,32 +1,40 @@
 ---
 title: Prenotazioni ore
-description: Registrare le ore di un dipendente su un elemento di avanzamento e rileggere i totali per giorno.
+description: Prenotare in app le ore di un dipendente su un elemento di avanzamento e confrontarle con i totali della sorgente.
 ---
 
-import Shot from '../../../components/Shot.astro';
+La vista **Prenotazioni ore** raccoglie le ore registrate sulle presenze del cantiere, raggruppate per **giorno operativo e dipendente**. Le presenze e gli elementi di avanzamento arrivano dall'import planning; le ore si prenotano qui.
 
-La vista **Prenotazioni ore** raccoglie le ore registrate sulle presenze del cantiere, raggruppate per **giorno operativo**. Le presenze e gli elementi di avanzamento arrivano dall'import planning; le ore si registrano qui.
+## Le ore della sorgente e le ore dell'app
 
-## Registrare ore
+A cosa serve: distinguere le ore che arrivano dall'export da quelle inserite in SiteAssistant, senza confonderle.
+
+Ogni gruppo ha una riga di riepilogo con cinque valori:
+
+- **Ore lavorate (sorgente)**: le ore di timbratura della presenza importata;
+- **Ore prenotate (sorgente)**: le ore già prenotate nell'export planning;
+- **Ore prenotate in app**: le prenotazioni inserite in SiteAssistant, modificabili;
+- **Ore non coperte (sorgente)**: le ore lavorate che l'export non copre con una prenotazione; sono la fotografia dell'export e non indicano la disponibilità di oggi;
+- **Scostamento**: **ore lavorate − (ore prenotate sorgente + ore prenotate in app)**.
+
+Lo scostamento si legge così: **positivo** significa lavoro senza attribuzione, **negativo** prenotato oltre il lavorato, **zero** lavorato e prenotato coincidono.
+
+Se manca un totale della sorgente — anche su una sola presenza del gruppo — lo scostamento è **non calcolabile**. L'applicazione non tratta un dato mancante come zero: un riepilogo incompleto resta incompleto e lo dice.
+
+## Prenotare ore in app
 
 A cosa serve: attribuire a un elemento di avanzamento le ore lavorate da un dipendente in un giorno.
 
 1. Apri **Prenotazioni ore**. Su telefono la voce si chiama **Ore**.
-2. Nel modulo **Registra ore**, scegli la **presenza / giorno operativo**: l'elenco mostra data, dipendente, turno e ora di inizio.
+2. Nel modulo **Prenota ore in app**, scegli la **presenza / giorno operativo**: l'elenco mostra data, dipendente, turno e ora di inizio.
 3. Scegli l'**elemento di avanzamento** su cui imputare le ore.
-4. Inserisci le **ore**. Il campo accetta mezze ore; i pulsanti **−0,5 ore**, **+0,5 ore** e **+1 ora** correggono il valore senza digitare.
-5. Premi **Registra ore**. La prenotazione compare nel gruppo del giorno, con il totale aggiornato.
+4. Inserisci le **ore prenotate in app**. Il campo accetta mezze ore; i pulsanti **−0,5 ore**, **+0,5 ore** e **+1 ora** correggono il valore senza digitare.
+5. Premi **Prenota ore in app**. La prenotazione compare nel gruppo del giorno e del dipendente, e il riepilogo si aggiorna.
 
-<Shot
-  src="/images/2026-11/bookings-desktop.png"
-  alt="Vista Prenotazioni ore con il filtro Giorno operativo, i gruppi del 6 e 5 novembre con totale ore e le colonne Dipendente, Elemento di avanzamento e Ore"
-  caption="Le prenotazioni raggruppate per giorno operativo, con il totale delle ore accanto alla data. Il modulo Registra ore compare sopra l'elenco solo per owner ed editor: qui l'account di cattura è in sola lettura."
-/>
+Il menu **Giorno operativo** filtra l'elenco su un solo giorno; **Tutti i giorni operativi** mostra i gruppi dalla data più recente. L'elenco carica tutte le prenotazioni del cantiere, non solo la prima pagina.
 
-Il menu **Giorno operativo** filtra l'elenco su un solo giorno; **Tutti i giorni operativi** mostra i gruppi in ordine di data decrescente.
-
-:::caution[Se non puoi registrare]
-- **Nessun modulo in cima alla pagina:** il tuo ruolo è `verifier` o `viewer`, oppure mancano i prerequisiti. Registrare ore è riservato a **owner** ed **editor**.
+:::caution[Se non puoi prenotare]
+- **Nessun modulo in cima alla pagina:** il tuo ruolo è `verifier` o `viewer`, oppure mancano i prerequisiti. Prenotare ore è riservato a **owner** ed **editor**.
 - **Messaggio sui prerequisiti:** servono presenze ed elementi di avanzamento importati nel cantiere. Un amministratore deve completare l'import.
 - **Prenotazione duplicata:** esiste già una prenotazione per quella presenza e quello stesso elemento. Modifica le ore della prenotazione esistente invece di crearne una seconda.
 - **Presenza ed elemento di cantieri diversi:** scegli una presenza e un elemento dello stesso cantiere.
@@ -34,27 +42,34 @@ Il menu **Giorno operativo** filtra l'elenco su un solo giorno; **Tutti i giorni
 
 ## Rileggere e correggere
 
-A cosa serve: controllare le ore del giorno e correggere una prenotazione sbagliata.
+A cosa serve: confrontare le ore dell'app con la sorgente e correggere una prenotazione sbagliata.
 
-1. Individua il gruppo del **giorno operativo**: l'intestazione mostra la data e il totale delle ore.
-2. Confronta le righe con le presenze del giorno: dipendente, elemento e ore.
-3. Per eliminare una prenotazione, premi **Elimina** sulla riga.
-4. Conferma in **Elimina prenotazione**. L'operazione non è annullabile dall'interfaccia.
+1. Individua il gruppo: l'intestazione mostra **data · dipendente**.
+2. Leggi la riga di riepilogo: lavorate, prenotate dalla sorgente, prenotate in app, non coperte e scostamento.
+3. Confronta le righe sotto il riepilogo: dipendente, elemento di avanzamento e ore prenotate in app.
+4. Per eliminare una prenotazione, premi **Elimina** sulla riga.
+5. Conferma in **Elimina prenotazione**. L'operazione non è annullabile dall'interfaccia.
 
-Le ore di ogni gruppo sono la somma delle righe visibili; il filtro sul giorno non cambia i valori delle righe.
+Il riepilogo somma le presenze del gruppo una volta sola, anche quando su una presenza ci sono più prenotazioni. Un gruppo può comparire senza righe: la presenza esiste, ma nessuna ora è ancora attribuita.
 
 :::caution[Se i totali non tornano]
-- Il totale accanto alla data somma solo le righe di quel gruppo: usa **Tutti i giorni operativi** per il quadro completo.
-- Se l'elenco è vuoto, il cantiere non ha ancora presenze o elementi di avanzamento: non è un problema di filtri.
-- Le ore si registrano sulla presenza importata: senza una presenza non si crea una prenotazione.
+- **Lo scostamento è per gruppo.** Si calcola su quella data e quel dipendente; per il quadro del cantiere usa **Tutti i giorni operativi** e confronta i gruppi.
+- **«Non calcolabile» non è zero.** Significa che almeno un totale della sorgente manca: controlla l'import della presenza.
+- **Le ore non coperte non sono disponibilità.** Sono la fotografia dell'export: una presenza può risultare scoperta anche se le ore sono state prenotate dopo l'import.
+- **Se l'elenco è vuoto**, il cantiere non ha ancora presenze o elementi di avanzamento: non è un problema di filtri.
+- **Le ore si prenotano sulla presenza importata**: senza una presenza non si crea una prenotazione.
 :::
+
+## Panoramica
+
+La Panoramica conta le **ore prenotate in app nelle ultime sei settimane** e il grafico delle ore per settimana accosta, per ogni settimana, le ore prenotate in app alle ore lavorate della sorgente. Le due misure restano separate: la prima è modificabile dall'applicazione, la seconda è quella dell'export.
 
 ## Chi può fare cosa
 
 | Azione | Ruolo |
 | :-- | :-- |
 | Consultare prenotazioni e totali | Tutti i membri del cantiere |
-| Registrare ore | owner, editor |
+| Prenotare ore in app | owner, editor |
 | Eliminare una prenotazione | owner, editor |
 
 I dati di presenze e dipendenti arrivano dall'import: per il formato vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/).

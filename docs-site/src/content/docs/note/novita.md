@@ -7,6 +7,10 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 11 novembre 2026
 
+- **Registro HSE.** Nuova vista **HSE**, nel gruppo **Gestione**: near miss, infortuni e osservazioni con data, tipo, gravità, luogo, numero di persone coinvolte e misure. È un registro separato, senza dati sanitari e senza nomi: leggono owner, editor e verificatori, scrivono owner ed editor. Vedi [HSE](../../moduli/hse/).
+- **Attività leggere.** In **Attività** la terza vista mostra solo le ordinarie in una tabella essenziale, con un solo comando per riga — **Chiudi** o **Riapri** — che rispetta le regole di verifica e chiede nota o motivazione quando servono. Vedi [Attività e verifiche](../../moduli/attivita/).
+- **Ore della sorgente e ore dell'app.** **Prenotazioni ore** raggruppa per giorno e dipendente e separa le ore lavorate, le ore prenotate dalla sorgente, le ore prenotate in app e le ore non coperte; lo **scostamento** dice se c'è lavoro senza attribuzione o prenotazioni oltre il lavorato, e resta «non calcolabile» quando un totale della sorgente manca. La Panoramica conta le ore prenotate in app nelle ultime sei settimane. Vedi [Prenotazioni ore](../../moduli/prenotazioni-ore/).
+
 - **Panoramica personale.** Il pulsante **Personalizza** sceglie quali blocchi mostrare e in che ordine, per utente e per cantiere; **Ripristina default** torna alla vista completa. Vedi [Funzioni comuni](../../guida/funzioni-comuni/#leggere-la-panoramica).
 - **Accessi per modulo.** Un owner può escludere un membro da un singolo modulo senza cambiargli il ruolo, dalla tabella in fondo alla vista **Cantieri**; le voci escluse spariscono dalla navigazione e le API rispondono `403`. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/#accessi-per-modulo).
 - **Ore pianificate sulle voci di avanzamento.** Il dettaglio di una voce ha il campo **Ore pianificate**, modificabile da owner ed editor; vuoto, usa le ore del nodo WBS collegato quando presenti. Le ore alimentano l'earned value. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/#ore-pianificate).

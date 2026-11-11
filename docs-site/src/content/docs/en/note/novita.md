@@ -7,6 +7,10 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 11 November 2026
 
+- **HSE register.** New **HSE** view, in the **Management** group: near misses, accidents and observations with date, type, severity, location, number of people involved and measures. It is a separate register, with no health data and no names: owners, editors and verifiers read it, owners and editors write it. See [HSE](../../moduli/hse/).
+- **Light tasks.** In **Tasks** the third view shows ordinary tasks only in a bare table, with a single command per row — **Close** or **Reopen** — that follows the review rules and asks for a note or reason when needed. See [Tasks and reviews](../../moduli/attivita/).
+- **Source hours and app hours.** **Time bookings** groups by day and employee and separates hours worked, hours booked from the source, hours booked in app and uncovered hours; the **variance** tells work without allocation apart from bookings beyond hours worked, and stays “not calculable” when a source total is missing. The Overview counts hours booked in app over the last six weeks. See [Time bookings](../../moduli/prenotazioni-ore/).
+
 - **Personal Overview.** The **Customize** button chooses which blocks to show and in what order, per user and per site; **Restore defaults** returns to the full view. See [Common features](../../guida/funzioni-comuni/#reading-the-overview).
 - **Module access.** An owner can exclude a member from a single module without changing their role, from the table at the bottom of the **Sites** view; excluded entries disappear from the navigation and the APIs answer `403`. See [Users and roles](../../amministrazione/utenti-e-ruoli/#module-access).
 - **Planned hours on progress items.** The item detail has a **Planned hours** field, editable by owners and editors; when blank, it uses the hours of the linked WBS node when present. The hours feed earned value. See [Site progress](../../moduli/avanzamento/#planned-hours).

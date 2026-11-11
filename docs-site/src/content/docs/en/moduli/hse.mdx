@@ -1,0 +1,92 @@
+---
+title: HSE
+description: Register of near misses, accidents and site observations, without health data.
+---
+
+The **HSE** view is the health and safety register of the selected site: near misses, accidents and observations. Every row records a fact — date, type, severity, location, number of people involved and measures taken — not the people themselves.
+
+The register does not come from an import: rows are created, edited and deleted in the application. It holds no health data and is not linked to the employee record: people involved are **a number only**, never a name.
+
+## Reading the register
+
+What it is for: knowing how many events were recorded, of which type and severity, and reading the measures taken.
+
+1. Open **HSE** from the navigation, in the **Management** group.
+2. Read the four counters at the top: **Near misses**, **Accidents**, **Observations** and **Total**.
+3. Narrow the list with the **Type** and **Severity** menus and with the **From** / **To** period.
+4. Read the table: **Event date**, **Event number**, **Type**, **Severity**, **Location**, **Persons involved** and **Measures**.
+5. Clear the filters to return to the full list.
+
+The list starts from the most recent event date. The counters cover **all** site events, not only those passing the filters. If the **From** date follows the **To** date, the view shows a message instead of the list: fix the period.
+
+## Types and severities
+
+| Type | Meaning |
+| :-- | :-- |
+| Near miss | A close call: the event had no consequences, but it could have |
+| Accidents | An event with consequences for one or more people |
+| Observations | A behaviour, a condition or a tool worth reporting |
+
+| Severity | Meaning |
+| :-- | :-- |
+| Low | No consequence or a negligible one |
+| Medium | A consequence to manage, with no site stoppage |
+| High | A relevant consequence or an immediate risk |
+
+Type and severity are required choices. On creation the application proposes **Near miss** and severity **Low**.
+
+## Adding or editing an event
+
+Owners and editors see the **New HSE event** button.
+
+1. Press **New HSE event**.
+2. Choose the **Event date**, required.
+3. Choose **Type** and **Severity**.
+4. Add, if needed, **Event number**, **Location** and **Measures**.
+5. In **Persons involved** enter a number only: if the count is unknown, leave the field empty.
+6. Use **Factual notes** for what happened, without names or health information.
+7. Press **Save HSE event**. The window closes, the counters and the list refresh and the message “HSE event saved” appears.
+
+To correct a row, press **Edit** on the row: the same window opens with the current values and the button becomes **Save changes**.
+
+| Field | Required | Limits |
+| :-- | :-- | :-- |
+| Event date | Yes | `YYYY-MM-DD` date |
+| Event number | No | Up to 120 characters; unique within the site |
+| Type | Yes | Near miss, Accidents, Observations |
+| Severity | Yes | Low, Medium, High |
+| Location | No | Up to 200 characters |
+| Persons involved | No | Whole number from 0 up; no names |
+| Measures | No | Up to 2000 characters |
+| Factual notes | No | Up to 2000 characters |
+
+The **event number** is an internal reference: you can leave it empty, but when filled it must be unique within the site. Two events cannot share the same number, and the application rejects the save asking you to check the number.
+
+## Deleting an event
+
+1. Press **Delete** on the row.
+2. Check the date, type and any number shown in the confirmation.
+3. Confirm with **Delete**.
+
+Deletion is immediate and permanent: the application keeps no copy of the row and no change history. If the event must stay readable, correct its data instead of deleting it.
+
+## Who can do what
+
+| Action | Role |
+| :-- | :-- |
+| Read the HSE register | owner, editor, verifier |
+| Add, edit or delete an event | owner, editor |
+
+The `viewer` role has no access to the register: the entry appears in the navigation, but the view shows **Restricted register**. The register is separate from the other modules and feeds neither the Overview nor the report.
+
+:::caution[If something does not add up]
+- **“Restricted register” or no data:** your role on the site is `viewer`; reading is reserved to owners, editors and verifiers. See [Users and roles](../../amministrazione/utenti-e-ruoli/).
+- **I cannot see the buttons:** only owners and editors write; verifiers only read.
+- **Event number rejected:** another event of the same site already uses it. Leave it empty or change it.
+- **Persons involved rejected:** the field accepts a whole number only, not text and not names.
+- **Period rejected:** the **From** date must not follow the **To** date.
+- **Offline:** the view requires a connection, like the other module views; without a network you can neither read nor change the register.
+- **Empty list:** the site has no events yet, or type, severity and period add up; clear the filters.
+:::
+
+The same rows are available through the API, with the `/api/hse-events` endpoints: see [REST API](../../riferimento/api/#hse).

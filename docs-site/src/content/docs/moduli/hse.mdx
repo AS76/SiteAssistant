@@ -1,0 +1,92 @@
+---
+title: HSE
+description: Registro di near miss, infortuni e osservazioni di cantiere, senza dati sanitari.
+---
+
+La vista **HSE** è il registro degli eventi di salute e sicurezza del cantiere selezionato: near miss, infortuni e osservazioni. Ogni riga registra un fatto — data, tipo, gravità, luogo, numero di persone coinvolte e misure adottate — non le persone.
+
+Il registro non arriva da un import: le righe si inseriscono, modificano ed eliminano dall'applicazione. Non contiene dati sanitari e non è collegato alla scheda del dipendente: le persone coinvolte sono **solo un numero**, mai un nome.
+
+## Consultare il registro
+
+A cosa serve: sapere quanti eventi sono stati registrati, di che tipo e con quale gravità, e leggere le misure adottate.
+
+1. Apri **HSE** dalla navigazione, nel gruppo **Gestione**.
+2. Leggi i quattro contatori in alto: **Near miss**, **Infortuni**, **Osservazioni** e **Totale**.
+3. Restringi l'elenco con i menu **Tipo** e **Gravità** e con il periodo **Dal** / **Al**.
+4. Leggi la tabella: **Data evento**, **Numero evento**, **Tipo**, **Gravità**, **Luogo**, **Persone coinvolte** e **Misure**.
+5. Svuota i filtri per tornare all'elenco completo.
+
+L'elenco parte dalla data dell'evento più recente. I contatori contano **tutti** gli eventi del cantiere, non solo quelli che passano dai filtri. Se la data **Dal** segue la data **Al**, la vista mostra un messaggio e non l'elenco: correggi il periodo.
+
+## Tipi e gravità
+
+| Tipo | Significato |
+| :-- | :-- |
+| Near miss | Un mancato incidente: l'evento non ha prodotto conseguenze, ma poteva farlo |
+| Infortuni | Un evento con conseguenze su una o più persone |
+| Osservazioni | Un comportamento, una condizione o un'attrezzatura da segnalare |
+
+| Gravità | Significato |
+| :-- | :-- |
+| Bassa | Nessuna conseguenza o conseguenza trascurabile |
+| Media | Conseguenza da gestire, senza fermo del cantiere |
+| Alta | Conseguenza rilevante o rischio immediato |
+
+Tipo e gravità sono scelte obbligatorie. All'inserimento l'applicazione propone **Near miss** e gravità **Bassa**.
+
+## Aggiungere o modificare un evento
+
+Owner ed editor vedono il pulsante **Nuovo evento HSE**.
+
+1. Premi **Nuovo evento HSE**.
+2. Scegli la **Data evento**, obbligatoria.
+3. Scegli **Tipo** e **Gravità**.
+4. Aggiungi, se servono, **Numero evento**, **Luogo** e **Misure**.
+5. In **Persone coinvolte** scrivi soltanto un numero: se il conteggio non è noto, lascia il campo vuoto.
+6. Usa **Note sui fatti** per la descrizione dell'accaduto, senza nomi né informazioni sanitarie.
+7. Premi **Salva evento HSE**. La finestra si chiude, i contatori e l'elenco si aggiornano e compare il messaggio «Evento HSE salvato».
+
+Per correggere una riga, premi **Modifica** sulla riga stessa: si apre la stessa finestra con i valori attuali e il pulsante diventa **Salva modifiche**.
+
+| Campo | Obbligatorio | Limiti |
+| :-- | :-- | :-- |
+| Data evento | Sì | Data `YYYY-MM-DD` |
+| Numero evento | No | Fino a 120 caratteri; univoco nel cantiere |
+| Tipo | Sì | Near miss, Infortuni, Osservazioni |
+| Gravità | Sì | Bassa, Media, Alta |
+| Luogo | No | Fino a 200 caratteri |
+| Persone coinvolte | No | Numero intero da 0 in su; nessun nome |
+| Misure | No | Fino a 2000 caratteri |
+| Note sui fatti | No | Fino a 2000 caratteri |
+
+Il **numero evento** è un riferimento interno: puoi lasciarlo vuoto, ma se lo compili deve essere univoco nel cantiere. Due eventi non possono avere lo stesso numero, e l'applicazione rifiuta il salvataggio indicando di controllare il numero.
+
+## Eliminare un evento
+
+1. Premi **Elimina** sulla riga.
+2. Controlla data, tipo ed eventuale numero indicati nella conferma.
+3. Conferma con **Elimina**.
+
+L'eliminazione è immediata e definitiva: l'applicazione non conserva una copia della riga e non tiene uno storico delle modifiche. Se l'evento deve restare consultabile, correggine i dati invece di eliminarlo.
+
+## Chi può fare cosa
+
+| Azione | Ruolo |
+| :-- | :-- |
+| Consultare il registro HSE | owner, editor, verifier |
+| Aggiungere, modificare o eliminare un evento | owner, editor |
+
+Il ruolo `viewer` non accede al registro: la voce compare nella navigazione, ma la vista mostra **Registro riservato**. Il registro è separato dagli altri moduli e non alimenta la Panoramica né il report.
+
+:::caution[Se qualcosa non torna]
+- **«Registro riservato» o nessun dato:** il tuo ruolo sul cantiere è `viewer`; la lettura è riservata a owner, editor e verificatori. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/).
+- **Non vedo i pulsanti:** solo owner ed editor scrivono; i verificatori consultano soltanto.
+- **Numero evento rifiutato:** è già usato da un altro evento dello stesso cantiere. Lascialo vuoto o cambialo.
+- **Persone coinvolte rifiutate:** il campo accetta solo un numero intero, non testo e non nomi.
+- **Periodo rifiutato:** la data **Dal** non può seguire la data **Al**.
+- **Offline:** la vista richiede la connessione, come le altre viste dei moduli; senza rete non si consulta né si modifica il registro.
+- **Elenco vuoto:** il cantiere non ha ancora eventi, oppure tipo, gravità e periodo si sommano; azzera i filtri.
+:::
+
+Le stesse righe sono disponibili via API, con gli endpoint `/api/hse-events`: vedi [API REST](../../riferimento/api/#hse).

@@ -19,7 +19,7 @@ SiteAssistant is organised into **views** that share the same context: the **sel
 The header contains, from left to right:
 
 - the **site selector**, which lists only the sites where you have a role;
-- the **navigation** between views, grouped on desktop in three sections: **Operations** (Overview, Tasks, Deviations, Diary), **Site** (Site progress, Time bookings, Project structure, Cost impacts) and **Management** (Sites, [Tools](../../moduli/attrezzature/), [Fitness](../../moduli/idoneita/));
+- the **navigation** between views, grouped on desktop in three sections: **Operations** (Overview, Tasks, Deviations, Diary), **Site** (Site progress, Time bookings, Project structure, Cost impacts) and **Management** (Sites, [Tools](../../moduli/attrezzature/), [Fitness](../../moduli/idoneita/), [HSE](../../moduli/hse/));
 - the gear for [Settings](../impostazioni/) (currency, decimals, separators);
 - the link to the manual;
 - the **language selector** (IT / EN);
@@ -29,7 +29,7 @@ The **AI** button at the bottom right opens the [data assistant](../assistente-a
 
 ## The navigation groups
 
-On desktop the side navigation shows a heading per group: **Operations** for daily work, **Site** for progress and cost data, **Management** for sites, tools and fitness. The entries are the same as before; only the order they are collected in changes. On a phone the bottom bar does not use the groups and is described in the [Mobile quick guide](../mobile/).
+On desktop the side navigation shows a heading per group: **Operations** for daily work, **Site** for progress and cost data, **Management** for sites, tools, fitness and the HSE register. The entries are the same as before; only the order they are collected in changes. On a phone the bottom bar does not use the groups and is described in the [Mobile quick guide](../mobile/).
 
 If an owner has excluded a module from your access, its entry does not appear in the navigation and a direct link to the view shows **Module unavailable**. Module access is described in [Users and roles](../../amministrazione/utenti-e-ruoli/#module-access).
 
@@ -39,7 +39,7 @@ What it is for: seeing in seconds what is stuck, what is waiting for a review an
 
 1. Choose the site from the **selector at the top**.
 2. If you want to see only some blocks, press **Customize** and choose which ones to show and in what order: the choice is personal and applies to the selected site.
-3. Read the four operational and financial indicators: **Open deviations**, **Booked hours**, **Open claims**, **Settled**.
+3. Read the four operational and financial indicators: **Open deviations**, **Hours booked in app**, **Open claims**, **Settled**.
 4. Read the four task counters: **To execute**, **To verify**, **Closed**, **Overdue**.
 5. Scroll the three charts: **Deviations by status**, **Progress by section**, **Hours per week**, and the **Earned value** panel.
 6. Finish with **Keep an eye on** and **The site at a glance**: tasks ordered by urgency and the summary of verified closures.
@@ -53,9 +53,11 @@ What it is for: seeing in seconds what is stuck, what is waiting for a review an
 The four indicators count:
 
 - **Open deviations**: deviations not closed and not rejected;
-- **Booked hours**: sum of the hours recorded on work days;
+- **Hours booked in app**: sum of the hours booked in the application over the **last six weeks**; hours worked and source booked hours stay separate measures, in the weekly chart;
 - **Open claims**: claimed amount of claims not closed;
 - **Settled**: sum of the settlement amounts recorded on claims.
+
+The **Hours per week** panel covers the last six weeks and places, for each one, the hours booked in app beside the source hours worked. The two measures are not added together: the first is editable from the application, the second is the export's.
 
 Below the charts, the **Earned value** panel shows EV, PV and AC in hours, with CPI and SPI, calculated from the planned hours of the items and the booked hours. If the site has no planned hours, the panel says so instead of showing figures. See [Site progress](../../moduli/avanzamento/#planned-hours).
 
@@ -96,7 +98,7 @@ On narrow screens the board becomes a **status accordion**: you see one group at
 
 What it is for: ordering rows and narrowing the list without exporting anything.
 
-1. Open a view with a table: **Deviations** in **List** mode, **Site progress**, **Time bookings**, **Cost impacts**, **Tools** or **Fitness**.
+1. Open a view with a table: **Deviations** in **List** mode, **Site progress**, **Time bookings**, **Cost impacts**, **Tools**, **Fitness** or **HSE**.
 2. Click a column header: the first click sorts ascending, the second descending.
 3. From the keyboard, move focus to the header with Tab and press **Enter** or **Space**.
 4. Press **Column filters**: a row of fields appears above the table, one per column.

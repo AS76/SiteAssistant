@@ -1,29 +1,37 @@
 ---
 title: Time bookings
-description: Record an employee's hours on a progress item and read the daily totals.
+description: Book an employee's hours on a progress item in the app and compare them with the source totals.
 ---
 
-import Shot from '../../../../components/Shot.astro';
+The **Time bookings** view collects the hours recorded on the site's work days, grouped by **operational day and employee**. Work days and progress items come from the planning import; hours are booked here.
 
-The **Time bookings** view collects the hours recorded on the site's work days, grouped by **operational day**. Work days and progress items come from the planning import; hours are recorded here.
+## Source hours and app hours
 
-## Booking hours
+What it is for: telling apart the hours that come from the export from those entered in SiteAssistant, without mixing them up.
+
+Every group has a summary row with five values:
+
+- **Hours worked (source)**: the clocked hours of the imported work day;
+- **Hours booked (source)**: hours already booked in the planning export;
+- **Hours booked in app**: bookings entered in SiteAssistant, editable;
+- **Uncovered hours (source)**: hours worked that the export does not cover with a booking; this is the export snapshot and does not indicate today's availability;
+- **Variance**: **hours worked − (source booked hours + app booked hours)**.
+
+Read the variance like this: **positive** means work without allocation, **negative** means booked beyond hours worked, **zero** means worked and booked hours match.
+
+If a source total is missing — even on a single work day of the group — the variance is **not calculable**. The application does not treat a missing value as zero: an incomplete summary stays incomplete and says so.
+
+## Booking hours in the app
 
 What it is for: attributing the hours an employee worked on a given day to a progress item.
 
 1. Open **Time bookings**. On a phone the item is called **Hours**.
-2. In the **Book hours** form, choose the **work day / attendance**: the list shows date, employee, shift and start time.
+2. In the **Book hours in app** form, choose the **work day / attendance**: the list shows date, employee, shift and start time.
 3. Choose the **progress item** to charge the hours to.
-4. Enter the **hours**. The field accepts half hours; the **−0.5 hours**, **+0.5 hours** and **+1 hour** buttons adjust the value without typing.
-5. Press **Book hours**. The booking appears in the day group, with the updated total.
+4. Enter the **hours booked in app**. The field accepts half hours; the **−0.5 hours**, **+0.5 hours** and **+1 hour** buttons adjust the value without typing.
+5. Press **Book hours in app**. The booking appears in the day and employee group, and the summary refreshes.
 
-<Shot
-  src="/images/2026-11/en/bookings-desktop.png"
-  alt="Time bookings view with the Operational day filter, the 6 and 5 November groups with their hour totals and the columns Employee, Progress item and Hours"
-  caption="Bookings grouped by operational day, with the hour total next to the date. The Book hours form appears above the list only for owners and editors: here the capture account is read-only."
-/>
-
-The **Operational day** menu filters the list to a single day; **All operational days** shows the groups in descending date order.
+The **Operational day** menu filters the list to a single day; **All operational days** shows the groups from the most recent date. The list loads every booking of the site, not just the first page.
 
 :::caution[If you cannot book]
 - **No form at the top of the page:** your role is `verifier` or `viewer`, or the prerequisites are missing. Booking hours is reserved to **owners** and **editors**.
@@ -34,27 +42,34 @@ The **Operational day** menu filters the list to a single day; **All operational
 
 ## Reading and correcting
 
-What it is for: checking the day's hours and fixing a wrong booking.
+What it is for: comparing the app hours with the source and fixing a wrong booking.
 
-1. Find the **operational day** group: the heading shows the date and the total hours.
-2. Compare the rows with the day's work days: employee, item and hours.
-3. To delete a booking, press **Delete** on the row.
-4. Confirm in **Delete booking**. The operation cannot be undone from the interface.
+1. Find the group: the heading shows **date · employee**.
+2. Read the summary row: worked, source booked, app booked, uncovered and variance.
+3. Compare the rows below the summary: employee, progress item and hours booked in app.
+4. To delete a booking, press **Delete** on the row.
+5. Confirm in **Delete booking**. The operation cannot be undone from the interface.
 
-The hours of each group are the sum of the visible rows; the day filter does not change the row values.
+The summary counts each work day of the group once, even when a work day has several bookings. A group can appear with no rows: the work day exists, but no hour is allocated yet.
 
 :::caution[If totals do not add up]
-- The total next to the date sums only that group's rows: use **All operational days** for the full picture.
-- If the list is empty, the site has no work days or progress items yet: it is not a filter problem.
-- Hours are recorded against the imported work day: a booking cannot be created without one.
+- **The variance is per group.** It is calculated for that date and employee; for the site picture use **All operational days** and compare the groups.
+- **“Not calculable” is not zero.** It means at least one source total is missing: check the work day import.
+- **Uncovered hours are not availability.** They are the export snapshot: a work day can look uncovered even if hours were booked after the import.
+- **If the list is empty**, the site has no work days or progress items yet: it is not a filter problem.
+- **Hours are booked against the imported work day**: a booking cannot be created without one.
 :::
+
+## Overview
+
+The Overview counts the **hours booked in app over the last six weeks**, and the hours-by-week chart places, for each week, the app booked hours beside the source hours worked. The two measures stay separate: the first is editable from the application, the second is the export's.
 
 ## Who can do what
 
 | Action | Role |
 | :-- | :-- |
 | View bookings and totals | Every site member |
-| Book hours | owner, editor |
+| Book hours in app | owner, editor |
 | Delete a booking | owner, editor |
 
 Work day and employee data come from the import: for the format see [Import a planning export](../../amministrazione/import-pianificazione/).

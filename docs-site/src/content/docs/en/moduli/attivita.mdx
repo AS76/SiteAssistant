@@ -46,7 +46,7 @@ The **type** tells planned work apart from work that fixes something:
 - **Ordinary**: the planned work. It is the default and it is not stored as a type, so tasks created before this classification stay ordinary.
 - **Corrective**: work that fixes a defect or a non-conformity. The board cards show a **Corrective** badge.
 
-The type is chosen at creation and cannot be changed afterwards: tasks are not editable. The **Type** filter in the filter bar applies to the board, to the list and to the CSV export, which has a **Type** column with the translated label.
+The type is chosen at creation and cannot be changed afterwards: tasks are not editable. The **Type** filter in the filter bar applies to the board, to the list, to the **Light tasks** view and to the CSV export, which has a **Type** column with the translated label.
 
 ## The statuses
 
@@ -103,7 +103,7 @@ Only the designated reviewer (or an owner) can close or reopen. Whoever executed
 
 In a task detail you can attach photos or PDFs, up to **15 MiB** per file; uploading is reserved to owners and editors. The verification evidence remains a **text note**: the attachment does not replace the note.
 
-## Board and list
+## Board, list and light tasks
 
 <Shot
   src="/images/2026-11/en/tasks-desktop.png"
@@ -116,14 +116,28 @@ In a task detail you can attach photos or PDFs, up to **15 MiB** per file; uploa
   <figcaption>On the left the board, with columns by status; on the right the list, with one row per task.</figcaption>
 </figure>
 
-The **board** groups tasks by status, the **list** orders them by due date and priority. From both you open the detail with the fields and the full history. The filters (text, status, executor, priority, type) apply to both views and to the CSV export.
+The **board** groups tasks by status, the **list** orders them by due date and priority, and the **Light tasks** view is a bare table for closing or reopening in a hurry. From the board and the list you open the detail with the fields and the full history. The filters (text, status, executor, priority, type) apply to all three views and to the CSV export.
+
+## Light tasks
+
+What it is for: closing or reopening ordinary tasks that go through a review, without opening the detail.
+
+1. Open **Tasks** and choose **Light tasks** next to **Board** and **List**.
+2. Set the search and filters as in the other views: they apply here too.
+3. Read the table: **Task**, **Area**, **Executor**, **Due date**, **Status** and **Action**.
+4. Press **Close** on a task waiting for review, or **Reopen** on a closed one.
+5. The button starts the transition: when it requires a note or a reason the usual window opens — closing asks for the verification note, reopening for the reason — and the transition is recorded on confirmation.
+
+The view shows **ordinary** tasks only: corrective ones stay on the board and in the list. The order puts open tasks first and closed ones after; within each group, tasks with a due date come first, from the nearest, then those without a due date, then by title.
+
+The button is the only command in the row and does not bypass the flow rules: closing stays reserved to the assigned reviewer or an owner, and reopening requires the reason. It stays disabled when the status does not allow the transition — for example a **To do** or **In progress** task cannot be closed with one click, it must be submitted for review first — and while a change on the same task is still queued or has failed. The `viewer` role sees a dash instead of the button.
 
 ## Saved views
 
 What it is for: getting back in one click the filters, sorting and columns you use every day.
 
 1. Open **Tasks**: above the filters you find **Saved view**, with the entry **No view**.
-2. Set the filters and choose **Board** or **List**; in the list also set **Sort by**, **Direction** and the **Visible columns**.
+2. Set the filters and choose **Board**, **List** or **Light tasks**; in the list also set **Sort by**, **Direction** and the **Visible columns**.
 3. Press **Save as view**, give it a name (at most 80 characters) and, if you want, select **Share with site members**.
 4. Pick the view from the menu to apply it again; the selection applies to the current site.
 5. After a change, **Modified · not saved** appears next to the menu: press **Update to current state** to save the new filters, or **Rename** or **Delete view**.
@@ -134,7 +148,7 @@ Views are **personal** by default; a **shared** view is visible to every member 
 - **Name already used:** names must be unique for the same site and the same person; choose another one.
 - **Read-only view:** it is shared and you did not create it. To change it, save your own copy with **Save as view**.
 - **View no longer available:** it was deleted or you switched site. Reload the page and choose **No view** again.
-- **The columns do not change:** sorting and columns are set in **List** mode; the board uses the saved filters but has no columns to choose.
+- **The columns do not change:** sorting and columns are set in **List** mode; the board uses the saved filters but has no columns to choose, and **Light tasks** has fixed columns.
 :::
 
 ## What is not available yet

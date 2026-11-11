@@ -36,7 +36,7 @@ L'API è un servizio HTTP che il frontend chiama direttamente. Non esistono toke
 | GET | `/api/member-access?site_id=` | membro | Matrice effettiva degli accessi per modulo, per membro |
 | PUT | `/api/member-access` | owner | `{ site_id, member_id, module, allowed }`; aggiorna un accesso |
 
-`GET /api/member-access` restituisce `members`, ognuno con `user_id`, `email`, `name`, `role` e `modules`, la mappa dei moduli con il valore effettivo. `PUT` accetta i moduli `overview`, `tasks`, `deviations`, `diary`, `progress`, `bookings`, `wbs`, `impacts`, `tools`, `certifications` e `sites`; `overview` e `sites` restano sempre consentiti e un owner non può escludere se stesso, altrimenti la risposta è `400 ACCESS_INVALID`. Un modulo escluso risponde `403 MODULE_FORBIDDEN` in lettura e in scrittura; Panoramica, report e assistente non leggono i moduli esclusi.
+`GET /api/member-access` restituisce `members`, ognuno con `user_id`, `email`, `name`, `role` e `modules`, la mappa dei moduli con il valore effettivo. `PUT` accetta i moduli `overview`, `tasks`, `deviations`, `diary`, `progress`, `bookings`, `wbs`, `impacts`, `tools`, `certifications`, `hse` e `sites`; `overview` e `sites` restano sempre consentiti e un owner non può escludere se stesso, altrimenti la risposta è `400 ACCESS_INVALID`. Un modulo escluso risponde `403 MODULE_FORBIDDEN` in lettura e in scrittura; Panoramica, report e assistente non leggono i moduli esclusi.
 
 ## Attività
 
@@ -157,6 +157,20 @@ Le certificazioni dei dipendenti si gestiscono dalla vista **Idoneità**. La let
 
 `name` è obbligatorio, da 1 a 120 caratteri; `issuer` arriva a 200 caratteri, `outcome` a 500 e `notes` a 2000. `issued_on` ed `expires_on` sono date `YYYY-MM-DD` e la scadenza non può precedere il rilascio. L'`employee_id` deve appartenere al cantiere. L'eliminazione non lascia copia né storico. Codici dedicati: `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404).
 
+## HSE
+
+Il registro HSE si gestisce dalla vista **HSE**. La lettura è aperta a owner, editor e verificatori; la scrittura a owner ed editor. Il ruolo `viewer` non accede: la risposta è `403 HSE_FORBIDDEN`. Il registro è separato dagli altri moduli e non alimenta la Panoramica né il report.
+
+| Metodo | Percorso | Accesso | Note |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/hse-events?site_id=&type=&severity=&from=&to=` | owner/editor/verifier | Eventi del cantiere, dal più recente; filtri opzionali |
+| GET | `/api/hse-events?site_id=&summary=1` | owner/editor/verifier | Solo i conteggi per tipo, per gravità e il totale |
+| POST | `/api/hse-events` | owner/editor | `{ siteId, occurredOn, type, severity, eventNo?, location?, personsInvolved?, measures?, notes?, deviationId? }` |
+| PATCH | `/api/hse-events/{id}` | owner/editor | Aggiorna solo i campi inviati |
+| DELETE | `/api/hse-events/{id}` | owner/editor | Elimina la riga |
+
+`site_id` è obbligatorio nell'elenco. `occurred_on` è obbligatoria in creazione ed è una data `YYYY-MM-DD`; `type` vale `near_miss`, `accident` o `observation`; `severity` vale `low`, `medium` o `high`. `event_no` è facoltativo, fino a 120 caratteri, e **univoco nel cantiere** quando presente. `location` arriva a 200 caratteri, `measures` e `notes` a 2000; `persons_involved` è un intero tra 0 e 2147483647 e non accetta nomi. `deviation_id` è facoltativo e deve appartenere allo stesso cantiere. Il registro non contiene dati sanitari e non ha relazioni con i dipendenti: si registrano fatti, luoghi, misure e un conteggio di persone. L'eliminazione non lascia copia né storico. Codici dedicati: `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404).
+
 ## Panoramica e assistente
 
 | Metodo | Percorso | Accesso | Note |
@@ -211,7 +225,7 @@ Le liste di **attività**, **diario**, **deviazioni**, **avanzamento di cantiere
 
 ## Errori
 
-Le risposte d'errore hanno la forma `{ "error": "messaggio", "code": "CODICE" }`. I codici più comuni: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` e `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` e `TIME_BOOKING_DUPLICATE` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `MAP_INVALID` (400), `AMBIGUOUS_COLUMNS` (400), `PREVIEW_MISMATCH`/`PREVIEW_EXPIRED` (409), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
+Le risposte d'errore hanno la forma `{ "error": "messaggio", "code": "CODICE" }`. I codici più comuni: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` e `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` e `TIME_BOOKING_DUPLICATE` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404), `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `MAP_INVALID` (400), `AMBIGUOUS_COLUMNS` (400), `PREVIEW_MISMATCH`/`PREVIEW_EXPIRED` (409), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
 
 :::note
 L'API non espone uno schema OpenAPI: le tabelle qui sopra sono il contratto corrente. Per lo schema dati completo vedi `database/README.md` nel repository.
