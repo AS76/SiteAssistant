@@ -18,6 +18,7 @@ import { searchPlaces } from './geocode.mjs';
 import { dashboard } from './dashboard.mjs';
 import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
 import { progressCurve } from './progress-curve.mjs';
+import { listViews, createView, updateView, deleteView } from './view-settings.mjs';
 import { importRequest, MAX_IMPORT_BYTES } from './planning-import.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
@@ -149,6 +150,23 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, { user: result.user });
       }
       const user = path.startsWith('/api/') ? await authenticate(db, request.headers.cookie) : null;
+      if (path === '/api/views' && method === 'GET') {
+        return json(response, 200, await listViews(db, {
+          siteId: url.searchParams.get('site_id'), module: url.searchParams.get('module'),
+        }, user));
+      }
+      if (path === '/api/views' && method === 'POST') {
+        const input = await readJson(request);
+        return json(response, 201, await createView(db, { siteId: input.site_id, module: input.module,
+          name: input.name, shared: input.shared, payload: input.payload }, user));
+      }
+      const view = /^\/api\/views\/([^/]+)$/.exec(path);
+      if (view && method === 'PATCH') {
+        return json(response, 200, await updateView(db, view[1], await readJson(request), user));
+      }
+      if (view && method === 'DELETE') {
+        return json(response, 200, await deleteView(db, view[1], user));
+      }
       if (path === '/api/dashboard' && method === 'GET') {
         return json(response, 200, await dashboard(db, { siteId: url.searchParams.get('site_id'), user }));
       }

@@ -36,3 +36,4 @@ import './planning-import.test.mjs';
 import './offline.test.mjs';
 
 import './increment-16-ui.test.mjs';
+import './view-settings.test.mjs';
