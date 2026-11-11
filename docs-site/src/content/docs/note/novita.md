@@ -5,6 +5,10 @@ description: Le modifiche a SiteAssistant che cambiano il prodotto o il modo di 
 
 Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è un changelog tecnico: per quello vale la cronologia dei commit nel repository.
 
+## 11 novembre 2026
+
+- **Viste salvate nelle Attività.** Filtri, board o elenco, ordinamento e colonne visibili si salvano con un nome; una vista può essere personale o condivisa con il cantiere e si aggiorna, rinomina o elimina dal menu. Vedi [Attività e verifiche](../../moduli/attivita/#viste-salvate).
+
 ## 10 novembre 2026
 
 - **Import export planning dalla Panoramica.** Owner ed editor caricano un file xlsx, vedono l'anteprima con nuove, aggiornate, invariate, assenti non toccate e rifiutate, poi confermano. Nessuna riga viene cancellata. Vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/).
@@ -17,6 +21,10 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 - **Etichette degli stati dei reclami.** Gli impatti economici usano etichette proprie — Aperto, Notifica inviata, Inviato, Chiuso — invece di quelle delle attività. Vedi [Impatti economici](../../moduli/impatti-economici/).
 - **Diario in scrittura per owner, editor e verificatori.** Chi ha ruolo `viewer` consulta il diario ma non vede il pulsante per aggiungere un contributo. Vedi [Diario di cantiere](../../moduli/diario/).
 - **Manuale illustrato.** Le procedure hanno passi numerati, immagini con didascalia e cosa fare se qualcosa non riesce; la nuova [Guida rapida mobile](../../guida/mobile/) copre barra in basso, card e bersagli tattili.
+- **Bacheche a fisarmonica su telefono.** Attività e Deviazioni mostrano un gruppo per stato alla volta, aperto con un tocco, senza scorrere in orizzontale. Vedi [Guida rapida mobile](../../guida/mobile/).
+- **Dettaglio deviazioni a schede.** Il dettaglio separa **Dati** e **Riferimenti**; l'albero della struttura progetto mostra la percentuale di avanzamento accanto a ogni voce. Vedi [Deviazioni](../../moduli/deviazioni/) e [Struttura progetto](../../moduli/wbs/).
+- **Password più chiara.** Il modulo di accesso ha il pulsante per mostrare la password; l'avviso di password temporanea si chiude con × per la sessione del browser. Vedi [Accesso e account](../../guida/accesso/).
+- **Barra di completamento nei cantieri.** Ogni scheda cantiere mostra la quota di attività chiuse. Vedi [Cantieri](../../moduli/cantieri/).
 - **Pesi degli step e storico dell'avanzamento.** I pesi degli step devono sommare 100; ogni registrazione resta in storico e alimenta le curve. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/).
 - **Viste dei moduli core.** Deviazioni, Avanzamento, Prenotazioni ore e Impatti economici hanno una vista nell'interfaccia; i dati importati restano in sola lettura, mentre completamento degli step e prenotazione delle ore si registrano dall'applicazione. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/) e [API REST](../../riferimento/api/).
 - **Avanzamento, deviazioni e impatti economici via API.** Gli endpoint restituiscono avanzamento e deviazioni importati in sola lettura; gli impatti economici si creano via API e si chiudono con un esito anche dall'interfaccia, collegati alle deviazioni dello stesso cantiere. Vedi [API REST](../../riferimento/api/).

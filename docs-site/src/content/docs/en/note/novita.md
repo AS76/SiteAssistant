@@ -5,6 +5,10 @@ description: Changes to SiteAssistant that change the product or how you use it.
 
 This page collects the changes visible to those who use the application. It is not a technical changelog: for that, see the commit history in the repository.
 
+## 11 November 2026
+
+- **Saved views in Tasks.** Filters, board or list, sorting and visible columns are saved under a name; a view can be personal or shared with the site, and can be updated, renamed or deleted from the menu. See [Tasks and reviews](../../moduli/attivita/#saved-views).
+
 ## 10 November 2026
 
 - **planning import from the Overview.** Owners and editors upload an xlsx file, see a preview with new, updated, unchanged, missing untouched and rejected rows, then confirm. No row is deleted. See [Import a planning export](../../amministrazione/import-pianificazione/).
@@ -17,6 +21,10 @@ This page collects the changes visible to those who use the application. It is n
 - **Claim status labels.** Cost impacts use their own labels — Open, Notification sent, Submitted, Closed — instead of the task ones. See [Cost impacts](../../moduli/impatti-economici/).
 - **Diary writing for owners, editors and verifiers.** Users with the `viewer` role read the diary but do not see the button to add a contribution. See [Site diary](../../moduli/diario/).
 - **Illustrated manual.** Procedures now have numbered steps, captioned images and what to do when something fails; the new [Mobile quick guide](../../guida/mobile/) covers the bottom bar, cards and touch targets.
+- **Accordion boards on phones.** Tasks and Deviations show one status group at a time, opened with a tap, with no horizontal scrolling. See [Mobile quick guide](../../guida/mobile/).
+- **Deviation detail tabs.** The detail separates **Data** and **References**; the project structure tree shows the progress percentage next to each item. See [Deviations](../../moduli/deviazioni/) and [Project structure](../../moduli/wbs/).
+- **Clearer passwords.** The sign-in form has a button to show the password; the temporary-password notice can be dismissed with × for the browser session. See [Sign in and account](../../guida/accesso/).
+- **Completion bar on sites.** Every site card shows the share of closed tasks. See [Sites](../../moduli/cantieri/).
 - **Step weights and progress history.** Step weights must total 100; every recording stays in the history and feeds the curves. See [Site progress](../../moduli/avanzamento/).
 - **Core module views.** Deviations, Site progress, Time bookings and Cost impacts have an interface view; imported data stays read-only, while step completion and hour booking are recorded in the application. See [Site progress](../../moduli/avanzamento/) and [REST API](../../riferimento/api/).
 - **Site progress, deviations and cost impacts via API.** The endpoints return imported progress and deviations read-only; cost impacts are created via API and closed with a result also from the interface, linked to deviations of the same site. See [REST API](../../riferimento/api/).
