@@ -7,6 +7,8 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 11 novembre 2026
 
+- **Report del cantiere stampabile.** Il pulsante **Stampa PDF** nella Panoramica e in Avanzamento apre un report con due tabelle — avanzamento per macro-area, con effettivo, pianificato e origine del valore, e deviazioni per macro-area con totale, aperte, chiuse o respinte e conteggio per stato. La stampa usa il browser, in A4 e senza pulsanti. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/#report-del-cantiere).
+- **Esportazione CSV del report.** Le due tabelle del report si scaricano come file CSV, con numeri grezzi e celle vuote quando il dato manca. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/#report-del-cantiere).
 - **Viste salvate nelle Attività.** Filtri, board o elenco, ordinamento e colonne visibili si salvano con un nome; una vista può essere personale o condivisa con il cantiere e si aggiorna, rinomina o elimina dal menu. Vedi [Attività e verifiche](../../moduli/attivita/#viste-salvate).
 - **Codice e descrizione WBS nel dettaglio avanzamento.** Il dettaglio di una voce di avanzamento mostra il nodo collegato come codice seguito dalla descrizione, invece del solo codice. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/#il-dettaglio).
 

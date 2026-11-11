@@ -124,9 +124,12 @@ An impact always starts `open`, requires a title and **at least one deviation** 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/dashboard?site_id=` | member | Four indicators, deviations by status, progress by section, hours per week |
+| GET | `/api/report?site_id=` | member | Two tables: progress and deviations by macro-area |
 | POST | `/api/assistant/chat` | member | `{ site_id, messages, view, language }`; read-only answer with citations |
 
-The dashboard computes values from the site tables: deviations by status, average effective progress by section (with planned), hours per week and claim amounts. The assistant answers in the requested language (`it` or `en`) and cites records with `family`, `id` and `label`; if the provider is not configured it returns `503 ASSISTANT_NOT_CONFIGURED`.
+The dashboard computes values from the site tables: deviations by status, average effective progress by section (with planned), hours per week and claim amounts. The per-section average also includes items without a progress type, using their imported value. The assistant answers in the requested language (`it` or `en`) and cites records with `family`, `id` and `label`; if the provider is not configured it returns `503 ASSISTANT_NOT_CONFIGURED`.
+
+`/api/report` returns the data of the printable report: `site` with `code` and `name`, `generated_at` in UTC, `progress` and `deviations`. Each `progress` row has `area`, `items`, `actual`, `planned` and `source` (`computed`, `imported` or `mixed`); each `deviations` row has `area`, `total`, `open`, `closed` and `by_status` with `{ status, count }`. Deviations are grouped by PLC area (`plc_area`, otherwise `Senza sezione`) and sorted by total descending; `closed` adds `closed` and `rejected`, while a missing status stays open.
 
 ## planning export import
 

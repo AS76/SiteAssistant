@@ -124,9 +124,12 @@ Un impatto nasce sempre `open`, richiede il titolo e **almeno una deviazione** d
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/dashboard?site_id=` | membro | Quattro indicatori, deviazioni per stato, avanzamento per sezione, ore per settimana |
+| GET | `/api/report?site_id=` | membro | Due tabelle: avanzamento e deviazioni per macro-area |
 | POST | `/api/assistant/chat` | membro | `{ site_id, messages, view, language }`; risposta in sola lettura con citazioni |
 
-La dashboard calcola i valori dalle tabelle del cantiere: deviazioni per stato, media dell'avanzamento effettivo per sezione (con il pianificato), ore per settimana e importi dei reclami. L'assistente risponde nella lingua richiesta (`it` o `en`) e cita i record con `family`, `id` e `label`; se il provider non è configurato risponde `503 ASSISTANT_NOT_CONFIGURED`.
+La dashboard calcola i valori dalle tabelle del cantiere: deviazioni per stato, media dell'avanzamento effettivo per sezione (con il pianificato), ore per settimana e importi dei reclami. La media per sezione include anche le voci senza tipo di avanzamento, per le quali vale il valore importato. L'assistente risponde nella lingua richiesta (`it` o `en`) e cita i record con `family`, `id` e `label`; se il provider non è configurato risponde `503 ASSISTANT_NOT_CONFIGURED`.
+
+`/api/report` restituisce i dati del report stampabile: `site` con `code` e `name`, `generated_at` in UTC, `progress` e `deviations`. Ogni riga di `progress` ha `area`, `items`, `actual`, `planned` e `source` (`computed`, `imported` o `mixed`); ogni riga di `deviations` ha `area`, `total`, `open`, `closed` e `by_status` con `{ status, count }`. Le deviazioni sono raggruppate per area PLC (`plc_area`, altrimenti `Senza sezione`) e ordinate per totale decrescente; `closed` somma `closed` e `rejected`, mentre uno stato mancante resta aperto.
 
 ## Import degli export planning
 

@@ -74,11 +74,47 @@ Ogni salvataggio aggiunge una registrazione allo **storico**. Lo storico non vie
 - **Ruolo insufficiente:** registrare gli step è riservato a owner ed editor; consultare il dettaglio è consentito a tutti i membri.
 :::
 
+## Report del cantiere
+
+A cosa serve: portare su carta, o in un foglio di calcolo, lo stato di avanzamento e le deviazioni del cantiere.
+
+Il pulsante **Stampa PDF** compare nella **Panoramica** e nella vista **Avanzamento**. Apre la vista **Report del cantiere** e, quando i dati sono caricati, avvia la stampa del browser: nella finestra di stampa scegli «Salva come PDF». Non esiste un PDF generato dal server.
+
+Il report contiene due tabelle:
+
+- **Cockpit · effettivo e pianificato** — per ogni macro-area: numero di elementi, avanzamento effettivo, avanzamento pianificato e origine del valore (**Calcolato**, **Importato** o **Misto**).
+- **Deviazioni** — per ogni macro-area: totale, aperte, chiuse o respinte e conteggio per stato.
+
+L'effettivo di una macro-area è la media delle sue voci: quelle con un tipo di avanzamento usano il valore calcolato dagli step, le altre il valore importato. Le voci senza un valore mostrano **Non disponibile**; nel CSV la cella resta vuota.
+
+Le deviazioni sono raggruppate per **area PLC**, perché i dati importati non hanno zona né sezione; quelle senza area finiscono in **Senza sezione**. **Chiuse / respinte** somma gli stati `closed` e `rejected`: respinta è uno stato finale. Una deviazione con stato mancante resta tra le aperte.
+
+Data e ora di generazione sono indicate in **UTC**, anche sulla copia stampata. La stampa usa un formato A4 verticale, senza navigazione e senza pulsanti.
+
+### Esportare le due tabelle in CSV
+
+Nel report trovi **Esporta CSV progressi** ed **Esporta CSV deviazioni**. I file contengono le stesse righe delle tabelle:
+
+| File | Colonne |
+| :-- | :-- |
+| `siteassistant-report-progress-AAAA-MM-GG.csv` | Macro-area, Elementi, Effettivo, Pianificato, Origine avanzamento |
+| `siteassistant-report-deviations-AAAA-MM-GG.csv` | Macro-area, Totale, Aperte, Chiuse / respinte, Conteggio per stato |
+
+I numeri sono grezzi, senza simbolo di percentuale; una cella resta vuota quando il dato manca. Il conteggio per stato sta in una sola cella, con le voci separate da punto e virgola. Se una tabella è vuota, il file non viene creato e compare un avviso.
+
+:::caution[Se il report non si apre o non si stampa]
+- **Pulsanti disattivati:** restano spenti finché i dati non sono caricati; attendi il messaggio di caricamento.
+- **Errore al posto delle tabelle:** il report richiede la connessione; controlla la rete e premi **Riprova**.
+- **La stampa non parte:** la finestra si apre una sola volta, per il cantiere da cui hai premuto **Stampa PDF**; cambia cantiere e riapri il report.
+- **Tabella vuota:** nel cantiere non ci sono voci di avanzamento o deviazioni importate; non è un errore del report.
+:::
+
 ## Chi può fare cosa
 
 | Azione | Ruolo |
 | :-- | :-- |
 | Consultare le voci e il dettaglio | Tutti i membri del cantiere |
+| Aprire, stampare ed esportare il report | Tutti i membri del cantiere |
 | Assegnare o togliere un tipo di avanzamento | owner |
 | Registrare il completamento degli step | owner, editor |
 | Creare o eliminare un tipo di avanzamento | owner, solo via API |

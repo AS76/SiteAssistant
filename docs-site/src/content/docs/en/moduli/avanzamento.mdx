@@ -74,11 +74,47 @@ Every save appends a record to the **history**. The history is never rewritten, 
 - **Insufficient role:** recording steps is reserved to owners and editors; viewing the detail is open to every member.
 :::
 
+## Site report
+
+What it is for: putting the site's progress and deviations on paper, or into a spreadsheet.
+
+The **Print PDF** button appears on the **Overview** and in the **Site progress** view. It opens the **Site report** view and, once the data is loaded, starts the browser print dialog: choose “Save as PDF” there. There is no server-generated PDF.
+
+The report contains two tables:
+
+- **Cockpit · actual and planned** — for each macro-area: number of items, actual progress, planned progress and the source of the value (**Computed**, **Imported** or **Mixed**).
+- **Deviations** — for each macro-area: total, open, closed or rejected and the count by status.
+
+A macro-area's actual value is the average of its items: those with a progress type use the value computed from the steps, the others the imported value. Items without a value show **Not available**; in the CSV the cell stays empty.
+
+Deviations are grouped by **PLC area**, because imported data has no zone or section; those without an area go under **Senza sezione** (no section). **Closed / rejected** adds the `closed` and `rejected` statuses: rejected is terminal. A deviation with a missing status stays among the open ones.
+
+The generation date and time are shown in **UTC**, on the printed copy too. Printing uses A4 portrait, without navigation or buttons.
+
+### Exporting both tables as CSV
+
+The report has **Export progress CSV** and **Export deviations CSV**. The files contain the same rows as the tables:
+
+| File | Columns |
+| :-- | :-- |
+| `siteassistant-report-progress-YYYY-MM-DD.csv` | Macro-area, Items, Actual, Planned, Progress source |
+| `siteassistant-report-deviations-YYYY-MM-DD.csv` | Macro-area, Total, Open, Closed / rejected, Count by status |
+
+Numbers are raw, without a percentage sign; a cell stays empty when the value is missing. The count by status sits in a single cell, with entries separated by a semicolon. If a table is empty, the file is not created and a warning appears.
+
+:::caution[If the report does not open or print]
+- **Disabled buttons:** they stay disabled until the data is loaded; wait for the loading message.
+- **An error instead of the tables:** the report requires a connection; check the network and press **Retry**.
+- **Printing does not start:** the dialog opens only once, for the site you pressed **Print PDF** on; change site and reopen the report.
+- **Empty table:** the site has no imported progress items or deviations; it is not a report error.
+:::
+
 ## Who can do what
 
 | Action | Role |
 | :-- | :-- |
 | View items and details | Every site member |
+| Open, print and export the report | Every site member |
 | Assign or remove a progress type | owner |
 | Record step completion | owner, editor |
 | Create or delete a progress type | owner, API only |

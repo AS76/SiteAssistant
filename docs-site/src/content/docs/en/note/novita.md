@@ -7,6 +7,8 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 11 November 2026
 
+- **Printable site report.** The **Print PDF** button on the Overview and in Site progress opens a report with two tables — progress by macro-area with actual, planned and the source of the value, and deviations by macro-area with total, open, closed or rejected and the count by status. Printing uses the browser, A4 and without buttons. See [Site progress](../../moduli/avanzamento/#site-report).
+- **CSV export of the report.** Both report tables download as CSV files, with raw numbers and empty cells when a value is missing. See [Site progress](../../moduli/avanzamento/#site-report).
 - **Saved views in Tasks.** Filters, board or list, sorting and visible columns are saved under a name; a view can be personal or shared with the site, and can be updated, renamed or deleted from the menu. See [Tasks and reviews](../../moduli/attivita/#saved-views).
 - **WBS code and description in the progress detail.** The detail of a progress item shows the linked node as the code followed by the description, instead of the code alone. See [Site progress](../../moduli/avanzamento/#the-detail).
 
