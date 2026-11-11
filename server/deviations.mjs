@@ -19,7 +19,7 @@ function validId(value) {
   return value.toLowerCase();
 }
 
-export async function listDeviations(db, { siteId: input, status, priority } = {}) {
+async function deviationFilters(db, { siteId: input, status, priority }) {
   const site = validId(input), clauses = ['site_id = ?'], values = [site];
   if (status != null) {
     if (!statuses.includes(status)) fail(400, 'Unknown deviation status.', 'VALIDATION_ERROR');
@@ -27,8 +27,18 @@ export async function listDeviations(db, { siteId: input, status, priority } = {
   }
   if (priority != null) { clauses.push('priority = ?'); values.push(priority); }
   await getSite(db, site);
-  return db.all(`SELECT * FROM deviations WHERE ${clauses.join(' AND ')}
-    ORDER BY creation_date DESC NULLS LAST, deviation_no ASC NULLS LAST, id`, ...values);
+  return { where: clauses.join(' AND '), values };
+}
+
+export async function listDeviations(db, { limit = 50, offset = 0, ...filters } = {}) {
+  const { where, values } = await deviationFilters(db, filters);
+  return db.all(`SELECT * FROM deviations WHERE ${where}
+    ORDER BY creation_date DESC NULLS LAST, deviation_no ASC NULLS LAST, id LIMIT ? OFFSET ?`, ...values, limit, offset);
+}
+
+export async function countDeviations(db, filters = {}) {
+  const { where, values } = await deviationFilters(db, filters);
+  return Number((await db.get(`SELECT COUNT(*) AS total FROM deviations WHERE ${where}`, ...values)).total);
 }
 
 export async function getDeviation(db, id) {

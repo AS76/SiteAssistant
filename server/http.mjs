@@ -7,12 +7,14 @@ import { authenticate, login, memberships, publicUser, sessionCookie, isSecureRe
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage } from './signup.mjs';
 import { createTaskResponse } from './idempotency.mjs';
+import { createRateLimiter } from './limits.mjs';
+import { readPagination } from './pagination.mjs';
 import { listWbs, getWbs, importWbs } from './wbs.mjs';
-import { listSiteProgress, getSiteProgressItem, importSiteProgress } from './site-progress.mjs';
+import { listSiteProgress, countSiteProgress, getSiteProgressItem, importSiteProgress } from './site-progress.mjs';
 import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.mjs';
-import { listDeviations, getDeviation, importDeviations } from './deviations.mjs';
+import { listDeviations, countDeviations, getDeviation, importDeviations } from './deviations.mjs';
 import { listCostImpacts, getCostImpact, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
-import { listTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForItem } from './time_bookings.mjs';
+import { listTimeBookings, countTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForItem } from './time_bookings.mjs';
 import { chat as assistantChat } from './assistant.mjs';
 import { searchPlaces } from './geocode.mjs';
 import { dashboard } from './dashboard.mjs';
@@ -23,8 +25,8 @@ import { listViews, createView, updateView, deleteView } from './view-settings.m
 import { listTools, createTool, updateTool, deleteTool } from './tools.mjs';
 import { importRequest, MAX_IMPORT_BYTES } from './planning-import.mjs';
 import {
-  RepositoryError, listSites, createSite, getSite, listTasks, getTask,
-  transitionTask, listDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember,
+  RepositoryError, listSites, createSite, getSite, listTasks, countTasks, getTask,
+  transitionTask, listDiary, countDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember,
   createAttachment, listAttachments, getAttachment, deleteAttachment, MAX_ATTACHMENT_BYTES,
 } from './repository.mjs';
 
@@ -32,6 +34,18 @@ function json(response, status, data) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   response.end(JSON.stringify(data));
 }
+
+async function paginatedJson(response, url, db, list, count, filters, user) {
+  const { limit, offset } = readPagination(url);
+  const rows = await list(db, { ...filters, limit, offset }, user);
+  const total = await count(db, filters, user);
+  response.setHeader('X-Total-Count', String(total));
+  response.setHeader('X-Limit', String(limit));
+  response.setHeader('X-Offset', String(offset));
+  return json(response, 200, rows);
+}
+
+const rateLimitExempt = new Set(['/api/auth/login', '/api/auth/forgot', '/api/auth/password', '/api/auth/request']);
 
 async function readJson(request, { includeHash = false, maxBytes = 65536 } = {}) {
   const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
@@ -102,6 +116,8 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   mailer = sendMail, ownerEmail = process.env.OWNER_EMAIL,
   publicUrl = process.env.PUBLIC_URL || 'https://api.siteassistant.asassi.cloud',
   requestLimiter = createLoginLimiter(), forgotLimiter = createLoginLimiter(), passwordLimiter = createLoginLimiter(),
+  userLimiter = createRateLimiter({ max: Number(process.env.RATE_LIMIT_USER_PER_MIN ?? 600) }),
+  anonLimiter = createRateLimiter({ max: Number(process.env.RATE_LIMIT_ANON_PER_MIN ?? 60) }),
   storage = new S3Storage(),
 } = {}) {
   return createHttpServer(async (request, response) => {
@@ -112,6 +128,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       response.setHeader('Access-Control-Allow-Credentials', 'true');
       response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
       response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Idempotency-Key, Authorization, Cookie');
+      response.setHeader('Access-Control-Expose-Headers', 'X-Total-Count, X-Limit, X-Offset, X-RateLimit-Remaining, Retry-After');
     }
     if (request.method === 'OPTIONS') {
       response.writeHead(204);
@@ -128,6 +145,25 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       const path = url.pathname;
       const method = request.method;
+      let user = null, authError;
+      if (path.startsWith('/api/')) {
+        try { user = await authenticate(db, request.headers.cookie); }
+        catch (error) {
+          if (!(error instanceof RepositoryError) || error.status !== 401) throw error;
+          // Public routes retain anonymous access; protected routes rethrow below.
+          authError = error;
+        }
+        if (!rateLimitExempt.has(path)) {
+          const result = user ? userLimiter.attempt(`user:${user.id}`)
+            : anonLimiter.attempt(`ip:${request.socket?.remoteAddress || ''}`);
+          response.setHeader('X-RateLimit-Remaining', String(result.remaining));
+          if (!result.allowed) {
+            response.setHeader('X-RateLimit-Remaining', '0');
+            response.setHeader('Retry-After', String(Math.max(1, Math.ceil(result.retryAfter))));
+            return json(response, 429, { error: 'Too many requests.', code: 'RATE_LIMITED' });
+          }
+        }
+      }
       isDecision = path === '/api/auth/request/decide' && ['GET', 'POST'].includes(method);
       if (isDecision) {
         response.setHeader('Referrer-Policy', 'no-referrer');
@@ -161,7 +197,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user });
       }
-      const user = path.startsWith('/api/') ? await authenticate(db, request.headers.cookie) : null;
+      if (authError) throw authError;
       if (path === '/api/views' && method === 'GET') {
         return json(response, 200, await listViews(db, {
           siteId: url.searchParams.get('site_id'), module: url.searchParams.get('module'),
@@ -275,7 +311,8 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
         }
         await requireRole(db, siteId.toLowerCase(), user);
-        return json(response, 200, await listSiteProgress(db, { siteId, wbsId: url.searchParams.get('wbs_id') }));
+        return await paginatedJson(response, url, db, listSiteProgress, countSiteProgress,
+          { siteId, wbsId: url.searchParams.get('wbs_id') });
       }
       if (path === '/api/site-progress/import' && method === 'POST') {
         const input = await readJson(request);
@@ -313,11 +350,11 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, await setStepProgress(db, progressSteps[1], input.steps, user));
       }
       if (path === '/api/time-bookings' && method === 'GET') {
-        return json(response, 200, await listTimeBookings(db, {
+        return await paginatedJson(response, url, db, listTimeBookings, countTimeBookings, {
           siteId: url.searchParams.get('site_id'),
           siteProgressItemId: url.searchParams.get('site_progress_item_id'),
           workDayId: url.searchParams.get('work_day_id'),
-        }, user));
+        }, user);
       }
       if (path === '/api/time-bookings' && method === 'POST') {
         return json(response, 201, await createTimeBooking(db, await readJson(request), user));
@@ -353,8 +390,8 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
         }
         await requireRole(db, siteId.toLowerCase(), user);
-        return json(response, 200, await listDeviations(db, { siteId,
-          status: url.searchParams.get('status'), priority: url.searchParams.get('priority') }));
+        return await paginatedJson(response, url, db, listDeviations, countDeviations, { siteId,
+          status: url.searchParams.get('status'), priority: url.searchParams.get('priority') });
       }
       if (path === '/api/deviations/import' && method === 'POST') {
         const input = await readJson(request);
@@ -417,11 +454,11 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (members && method === 'GET') return json(response, 200, await listMembers(db, members[1], user));
       if (members && method === 'POST') return json(response, 200, await setMember(db, members[1], await readJson(request), user));
       if (path === '/api/tasks' && method === 'GET') {
-        const siteId = siteFromQuery(url, ['site_id', 'siteId', 'status']);
+        const siteId = siteFromQuery(url, ['site_id', 'siteId', 'status', 'limit', 'offset']);
         if (siteId) await requireRole(db, siteId, user);
-        return json(response, 200, await listTasks(db, {
+        return await paginatedJson(response, url, db, listTasks, countTasks, {
           siteId, status: url.searchParams.get('status'),
-        }, user));
+        }, user);
       }
       if (path === '/api/tasks' && method === 'POST') {
         const { input, requestHash } = await readJson(request, { includeHash: true });
@@ -444,9 +481,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, await transitionTask(db, transition[1], await readJson(request), user));
       }
       if (path === '/api/diary' && method === 'GET') {
-        const siteId = siteFromQuery(url, ['site_id', 'siteId']);
+        const siteId = siteFromQuery(url, ['site_id', 'siteId', 'limit', 'offset']);
         if (siteId) await requireRole(db, siteId, user);
-        return json(response, 200, await listDiary(db, { siteId }, user));
+        return await paginatedJson(response, url, db, listDiary, countDiary, { siteId }, user);
       }
       if (path === '/api/diary' && method === 'POST') {
         const input = await readJson(request);

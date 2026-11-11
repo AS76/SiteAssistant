@@ -30,7 +30,10 @@ test('core API lists encode camelCase filters and map returned records', async (
     const rows = await api[method]({ siteId: 'site-a', status: '', wbsId: undefined });
     assert.equal(rows[0].siteId, 'site-a'); assert.equal(rows[0].operationalDate, '2026-01-01'); assert.equal(rows[0].firstName, 'Example');
   }
-  assert.deepEqual(calls.map(call => call.url), ['/api/deviations', '/api/site-progress', '/api/time-bookings', '/api/cost-impacts', '/api/work-days', '/api/employees'].map(path => `${path}?site_id=site-a`));
+  // Paginated lists ask for a full page so the UI keeps showing every record it loads.
+  assert.deepEqual(calls.map(call => call.url), ['/api/deviations', '/api/site-progress', '/api/time-bookings', '/api/cost-impacts', '/api/work-days', '/api/employees']
+    .map(path => ['/api/deviations', '/api/site-progress', '/api/time-bookings'].includes(path)
+      ? `${path}?limit=200&site_id=site-a` : `${path}?site_id=site-a`));
   await api.listBookings({ siteId: 'site-a', workDayId: 'day/a' });
   assert.match(calls.at(-1).url, /work_day_id=day%2Fa/);
   await api.listProgress({ siteId: 'site-a', wbsId: 'wbs-a' }); assert.match(calls.at(-1).url, /wbs_id=wbs-a/);

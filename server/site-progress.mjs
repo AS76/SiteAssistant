@@ -23,10 +23,20 @@ function validId(value, field) {
   return value.toLowerCase();
 }
 
-export async function listSiteProgress(db, { siteId: input, wbsId } = {}) {
+async function siteProgressFilters(db, { siteId: input, wbsId }) {
   const site = validId(input, 'site_id'), clauses = ['s.site_id = ?'], values = [site];
   if (wbsId != null) { clauses.push('s.wbs_id = ?'); values.push(validId(wbsId, 'wbs_id')); }
   await getSite(db, site);
+  return { where: clauses.join(' AND '), values };
+}
+
+export async function countSiteProgress(db, filters = {}) {
+  const { where, values } = await siteProgressFilters(db, filters);
+  return Number((await db.get(`SELECT COUNT(*) AS total FROM site_progress_items s WHERE ${where}`, ...values)).total);
+}
+
+export async function listSiteProgress(db, { limit = 50, offset = 0, ...filters } = {}) {
+  const { where, values } = await siteProgressFilters(db, filters);
   // List and detail expose the same aggregates so the UI never needs a second request.
   return (await db.all(`SELECT s.*, ps.wbs_code AS wbs_code, ps.description AS wbs_description,
       COALESCE(b.booked_hours, 0) AS booked_hours,
@@ -45,8 +55,8 @@ export async function listSiteProgress(db, { siteId: input, wbsId } = {}) {
         AS progress_pct_computed
       FROM site_progress_items i WHERE i.progress_type_id IS NOT NULL
     ) c ON c.site_progress_item_id = s.id
-    WHERE ${clauses.join(' AND ')}
-    ORDER BY s.section, s.plc_area, s.source_row, s.id`, ...values))
+    WHERE ${where}
+    ORDER BY s.section, s.plc_area, s.source_row, s.id LIMIT ? OFFSET ?`, ...values, limit, offset))
     .map(row => ({ ...publicItem(row), ...effectiveProgress(row, row.progress_pct_computed),
       booked_hours: Number(row.booked_hours) }))
     .map(({ progress_pct_computed, ...row }) => row);

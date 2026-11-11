@@ -16,15 +16,25 @@ function requireUser(user) {
   if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
 }
 
-export async function listTimeBookings(db, { siteId, siteProgressItemId, workDayId } = {}, user) {
+async function timeBookingFilters(db, { siteId, siteProgressItemId, workDayId }, user) {
   requireUser(user);
   const site = validId(siteId, 'site_id'), clauses = ['site_id = ?'], values = [site];
   for (const [field, value] of [['site_progress_item_id', siteProgressItemId], ['work_day_id', workDayId]]) {
     if (value != null) { clauses.push(`${field} = ?`); values.push(validId(value, field)); }
   }
   await requireRole(db, site, user);
-  return (await db.all(`SELECT * FROM time_bookings WHERE ${clauses.join(' AND ')}
-    ORDER BY created_at, id`, ...values)).map(publicBooking);
+  return { where: clauses.join(' AND '), values };
+}
+
+export async function listTimeBookings(db, { limit = 50, offset = 0, ...filters } = {}, user) {
+  const { where, values } = await timeBookingFilters(db, filters, user);
+  return (await db.all(`SELECT * FROM time_bookings WHERE ${where}
+    ORDER BY created_at, id LIMIT ? OFFSET ?`, ...values, limit, offset)).map(publicBooking);
+}
+
+export async function countTimeBookings(db, filters = {}, user) {
+  const { where, values } = await timeBookingFilters(db, filters, user);
+  return Number((await db.get(`SELECT COUNT(*) AS total FROM time_bookings WHERE ${where}`, ...values)).total);
 }
 
 export async function createTimeBooking(db, input, user) {

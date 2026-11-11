@@ -12,6 +12,7 @@ import './server.test.mjs';
 import './schema.test.mjs';
 
 import './auth.test.mjs';
+import './limits.test.mjs';
 import './auth-schema.test.mjs';
 import './create-user.test.mjs';
 import './secure-cookie.test.mjs';

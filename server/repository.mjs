@@ -143,7 +143,7 @@ export async function createSite(db, input) {
 // Reserved storage fields do not extend the existing task API contract.
 const publicTask = ({ kind, ...task }) => task;
 
-export async function listTasks(db, { siteId, status } = {}, user) {
+function taskFilters({ siteId, status }, user) {
   const site = text(siteId, 'siteId');
   const state = text(status, 'status');
   if (state && !STATUSES.includes(state)) fail(400, 'Unknown task status.', 'VALIDATION_ERROR');
@@ -152,8 +152,19 @@ export async function listTasks(db, { siteId, status } = {}, user) {
   if (user) { clauses.push('site_id IN (SELECT site_id FROM site_members WHERE user_id = ?)'); values.push(user.id); }
   if (site) { clauses.push('site_id = ?'); values.push(site); }
   if (state) { clauses.push('status = ?'); values.push(state); }
-  return (await idLookup(() => db.all(`SELECT * FROM tasks ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
-    ORDER BY created_at, id`, ...values), [])).map(publicTask);
+  return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', values };
+}
+
+export async function listTasks(db, { limit = 50, offset = 0, ...filters } = {}, user) {
+  const { where, values } = taskFilters(filters, user);
+  return (await idLookup(() => db.all(`SELECT * FROM tasks ${where}
+    ORDER BY created_at, id LIMIT ? OFFSET ?`, ...values, limit, offset), [])).map(publicTask);
+}
+
+export async function countTasks(db, filters = {}, user) {
+  const { where, values } = taskFilters(filters, user);
+  const row = await idLookup(() => db.get(`SELECT COUNT(*) AS total FROM tasks ${where}`, ...values), { total: 0 });
+  return Number(row.total);
 }
 
 export async function getTask(db, id) {
@@ -267,13 +278,24 @@ export async function transitionTask(db, id, input, user) {
   });
 }
 
-export async function listDiary(db, { siteId } = {}, user) {
+function diaryFilters({ siteId }, user) {
   const site = text(siteId, 'siteId');
   const clauses = [], values = [];
   if (site) { clauses.push('site_id = ?'); values.push(site); }
   if (user) { clauses.push('site_id IN (SELECT site_id FROM site_members WHERE user_id = ?)'); values.push(user.id); }
-  return await idLookup(() => db.all(`SELECT * FROM diary ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
-    ORDER BY operational_date, shift, created_at, id`, ...values), []);
+  return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', values };
+}
+
+export async function listDiary(db, { limit = 50, offset = 0, ...filters } = {}, user) {
+  const { where, values } = diaryFilters(filters, user);
+  return await idLookup(() => db.all(`SELECT * FROM diary ${where}
+    ORDER BY operational_date, shift, created_at, id LIMIT ? OFFSET ?`, ...values, limit, offset), []);
+}
+
+export async function countDiary(db, filters = {}, user) {
+  const { where, values } = diaryFilters(filters, user);
+  const row = await idLookup(() => db.get(`SELECT COUNT(*) AS total FROM diary ${where}`, ...values), { total: 0 });
+  return Number(row.total);
 }
 
 export async function createDiary(db, input) {
