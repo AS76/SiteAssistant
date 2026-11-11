@@ -18,6 +18,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Foto e PDF allegati ad attività e voci di diario, anche trascinati dal desktop, fino a 15 MiB per file.
 - Vista **Struttura progetto (WBS)** in sola lettura: albero e tabella piatta.
 - Viste **Deviazioni**, **Avanzamento**, **Prenotazioni ore** e **Impatti economici**.
+- Vista **Attrezzature**: registro per appaltatore, stato e posizione, con inserimento, modifica ed eliminazione dall'interfaccia.
 - Avanzamento con tipi a step ponderati: i pesi devono sommare 100; il completamento si registra dall'applicazione.
 - Panoramica con quattro indicatori, ciambella delle deviazioni, avanzamento per sezione e ore per settimana.
 - Import degli export planning dall'interfaccia, con anteprima e conferma, per sei famiglie di dati.
@@ -25,6 +26,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Impostazioni di valuta, decimali e separatori per gli importi.
 - Tabelle ordinabili, filtri per colonna opzionali e card su telefono.
 - Navigazione mobile con barra in basso.
+- Navigazione desktop raggruppata in **Operazioni**, **Cantiere** e **Gestione**.
 - Attività e diario disponibili offline; le modifiche restano in coda e vengono sincronizzate al ritorno della rete.
 - Panoramica, bacheca, elenco con filtri, esportazione CSV, stampa del diario.
 - Interfaccia italiano/inglese e layout responsive.
@@ -45,7 +47,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Criteri di accettazione, descrizioni lunghe, checklist.
 - Firme nell'interfaccia.
 - Notifiche, calendario, pianificazione e mappe.
-- Funzionamento offline delle viste dei moduli core (Deviazioni, Avanzamento, Prenotazioni ore, Impatti economici): richiedono la connessione.
+- Funzionamento offline delle viste dei moduli core (Deviazioni, Avanzamento, Prenotazioni ore, Impatti economici, Attrezzature): richiedono la connessione.
 - Connettori verso ERP, Primavera P6 o altri sistemi.
 - Report PDF generati dal server.
 
@@ -64,6 +66,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - L'assistente dati legge i dati del cantiere selezionato e non scrive nulla; richiede la connessione.
 - Il collegamento tra avanzamento e WBS avviene solo con una corrispondenza univoca di area PLC e sezione: senza corrispondenza la voce resta scollegata.
 - Gli stati delle deviazioni arrivano dal sistema di origine; uno stato non riconosciuto resta vuoto invece di essere interpretato.
+- Le attrezzature non hanno storico: modifica ed eliminazione sono immediate e l'eliminazione non lascia una copia della riga.
 
 :::caution[Dati]
 La versione attuale è una demo operativa con dati di prova. Non inserire informazioni riservate, credenziali o dati contrattuali.

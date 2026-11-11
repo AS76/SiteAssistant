@@ -1,0 +1,59 @@
+---
+title: Tools
+description: Keep the register of site equipment, with contractor, status and location.
+---
+
+The **Tools** view is the register of the equipment present on the selected site. Each row says what the tool is called, which contractor it belongs to, its status and where it is located.
+
+The register does not come from an import: rows are created, edited and deleted in the application. For data that does come from the site systems see [Deviations](../deviazioni/), [Site progress](../avanzamento/) and [Project structure](../wbs/).
+
+## Reading the register
+
+What it is for: knowing which tools are on site, whose they are and which ones are not available.
+
+1. Open **Tools** from the navigation, in the **Management** group.
+2. Read the table: **Name**, **Code / serial number**, **Contractor**, **Status**, **Location**.
+3. Pick a **Contractor** or a **Status** in the menus above the table to narrow the list.
+4. Click a header to sort: the first click sorts ascending, the second descending.
+5. Clear both menus to go back to the full list.
+
+The list starts sorted by contractor and then by name; tools without a contractor go last. The contractor filter is exact, and the menu only lists the contractors already used by at least one loaded row: a contractor can be filtered only after a tool has been assigned to it.
+
+The statuses are **Available**, **In use**, **Maintenance** and **Retired**. A retired tool stays in the list: it is not hidden or deleted automatically.
+
+## Adding or editing a tool
+
+Owners, editors and verifiers see the **Add tool** button.
+
+1. Press **Add tool**.
+2. Fill in **Name**, required, up to 120 characters.
+3. Add **Code / serial number**, **Contractor**, **Location** and **Notes** if you need them.
+4. Choose the **Status**: on creation it is **Available**.
+5. Press **Save tool**. The window closes, the list refreshes and the message “Tool saved.” appears.
+
+To correct a row, press **Edit** on the row itself: the same window opens with the current values and the button becomes **Save changes**. Code and serial number are free text: the application does not check that they are unique, so two tools can share the same code.
+
+## Deleting a tool
+
+1. Press **Delete** on the row.
+2. Check the name, code and contractor shown in the confirmation.
+3. Confirm with **Delete**.
+
+Deletion is immediate and permanent: the application keeps no copy of the row and no history of changes. If the tool must stay readable, change its status to **Retired** instead of deleting it.
+
+## Who can do what
+
+| Action | Role |
+| :-- | :-- |
+| Read the register | Every member of the site |
+| Add, edit or delete a tool | owner, editor, verifier |
+
+:::caution[If something does not add up]
+- **I cannot see the buttons:** the `viewer` role only reads; writing is reserved to owners, editors and verifiers. See [Users and roles](../../amministrazione/utenti-e-ruoli/).
+- **“This tool is no longer available”:** someone else deleted it. Close the window and reload the list.
+- **Offline:** the view requires a connection, like the other module views; without a network you can neither read nor edit tools.
+- **Empty list:** the site has no tools yet, or the two filters add up; clear contractor and status.
+- **The Contractor menu does not offer a name:** that name appears only once at least one row uses it.
+:::
+
+The same rows are available through the API, with the `/api/tools` endpoints: see [REST API](../../riferimento/api/#tools).

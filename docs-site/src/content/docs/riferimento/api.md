@@ -38,7 +38,7 @@ L'API è un servizio HTTP che il frontend chiama direttamente. Non esistono toke
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/tasks?siteId=&status=` | membro | Filtri opzionali |
+| GET | `/api/tasks?site_id=&status=` | membro | Filtri opzionali; accetta anche `siteId` |
 | POST | `/api/tasks` | owner/editor/verifier | Supporta `Idempotency-Key` |
 | GET | `/api/tasks/{id}` | membro | Include la cronologia eventi |
 | POST | `/api/tasks/{id}/transition` | owner/editor/verifier | `{ to, note?, reason? }` |
@@ -47,8 +47,10 @@ L'API è un servizio HTTP che il frontend chiama direttamente. Non esistono toke
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/diary?siteId=` | membro | Voci del cantiere |
+| GET | `/api/diary?site_id=` | membro | Voci del cantiere; accetta anche `siteId` |
 | POST | `/api/diary` | owner/editor/verifier | Una voce per cantiere/data/turno |
+
+Le due liste accettano sia `site_id` sia `siteId`, perché le attività e il diario usavano storicamente il secondo nome. Un parametro di query non previsto viene rifiutato con `400 VALIDATION_ERROR` invece di essere ignorato: un filtro scritto male non restituisce un elenco non filtrato.
 
 ## Struttura progetto (WBS) e presenze (HR)
 
@@ -119,6 +121,19 @@ Le ore sono un numero finito e non negativo. Presenza e voce di avanzamento devo
 
 Un impatto nasce sempre `open`, richiede il titolo e **almeno una deviazione** dello stesso cantiere. Gli stati sono `open`, `notification_sent`, `submitted`, `closed`; i passaggi ammessi sono `open → notification_sent`, `notification_sent → submitted`, `submitted → closed` e `open → closed`. La chiusura richiede un esito tra `settled`, `dropped` e `rejected` e registra la data di chiusura; gli importi possono essere aggiornati durante il passaggio.
 
+## Attrezzature
+
+Il registro delle attrezzature è lo stesso che si gestisce dalla vista **Attrezzature**. La lettura è aperta a tutti i membri del cantiere; la scrittura a owner, editor e verificatori.
+
+| Metodo | Percorso | Accesso | Note |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/tools?site_id=&company=` | membro | Registro del cantiere; filtro opzionale ed esatto per appaltatore |
+| POST | `/api/tools` | owner/editor/verifier | `{ site_id, name, code?, company?, status?, location?, notes? }` |
+| PATCH | `/api/tools/{id}` | owner/editor/verifier | Aggiorna solo i campi inviati |
+| DELETE | `/api/tools/{id}` | owner/editor/verifier | Elimina la riga |
+
+`name` è obbligatorio, da 1 a 120 caratteri. `code`, `company`, `location` e `notes` sono testo libero, fino a 10000 caratteri, e possono essere `null`. Lo stato vale `available`, `in_use`, `maintenance` o `retired`; se manca in creazione vale `available`. L'elenco è ordinato per appaltatore, con le righe senza appaltatore in fondo, poi per nome. Non esiste uno storico: `DELETE` rimuove la riga e non lascia una copia.
+
 ## Panoramica e assistente
 
 | Metodo | Percorso | Accesso | Note |
@@ -155,7 +170,7 @@ Sono ammessi file fino a **15 MiB**, di tipo immagine o PDF (`UNSUPPORTED_MEDIA_
 
 ## Errori
 
-Le risposte d'errore hanno la forma `{ "error": "messaggio", "code": "CODICE" }`. I codici più comuni: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` e `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` e `TIME_BOOKING_DUPLICATE` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `WEIGHTS_NOT_100` (400), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
+Le risposte d'errore hanno la forma `{ "error": "messaggio", "code": "CODICE" }`. I codici più comuni: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` e `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` e `TIME_BOOKING_DUPLICATE` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
 
 :::note
 L'API non espone uno schema OpenAPI: le tabelle qui sopra sono il contratto corrente. Per lo schema dati completo vedi `database/README.md` nel repository.

@@ -21,6 +21,7 @@ I permessi in SiteAssistant sono **per cantiere**, non globali: la stessa person
 | Registrare il completamento degli step | Sì | Sì | No | No |
 | Creare o eliminare tipi di avanzamento — solo API | Sì | No | No | No |
 | Prenotare ore su presenze e avanzamento | Sì | Sì | No | No |
+| Gestire il registro delle attrezzature | Sì | Sì | Sì | No |
 | Caricare allegati su attività e diario | Sì | Sì | No | No |
 | Eliminare un allegato — solo API | Sì | Sì | No | No |
 | Creare impatti economici — solo API | Sì | Sì | Sì | No |

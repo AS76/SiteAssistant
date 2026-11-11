@@ -18,6 +18,7 @@ This page describes the currently published version. It is deliberately explicit
 - Photos and PDFs attached to tasks and diary entries, including drag and drop from the desktop, up to 15 MiB per file.
 - **Project structure (WBS)** read-only view: tree and flat table.
 - **Deviations**, **Site progress**, **Time bookings** and **Cost impacts** views.
+- **Tools** view: a register by contractor, status and location, with create, edit and delete in the interface.
 - Site progress with weighted step types: weights must total 100; completion is recorded in the application.
 - Overview with four indicators, a deviations donut, progress by section and hours per week.
 - planning export import from the interface, with preview and confirmation, for six data families.
@@ -25,6 +26,7 @@ This page describes the currently published version. It is deliberately explicit
 - Settings for currency, decimals and separators on amounts.
 - Sortable tables, optional column filters and cards on phones.
 - Mobile navigation with a bottom bar.
+- Desktop navigation grouped in **Operations**, **Site** and **Management**.
 - Tasks and diary available offline; changes stay queued and are synchronised when the network returns.
 - Overview, board, list with filters, CSV export, diary printing.
 - Italian/English interface and responsive layout.
@@ -45,7 +47,7 @@ This page describes the currently published version. It is deliberately explicit
 - Acceptance criteria, long descriptions, checklists.
 - Signatures in the interface.
 - Notifications, calendar, planning and maps.
-- Offline operation of the core module views (Deviations, Site progress, Time bookings, Cost impacts): they require a connection.
+- Offline operation of the core module views (Deviations, Site progress, Time bookings, Cost impacts, Tools): they require a connection.
 - Connectors to ERP, Primavera P6 or other systems.
 - Server-generated PDF reports.
 
@@ -63,6 +65,7 @@ This page describes the currently published version. It is deliberately explicit
 - The import preview is valid for 15 minutes: after that, it must be repeated.
 - The data assistant reads the selected site's data and writes nothing; it requires a connection.
 - The link between progress and WBS exists only with a unique match of PLC area and section: without a match the item stays unlinked.
+- Tools have no history: edits and deletions are immediate, and a deletion leaves no copy of the row.
 - Deviation statuses come from the source system; an unrecognised status stays empty instead of being interpreted.
 
 :::caution[Data]

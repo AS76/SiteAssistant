@@ -21,6 +21,7 @@ Permissions in SiteAssistant are **per site**, not global: the same person can b
 | Record step completion | Yes | Yes | No | No |
 | Create or delete progress types — API only | Yes | No | No | No |
 | Book hours on attendance and progress items | Yes | Yes | No | No |
+| Manage the tools register | Yes | Yes | Yes | No |
 | Upload attachments on tasks and diary | Yes | Yes | No | No |
 | Delete an attachment — API only | Yes | Yes | No | No |
 | Create cost impacts — API only | Yes | Yes | Yes | No |

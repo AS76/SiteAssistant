@@ -1,0 +1,59 @@
+---
+title: Attrezzature
+description: Tenere il registro delle attrezzature del cantiere, con appaltatore, stato e posizione.
+---
+
+La vista **Attrezzature** è il registro delle attrezzature presenti nel cantiere selezionato. Ogni riga dice come si chiama l'attrezzatura, a chi è assegnata, in che stato si trova e dove è posizionata.
+
+Il registro non arriva da un import: le righe si inseriscono, modificano ed eliminano dall'applicazione. Per i dati che invece provengono dai sistemi di cantiere vedi [Deviazioni](../deviazioni/), [Avanzamento di cantiere](../avanzamento/) e [Struttura progetto](../wbs/).
+
+## Consultare il registro
+
+A cosa serve: sapere quali attrezzature sono in cantiere, di chi sono e quali non sono disponibili.
+
+1. Apri **Attrezzature** dalla navigazione, nel gruppo **Gestione**.
+2. Leggi la tabella: **Nome**, **Codice / matricola**, **Appaltatore**, **Stato**, **Posizione**.
+3. Scegli un **Appaltatore** o uno **Stato** nei menu sopra la tabella per restringere l'elenco.
+4. Clicca un'intestazione per ordinare: il primo clic ordina in modo crescente, il secondo in modo decrescente.
+5. Svuota i due menu per tornare all'elenco completo.
+
+L'elenco parte ordinato per appaltatore e poi per nome; le attrezzature senza appaltatore stanno in fondo. Il filtro per appaltatore è esatto e il menu elenca soltanto gli appaltatori già usati da almeno una riga caricata: un appaltatore si può filtrare solo dopo che gli è stata assegnata un'attrezzatura.
+
+Gli stati sono **Disponibile**, **In uso**, **Manutenzione** e **Dismessa**. Un'attrezzatura dismessa resta nell'elenco: non viene nascosta né eliminata da sola.
+
+## Aggiungere o modificare un'attrezzatura
+
+Owner, editor e verificatori vedono il pulsante **Aggiungi attrezzatura**.
+
+1. Premi **Aggiungi attrezzatura**.
+2. Compila **Nome**, obbligatorio, fino a 120 caratteri.
+3. Aggiungi, se servono, **Codice / matricola**, **Appaltatore**, **Posizione** e **Note**.
+4. Scegli lo **Stato**: all'inserimento è **Disponibile**.
+5. Premi **Salva attrezzatura**. La finestra si chiude, l'elenco si aggiorna e compare il messaggio «Attrezzatura salvata».
+
+Per correggere una riga, premi **Modifica** sulla riga stessa: si apre la stessa finestra con i valori attuali e il pulsante diventa **Salva modifiche**. Codice e matricola sono testo libero: l'applicazione non controlla che siano univoci, quindi due attrezzature possono avere lo stesso codice.
+
+## Eliminare un'attrezzatura
+
+1. Premi **Elimina** sulla riga.
+2. Controlla nome, codice e appaltatore indicati nella conferma.
+3. Conferma con **Elimina**.
+
+L'eliminazione è immediata e definitiva: l'applicazione non conserva una copia della riga e non tiene uno storico delle modifiche. Se l'attrezzatura deve restare consultabile, cambia lo stato in **Dismessa** invece di eliminarla.
+
+## Chi può fare cosa
+
+| Azione | Ruolo |
+| :-- | :-- |
+| Consultare il registro | Tutti i membri del cantiere |
+| Aggiungere, modificare o eliminare un'attrezzatura | owner, editor, verifier |
+
+:::caution[Se qualcosa non torna]
+- **Non vedo i pulsanti:** il ruolo `viewer` consulta soltanto; la scrittura è riservata a owner, editor e verificatori. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/).
+- **«L'attrezzatura non è più disponibile»:** qualcun altro l'ha eliminata. Chiudi la finestra e ricarica l'elenco.
+- **Offline:** la vista richiede la connessione, come le altre viste dei moduli; senza rete non si consultano né si modificano le attrezzature.
+- **Elenco vuoto:** il cantiere non ha ancora attrezzature, oppure i due filtri si sommano; azzera appaltatore e stato.
+- **Il menu Appaltatore non propone un nome:** quel nome compare solo quando almeno una riga lo usa.
+:::
+
+Le stesse righe sono disponibili via API, con gli endpoint `/api/tools`: vedi [API REST](../../riferimento/api/#attrezzature).

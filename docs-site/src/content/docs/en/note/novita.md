@@ -7,6 +7,9 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 11 November 2026
 
+- **Tools register.** New **Tools** view, in the **Management** group of the navigation: name, code or serial number, contractor, status — available, in use, maintenance, retired — location and notes, with contractor and status filters. Owners, editors and verifiers add, edit and delete rows; viewers only read. See [Tools](../../moduli/attrezzature/).
+- **Grouped desktop navigation.** On desktop the views are collected in **Operations**, **Site** and **Management**; the entries and the phone bottom bar do not change. See [Common features](../../guida/funzioni-comuni/#the-navigation-groups).
+- **Buttons that match the roles.** The `viewer` role no longer sees **New task** on the Overview and in Tasks; **New site** appears only to owners. The server checks do not change. See [Users and roles](../../amministrazione/utenti-e-ruoli/).
 - **Printable site report.** The **Print PDF** button on the Overview and in Site progress opens a report with two tables — progress by macro-area with actual, planned and the source of the value, and deviations by macro-area with total, open, closed or rejected and the count by status. Printing uses the browser, A4 and without buttons. See [Site progress](../../moduli/avanzamento/#site-report).
 - **CSV export of the report.** Both report tables download as CSV files, with raw numbers and empty cells when a value is missing. See [Site progress](../../moduli/avanzamento/#site-report).
 - **Saved views in Tasks.** Filters, board or list, sorting and visible columns are saved under a name; a view can be personal or shared with the site, and can be updated, renamed or deleted from the menu. See [Tasks and reviews](../../moduli/attivita/#saved-views).

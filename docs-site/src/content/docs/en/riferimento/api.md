@@ -38,7 +38,7 @@ The API is an HTTP service that the frontend calls directly. There are no API to
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/tasks?siteId=&status=` | member | Optional filters |
+| GET | `/api/tasks?site_id=&status=` | member | Optional filters; `siteId` is accepted too |
 | POST | `/api/tasks` | owner/editor/verifier | Supports `Idempotency-Key` |
 | GET | `/api/tasks/{id}` | member | Includes the event history |
 | POST | `/api/tasks/{id}/transition` | owner/editor/verifier | `{ to, note?, reason? }` |
@@ -47,8 +47,10 @@ The API is an HTTP service that the frontend calls directly. There are no API to
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/diary?siteId=` | member | Site entries |
+| GET | `/api/diary?site_id=` | member | Site entries; `siteId` is accepted too |
 | POST | `/api/diary` | owner/editor/verifier | One entry per site/date/shift |
+
+Both lists accept `site_id` and `siteId`, because tasks and diary historically used the second name. An unexpected query parameter is rejected with `400 VALIDATION_ERROR` instead of being ignored: a mistyped filter never returns an unfiltered list.
 
 ## Project structure (WBS) and attendance (HR)
 
@@ -119,6 +121,19 @@ Hours are a finite, non-negative number. Attendance and progress item must belon
 
 An impact always starts `open`, requires a title and **at least one deviation** of the same site. The statuses are `open`, `notification_sent`, `submitted`, `closed`; the allowed moves are `open → notification_sent`, `notification_sent → submitted`, `submitted → closed` and `open → closed`. Closing requires a result among `settled`, `dropped` and `rejected` and records the closing date; amounts can be updated during the transition.
 
+## Tools
+
+The tools register is the same one managed from the **Tools** view. Reading is open to every member of the site; writing to owners, editors and verifiers.
+
+| Method | Path | Access | Notes |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/tools?site_id=&company=` | member | Site register; optional, exact contractor filter |
+| POST | `/api/tools` | owner/editor/verifier | `{ site_id, name, code?, company?, status?, location?, notes? }` |
+| PATCH | `/api/tools/{id}` | owner/editor/verifier | Updates only the fields sent |
+| DELETE | `/api/tools/{id}` | owner/editor/verifier | Deletes the row |
+
+`name` is required, 1 to 120 characters. `code`, `company`, `location` and `notes` are free text, up to 10000 characters, and may be `null`. The status is `available`, `in_use`, `maintenance` or `retired`; when omitted on creation it is `available`. The list is sorted by contractor, with rows without a contractor last, then by name. There is no history: `DELETE` removes the row and leaves no copy.
+
 ## Overview and assistant
 
 | Method | Path | Access | Notes |
@@ -155,7 +170,7 @@ Files up to **15 MiB** are accepted, images or PDF only (`UNSUPPORTED_MEDIA_TYPE
 
 ## Errors
 
-Error responses have the shape `{ "error": "message", "code": "CODE" }`. The most common codes: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` and `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `TIME_BOOKING_DUPLICATE` (409), `WEIGHTS_NOT_100` (400), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
+Error responses have the shape `{ "error": "message", "code": "CODE" }`. The most common codes: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` and `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `TIME_BOOKING_DUPLICATE` (409), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
 
 :::note
 The API does not expose an OpenAPI schema: the tables above are the current contract. For the full data schema see `database/README.md` in the repository.
