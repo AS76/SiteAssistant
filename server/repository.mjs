@@ -15,6 +15,7 @@ const fail = (status, message, code) => {
 };
 
 export const STATUSES = ['todo', 'in_progress', 'to_verify', 'closed', 'blocked'];
+export const TASK_KINDS = ['ordinary', 'corrective'];
 const transitions = {
   todo: { in_progress: 'start', blocked: 'block' },
   in_progress: { to_verify: 'submit', blocked: 'block' },
@@ -140,18 +141,21 @@ export async function createSite(db, input) {
   return await getSite(db, id);
 }
 
-// Reserved storage fields do not extend the existing task API contract.
-const publicTask = ({ kind, ...task }) => task;
+// Rows created before the classification existed read as ordinary work.
+const publicTask = task => ({ ...task, kind: task.kind ?? 'ordinary' });
 
-function taskFilters({ siteId, status }, user) {
+function taskFilters({ siteId, status, kind }, user) {
   const site = text(siteId, 'siteId');
   const state = text(status, 'status');
+  const type = text(kind, 'kind');
   if (state && !STATUSES.includes(state)) fail(400, 'Unknown task status.', 'VALIDATION_ERROR');
+  if (type && !TASK_KINDS.includes(type)) fail(400, 'Unknown task kind.', 'VALIDATION_ERROR');
   const clauses = [];
   const values = [];
   if (user) { clauses.push('site_id IN (SELECT site_id FROM site_members WHERE user_id = ?)'); values.push(user.id); }
   if (site) { clauses.push('site_id = ?'); values.push(site); }
   if (state) { clauses.push('status = ?'); values.push(state); }
+  if (type) { clauses.push("COALESCE(kind, 'ordinary') = ?"); values.push(type); }
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', values };
 }
 
@@ -186,6 +190,10 @@ export async function createTask(db, input) {
   const area = text(input.area, 'area');
   const company = text(input.company, 'company');
   const priority = text(input.priority, 'priority') || 'normal';
+  const kind = text(input.kind, 'kind');
+  if (kind && !TASK_KINDS.includes(kind)) fail(400, 'kind must be ordinary or corrective.', 'VALIDATION_ERROR');
+  // Ordinary work keeps the column empty: only the exception is stored.
+  const storedKind = kind === 'corrective' ? 'corrective' : null;
   const due = date(input.due_date, 'due_date');
   const actor = text(input.actor, 'actor') || executor;
   let executorId = input.executor_id ?? null;
@@ -207,11 +215,20 @@ export async function createTask(db, input) {
         if (!member || !roles.includes(member.role)) fail(400, 'Invalid task assignment for this site.', 'VALIDATION_ERROR');
       }
     }
-    await tx.run(`
-      INSERT INTO tasks (id, site_id, title, area, company, executor, verifier, priority,
+    const row = [id, siteId, title, area, company, executor, verifier, priority];
+    // The classification column is only written for corrective work, so ordinary inserts keep
+    // working on a schema that predates it (upgrade tests and old snapshots).
+    if (storedKind) {
+      await tx.run(`INSERT INTO tasks (id, site_id, title, area, company, executor, verifier, priority, kind,
         due_date, status, created_at, executor_id, verifier_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?, ?)
-    `, id, siteId, title, area, company, executor, verifier, priority, due, at, executorId, verifierId);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?, ?)`,
+        ...row, storedKind, due, at, executorId, verifierId);
+    } else {
+      await tx.run(`INSERT INTO tasks (id, site_id, title, area, company, executor, verifier, priority,
+        due_date, status, created_at, executor_id, verifier_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?, ?)`,
+        ...row, due, at, executorId, verifierId);
+    }
     await tx.run(`INSERT INTO task_events
       (task_id, at, actor, from_status, to_status, note, reason, action)
       VALUES (?, ?, ?, 'todo', 'todo', '', '', 'create')`, id, at, actor);

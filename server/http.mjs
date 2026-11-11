@@ -454,10 +454,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (members && method === 'GET') return json(response, 200, await listMembers(db, members[1], user));
       if (members && method === 'POST') return json(response, 200, await setMember(db, members[1], await readJson(request), user));
       if (path === '/api/tasks' && method === 'GET') {
-        const siteId = siteFromQuery(url, ['site_id', 'siteId', 'status', 'limit', 'offset']);
+        const siteId = siteFromQuery(url, ['site_id', 'siteId', 'status', 'kind', 'limit', 'offset']);
         if (siteId) await requireRole(db, siteId, user);
         return await paginatedJson(response, url, db, listTasks, countTasks, {
-          siteId, status: url.searchParams.get('status'),
+          siteId, status: url.searchParams.get('status'), kind: url.searchParams.get('kind'),
         }, user);
       }
       if (path === '/api/tasks' && method === 'POST') {

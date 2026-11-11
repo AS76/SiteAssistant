@@ -137,3 +137,13 @@ test('create actions are gated by role in the UI source', async () => {
   assert.match(source, /const canWriteTask = \(\) => \['owner', 'editor', 'verifier'\]\.includes\(role\(\)\)/);
   assert.match(source, /const canCreateSite = \(\) => role\(\) === 'owner'/);
 });
+
+test('task classification is selectable, filterable and exported', async () => {
+  const source = await readFile(new URL('../app/app.mjs', import.meta.url), 'utf8');
+  assert.match(source, /id="filter-kind"/);
+  assert.match(source, /\$\{field\('kind', 'kind', 'ordinary'/);
+  assert.match(source, /taskKindLabelKey\(task\.kind \?\? 'ordinary'\)/);
+  assert.match(source, /\(!filters\.kind \|\| \(task\.kind \?\? 'ordinary'\) === filters\.kind\)/);
+  const domain = await readFile(new URL('../app/domain.mjs', import.meta.url), 'utf8');
+  assert.match(domain, /TASK_KINDS = Object\.freeze\(\['ordinary', 'corrective'\]\)/);
+});

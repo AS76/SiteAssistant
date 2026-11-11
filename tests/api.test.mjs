@@ -152,3 +152,19 @@ test('task and diary lists accept site_id and siteId, and refuse unknown query p
   const bothNames = await request(`/api/tasks?site_id=${bootstrap.id}&siteId=${bootstrap.id}&status=`);
   assert.equal(bothNames.status, 200);
 });
+
+test('task kind: ordinary by default, corrective on request, filterable, invalid rejected', async t => {
+  const { api, bootstrap, baseUrl, cookie } = await fixture(t);
+  const ordinary = await api.createTask({ siteId: bootstrap.id, title: 'Synthetic ordinary', assignee: 'Example executor', reviewer: 'Example verifier' });
+  assert.equal(ordinary.kind, 'ordinary');
+  const corrective = await api.createTask({ siteId: bootstrap.id, title: 'Synthetic corrective', assignee: 'Example executor', reviewer: 'Example verifier', kind: 'corrective' });
+  assert.equal(corrective.kind, 'corrective');
+  assert.equal((await api.getTask(corrective.id)).kind, 'corrective');
+  const filtered = await api.listTasks({ site_id: bootstrap.id, kind: 'corrective' });
+  assert.deepEqual(filtered.map(task => task.id), [corrective.id]);
+  assert.equal((await api.listTasks({ site_id: bootstrap.id, kind: 'ordinary' })).length, 1);
+  const invalid = await fetch(`${baseUrl}/api/tasks`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ siteId: bootstrap.id, title: 'Bad kind', executor: 'A', verifier: 'B', kind: 'ignored' }) });
+  assert.equal(invalid.status, 400);
+  assert.equal((await invalid.json()).code, 'VALIDATION_ERROR');
+  assert.equal((await fetch(`${baseUrl}/api/tasks?site_id=${bootstrap.id}&kind=ignored`, { headers: { cookie } })).status, 400);
+});

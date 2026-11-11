@@ -1,5 +1,7 @@
 export const STATUSES = ['todo', 'in_progress', 'to_verify', 'closed', 'blocked'];
 export const PRIORITIES = ['normal', 'high', 'urgent'];
+export const TASK_KINDS = Object.freeze(['ordinary', 'corrective']);
+export const taskKindLabelKey = kind => kind === 'corrective' ? 'kindCorrective' : 'kindOrdinary';
 export const TASK_COLUMNS = Object.freeze(['title', 'area', 'status', 'company', 'assignee', 'reviewer', 'due']);
 export const REPORT_PROGRESS_COLUMNS = ['reportArea', 'reportItems', 'reportActual', 'reportPlanned', 'reportSource'];
 export const REPORT_DEVIATION_COLUMNS = ['reportArea', 'reportTotal', 'reportOpen', 'reportClosed', 'reportByStatus'];
@@ -93,6 +95,9 @@ export function taskPayload(input) {
     siteId: text(input.siteId, true), title: text(input.title, true), area: text(input.area), company: text(input.company),
     executor: text(input.assignee, true), verifier: text(input.reviewer, true), priority: text(input.priority) || 'normal', due_date: date(input.due),
   };
+  // Only an explicit corrective classification is sent; the server defaults to ordinary.
+  if (input.kind === 'corrective') result.kind = 'corrective';
+  else if (input.kind !== undefined && input.kind !== '' && input.kind !== 'ordinary') fail('invalidData');
   if (result.executor === result.verifier) fail('separatePeople');
   return result;
 }

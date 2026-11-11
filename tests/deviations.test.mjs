@@ -236,14 +236,17 @@ for (const driver of ['sqlite', 'pg']) test(`Deviations ${driver}: import, refer
   await t.test('migrations preserve data; deviation constraints/types/indexes and reserved task kind are enforced', async t => {
     const f = await fixture(); await promote(f.site);
     const before = await state(f.site);
-    const task = await createTask(db, { siteId: f.site.id, title: 'Synthetic task', executor: 'Example executor', verifier: 'Example verifier', kind: 'ignored' });
+    // Task kind is now part of the contract: ordinary is the default, corrective is the exception.
+    const task = await createTask(db, { siteId: f.site.id, title: 'Synthetic task', executor: 'Example executor', verifier: 'Example verifier' });
+    t.assert.strictEqual(task.kind, 'ordinary');
     t.assert.strictEqual((await db.get('SELECT kind FROM tasks WHERE id = ?', task.id)).kind, null);
-    for (const kind of ['arbitrary synthetic value', '', null]) {
-      await db.run('UPDATE tasks SET kind = ? WHERE id = ?', kind, task.id);
-      t.assert.strictEqual((await db.get('SELECT kind FROM tasks WHERE id = ?', task.id)).kind, kind);
-      t.assert.strictEqual(Object.hasOwn(await getTask(db, task.id), 'kind'), false);
-      t.assert.strictEqual(Object.hasOwn((await listTasks(db, { siteId: f.site.id }))[0], 'kind'), false);
-    }
+    const corrective = await createTask(db, { siteId: f.site.id, title: 'Synthetic corrective', executor: 'Example executor', verifier: 'Example verifier', kind: 'corrective' });
+    t.assert.strictEqual(corrective.kind, 'corrective');
+    t.assert.strictEqual((await db.get('SELECT kind FROM tasks WHERE id = ?', corrective.id)).kind, 'corrective');
+    t.assert.strictEqual((await getTask(db, task.id)).kind, 'ordinary');
+    t.assert.strictEqual((await listTasks(db, { siteId: f.site.id }, undefined)).find(row => row.id === corrective.id).kind, 'corrective');
+    t.assert.deepStrictEqual((await listTasks(db, { siteId: f.site.id, kind: 'corrective' }, undefined)).map(row => row.id), [corrective.id]);
+    await t.assert.rejects(() => createTask(db, { siteId: f.site.id, title: 'Synthetic bad kind', executor: 'Example executor', verifier: 'Example verifier', kind: 'ignored' }), { code: 'VALIDATION_ERROR' });
     t.assert.strictEqual(await migrate(db, { driver }), 0);
     t.assert.deepStrictEqual(await state(f.site), before);
     for (const [column, value, pattern] of [['site_id', randomUUID(), /foreign key/i], ['status', 'unknown', /check/i],

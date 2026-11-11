@@ -1,4 +1,4 @@
-import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, toolCompanies, filterTools, toolStatusLabelKey } from './domain.mjs';
+import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, toolCompanies, filterTools, toolStatusLabelKey } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock } from './offline.mjs';
@@ -28,7 +28,7 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&'
 let session = null;
 let state = { sites: [], tasks: [], diary: [], attachments: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
 let view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'report'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
-let filters = { search: '', status: '', person: '', priority: '' };
+let filters = { search: '', status: '', person: '', priority: '', kind: '' };
 let taskView = 'board';
 let taskSort = defaultViewState().sort, taskColumns = [...TASK_COLUMNS];
 let selectedViewId = '', savedViewsCache = null;
@@ -66,7 +66,7 @@ function clearSession(invalidate = false) {
   wbsCache.clear(); wbsLoad = null; resetCore();
   session = null; actor = ''; siteId = undefined; loadError = null; offlineScope = undefined; pendingOps = [];
   state = { sites: [], tasks: [], diary: [], attachments: [] };
-  filters = { search: '', status: '', person: '', priority: '' };
+  filters = { search: '', status: '', person: '', priority: '', kind: '' };
   closeModal();
   if (invalidate) void forgetActive().catch(() => { storageError = true; });
   if (!loading) render();
@@ -355,7 +355,10 @@ function renderSites() {
 }
 function filteredTasks() {
   const needle = filters.search.trim().toLocaleLowerCase();
-  return siteTasks().filter(task => (!filters.status || task.status === filters.status) && (!filters.person || task.assignee === filters.person) && (!filters.priority || task.priority === filters.priority) && (!needle || `${task.title} ${task.area} ${task.company}`.toLocaleLowerCase().includes(needle)));
+  return siteTasks().filter(task => (!filters.status || task.status === filters.status) && (!filters.person || task.assignee === filters.person)
+    && (!filters.priority || task.priority === filters.priority)
+    && (!filters.kind || (task.kind ?? 'ordinary') === filters.kind)
+    && (!needle || `${task.title} ${task.area} ${task.company}`.toLocaleLowerCase().includes(needle)));
 }
 const currentViewState = () => viewStatePayload({ filters, sort: taskSort, columns: taskColumns, layout: taskView });
 const selectedSavedView = () => savedViewsCache?.data?.find(item => item.id === selectedViewId);
@@ -441,11 +444,11 @@ async function updateSelectedView() {
 function renderTasks() {
   loadSavedViews();
   $('#main').innerHTML = heading('tasksTitle', 'tasksSub', button('exportCsv', 'csv') + (canWriteTask() ? button('newTask', 'new-task', '', 'primary') : '')) +
-    `<div id="saved-views" class="toolbar saved-views"></div><div class="toolbar"><input class="search" id="filter-search" maxlength="512" aria-label="${t('search')}" placeholder="${t('search')}" value="${esc(filters.search)}"><select id="filter-status" aria-label="${t('status')}"><option value="">${t('allStatuses')}</option>${STATUSES.map(status => `<option value="${status}" ${filters.status === status ? 'selected' : ''}>${t(status)}</option>`).join('')}</select><select id="filter-person" aria-label="${t('assignee')}"><option value="">${t('allPeople')}</option>${[...new Set([...siteTasks().map(task => task.assignee), ...(filters.person ? [filters.person] : [])])].map(person => `<option value="${esc(person)}" ${filters.person === person ? 'selected' : ''}>${personName(person)}</option>`).join('')}</select><select id="filter-priority" aria-label="${t('priority')}"><option value="">${t('allPriorities')}</option>${PRIORITIES.map(priority => `<option value="${priority}" ${filters.priority === priority ? 'selected' : ''}>${t(priority)}</option>`).join('')}</select><div class="view-toggle">${button('board', 'task-view', `data-value="board" aria-pressed="${taskView === 'board'}"`, taskView === 'board' ? 'selected' : '')}${button('list', 'task-view', `data-value="list" aria-pressed="${taskView === 'list'}"`, taskView === 'list' ? 'selected' : '')}</div></div>${taskView === 'list' ? taskListControls() : ''}<div id="task-results"></div>`;
+    `<div id="saved-views" class="toolbar saved-views"></div><div class="toolbar"><input class="search" id="filter-search" maxlength="512" aria-label="${t('search')}" placeholder="${t('search')}" value="${esc(filters.search)}"><select id="filter-status" aria-label="${t('status')}"><option value="">${t('allStatuses')}</option>${STATUSES.map(status => `<option value="${status}" ${filters.status === status ? 'selected' : ''}>${t(status)}</option>`).join('')}</select><select id="filter-person" aria-label="${t('assignee')}"><option value="">${t('allPeople')}</option>${[...new Set([...siteTasks().map(task => task.assignee), ...(filters.person ? [filters.person] : [])])].map(person => `<option value="${esc(person)}" ${filters.person === person ? 'selected' : ''}>${personName(person)}</option>`).join('')}</select><select id="filter-priority" aria-label="${t('priority')}"><option value="">${t('allPriorities')}</option>${PRIORITIES.map(priority => `<option value="${priority}" ${filters.priority === priority ? 'selected' : ''}>${t(priority)}</option>`).join('')}</select><select id="filter-kind" aria-label="${t('kind')}"><option value="">${t('allKinds')}</option>${TASK_KINDS.map(kind => `<option value="${kind}" ${filters.kind === kind ? 'selected' : ''}>${t(taskKindLabelKey(kind))}</option>`).join('')}</select><div class="view-toggle">${button('board', 'task-view', `data-value="board" aria-pressed="${taskView === 'board'}"`, taskView === 'board' ? 'selected' : '')}${button('list', 'task-view', `data-value="list" aria-pressed="${taskView === 'list'}"`, taskView === 'list' ? 'selected' : '')}</div></div>${taskView === 'list' ? taskListControls() : ''}<div id="task-results"></div>`;
   renderSavedViews(); renderTaskResults();
 }
 function taskCard(task) {
-  return `<button type="button" class="task-card" data-command="detail" data-id="${esc(task.id)}"><span class="card-code">${esc(task.area || t('noArea'))}</span><h2>${esc(task.title)}</h2>${priorityBadge(task.priority)} ${syncBadge(task)}<p>${esc(task.company)}</p><p>${personName(task.assignee)}</p><div class="card-footer">${dueMarkup(task)}<span>→</span></div></button>`;
+  return `<button type="button" class="task-card" data-command="detail" data-id="${esc(task.id)}"><span class="card-code">${esc(task.area || t('noArea'))}</span><h2>${esc(task.title)}</h2>${task.kind === 'corrective' ? `<span class="badge">${t('kindCorrective')}</span> ` : ''}${priorityBadge(task.priority)} ${syncBadge(task)}<p>${esc(task.company)}</p><p>${personName(task.assignee)}</p><div class="card-footer">${dueMarkup(task)}<span>→</span></div></button>`;
 }
 function renderTaskResults() {
   const tasks = filteredTasks();
@@ -978,7 +981,7 @@ function selectSite(id) {
   reportPrintIntent = null;
   if (!state.sites.some(site => site.id === id)) return;
   wbsLoad = null; wbsCache.clear(); resetCore(); resetSavedViews(); closeModal();
-  siteId = id; filters = { search: '', status: '', person: '', priority: '' }; render();
+  siteId = id; filters = { search: '', status: '', person: '', priority: '', kind: '' }; render();
   if (!offline) void loadData();
 }
 function showModal(title, content) {
@@ -1030,7 +1033,7 @@ function showSiteForm() {
   wireLocationLookup();
 }
 function showTaskForm() {
-  showModal(t('newTask'), `<form id="task-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', '', { full: true, required: true, max: 180 })}${field('area', 'area', '', { max: 100 })}${field('company', 'company', '', { max: 100 })}${field('assignee', 'assignee', '', { required: true })}${field('reviewer', 'reviewer', '', { required: true })}${field('priority', 'priority', '', { options: PRIORITIES.map(priority => `<option value="${esc(priority)}">${esc(t(priority))}</option>`).join(''), required: true })}${field('due', 'due', today(), { type: 'date' })}</div>${formActions()}</form>`);
+  showModal(t('newTask'), `<form id="task-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', '', { full: true, required: true, max: 180 })}${field('area', 'area', '', { max: 100 })}${field('company', 'company', '', { max: 100 })}${field('assignee', 'assignee', '', { required: true })}${field('reviewer', 'reviewer', '', { required: true })}${field('priority', 'priority', '', { options: PRIORITIES.map(priority => `<option value="${esc(priority)}">${esc(t(priority))}</option>`).join(''), required: true })}${field('kind', 'kind', 'ordinary', { options: TASK_KINDS.map(kind => `<option value="${esc(kind)}">${esc(t(taskKindLabelKey(kind)))}</option>`).join('') })}${field('due', 'due', today(), { type: 'date' })}</div>${formActions()}</form>`);
 }
 async function showDetail(taskId) {
   showModal(t('details'), `<p role="status">${t('loading')}</p>`);
@@ -1144,8 +1147,8 @@ function exportReportCsv(kind) {
 function exportCsv() {
   const tasks = filteredTasks();
   if (!tasks.length) return toast(t('emptyExport'));
-  const header = ['title', 'area', 'company', 'assignee', 'reviewer', 'priority', 'due', 'status'];
-  const rows = [header.map(t), ...tasks.map(task => header.map(key => ['priority', 'status'].includes(key) ? t(task[key]) : task[key]))];
+  const header = ['title', 'area', 'company', 'assignee', 'reviewer', 'priority', 'kind', 'due', 'status'];
+  const rows = [header.map(t), ...tasks.map(task => header.map(key => key === 'kind' ? t(taskKindLabelKey(task.kind ?? 'ordinary')) : ['priority', 'status'].includes(key) ? t(task[key]) : task[key]))];
   download('\ufeff' + rows.map(row => row.map(csvCell).join(',')).join('\r\n'), 'text/csv;charset=utf-8', `siteassistant-tasks-${today()}.csv`); toast(t('csvDone'));
 }
 document.addEventListener('click', event => {
@@ -1177,7 +1180,7 @@ document.addEventListener('click', event => {
     'views-retry': () => { savedViewsCache = null; selectedViewId = ''; renderTasks(); },
     'report-csv-progress': () => exportReportCsv('progress'), 'report-csv-deviations': () => exportReportCsv('deviations'),
     'close-modal': closeModal, 'task-view': () => { taskView = target.dataset.value; renderTasks(); },
-    'clear-filters': () => { filters = { search: '', status: '', person: '', priority: '' }; renderTasks(); },
+    'clear-filters': () => { filters = { search: '', status: '', person: '', priority: '', kind: '' }; renderTasks(); },
     csv: exportCsv, print: () => window.print(),
     'open-report': () => { reportPrintIntent = { site: siteId, user: session?.user.id }; go('report'); },
     'report-retry': () => render(),
@@ -1262,7 +1265,7 @@ document.addEventListener('submit', async event => {
       toast(t('emailAccepted')); return;
     }
     let message, detail;
-    if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); resetSavedViews(); siteId = site.id; filters = { search: '', status: '', person: '', priority: '' }; message = 'siteCreated'; }
+    if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); resetSavedViews(); siteId = site.id; filters = { search: '', status: '', person: '', priority: '', kind: '' }; message = 'siteCreated'; }
     if (form.id === 'task-form') { const payload = { ...data, siteId: selectedSite }; taskPayload(payload); await writeOperation('create_task', payload); message = 'taskCreated'; }
     if (form.id === 'entry-form') {
       const payload = { ...data, siteId: selectedSite, date: selectedDate };
@@ -1313,6 +1316,7 @@ document.addEventListener('change', event => {
     selectedViewId = event.target.value;
     applyViewState(selectedSavedView()?.payload); renderTasks();
   }
+  if (event.target.id === 'filter-kind') { filters.kind = event.target.value; renderTasks(); }
   if (event.target.id === 'task-sort-key') { taskSort.key = event.target.value; renderTaskResults(); }
   if (event.target.id === 'task-sort-direction') { taskSort.direction = event.target.value; renderTaskResults(); }
   if (event.target.dataset.taskColumn) {
