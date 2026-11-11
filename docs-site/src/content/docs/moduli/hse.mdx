@@ -3,9 +3,17 @@ title: HSE
 description: Registro di near miss, infortuni e osservazioni di cantiere, senza dati sanitari.
 ---
 
+import Shot from '../../../components/Shot.astro';
+
 La vista **HSE** è il registro degli eventi di salute e sicurezza del cantiere selezionato: near miss, infortuni e osservazioni. Ogni riga registra un fatto — data, tipo, gravità, luogo, numero di persone coinvolte e misure adottate — non le persone.
 
 Il registro non arriva da un import: le righe si inseriscono, modificano ed eliminano dall'applicazione. Non contiene dati sanitari e non è collegato alla scheda del dipendente: le persone coinvolte sono **solo un numero**, mai un nome.
+
+<Shot
+  src="/images/2026-11/hse-desktop.png"
+  alt="Vista HSE con i contatori Near miss, Infortuni, Osservazioni e Totale a 1 ciascuno, i filtri Tipo, Gravità, Dal e Al, e tre righe con data, tipo, gravità, luogo, persone coinvolte e misure"
+  caption="Il registro HSE: quattro contatori, filtri per tipo, gravità e periodo, e una riga per evento con i fatti e le misure adottate."
+/>
 
 ## Consultare il registro
 
