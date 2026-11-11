@@ -1,4 +1,4 @@
-import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey } from './domain.mjs';
+import { defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
@@ -555,16 +555,47 @@ async function updateSelectedView() {
 function renderTasks() {
   loadSavedViews();
   $('#main').innerHTML = heading('tasksTitle', 'tasksSub', button('exportCsv', 'csv') + (canWriteTask() ? button('newTask', 'new-task', '', 'primary') : '')) +
-    `<div id="saved-views" class="toolbar saved-views"></div><div class="toolbar"><input class="search" id="filter-search" maxlength="512" aria-label="${t('search')}" placeholder="${t('search')}" value="${esc(filters.search)}"><select id="filter-status" aria-label="${t('status')}"><option value="">${t('allStatuses')}</option>${STATUSES.map(status => `<option value="${status}" ${filters.status === status ? 'selected' : ''}>${t(status)}</option>`).join('')}</select><select id="filter-person" aria-label="${t('assignee')}"><option value="">${t('allPeople')}</option>${[...new Set([...siteTasks().map(task => task.assignee), ...(filters.person ? [filters.person] : [])])].map(person => `<option value="${esc(person)}" ${filters.person === person ? 'selected' : ''}>${personName(person)}</option>`).join('')}</select><select id="filter-priority" aria-label="${t('priority')}"><option value="">${t('allPriorities')}</option>${PRIORITIES.map(priority => `<option value="${priority}" ${filters.priority === priority ? 'selected' : ''}>${t(priority)}</option>`).join('')}</select><select id="filter-kind" aria-label="${t('kind')}"><option value="">${t('allKinds')}</option>${TASK_KINDS.map(kind => `<option value="${kind}" ${filters.kind === kind ? 'selected' : ''}>${t(taskKindLabelKey(kind))}</option>`).join('')}</select><div class="view-toggle">${button('board', 'task-view', `data-value="board" aria-pressed="${taskView === 'board'}"`, taskView === 'board' ? 'selected' : '')}${button('list', 'task-view', `data-value="list" aria-pressed="${taskView === 'list'}"`, taskView === 'list' ? 'selected' : '')}</div></div>${taskView === 'list' ? taskListControls() : ''}<div id="task-results"></div>`;
+    `<div id="saved-views" class="toolbar saved-views"></div><div class="toolbar"><input class="search" id="filter-search" maxlength="512" aria-label="${t('search')}" placeholder="${t('search')}" value="${esc(filters.search)}"><select id="filter-status" aria-label="${t('status')}"><option value="">${t('allStatuses')}</option>${STATUSES.map(status => `<option value="${status}" ${filters.status === status ? 'selected' : ''}>${t(status)}</option>`).join('')}</select><select id="filter-person" aria-label="${t('assignee')}"><option value="">${t('allPeople')}</option>${[...new Set([...siteTasks().map(task => task.assignee), ...(filters.person ? [filters.person] : [])])].map(person => `<option value="${esc(person)}" ${filters.person === person ? 'selected' : ''}>${personName(person)}</option>`).join('')}</select><select id="filter-priority" aria-label="${t('priority')}"><option value="">${t('allPriorities')}</option>${PRIORITIES.map(priority => `<option value="${priority}" ${filters.priority === priority ? 'selected' : ''}>${t(priority)}</option>`).join('')}</select><select id="filter-kind" aria-label="${t('kind')}"><option value="">${t('allKinds')}</option>${TASK_KINDS.map(kind => `<option value="${kind}" ${filters.kind === kind ? 'selected' : ''}>${t(taskKindLabelKey(kind))}</option>`).join('')}</select><div class="view-toggle">${button('board', 'task-view', `data-value="board" aria-pressed="${taskView === 'board'}"`, taskView === 'board' ? 'selected' : '')}${button('list', 'task-view', `data-value="list" aria-pressed="${taskView === 'list'}"`, taskView === 'list' ? 'selected' : '')}${button('light', 'task-view', `data-value="light" aria-pressed="${taskView === 'light'}"`, taskView === 'light' ? 'selected' : '')}</div></div>${taskView === 'list' ? taskListControls() : ''}<div id="task-results"></div>`;
   renderSavedViews(); renderTaskResults();
 }
 function taskCard(task) {
   return `<button type="button" class="task-card" data-command="detail" data-id="${esc(task.id)}"><span class="card-code">${esc(task.area || t('noArea'))}</span><h2>${esc(task.title)}</h2>${task.kind === 'corrective' ? `<span class="badge">${t('kindCorrective')}</span> ` : ''}${priorityBadge(task.priority)} ${syncBadge(task)}<p>${esc(task.company)}</p><p>${personName(task.assignee)}</p><div class="card-footer">${dueMarkup(task)}<span>→</span></div></button>`;
 }
+const lightTransitions = new Set();
+function canRunLightTransition(task) {
+  const to = task?.status === 'closed' ? 'todo' : 'closed';
+  return Boolean(task?.kind === 'ordinary' && canWriteTask() && allowedTransitions(task).includes(to)
+    && !lightTransitions.has(task.id)
+    && !pendingOps.some(op => op.entity_id === task.id && (op.op_type === 'transition_task' || op.status === 'failed')));
+}
+function lightTaskButton(task) {
+  if (!canWriteTask()) return '—';
+  const key = task.status === 'closed' ? 'lightReopen' : 'lightClose';
+  return button(key, 'light-transition', `data-id="${esc(task.id)}" ${canRunLightTransition(task) ? '' : `disabled title="${esc(t('noTransitions'))}"`}`);
+}
+async function runLightTransition(taskId) {
+  const task = state.tasks.find(item => item.id === taskId);
+  if (!canRunLightTransition(task)) return;
+  const to = task.status === 'closed' ? 'todo' : 'closed';
+  if (transitionNeedsDialog(transitionRequirements(task, to))) {
+    showTransition(taskId, to); return;
+  }
+  lightTransitions.add(taskId); renderTaskResults();
+  try {
+    const input = transitionPayload(task, { to, actor });
+    await writeOperation('transition_task', { task, input }, task.id);
+    toast(t('actionSaved'));
+  } catch (error) { toast(errorMessage(error)); }
+  finally {
+    lightTransitions.delete(taskId);
+    if (view === 'tasks') renderTaskResults();
+  }
+}
 function renderTaskResults() {
-  const tasks = filteredTasks();
+  const filtered = filteredTasks();
+  const tasks = taskView === 'light' ? lightTaskRows(filtered) : filtered;
   let html = `<p class="note" role="status">${tasks.length} ${t('resultCount')} · ${siteTasks().length - counts(siteTasks()).closed} ${t('nonClosed')}</p>`;
-  if (!tasks.length) html += `<section class="panel">${empty('noResults', 'noResultsHint', button('clearFilters', 'clear-filters'))}</section>`;
+  if (!tasks.length) html += `<section class="panel">${empty(taskView === 'light' ? 'lightEmpty' : 'noResults', 'noResultsHint', button('clearFilters', 'clear-filters'))}</section>`;
   else if (taskView === 'board') {
     const columns = STATUSES.map(status => ({ status, column: tasks.filter(task => task.status === status) }));
     // On a phone the columns would need horizontal panning: one status open at a time, by thumb.
@@ -573,6 +604,9 @@ function renderTaskResults() {
           <summary><span>${t(status)}</span><span class="count">${column.length}</span></summary>
           ${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</details>`).join('')}</div>`
       : `<div class="board">${columns.map(({ status, column }) => `<section class="board-column" aria-label="${t(status)}"><div class="column-heading"><span>${t(status)}</span><span>${column.length}</span></div>${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</section>`).join('')}</div>`;
+  }
+  else if (taskView === 'light') {
+    html += `<div class="table-scroll"><table><thead><tr>${['title', 'area', 'assignee', 'due', 'status', 'lightAction'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${tasks.map(task => `<tr><td><button type="button" data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></td><td>${esc(task.area || '—')}</td><td>${personName(task.assignee)}</td><td>${dueMarkup(task)}</td><td>${badge(task.status)} ${syncBadge(task)}</td><td>${lightTaskButton(task)}</td></tr>`).join('')}</tbody></table></div>`;
   }
   else {
     const sorted = filterSortRecords(tasks, {}, [{ key: taskSort.key, descending: taskSort.direction === 'desc' }]);
@@ -1457,7 +1491,7 @@ document.addEventListener('click', event => {
     'change-password': showPasswordForm, 'request-access': () => showEmailForm('request'), 'forgot-password': () => showEmailForm('forgot'),
     logout, 'new-site': showSiteForm, 'new-task': showTaskForm, reload: loadData,
     'select-site': () => { selectSite(id); go('overview'); }, detail: () => showDetail(id),
-    transition: () => showTransition(id, target.dataset.to), 'new-entry': showEntryForm,
+    transition: () => showTransition(id, target.dataset.to), 'light-transition': () => runLightTransition(id), 'new-entry': showEntryForm,
     'view-create': () => showSavedViewForm('create'), 'view-rename': () => showSavedViewForm('rename'),
     'view-delete': () => showSavedViewForm('delete'), 'view-update': updateSelectedView,
     'views-retry': () => { savedViewsCache = null; selectedViewId = ''; renderTasks(); },

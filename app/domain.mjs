@@ -48,7 +48,7 @@ export function sanitizeViewState(payload) {
       if (visible.length) result.columns = visible;
     }
     const layout = own(payload, 'layout');
-    if (['board', 'list'].includes(layout)) result.layout = layout;
+    if (['board', 'list', 'light'].includes(layout)) result.layout = layout;
     return result;
   } catch {
     // Non-JSON callers may supply throwing getters or revoked proxies.
@@ -56,6 +56,22 @@ export function sanitizeViewState(payload) {
   }
 }
 export function viewStatePayload(state) { return sanitizeViewState(state); }
+
+// Apply after the shared search and filters; never include corrective work.
+export function lightTaskRows(tasks) {
+  return tasks.filter(task => task.kind === 'ordinary').sort((a, b) => {
+    const closed = Number(a.status === 'closed') - Number(b.status === 'closed');
+    if (closed) return closed;
+    if (Boolean(a.due) !== Boolean(b.due)) return a.due ? -1 : 1;
+    return String(a.due ?? '').localeCompare(String(b.due ?? ''))
+      || String(a.title ?? '').localeCompare(String(b.title ?? ''), 'en', { numeric: true })
+      || String(a.id).localeCompare(String(b.id));
+  });
+}
+
+export function transitionNeedsDialog(requirements) {
+  return Boolean(requirements.note || requirements.reason);
+}
 
 const transitions = {
   todo: ['in_progress', 'blocked'],

@@ -1,8 +1,9 @@
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
+import { runInNewContext } from 'node:vm';
 import assert from 'node:assert/strict';
 import { createApi, deviationFromApi, progressFromApi, bookingFromApi, impactFromApi } from '../app/api.mjs';
-import { offlineBannerState, DEVIATION_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, progressWithHours, flattenWbs } from '../app/domain.mjs';
+import { offlineBannerState, DEVIATION_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, progressWithHours, flattenWbs, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, transitionRequirements, allowedTransitions, transitionPayload, counts, STATUSES, PRIORITIES, TASK_KINDS, taskKindLabelKey } from '../app/domain.mjs';
 import { messages } from '../app/i18n.mjs';
 
 test('deviation wire mapping preserves nulls, source timestamps and raw content', () => {
@@ -146,4 +147,153 @@ test('task classification is selectable, filterable and exported', async () => {
   assert.match(source, /\(!filters\.kind \|\| \(task\.kind \?\? 'ordinary'\) === filters\.kind\)/);
   const domain = await readFile(new URL('../app/domain.mjs', import.meta.url), 'utf8');
   assert.match(domain, /TASK_KINDS = Object\.freeze\(\['ordinary', 'corrective'\]\)/);
+});
+
+test('light layout survives saved-view serialization and sanitization', () => {
+  const payload = viewStatePayload({ layout: 'light', filters: { search: 'Synthetic', status: 'todo', person: 'Executor', priority: 'high' } });
+  assert.equal(payload.layout, 'light');
+  assert.deepEqual(sanitizeViewState(JSON.parse(JSON.stringify(payload))), payload);
+  assert.equal(sanitizeViewState({ layout: 'unknown' }).layout, 'board');
+});
+
+test('light rows include only explicitly ordinary tasks without mutating input', () => {
+  const tasks = [
+    { id: 'corrective', kind: 'corrective', status: 'todo' },
+    { id: 'ordinary', kind: 'ordinary', status: 'todo' },
+    { id: 'missing', status: 'todo' },
+    { id: 'null', kind: null, status: 'todo' },
+    { id: 'unknown', kind: 'unknown', status: 'todo' },
+  ];
+  const before = structuredClone(tasks);
+  const rows = lightTaskRows(tasks);
+  assert.deepEqual(rows.map(row => row.id), ['ordinary']);
+  assert.equal(rows[0], tasks[1]);
+  assert.deepEqual(tasks, before);
+  assert.deepEqual(lightTaskRows([]), []);
+  assert.deepEqual(lightTaskRows([tasks[0]]), []);
+});
+
+test('light ordering puts every open status before closed, then due and title', () => {
+  const row = (id, status, due, title = id) => ({ id, kind: 'ordinary', status, due, title });
+  const tasks = [
+    row('closed-early', 'closed', '2026-01-01'),
+    row('missing', 'todo', null),
+    row('late', 'blocked', '2026-02-03'),
+    row('beta', 'in_progress', '2026-02-02', 'Beta'),
+    row('alpha-b', 'to_verify', '2026-02-02', 'Alpha'),
+    row('closed-late', 'closed', '2026-02-04'),
+    row('alpha-a', 'todo', '2026-02-02', 'Alpha'),
+    row('empty-due', 'todo', '', 'A'),
+  ];
+  assert.deepEqual(lightTaskRows(tasks).map(row => row.id),
+    ['alpha-a', 'alpha-b', 'beta', 'late', 'empty-due', 'missing', 'closed-early', 'closed-late']);
+});
+
+test('light dialog decision collects required notes and reopening reasons', () => {
+  assert.equal(transitionNeedsDialog(transitionRequirements({ kind: 'ordinary', status: 'to_verify' }, 'closed')), true);
+  assert.equal(transitionNeedsDialog(transitionRequirements({ kind: 'ordinary', status: 'closed' }, 'todo')), true);
+  assert.equal(transitionNeedsDialog({ note: true, reason: false }), true);
+  assert.equal(transitionNeedsDialog({ note: false, reason: true }), true);
+  assert.equal(transitionNeedsDialog({ note: false, reason: false }), false);
+});
+
+test('light view labels are available in Italian and English', () => {
+  for (const key of ['light', 'lightClose', 'lightReopen', 'lightEmpty', 'lightAction']) {
+    for (const language of ['it', 'en']) assert.equal(typeof messages[language][key], 'string', `${language}: ${key}`);
+  }
+  assert.equal(messages.it.light, 'Attività leggere');
+  assert.equal(messages.it.lightClose, 'Chiudi');
+  assert.equal(messages.it.lightReopen, 'Riapri');
+});
+
+// Exercise the actual renderers and command without loading the app's session,
+// service worker or network bootstrap. Only DOM sinks and side effects are mocked.
+async function lightUi(tasks, overrides = {}) {
+  const source = await readFile(new URL('../app/app.mjs', import.meta.url), 'utf8');
+  const section = (start, end) => source.slice(source.indexOf(start), source.indexOf(end));
+  const nodes = { '#main': { innerHTML: '' }, '#task-results': { innerHTML: '' } };
+  const dialogs = [], writes = [];
+  const context = {
+    state: { tasks }, siteId: 'site-a', taskView: 'light', view: 'tasks', actor: 'Synthetic reviewer', pendingOps: [],
+    filters: { search: '', status: '', person: '', priority: '', kind: '' },
+    siteTasks: () => tasks.filter(task => task.siteId === 'site-a'),
+    $: selector => nodes[selector], t: key => messages.it[key] ?? key,
+    canWriteTask: () => true, loadSavedViews() {}, renderSavedViews() {}, renderViewDirty() {},
+    heading: () => '', taskListControls: () => '',
+    personName: name => name || '—', dueMarkup: task => task.due || '—',
+    badge: status => status, syncBadge: () => '',
+    empty: title => messages.it[title],
+    lightTaskRows, transitionNeedsDialog, transitionRequirements, allowedTransitions, transitionPayload,
+    counts, STATUSES, PRIORITIES, TASK_KINDS, taskKindLabelKey,
+    showModal: (title, html) => dialogs.push({ title, html }),
+    field: (label, name, value, options) => `<textarea name="${name}" ${options.required ? 'required' : ''}></textarea>`,
+    formActions: () => '',
+    writeOperation: async (...args) => writes.push(args), toast() {}, errorMessage: error => error.message,
+    ...overrides,
+  };
+  runInNewContext([
+    section('const esc =', 'let session ='),
+    section('const button =', 'function toast('),
+    section('function filteredTasks()', 'const currentViewState ='),
+    section('function renderTasks()', 'function taskCard('),
+    section('const lightTransitions =', 'function renderDiary()'),
+    section('function showTransition(', 'function showEntryForm()'),
+  ].join('\n'), context);
+  return { context, nodes, dialogs, writes };
+}
+
+test('light renderer shows six columns and ordinary rows while keeping shared filters', async () => {
+  const task = { id: 'ordinary', siteId: 'site-a', kind: 'ordinary', status: 'to_verify', title: 'Synthetic ordinary', area: 'Area A', company: 'Company A', assignee: 'Executor A', priority: 'high' };
+  const { context, nodes } = await lightUi([
+    task,
+    { ...task, id: 'corrective', kind: 'corrective', title: 'Synthetic corrective' },
+    { ...task, id: 'other-site', siteId: 'site-b', title: 'Other site task' },
+  ]);
+  context.renderTasks();
+  assert.equal((nodes['#main'].innerHTML.match(/data-command="task-view"/g) || []).length, 3);
+  assert.match(nodes['#main'].innerHTML, /data-value="light" aria-pressed="true"/);
+  const html = nodes['#task-results'].innerHTML;
+  assert.equal((html.match(/<th scope="col">/g) || []).length, 6);
+  assert.match(html, /Synthetic ordinary/);
+  assert.doesNotMatch(html, /Synthetic corrective|Other site task/);
+  assert.match(html, /data-command="light-transition"/);
+  for (const [key, matching, missing] of [
+    ['search', 'Company A', 'missing'], ['status', 'to_verify', 'closed'],
+    ['person', 'Executor A', 'Other executor'], ['priority', 'high', 'normal'],
+    ['kind', 'ordinary', 'corrective'],
+  ]) {
+    context.filters = { search: '', status: '', person: '', priority: '', kind: '', [key]: matching };
+    context.renderTaskResults();
+    assert.match(nodes['#task-results'].innerHTML, /Synthetic ordinary/, key);
+    context.filters[key] = missing;
+    context.renderTaskResults();
+    assert.match(nodes['#task-results'].innerHTML, /Nessuna attività leggera/, key);
+    assert.doesNotMatch(nodes['#task-results'].innerHTML, /<tbody>/, key);
+  }
+});
+
+test('light close command opens the existing dialog with a required note and sends no write', async () => {
+  const { context, dialogs, writes } = await lightUi([{ id: 'ordinary', kind: 'ordinary', status: 'to_verify' }]);
+  await context.runLightTransition('ordinary');
+  assert.equal(dialogs.length, 1);
+  assert.match(dialogs[0].html, /id="transition-form".*data-to="closed"/);
+  assert.match(dialogs[0].html, /name="note" required/);
+  assert.equal(writes.length, 0);
+});
+
+test('light command preserves existing transition, role, corrective and pending-operation guards', async () => {
+  const task = { id: 'ordinary', kind: 'ordinary', status: 'to_verify' };
+  for (const [candidate, overrides] of [
+    [{ ...task, status: 'todo' }, {}], [{ ...task, status: 'closed' }, {}],
+    [{ ...task, kind: 'corrective' }, {}], [task, { canWriteTask: () => false }],
+    [task, { pendingOps: [{ entity_id: task.id, op_type: 'transition_task' }] }],
+    [task, { pendingOps: [{ entity_id: task.id, op_type: 'create_task', status: 'failed' }] }],
+  ]) {
+    const { context, dialogs, writes } = await lightUi([candidate], overrides);
+    await context.runLightTransition(candidate.id);
+    assert.equal(dialogs.length, 0);
+    assert.equal(writes.length, 0);
+    if (overrides.canWriteTask) assert.equal(context.lightTaskButton(candidate), '—');
+    else assert.match(context.lightTaskButton(candidate), /disabled/);
+  }
 });
