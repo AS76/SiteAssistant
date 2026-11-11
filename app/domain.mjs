@@ -131,12 +131,42 @@ export function csvCell(value) {
 export const DEVIATION_STATUSES = ['open', 'approved', 'in_progress', 'work_completed', 'closed', 'rejected'];
 export const IMPACT_STATUSES = ['open', 'notification_sent', 'submitted', 'closed'];
 export const IMPACT_RESULTS = ['settled', 'dropped', 'rejected'];
+export const TOOL_STATUSES = Object.freeze(['available', 'in_use', 'maintenance', 'retired']);
+export const TOOL_STATUS_LABELS = Object.freeze({
+  available: 'toolStatusAvailable', in_use: 'toolStatusInUse',
+  maintenance: 'toolStatusMaintenance', retired: 'toolStatusRetired',
+});
+const NAV_GROUPS = Object.freeze([
+  Object.freeze({ label: 'navOperations', items: Object.freeze(['overview', 'tasks', 'deviations', 'diary']) }),
+  Object.freeze({ label: 'navSite', items: Object.freeze(['progress', 'bookings', 'wbs', 'impacts']) }),
+  Object.freeze({ label: 'navManagement', items: Object.freeze(['sites', 'tools']) }),
+]);
+export function navGroups() {
+  return NAV_GROUPS.map(group => ({ label: group.label, items: [...group.items] }));
+}
+export function toolStatusLabelKey(status) {
+  return TOOL_STATUS_LABELS[status] || 'coreUnknown';
+}
+export function toolCompanies(tools = []) {
+  return [...new Set(tools.map(tool => tool?.company).filter(company => typeof company === 'string' && company))].sort();
+}
+export function filterTools(tools = [], { company = '', status = '' } = {}) {
+  return tools.filter(tool => (!company || tool.company === company) && (!status || tool.status === status))
+    .sort((a, b) => {
+      if (a.company == null && b.company != null) return 1;
+      if (a.company != null && b.company == null) return -1;
+      return String(a.company ?? '').localeCompare(String(b.company ?? ''), 'en', { numeric: true })
+        || String(a.name ?? '').localeCompare(String(b.name ?? ''), 'en', { numeric: true })
+        || String(a.id ?? '').localeCompare(String(b.id ?? ''));
+    });
+}
 export function impactTransitions(status) {
   return [...({ open: ['notification_sent', 'closed'], notification_sent: ['submitted'], submitted: ['closed'], closed: [] }[status] || [])];
 }
 export function corePermissions(role) {
   return { book: ['editor', 'owner'].includes(role), transition: ['owner', 'verifier'].includes(role),
-    steps: ['editor', 'owner'].includes(role), assign: role === 'owner' };
+    steps: ['editor', 'owner'].includes(role), assign: role === 'owner',
+    tools: ['owner', 'editor', 'verifier'].includes(role) };
 }
 // Which offline banner to show, if any. A missing service worker never raises a permanent
 // error while the app is online; the storage message is reserved for a broken IndexedDB.

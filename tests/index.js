@@ -40,3 +40,6 @@ import './view-settings.test.mjs';
 import './saved-views-ui.test.mjs';
 
 import './report.test.mjs';
+
+import './tools.test.mjs';
+import './tools-ui.test.mjs';

@@ -20,6 +20,7 @@ import { report } from './report.mjs';
 import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
 import { progressCurve } from './progress-curve.mjs';
 import { listViews, createView, updateView, deleteView } from './view-settings.mjs';
+import { listTools, createTool, updateTool, deleteTool } from './tools.mjs';
 import { importRequest, MAX_IMPORT_BYTES } from './planning-import.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, getTask,
@@ -177,6 +178,21 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (view && method === 'DELETE') {
         return json(response, 200, await deleteView(db, view[1], user));
+      }
+      if (path === '/api/tools' && method === 'GET') {
+        return json(response, 200, await listTools(db, {
+          siteId: url.searchParams.get('site_id'), company: url.searchParams.get('company'),
+        }, user));
+      }
+      if (path === '/api/tools' && method === 'POST') {
+        return json(response, 201, await createTool(db, await readJson(request), user));
+      }
+      const tool = /^\/api\/tools\/([^/]+)$/.exec(path);
+      if (tool && method === 'PATCH') {
+        return json(response, 200, await updateTool(db, tool[1], await readJson(request), user));
+      }
+      if (tool && method === 'DELETE') {
+        return json(response, 200, await deleteTool(db, tool[1], user));
       }
       if (path === '/api/dashboard' && method === 'GET') {
         return json(response, 200, await dashboard(db, { siteId: url.searchParams.get('site_id'), user }));

@@ -12,6 +12,14 @@ export const deviationFromApi = row => ({ ...camelRecord(row), ...(row.links ? {
 export const progressFromApi = camelRecord;
 export const bookingFromApi = camelRecord;
 export const impactFromApi = row => ({ ...camelRecord(row), ...(row.deviations ? { deviations: row.deviations.map(deviationFromApi) } : {}) });
+export const toolFromApi = camelRecord;
+const toolFields = ['name', 'code', 'company', 'status', 'location', 'notes'];
+export const toolPayload = input => {
+  const result = {};
+  if (Object.hasOwn(input, 'siteId') || Object.hasOwn(input, 'site_id')) result.site_id = input.siteId ?? input.site_id;
+  for (const field of toolFields) if (Object.hasOwn(input, field)) result[field] = input[field];
+  return result;
+};
 const wireFilters = filters => Object.fromEntries(Object.entries(filters).map(([key, value]) =>
   [key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`), value]));
 
@@ -62,6 +70,10 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     createView: input => request('/api/views', input),
     updateView: (id, input) => request(`/api/views/${encodeURIComponent(id)}`, input, { method: 'PATCH' }),
     deleteView: id => request(`/api/views/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' }),
+    listTools: async (filters = {}) => (await request(`/api/tools${query(wireFilters(filters))}`)).map(toolFromApi),
+    createTool: async input => toolFromApi(await request('/api/tools', toolPayload(input))),
+    updateTool: async (id, input) => toolFromApi(await request(`/api/tools/${encodeURIComponent(id)}`, toolPayload(input), { method: 'PATCH' })),
+    deleteTool: id => request(`/api/tools/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' }),
     getTask: async id => taskFromApi(await request(`/api/tasks/${encodeURIComponent(id)}`)),
     createTask: async (input, options) => taskFromApi(await request('/api/tasks', taskPayload(input), options)),
     transitionTask: async (task, input, options) => taskFromApi(await request(`/api/tasks/${encodeURIComponent(task.id)}/transition`, transitionPayload(task, input), options)),

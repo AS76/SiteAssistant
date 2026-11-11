@@ -1,4 +1,4 @@
-import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs } from './domain.mjs';
+import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, toolCompanies, filterTools, toolStatusLabelKey } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock } from './offline.mjs';
@@ -27,7 +27,7 @@ const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 let session = null;
 let state = { sites: [], tasks: [], diary: [], attachments: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
-let view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'report'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+let view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'report'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 let filters = { search: '', status: '', person: '', priority: '' };
 let taskView = 'board';
 let taskSort = defaultViewState().sort, taskColumns = [...TASK_COLUMNS];
@@ -47,6 +47,7 @@ const paths = {
   sites:'<path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1M9 13h1m4 0h1M10 21v-4h4v4"/>',
   tasks:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="m8 8 1 1 2-2m2 1h3M8 13h2m3 0h3M8 17h2m3 0h3"/>',
   diary:'<path d="M4 3h13a3 3 0 0 1 3 3v15H7a3 3 0 0 1-3-3V3Zm0 14h16M8 7h8M8 11h6"/>',
+  tools:'<path d="m14.7 6.3-2.3 2.3-3-3 2.3-2.3a4 4 0 0 0-5.4 5.4L3 12l3 3 6.3-6.3a4 4 0 0 0 5.4 2.3Z"/><path d="m13 15 6 6M15 13l6 6"/>',
   execution:'<path d="m8 5 11 7-11 7V5Z"/>',review:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',closed:'<circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/>',overdue:'<path d="m12 3 10 18H2L12 3Zm0 6v5m0 3h.01"/>',
 };
 const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[key] || paths.tasks}</svg>`;
@@ -57,7 +58,7 @@ function toast(message) {
   clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false;
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
-const errorKeys = { VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
+const errorKeys = { VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
   reportPrintIntent = null; lastReport = null;
@@ -196,8 +197,10 @@ function renderChrome() {
   const navItems = compact ? MOBILE_PRIMARY : NAV_ITEMS;
   const more = compact && !MOBILE_PRIMARY.includes(view);
   const navLabel = key => t(compact && key === 'bookings' ? 'bookingsShort' : key);
-  $('#navigation').innerHTML = navItems.map(key => `<a href="#${key}" ${view === key ? 'class="active" aria-current="page"' : ''}>${icon(key)}<span>${navLabel(key)}</span></a>`).join('')
-    + (compactNavigation() ? `<button type="button" class="nav-more${more ? ' active' : ''}" data-command="more-nav">${icon('more')}${t('more')}</button>` : '');
+  const navLink = key => `<a href="#${key}" ${view === key ? 'class="active" aria-current="page"' : ''}>${icon(key)}<span>${navLabel(key)}</span></a>`;
+  $('#navigation').innerHTML = (compact
+    ? navItems.map(navLink).join('') + `<button type="button" class="nav-more${more ? ' active' : ''}" data-command="more-nav">${icon('more')}${t('more')}</button>`
+    : navGroups().map(group => `<div class="nav-group"><span class="nav-section">${t(group.label)}</span>${group.items.map(navLink).join('')}</div>`).join(''));
   $('#skip').textContent = t('skip'); $('#site-label').textContent = t('site'); $('#actor-label').textContent = t('actor'); $('#manual-link').textContent = t('manual');
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
   $('#actor-input').value = actor;
@@ -532,17 +535,18 @@ function renderWbs() {
 // Core modules are online-only and never write to the offline operation queue.
 const role = () => session?.roles?.find(member => member.site_id === siteId)?.role;
 const permissions = () => corePermissions(role());
-const moduleResources = { deviations: ['deviations'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'] };
+const moduleResources = { deviations: ['deviations'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'], tools: ['tools'] };
 // Mobile keeps four destinations reachable with the thumb; the rest lives behind «Altro».
-const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary'];
+const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools'];
 const MOBILE_PRIMARY = ['overview', 'tasks', 'deviations', 'bookings'];
 const compactNavigation = () => window.matchMedia('(max-width: 800px)').matches;
 const coreCache = new Map();
-let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' } };
-let deviationView = 'board';
+let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' } };
+let deviationView = 'board', toolEditingId = '';
 function resetCore() {
   coreCache.clear();
-  coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' } };
+  coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' } };
+  toolEditingId = '';
 }
 function coreResource(name) {
   const selected = siteId;
@@ -555,6 +559,7 @@ function coreResource(name) {
     deviations: () => freshApi.listDeviations({ siteId: selected }), progress: () => freshApi.listProgress({ siteId: selected }),
     progressTypes: () => freshApi.listProgressTypes(selected),
     bookings: () => freshApi.listBookings({ siteId: selected }), impacts: () => freshApi.listImpacts({ siteId: selected }),
+    tools: () => freshApi.listTools({ siteId: selected }),
     workDays: () => freshApi.listWorkDays({ siteId: selected }), employees: () => freshApi.listEmployees({ siteId: selected }),
     wbs: async () => {
       if (wbsLoad?.promise) await wbsLoad.promise;
@@ -592,7 +597,9 @@ function progressBar(value) {
 }
 function renderCore() {
   $('#main').innerHTML = heading(view, `${view}Sub`,
-    (view === 'progress' ? button('reportPrint', 'open-report') : '') + button(columnFiltersOn ? 'columnFiltersHide' : 'columnFiltersShow', 'column-filters', `aria-pressed="${columnFiltersOn}"`) + button('coreRefresh', 'core-reload'));
+    (view === 'progress' ? button('reportPrint', 'open-report') : '')
+    + (view === 'tools' && permissions().tools ? button('toolAdd', 'tool-new', '', 'primary') : '')
+    + button(columnFiltersOn ? 'columnFiltersHide' : 'columnFiltersShow', 'column-filters', `aria-pressed="${columnFiltersOn}"`) + button('coreRefresh', 'core-reload'));
   if (offline || !navigator.onLine) {
     $('#main').insertAdjacentHTML('beforeend', empty('coreOnlineOnly', 'coreOnlineHint')); return;
   }
@@ -603,7 +610,7 @@ function renderCore() {
   }
   const error = resources.find(entry => entry.error)?.error;
   if (error) { $('#main').insertAdjacentHTML('beforeend', `<p role="alert">${esc(errorMessage(error))}</p>`); return; }
-  const content = { deviations: renderDeviations, progress: renderProgress, bookings: renderBookings, impacts: renderImpacts }[view]();
+  const content = { deviations: renderDeviations, progress: renderProgress, bookings: renderBookings, impacts: renderImpacts, tools: renderTools }[view]();
   $('#main').insertAdjacentHTML('beforeend', `<div class="core-view">${content}</div>`);
   enhanceCoreTables();
 }
@@ -705,6 +712,16 @@ function renderBookings() {
     else html += `<form id="booking-form" class="panel panel-body core-booking-form"><h2>${t('coreBookHours')}</h2><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="core-entry-grid"><label class="field">${t('coreWorkDay')}<select name="workDayId" required><option value="">${t('coreChoose')}</option>${filterSortRecords(days, {}, [{ key: 'operationalDate', descending: true }, { key: 'employeeId' }]).map(day => `<option value="${esc(day.id)}">${esc(`${day.operationalDate} · ${employeeLabel(employees.find(employee => employee.id === day.employeeId))} · ${t(day.shift || 'coreUnknown')} · ${day.startTime ?? t('coreUnknown')}`)}</option>`).join('')}</select></label><label class="field">${t('coreProgressItem')}<select name="siteProgressItemId" required><option value="">${t('coreChoose')}</option>${items.map(item => `<option value="${esc(item.id)}">${esc(progressLabel(item))}</option>`).join('')}</select></label><label class="field">${t('coreHours')}<input name="hours" type="number" min="0" step="0.5" value="1" required></label><div class="core-stepper">${button('coreMinusHalf', 'booking-step', 'data-step="-0.5"')}${button('corePlusHalf', 'booking-step', 'data-step="0.5"')}${button('corePlusOne', 'booking-step', 'data-step="1"')}</div></div><div class="form-actions"><button type="submit" class="primary">${t('coreBookHours')}</button></div></form>`;
   }
   html += groups.length ? groups.map(group => `<section class="core-day"><h2>${group.date ? dateLabel(group.date) : t('coreUnknown')} <small>${coreNumber(group.hours)} ${t('coreHours')}</small></h2>${coreTable(['coreEmployee', 'coreProgressItem', 'coreHours', ...(permissions().book ? ['coreActions'] : [])], group.rows.map(row => [esc(employeeLabel(row.employee)), esc(row.item ? progressLabel(row.item) : row.siteProgressItemId), coreNumber(row.hours), ...(permissions().book ? [button('coreDelete', 'booking-delete', `data-id="${esc(row.id)}"`, 'danger small')] : [])]))}</section>`).join('') : empty('noResults', 'noResultsHint');
+  return html;
+}
+function renderTools() {
+  const all = coreData('tools'), filter = coreFilters.tools, canWrite = permissions().tools;
+  const rows = filterTools(all, filter), companies = toolCompanies(all);
+  let html = `<div class="toolbar core-toolbar">${coreSelect('company', 'toolCompany', companies.map(company => [company, company]), filter.company, 'toolAllCompanies')}${coreSelect('status', 'status', TOOL_STATUSES.map(status => [status, t(toolStatusLabelKey(status))]), filter.status, 'allStatuses')}</div>`;
+  html += rows.length ? coreTable(['toolName', 'toolCode', 'toolCompany', 'toolStatus', 'toolLocation', ...(canWrite ? ['coreActions'] : [])], rows.map(row => [
+    `<strong>${esc(row.name)}</strong>`, coreValue(row.code), coreValue(row.company), coreStatus(row.status, t(toolStatusLabelKey(row.status))), coreValue(row.location),
+    ...(canWrite ? [`<div class="tool-actions">${button('edit', 'tool-edit', `data-id="${esc(row.id)}"`, 'small')}${button('coreDelete', 'tool-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`] : []),
+  ])) : empty('toolEmpty', 'toolEmptyHint');
   return html;
 }
 function renderImpacts() {
@@ -877,6 +894,38 @@ function showBookingDelete(id) {
   if (!row) return;
   showModal(t('coreDeleteBooking'), `<form id="booking-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('coreDeleteConfirm')}</p><p>${coreNumber(row.hours)} ${t('coreHours')} · ${esc(progressLabel(coreData('progress').find(item => item.id === row.siteProgressItemId)))}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
 }
+function showToolForm() {
+  if (!permissions().tools) return toast(t('forbidden'));
+  const editing = toolEditingId ? coreData('tools').find(tool => tool.id === toolEditingId) : null;
+  const statusOptions = TOOL_STATUSES.map(status => `<option value="${status}" ${(editing?.status || 'available') === status ? 'selected' : ''}>${t(toolStatusLabelKey(status))}</option>`).join('');
+  showModal(t(editing ? 'toolEdit' : 'toolAdd'), `<form id="tool-form" data-id="${esc(editing?.id || '')}"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('toolName', 'name', editing?.name || '', { required: true, max: 120 })}${field('toolCode', 'code', editing?.code || '', { max: 200 })}${field('toolCompany', 'company', editing?.company || '', { max: 200 })}${field('toolStatus', 'status', editing?.status || 'available', { required: true, options: statusOptions })}${field('toolLocation', 'location', editing?.location || '', { max: 200 })}${field('toolNotes', 'notes', editing?.notes || '', { type: 'textarea', full: true, max: 10000 })}</div><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="primary">${t(editing ? 'toolSaveChanges' : 'toolSave')}</button></div></form>`);
+}
+function showToolDelete(id) {
+  if (!permissions().tools) return toast(t('forbidden'));
+  const row = coreData('tools').find(tool => tool.id === id);
+  if (!row) return toast(t('toolNotFound'));
+  showModal(t('toolDelete'), `<form id="tool-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('toolDeleteConfirm')}</p><p><strong>${esc(row.name)}</strong>${row.code ? ` · ${esc(row.code)}` : ''}${row.company ? ` · ${esc(row.company)}` : ''}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
+}
+async function submitTool(form, data) {
+  const selected = siteId, user = session?.user.id, version = modalVersion;
+  if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
+  if (!permissions().tools) throw new Error('forbidden');
+  if (form.id === 'tool-delete-form') {
+    await api.deleteTool(form.dataset.id);
+  } else {
+    const input = { siteId: selected, name: data.name, code: data.code, company: data.company,
+      status: data.status, location: data.location, notes: data.notes };
+    if (form.dataset.id) await api.updateTool(form.dataset.id, input);
+    else await api.createTool(input);
+  }
+  if (session?.user.id !== user) return;
+  coreCache.get(selected)?.delete('tools');
+  if (selected !== siteId) return;
+  if ((form.id === 'tool-delete-form' || form.id === 'tool-form') && version === modalVersion) closeModal();
+  toolEditingId = '';
+  render();
+  toast(t(form.id === 'tool-delete-form' ? 'toolDeleted' : 'toolSaved'));
+}
 async function submitCore(form, data) {
   const selected = siteId, user = session?.user.id, version = modalVersion;
   if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
@@ -922,7 +971,7 @@ function render() {
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
   if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
-  ({ report: renderReport, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore })[view]();
+  ({ report: renderReport, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore, tools: renderCore })[view]();
 }
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
 function selectSite(id) {
@@ -1112,6 +1161,9 @@ document.addEventListener('click', event => {
     'core-detail': () => showCoreDetail(target.dataset.module, id),
     'booking-delete': () => showBookingDelete(id),
     'booking-step': () => { const input = $('#booking-form [name=hours]'); if (input) input.value = Math.max(0, (Number(input.value) || 0) + Number(target.dataset.step)); },
+    'tool-new': () => { toolEditingId = ''; showToolForm(); },
+    'tool-edit': () => { toolEditingId = id; showToolForm(); },
+    'tool-delete': () => showToolDelete(id),
     'wbs-view': () => { wbsView = target.dataset.value; render(); },
     'wbs-reload': () => { wbsCache.delete(siteId); wbsLoad = null; render(); },
     'wbs-expand': () => { document.querySelectorAll('.wbs-tree details').forEach(node => { node.open = true; }); },
@@ -1169,7 +1221,7 @@ document.addEventListener('submit', async event => {
     void askAssistant(text);
     return;
   }
-  if (!['saved-view-form', 'site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'import-form', 'settings-form'].includes(form.id)) return;
+  if (!['saved-view-form', 'site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'tool-form', 'tool-delete-form', 'import-form', 'settings-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   const data = Object.fromEntries(new FormData(form));
@@ -1191,6 +1243,7 @@ document.addEventListener('submit', async event => {
     }
     if (form.id === 'import-form') { await handleImport(form); return; }
     if (['booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form'].includes(form.id)) { await submitCore(form, data); return; }
+    if (['tool-form', 'tool-delete-form'].includes(form.id)) { await submitTool(form, data); return; }
     if (form.id === 'login-form') {
       await accountLock(async () => { await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
       await loadData(); await syncQueue(); return;
@@ -1278,7 +1331,7 @@ document.addEventListener('change', event => {
 });
 document.addEventListener('input', event => { if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
 $('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
-window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'report'].includes(next) ? next : 'overview'; if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
+window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'report'].includes(next) ? next : 'overview'; if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
 window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view]) { closeModal(); render(); } });
 window.matchMedia('(max-width: 800px)').addEventListener('change', () => renderChrome());
 window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view]) render(); void syncQueue(); });

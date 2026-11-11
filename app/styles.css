@@ -34,6 +34,9 @@ dialog{border:1px solid var(--line);border-radius:15px;padding:0;max-width:760px
 /* Core module additions: contained board scrolling, responsive lists, shared visual tokens. */
 .core-sidebar { overflow-y: auto; }
 .core-navigation { min-width: 0; }
+.nav-group { display: grid; gap: 7px; }
+.nav-group + .nav-group { margin-top: 18px; }
+.nav-section { margin: 10px 12px 2px; color: #849fa0; font-size: 10px; letter-spacing: 1.8px; font-weight: 650; text-transform: uppercase; }
 .core-view { min-width: 0; max-width: 100%; }
 .core-toolbar { align-items: end; }
 .core-filter { flex: 1 1 180px; min-width: 0; max-width: 100%; }
@@ -51,12 +54,19 @@ dialog{border:1px solid var(--line);border-radius:15px;padding:0;max-width:760px
 .core-status-in_progress, .core-status-work_completed, .core-status-submitted { background: #e7f2ee; color: #226b58; }
 .core-status-closed { background: #e3f2e5; color: #377348; }
 .core-status-rejected { background: #fbeceb; color: #ac4540; }
+.core-status-available { background: #e3f2e5; color: #377348; }
+.core-status-in_use { background: #e7f2ee; color: #226b58; }
+.core-status-maintenance { background: #fff1ca; color: #67470b; }
+.core-status-retired { background: #edf1f2; color: #53656d; }
 .core-progress { display: grid; gap: 5px; }
 .core-progress progress { width: 100%; height: 9px; accent-color: var(--green); }
 .core-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .core-kpis strong { display: block; font-size: 27px; overflow-wrap: anywhere; margin: 8px 0; }
 .core-kpis small { display: block; color: var(--muted); }
 .core-booking-form { margin-bottom: 24px; }
+.tools-form { margin-bottom: 24px; }
+.tools-form h2 { font-size: 17px; }
+.tool-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .core-booking-form h2, .core-day h2, .core-unknown h2 { font-size: 17px; }
 .core-entry-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .core-stepper { display: flex; align-items: end; gap: 6px; flex-wrap: wrap; }
