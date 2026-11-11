@@ -26,3 +26,10 @@ Leggere `docs/development-handoff.md` e `docs/architecture.md` prima di estender
 - Per modifiche UI significative eseguire anche i flussi browser, quando Playwright e Chromium sono disponibili; istruzioni nel README.
 - Descrivere separatamente funzionalità implementate, schema proposto e servizi realmente attivati. Lo schema SQL non è una migrazione di produzione già applicata.
 - Non avviare deploy, acquisti o scritture su sistemi esterni salvo istruzioni pertinenti dell'utente. Le autorizzazioni già fornite nella sessione restano valide per il relativo ambito.
+
+## Identità dei commit
+
+Il repository è pubblico e la sua storia è stata ripulita dai dati personali dell'owner.
+
+- Committa come `SiteAssistant Maintainer <maintainer@siteassistant.invalid>`; se il clone non lo è già, imposta `git config user.name` e `git config user.email` prima del primo commit.
+- Non usare indirizzi personali in committer, autore, commenti, esempi, user agent o documentazione.
