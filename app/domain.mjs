@@ -146,8 +146,12 @@ const NAV_GROUPS = Object.freeze([
   Object.freeze({ label: 'navSite', items: Object.freeze(['progress', 'bookings', 'wbs', 'impacts']) }),
   Object.freeze({ label: 'navManagement', items: Object.freeze(['sites', 'tools', 'certifications']) }),
 ]);
-export function navGroups() {
-  return NAV_GROUPS.map(group => ({ label: group.label, items: [...group.items] }));
+export function visibleModules(items, modules = {}) {
+  return items.filter(module => ['sites', 'overview'].includes(module) || modules[module] !== false);
+}
+export function navGroups(modules = {}) {
+  return NAV_GROUPS.map(group => ({ label: group.label, items: visibleModules(group.items, modules) }))
+    .filter(group => group.items.length);
 }
 export function toolStatusLabelKey(status) {
   return TOOL_STATUS_LABELS[status] || 'coreUnknown';

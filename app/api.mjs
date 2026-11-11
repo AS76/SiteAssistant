@@ -72,6 +72,8 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     changePassword: input => request('/api/auth/password', input),
     requestAccess: input => request('/api/auth/request', input),
     forgotPassword: input => request('/api/auth/forgot', input),
+    listModuleAccess: siteId => request(`/api/member-access${query({ site_id: siteId })}`),
+    saveModuleAccess: input => request('/api/member-access', input, { method: 'PUT' }),
     listSites: async () => (await request('/api/sites')).map(siteFromApi),
     createSite: async input => siteFromApi(await request('/api/sites', sitePayload(input))),
     listTasks: async (filters = {}) => (await request(`/api/tasks${query({ limit: 200, ...filters })}`)).map(taskFromApi),

@@ -1,3 +1,4 @@
+import { moduleAllowed, requireModule } from './module-access.mjs';
 import { randomUUID } from 'node:crypto';
 import { RepositoryError, getSite, requireRole, WRITE_ROLES } from './repository.mjs';
 
@@ -34,13 +35,14 @@ export async function listCostImpacts(db, { siteId, status } = {}) {
   return db.all(`SELECT * FROM cost_impacts WHERE ${clauses.join(' AND ')} ORDER BY created_at, id`, ...values);
 }
 
-export async function getCostImpact(db, id) {
+export async function getCostImpact(db, id, user) {
   const row = typeof id === 'string' && uuid.test(id)
     ? await db.get('SELECT * FROM cost_impacts WHERE id = ?', id.toLowerCase()) : null;
   if (!row) fail(404, 'Cost impact not found.', 'COST_IMPACT_NOT_FOUND');
-  return { ...row, deviations: await db.all(`SELECT d.* FROM deviations d
+  const showDeviations = !user || await moduleAllowed(db, row.site_id, user, 'deviations');
+  return { ...row, deviations: showDeviations ? await db.all(`SELECT d.* FROM deviations d
     JOIN cost_impact_deviations link ON link.deviation_id = d.id
-    WHERE link.cost_impact_id = ? ORDER BY d.id`, row.id) };
+    WHERE link.cost_impact_id = ? ORDER BY d.id`, row.id) : [] };
 }
 
 export async function createCostImpact(db, input, user) {
@@ -57,6 +59,7 @@ export async function createCostImpact(db, input, user) {
   const claim = amount(input.claim_amount, 'claim_amount'), settlement = amount(input.settlement_amount, 'settlement_amount');
   return db.transaction(async tx => {
     await requireRole(tx, site, user, WRITE_ROLES);
+    await requireModule(tx, site, user, 'impacts');
     for (const id of deviationIds) {
       const deviation = await tx.get('SELECT site_id FROM deviations WHERE id = ?', id);
       if (!deviation) fail(404, 'Deviation not found.', 'DEVIATION_NOT_FOUND');
@@ -68,7 +71,7 @@ export async function createCostImpact(db, input, user) {
       VALUES (?, ?, ?, 'open', ?, ?, ?, ?)`, id, site, input.title.trim(), claim, settlement, user.id, new Date().toISOString());
     for (const deviationId of deviationIds) await tx.run(
       'INSERT INTO cost_impact_deviations (cost_impact_id, deviation_id) VALUES (?, ?)', id, deviationId);
-    return getCostImpact(tx, id);
+    return getCostImpact(tx, id, user);
   });
 }
 
@@ -77,6 +80,7 @@ export async function transitionCostImpact(db, id, input, user) {
   return db.transaction(async tx => {
     const row = await getCostImpact(tx, id);
     await requireRole(tx, row.site_id, user, ['owner', 'verifier']);
+    await requireModule(tx, row.site_id, user, 'impacts');
     const to = input?.to;
     if (!statuses.includes(to)) fail(400, 'Unknown cost impact status.', 'VALIDATION_ERROR');
     if (!transitions[row.status].includes(to)) fail(409, 'Cost impact transition is not allowed.', 'INVALID_TRANSITION');
@@ -91,6 +95,6 @@ export async function transitionCostImpact(db, id, input, user) {
     to, to === 'closed' ? input.result : null, to === 'closed' ? new Date().toISOString() : null,
     claim, settlement, row.id, row.status);
     if (updated.rowCount !== 1) fail(409, 'Cost impact changed concurrently.', 'COST_IMPACT_CONFLICT');
-    return getCostImpact(tx, row.id);
+    return getCostImpact(tx, row.id, user);
   });
 }

@@ -1,4 +1,4 @@
-import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey } from './domain.mjs';
+import { defaultViewState, sanitizeViewState, viewStatePayload, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
@@ -59,8 +59,8 @@ function toast(message) {
   clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false;
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
-const errorKeys = { LAYOUT_INVALID: 'layoutInvalid', MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
-function errorMessage(error) { return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
+const errorKeys = { MODULE_FORBIDDEN: 'moduleUnavailable', ACCESS_INVALID: 'accessInvalid', LAYOUT_INVALID: 'layoutInvalid', MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
+function errorMessage(error) { if (error.code === 'MODULE_FORBIDDEN') return t('moduleUnavailable'); return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
   reportPrintIntent = null; lastReport = null;
   resetSavedViews();
@@ -114,8 +114,10 @@ async function loadData() {
       if (!offline) {
         try {
           const [sites, tasks, diary] = await Promise.all([freshApi.listSites(), freshApi.listTasks(), freshApi.listDiary()]);
+          const accessRows = await Promise.all(sites.map(async site => [site.id, await freshApi.listModuleAccess(site.id)]));
+          const memberAccess = Object.fromEntries(accessRows);
           const saved = storageReady ? await getMirror(`state:${offlineScope}`) : null;
-          state = { sites, tasks, diary, attachments: saved?.attachments || [] };
+          state = { sites, tasks, diary, memberAccess, attachments: saved?.attachments || [] };
           if (sites.length) {
             const selected = sites.some(site => site.id === siteId) ? siteId : sites[0].id;
             try {
@@ -196,13 +198,13 @@ function renderChrome() {
   $('#navigation').classList.add('core-navigation');
   $('.sidebar').classList.add('core-sidebar');
   const compact = compactNavigation();
-  const navItems = compact ? MOBILE_PRIMARY : NAV_ITEMS;
+  const navItems = visibleModules(compact ? MOBILE_PRIMARY : NAV_ITEMS, currentModules());
   const more = compact && !MOBILE_PRIMARY.includes(view);
   const navLabel = key => t(compact && key === 'bookings' ? 'bookingsShort' : key);
   const navLink = key => `<a href="#${key}" ${view === key ? 'class="active" aria-current="page"' : ''}>${icon(key)}<span>${navLabel(key)}</span></a>`;
   $('#navigation').innerHTML = (compact
     ? navItems.map(navLink).join('') + `<button type="button" class="nav-more${more ? ' active' : ''}" data-command="more-nav">${icon('more')}${t('more')}</button>`
-    : navGroups().map(group => `<div class="nav-group"><span class="nav-section">${t(group.label)}</span>${group.items.map(navLink).join('')}</div>`).join(''));
+    : navGroups(currentModules()).map(group => `<div class="nav-group"><span class="nav-section">${t(group.label)}</span>${group.items.map(navLink).join('')}</div>`).join(''));
   $('#skip').textContent = t('skip'); $('#site-label').textContent = t('site'); $('#actor-label').textContent = t('actor'); $('#manual-link').textContent = t('manual');
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
   $('#actor-input').value = actor;
@@ -453,6 +455,14 @@ function renderSites() {
     return `<article class="site-card ${site.id === siteId ? 'selected' : ''}"><span class="site-code">${esc(site.code)}</span><h2>${esc(site.name)}</h2><p>${esc(site.location || '—')}</p><div class="site-counts"><span><strong>${tasks.length}</strong>${t('tasks')}</span><span><strong>${tasks.length - count.closed}</strong>${t('nonClosed')}</span></div>
       <div class="progress-track" aria-hidden="true"><span style="width:${tasks.length ? count.closed / tasks.length * 100 : 0}%"></span></div><p>${site.start ? dateLabel(site.start) : '—'} → ${site.end ? dateLabel(site.end) : '—'}</p>${button(site.id === siteId ? 'selected' : 'openSite', 'select-site', `data-id="${esc(site.id)}"`, site.id === siteId ? 'small' : 'primary small')}</article>`;
   }).join('')}</div>`;
+  if (role() === 'owner' && siteId) {
+    const modules = navGroups().flatMap(group => group.items);
+    const members = state.memberAccess?.[siteId]?.members || [];
+    $('#main').insertAdjacentHTML('beforeend', `<section class="panel module-access"><div class="panel-body"><h2>${t('moduleAccess')}</h2><p>${t('moduleAccessHint')}</p><div class="table-scroll"><table><thead><tr><th scope="col">${t('accessMember')}</th>${modules.map(module => `<th scope="col">${t(module)}</th>`).join('')}</tr></thead><tbody>${members.map(member => `<tr><th scope="row">${esc(member.name)}<br><small>${esc(member.email)} · ${esc(member.role === 'owner' ? t('accessOwner') : member.role)}</small></th>${modules.map(module => {
+      const locked = member.role === 'owner' || ['sites', 'overview'].includes(module);
+      return `<td><input type="checkbox" data-member-access data-site="${esc(siteId)}" data-member="${esc(member.user_id)}" data-module="${module}" aria-label="${esc(member.name)} · ${t(module)}" ${locked || member.modules[module] !== false ? 'checked' : ''} ${locked || offline ? 'disabled' : ''}></td>`;
+    }).join('')}</tr>`).join('')}</tbody></table></div></div></section>`);
+  }
 }
 function filteredTasks() {
   const needle = filters.search.trim().toLocaleLowerCase();
@@ -638,6 +648,9 @@ function renderWbs() {
 }
 // Core modules are online-only and never write to the offline operation queue.
 const role = () => session?.roles?.find(member => member.site_id === siteId)?.role;
+const currentModules = () => role() === 'owner' ? {} : state.memberAccess?.[siteId]?.members?.find(member => member.user_id === session?.user.id)?.modules || {};
+const moduleVisible = module => visibleModules([module], currentModules()).length > 0;
+
 const permissions = () => corePermissions(role());
 const moduleResources = { deviations: ['deviations'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'] };
 // Mobile keeps four destinations reachable with the thumb; the rest lives behind «Altro».
@@ -675,7 +688,8 @@ function coreResource(name) {
       return flattenWbs(result?.nodes || []);
     },
   };
-  entry.promise = loaders[name]().then(data => { entry.data = data; }, error => { entry.error = error; }).finally(() => {
+  const dependencyModule = ({ progressTypes: 'progress', wbs: 'wbs', progress: 'progress' })[name];
+  entry.promise = (dependencyModule && !moduleVisible(dependencyModule) ? Promise.resolve([]) : loaders[name]()).then(data => { entry.data = data; }, error => { entry.error = error; }).finally(() => {
     entry.pending = false;
     if (coreCache.get(selected) === cache && cache.get(name) === entry && siteId === selected && moduleResources[view]?.includes(name)) render();
   });
@@ -1239,6 +1253,7 @@ function render() {
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
   if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
+  if (!moduleVisible(view)) { $('#main').innerHTML = empty('moduleUnavailable', 'moduleUnavailableHint'); return; }
   ({ report: renderReport, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore, tools: renderCore, certifications: renderCore })[view]();
 }
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
@@ -1482,7 +1497,7 @@ document.addEventListener('click', event => {
     'ai-close': () => { $('#ai-panel').hidden = true; $('#ai-fab').setAttribute('aria-expanded', 'false'); $('#ai-fab').focus(); },
     'ai-suggest': () => { askAssistant(target.dataset.text); },
     'more-nav': () => {
-      const rest = NAV_ITEMS.filter(key => !MOBILE_PRIMARY.includes(key));
+      const rest = visibleModules(NAV_ITEMS, currentModules()).filter(key => !MOBILE_PRIMARY.includes(key));
       showModal(t('more'), `<nav class="more-nav" aria-label="${t('more')}">${rest.map(key => `<a href="#${key}">${icon(key)}${t(key)}</a>`).join('')}</nav>`);
     },
   };
@@ -1585,6 +1600,21 @@ document.addEventListener('submit', async event => {
   } finally { delete form.dataset.saving; submit.disabled = form.id === 'import-form' && (!form.importMappings || form.mappingDirty); }
 });
 $('#modal').addEventListener('cancel', () => { modalVersion++; });
+document.addEventListener('change', async event => {
+  const input = event.target.closest('[data-member-access]');
+  if (!input) return;
+  const selected = input.dataset.site, memberId = input.dataset.member, module = input.dataset.module;
+  const previous = !input.checked, allowed = input.checked;
+  input.disabled = true;
+  try {
+    await api.saveModuleAccess({ site_id: selected, member_id: memberId, module, allowed });
+    const member = state.memberAccess?.[selected]?.members.find(member => member.user_id === memberId);
+    if (member) member.modules[module] = allowed;
+    try { await persistState(); } catch { storageError = true; }
+    toast(t('accessSaved'));
+  } catch (error) { input.checked = previous; toast(errorMessage(error)); }
+  finally { input.disabled = false; }
+});
 $('#site-select').addEventListener('change', event => selectSite(event.target.value));
 document.addEventListener('change', event => {
   const importForm = event.target.closest('#import-form');
@@ -1637,6 +1667,7 @@ navigator.serviceWorker?.addEventListener('message', event => {
   if (event.data.type === 'offline-synced') void loadData();
   if (event.data.type === 'offline-access-denied') {
     if (event.data.status === 401) clearSession(true);
+    else if (event.data.code === 'MODULE_FORBIDDEN') { wbsCache.clear(); void loadData(); }
     else { void forgetActive(); state = { sites: [], tasks: [], diary: [], attachments: [] }; loadError = { status: 403 }; render(); }
   }
 });

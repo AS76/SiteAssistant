@@ -1,3 +1,4 @@
+import { requireModule } from './module-access.mjs';
 import { RepositoryError, getSite, requireRole } from './repository.mjs';
 import { sourceTimestamp, stableId } from './wbs.mjs';
 
@@ -54,6 +55,7 @@ export async function importDeviations(db, inputSite, user) {
   const site = validId(inputSite);
   return db.transaction(async tx => {
     await requireRole(tx, site, user, ['owner']);
+    await requireModule(tx, site, user, 'deviations');
     // Serialize promotions for the site on both storage drivers.
     await tx.run('UPDATE sites SET id = id WHERE id = ?', site);
     const config = await tx.get('SELECT * FROM deviation_import_sources WHERE site_id = ?', site);

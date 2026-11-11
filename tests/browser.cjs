@@ -100,6 +100,56 @@ async function run() {
     assert.equal(await page.locator('[data-metric="review"]').textContent(), '0');
     await page.screenshot({ path: path.join(os.tmpdir(), 'siteassistant-desktop.png'), fullPage: true });
 
+    // Module access: owner matrix, locked anchors, effective navigation, hash denial and site isolation.
+    const accessSite = await page.locator('#site-select').inputValue();
+    const otherAccessSite = await page.locator('#site-select option').evaluateAll(options => options.map(option => option.value).find(id => id !== document.querySelector('#site-select').value));
+    const accessEditor = await db.get("SELECT id FROM users WHERE email = 'editor@example.invalid'");
+    const accessCheckbox = module => page.locator(`[data-member-access][data-member="${accessEditor.id}"][data-module="${module}"]`);
+    await page.evaluate(() => { location.hash = 'sites'; });
+    await page.waitForSelector('[data-member-access]');
+    for (const module of ['overview', 'sites']) {
+      assert.equal(await accessCheckbox(module).isChecked(), true);
+      assert.equal(await accessCheckbox(module).isDisabled(), true);
+    }
+    const ownerChecks = page.locator(`[data-member-access][data-member="${owner.id}"]`);
+    assert.equal(await ownerChecks.count(), 11);
+    assert.equal(await ownerChecks.evaluateAll(inputs => inputs.every(input => input.checked && input.disabled)), true);
+    const denyAccess = page.waitForResponse(response => response.url().includes('/api/member-access') && response.request().method() === 'PUT');
+    await accessCheckbox('tasks').uncheck();
+    assert.equal((await denyAccess).status(), 200);
+    await page.waitForFunction(() => !document.querySelector('[data-member-access][data-module="tasks"]:not(:checked)')?.disabled);
+    await page.locator('#logout').click(); await page.waitForSelector('#login-form');
+    await signIn('editor');
+    assert.equal(await page.locator('.module-access').count(), 0);
+    assert.equal(await page.locator('#navigation a[href="#tasks"]').count(), 0);
+    await page.evaluate(() => { location.hash = 'tasks'; });
+    await contains(page.locator('#main'), 'Modulo non disponibile');
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.locator('#navigation a[href="#tasks"]').count(), 0);
+    assert.equal(await page.locator('#navigation a[href="#overview"]').count(), 1);
+    await page.locator('[data-command="more-nav"]').click();
+    assert.equal(await page.locator('.more-nav a[href="#tasks"]').count(), 0);
+    assert.equal(await page.locator('.more-nav a[href="#sites"]').count(), 1);
+    await page.keyboard.press('Escape');
+    await page.locator('#site-select').selectOption(otherAccessSite);
+    await page.waitForSelector('#task-results');
+    assert.equal(await page.locator('#navigation a[href="#tasks"]').count(), 1);
+    await page.locator('#site-select').selectOption(accessSite);
+    await contains(page.locator('#main'), 'Modulo non disponibile');
+    await page.locator('#language').click();
+    await contains(page.locator('#main'), 'Module unavailable');
+    await page.locator('#language').click();
+    await page.locator('#logout').click(); await page.waitForSelector('#login-form');
+    await signIn('owner');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.locator('#site-select').selectOption(accessSite);
+    await page.evaluate(() => { location.hash = 'sites'; });
+    await page.waitForSelector('[data-member-access]');
+    const allowAccess = page.waitForResponse(response => response.url().includes('/api/member-access') && response.request().method() === 'PUT');
+    await accessCheckbox('tasks').check();
+    assert.equal((await allowAccess).status(), 200);
+    await page.evaluate(() => { location.hash = 'overview'; });
+
     // Personal overview: selection, stable order, empty data, cancel, errors and site scoping.
     const allWidgets = ['kpi_open_deviations', 'kpi_booked_hours', 'kpi_open_claims', 'kpi_settled_claims',
       'deviations_by_status', 'progress_by_section', 'hours_by_week', 'earned_value', 'priority_work', 'daily_pulse', 'journal_today'];

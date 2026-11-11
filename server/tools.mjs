@@ -1,3 +1,4 @@
+import { requireModule } from './module-access.mjs';
 import { randomUUID } from 'node:crypto';
 import { RepositoryError, requireRole, WRITE_ROLES } from './repository.mjs';
 
@@ -39,7 +40,7 @@ function optionalText(value, field) {
 
 async function toolRole(db, siteId, user, roles) {
   try {
-    return await requireRole(db, siteId, user, roles);
+    await requireRole(db, siteId, user, roles);
   } catch (error) {
     if (error instanceof RepositoryError && error.status === 403) {
       fail(403, 'Insufficient site role for tools.', 'TOOL_FORBIDDEN');
@@ -49,6 +50,7 @@ async function toolRole(db, siteId, user, roles) {
     }
     throw error;
   }
+  await requireModule(db, siteId, user, 'tools');
 }
 
 export async function listTools(db, { siteId, company } = {}, user) {

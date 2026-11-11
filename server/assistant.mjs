@@ -1,3 +1,4 @@
+import { requireModule } from './module-access.mjs';
 // In-app assistant: a server-side proxy to the model with a small, read-only tool set.
 // The key never reaches the browser, every query is scoped to one site and the caller's
 // role, and the model can only read: writes stay in the forms the user confirms.
@@ -101,6 +102,9 @@ async function runTool(db, { siteId, user }, name, args) {
   const family = FAMILIES[args?.family];
   if (name !== 'sum_hours' && !family) fail('UNKNOWN_FAMILY', 'Famiglia non supportata.');
   await requireRole(db, siteId, user);
+  const module = name === 'sum_hours' ? 'bookings'
+    : ({ site_progress_items: 'progress', cost_impacts: 'impacts', time_bookings: 'bookings' })[args.family] || args.family;
+  await requireModule(db, siteId, user, module);
   if (name === 'find_records') {
     const limit = Math.min(Number(args.limit) || 10, MAX_ROWS);
     const clauses = ['site_id = ?'], values = [siteId];

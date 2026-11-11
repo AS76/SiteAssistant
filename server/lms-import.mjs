@@ -1,3 +1,4 @@
+import { requireModule } from './module-access.mjs';
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { readWorkbook } from './xlsx.mjs';
 import { RepositoryError, requireRole } from './repository.mjs';
@@ -103,6 +104,7 @@ export const FAMILIES = {
     Delays: col('impediments'), Plan: col('plan'), Actual: col('actual'), Impediments: col('impediments'),
     'Next Step': col('next_step') }, ['Date']),
 };
+const familyModule = family => ({ time_schedule: 'wbs', site_progress_items: 'progress', deviations: 'deviations', daily_log: 'diary' })[family];
 const familyOf = family => {
   if (!Object.hasOwn(FAMILIES, family)) fail('UNKNOWN_FAMILY', 'Unknown import family.');
   return FAMILIES[family];
@@ -419,6 +421,7 @@ export async function applyFamily(db, { siteId, family, rows, rejected = [], use
   if (!user?.id) fail('UNAUTHENTICATED', 'Authentication required.', 401);
   return db.transaction(async tx => {
     await requireRole(tx, siteId, user, ['owner', 'editor']);
+    if (familyModule(family)) await requireModule(tx, siteId, user, familyModule(family));
     const currentMapping = await loadMapping(tx, siteId, family);
     if (mapping && mappingDigest(mapping) !== mappingDigest(currentMapping)) fail('PREVIEW_MISMATCH', 'Mapping changed; request a new preview.', 409);
     if (preview_token) verifyPreviewToken(preview_token, { buffer, family, siteId, rows, rejected, timeZone, mapping: currentMapping });
@@ -457,6 +460,7 @@ export async function importRequest(db, input, user, { apply = false } = {}) {
   const siteId = input.site_id.toLowerCase(), family = input.family;
   await requireRole(db, siteId, user, ['owner', 'editor']);
   familyOf(family);
+  if (familyModule(family)) await requireModule(db, siteId, user, familyModule(family));
   if (typeof input.filename !== 'string' || !input.filename.trim() || input.filename.length > 255 || /[\x00-\x1f/\\]/.test(input.filename)) fail('VALIDATION_ERROR', 'Invalid filename.');
   const encoded = input.data_base64;
   if (encoded === '' || encoded == null) fail('EMPTY_FILE', 'An XLSX file is required.');

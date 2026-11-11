@@ -1,5 +1,9 @@
 export const messages = {
   it: {
+    moduleAccess: 'Accessi per modulo', accessMember: 'Membro', accessOwner: 'Proprietario',
+    moduleAccessHint: 'Gli accessi valgono per questo cantiere. Panoramica, Cantieri e gli accessi del proprietario sono sempre consentiti.',
+    moduleUnavailable: 'Modulo non disponibile', moduleUnavailableHint: 'Seleziona un altro modulo dalla navigazione.',
+    accessSaved: 'Accesso aggiornato.', accessInvalid: 'Configurazione degli accessi non valida.',
     layoutCustomize: 'Personalizza', layoutReset: 'Ripristina default',
     layoutHint: 'Scegli almeno un widget e usa le frecce per ordinarli. I KPI restano in cima; i pannelli seguono il loro ordine relativo. Il layout è personale per questo cantiere.',
     layoutMoveUp: 'Sposta su', layoutMoveDown: 'Sposta giù',
@@ -292,6 +296,10 @@ export const messages = {
     actorPlaceholder:"Nome della persona",loading:"Caricamento…",retry:"Riprova",apiUnavailable:"API non raggiungibile. Controlla la connessione e riprova.",apiError:"Richiesta API non riuscita. Controlla i dati e riprova.",duplicateDiary:"Esiste già un contributo per questo cantiere, giorno e turno.",noteRequired:"Inserisci una nota di esecuzione o verifica.",verifierRequired:"Solo il verificatore assegnato può chiudere questa attività.",transitionTo:"Passa a",noTransitions:"Nessuna transizione disponibile per questo stato.",reason:"Motivazione",noSites:"Nessun cantiere",noSitesHint:"Crea il primo cantiere per iniziare.",
   },
   en: {
+    moduleAccess: 'Module access', accessMember: 'Member', accessOwner: 'Owner',
+    moduleAccessHint: 'Access applies to this site. Overview, Sites and owner access are always allowed.',
+    moduleUnavailable: 'Module unavailable', moduleUnavailableHint: 'Select another module from the navigation.',
+    accessSaved: 'Access updated.', accessInvalid: 'Invalid access settings.',
     layoutCustomize: 'Customize', layoutReset: 'Restore defaults',
     layoutHint: 'Choose at least one widget and use the arrows to reorder them. KPIs stay at the top; panels keep their relative order. This layout is personal to you for this site.',
     layoutMoveUp: 'Move up', layoutMoveDown: 'Move down',

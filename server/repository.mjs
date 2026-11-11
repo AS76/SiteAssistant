@@ -1,3 +1,4 @@
+import { moduleAllowed, requireModule } from './module-access.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { operationalDate } from './operational-day.mjs';
 import { ObjectStorageError, S3Storage } from './s3.mjs';
@@ -102,6 +103,8 @@ export async function setMember(db, siteId, input, user) {
   object(input);
   return await db.transaction(async tx => {
     await requireRole(tx, siteId, user, ['owner']);
+    await tx.run('UPDATE sites SET id = id WHERE id = ?', siteId);
+    await requireRole(tx, siteId, user, ['owner']);
     if (typeof input.user_id !== 'string' || !uuid.test(input.user_id) || (input.role !== null && !ROLES.includes(input.role))) {
       fail(400, 'A user UUID and valid role (or null for removal) are required.', 'VALIDATION_ERROR');
     }
@@ -156,6 +159,12 @@ function taskFilters({ siteId, status, kind }, user) {
   if (site) { clauses.push('site_id = ?'); values.push(site); }
   if (state) { clauses.push('status = ?'); values.push(state); }
   if (type) { clauses.push("COALESCE(kind, 'ordinary') = ?"); values.push(type); }
+  if (user) {
+    clauses.push(`site_id IN (SELECT m.site_id FROM site_members m WHERE m.user_id = ?
+      AND (m.role = 'owner' OR NOT EXISTS (SELECT 1 FROM member_module_access a
+        WHERE a.site_id = m.site_id AND a.user_id = m.user_id AND a.module = 'tasks' AND a.allowed = FALSE)))`);
+    values.push(user.id);
+  }
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', values };
 }
 
@@ -245,6 +254,7 @@ export async function transitionTask(db, id, input, user) {
     const to = text(input.to, 'to', true);
     const actor = user ? user.name : text(input.actor, 'actor', true);
     const role = user ? await requireRole(tx, task.site_id, user, WRITE_ROLES) : null;
+    if (user) await requireModule(tx, task.site_id, user, 'tasks');
     const note = text(input.note, 'note');
     const reason = text(input.reason, 'reason');
     if (!STATUSES.includes(to)) fail(400, 'Unknown task status.', 'VALIDATION_ERROR');
@@ -300,6 +310,12 @@ function diaryFilters({ siteId }, user) {
   const clauses = [], values = [];
   if (site) { clauses.push('site_id = ?'); values.push(site); }
   if (user) { clauses.push('site_id IN (SELECT site_id FROM site_members WHERE user_id = ?)'); values.push(user.id); }
+  if (user) {
+    clauses.push(`site_id IN (SELECT m.site_id FROM site_members m WHERE m.user_id = ?
+      AND (m.role = 'owner' OR NOT EXISTS (SELECT 1 FROM member_module_access a
+        WHERE a.site_id = m.site_id AND a.user_id = m.user_id AND a.module = 'diary' AND a.allowed = FALSE)))`);
+    values.push(user.id);
+  }
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', values };
 }
 
@@ -367,6 +383,7 @@ async function attachmentEntity(db, input, user, roles) {
   if (!entity) fail(400, 'Attachment entity does not exist.', 'VALIDATION_ERROR');
   const siteId = input.entity_type === 'site' ? entity.id : entity.site_id;
   await requireRole(db, siteId, user, roles);
+  await requireModule(db, siteId, user, { task: 'tasks', diary: 'diary', site: 'sites' }[input.entity_type]);
   // The POST contract derives site_id; an optional explicit scope must agree.
   if (input.site_id !== undefined && attachmentId(input.site_id, 'site_id') !== siteId) {
     fail(403, 'Attachment entity belongs to another site.', 'FORBIDDEN');
@@ -404,6 +421,7 @@ async function attachmentRecord(db, id, user, roles) {
   const row = await idLookup(() => db.get('SELECT * FROM attachments WHERE id = ?', id));
   if (!row) fail(404, 'Attachment not found.', 'ATTACHMENT_NOT_FOUND');
   await requireRole(db, row.site_id, user, roles);
+  await requireModule(db, row.site_id, user, { task: 'tasks', diary: 'diary', site: 'sites' }[row.entity_type]);
   return row;
 }
 
@@ -459,13 +477,17 @@ export async function listAttachments(db, input, user) {
   const clauses = ['site_id = ?'], values = [siteId];
   if (input.entity_type !== undefined) {
     if (typeof input.entity_type !== 'string' || !Object.hasOwn(attachmentTables, input.entity_type)) fail(400, 'Invalid entity_type.', 'VALIDATION_ERROR');
+    await requireModule(db, siteId, user, { task: 'tasks', diary: 'diary', site: 'sites' }[input.entity_type]);
     clauses.push('entity_type = ?'); values.push(input.entity_type);
   }
   if (input.entity_id !== undefined) {
     await attachmentEntity(db, input, user);
     clauses.push('entity_id = ?'); values.push(attachmentId(input.entity_id, 'entity_id'));
   }
-  return (await db.all(`SELECT * FROM attachments WHERE ${clauses.join(' AND ')} ORDER BY created_at, id`, ...values)).map(publicAttachment);
+  const rows = await db.all(`SELECT * FROM attachments WHERE ${clauses.join(' AND ')} ORDER BY created_at, id`, ...values);
+  const visible = [];
+  for (const row of rows) if (await moduleAllowed(db, siteId, user, { task: 'tasks', diary: 'diary', site: 'sites' }[row.entity_type])) visible.push(publicAttachment(row));
+  return visible;
 }
 
 export async function getAttachment(db, id, user, storage = new S3Storage()) {

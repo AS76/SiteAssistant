@@ -1,7 +1,7 @@
 import { createApi } from './api.mjs';
 import { getMirror, replayOps, SYNC_TAG } from './offline.mjs';
 
-const VERSION = 'siteassistant-v15-6';
+const VERSION = 'siteassistant-v15-7';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data-`;
 const shellUrls = ['./', './index.html', './styles.css', './fonts.css', './app.mjs', './api.mjs', './domain.mjs', './dashboard-layout.mjs', './i18n.mjs', './offline.mjs', './manifest.webmanifest', './assets/logo.svg'].map(path => new URL(path, self.registration.scope).href);
@@ -30,7 +30,8 @@ async function runtime(request, event) {
   const update = fetch(request).then(async response => {
     if (response.status === 401 || response.status === 403) {
       await cache.delete(request);
-      await notify({ type: 'offline-access-denied', scope: active.scope, status: response.status });
+      const code = await response.clone().json().then(body => body.code, () => undefined);
+      await notify({ type: 'offline-access-denied', scope: active.scope, status: response.status, code });
     } else if (response.ok && response.headers.get('content-type')?.includes('application/json') && (await getMirror('active'))?.scope === active.scope) {
       await cache.put(request, response.clone());
     }

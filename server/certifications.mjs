@@ -1,3 +1,4 @@
+import { requireModule } from './module-access.mjs';
 import { randomUUID } from 'node:crypto';
 import { RepositoryError, requireRole, getSite } from './repository.mjs';
 
@@ -75,7 +76,7 @@ function withStatus(row, within, reference = today()) {
 
 async function certRole(db, siteId, user, roles) {
   try {
-    return await requireRole(db, siteId, user, roles);
+    await requireRole(db, siteId, user, roles);
   } catch (error) {
     if (error instanceof RepositoryError && error.status === 403) {
       fail(403, 'Insufficient site role for certifications.', 'CERT_FORBIDDEN');
@@ -85,6 +86,7 @@ async function certRole(db, siteId, user, roles) {
     }
     throw error;
   }
+  await requireModule(db, siteId, user, 'certifications');
 }
 
 export async function listCertifications(db, { siteId, employeeId, status, category, within } = {}, user) {

@@ -49,3 +49,4 @@ import './tools-ui.test.mjs';
 import './certifications.test.mjs';
 
 import './dashboard-layouts.test.mjs';
+import './module-access.test.mjs';

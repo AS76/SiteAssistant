@@ -1,3 +1,4 @@
+import { requireModule } from './module-access.mjs';
 import { RepositoryError, getSite, requireRole } from './repository.mjs';
 import { sourceTimestamp, stableId } from './wbs.mjs';
 
@@ -94,6 +95,7 @@ export async function updateSiteProgressItem(db, id, input, user) {
   return db.transaction(async tx => {
     const item = await getSiteProgressItem(tx, id);
     await requireRole(tx, item.site_id, user, ['owner', 'editor']);
+    await requireModule(tx, item.site_id, user, 'progress');
     if (!input || typeof input !== 'object' || Array.isArray(input)
       || Object.keys(input).length !== 1 || !Object.hasOwn(input, 'planned_hours')) {
       fail(400, 'Only planned_hours can be updated.', 'VALIDATION_ERROR');
@@ -112,6 +114,7 @@ export async function importSiteProgress(db, inputSite, user) {
   const site = validId(inputSite, 'site_id');
   return db.transaction(async tx => {
     await requireRole(tx, site, user, ['owner']);
+    await requireModule(tx, site, user, 'progress');
     // Serialize promotions for this site on both storage drivers.
     await tx.run('UPDATE sites SET id = id WHERE id = ?', site);
     const config = await tx.get('SELECT * FROM site_progress_import_sources WHERE site_id = ?', site);

@@ -1,3 +1,4 @@
+import { requireModule } from './module-access.mjs';
 import { randomUUID } from 'node:crypto';
 import { RepositoryError, getSite, requireRole } from './repository.mjs';
 import { getSiteProgressItem } from './site-progress.mjs';
@@ -34,6 +35,7 @@ async function getType(db, id) {
 // Site-row locking serializes type deletion, assignment and step writes on both drivers.
 async function lockSite(tx, siteId, user, roles) {
   await requireRole(tx, siteId, user, roles);
+  await requireModule(tx, siteId, user, 'progress');
   await tx.run('UPDATE sites SET id = id WHERE id = ?', siteId);
 }
 async function lockedItem(tx, itemId, user, roles) {

@@ -1,3 +1,4 @@
+import { requireModule } from './module-access.mjs';
 import { RepositoryError, requireRole } from './repository.mjs';
 
 const DAY = 86_400_000;
@@ -35,6 +36,7 @@ export async function progressCurve(db, { siteId, user, from, to } = {}) {
   if (typeof siteId !== 'string' || !uuid.test(siteId)) fail('site_id must be a UUID.');
   const site = siteId.toLowerCase();
   await requireRole(db, site, user);
+  await requireModule(db, site, user, 'progress');
 
   const end = validDate(to ?? dateString(Date.now()), 'to');
   const start = validDate(from ?? dateString(end - 89 * DAY), 'from');

@@ -312,3 +312,8 @@ footer{font-size:11px}
 .layout-arrows{display:flex;gap:5px;flex:none}
 .layout-arrows button{min-width:40px;min-height:40px;padding:6px}
 .layout-actions{flex-wrap:wrap}
+
+.module-access { margin-top: 24px; }
+.module-access .table-scroll { overflow-x: auto; }
+.module-access th, .module-access td { padding: 10px; text-align: left; }
+.module-access input[type=checkbox] { width: 20px; height: 20px; }

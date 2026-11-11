@@ -275,9 +275,10 @@ test('worker excludes auth, POST, binary and unrelated origins and evicts author
   const f = await workerFixture();
   const request = new Request(`${baseUrl}/api/tasks`);
   await f.dispatch('fetch', { request });
-  f.state.network = async () => Response.json({ error: 'Forbidden' }, { status: 403 });
+  f.state.network = async () => Response.json({ error: 'Forbidden', code: 'MODULE_FORBIDDEN' }, { status: 403 });
   assert.equal((await f.dispatch('fetch', { request: new Request(request, { cache: 'reload' }) })).status, 403);
   assert.equal(f.notices[0].type, 'offline-access-denied');
+  assert.equal(f.notices[0].code, 'MODULE_FORBIDDEN');
   for (const url of [`${baseUrl}/api/auth/me`, `${baseUrl}/api/attachments/file`, 'https://other.invalid/api/tasks']) await f.dispatch('fetch', { request: new Request(url) });
   assert.equal(await f.dispatch('fetch', { request: new Request(request, { method: 'POST' }) }), undefined);
   f.state.network = async () => { throw networkError(); };

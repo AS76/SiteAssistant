@@ -1,3 +1,4 @@
+import { requireModule } from './module-access.mjs';
 import { createHash } from 'node:crypto';
 import { RepositoryError, getSite, requireRole } from './repository.mjs';
 
@@ -118,6 +119,7 @@ export async function importWbs(db, inputSite, user) {
   const site = siteId(inputSite);
   return db.transaction(async tx => {
     await requireRole(tx, site, user, ['owner']);
+    await requireModule(tx, site, user, 'wbs');
     // Serialize promotions of a site on PostgreSQL as well as SQLite.
     await tx.run('UPDATE sites SET id = id WHERE id = ?', site);
     const config = await tx.get('SELECT * FROM wbs_import_sources WHERE site_id = ?', site);

@@ -1,3 +1,4 @@
+import { requireModule } from './module-access.mjs';
 // Dashboard figures for the overview. Everything is computed from the application tables,
 // scoped to one site: no caching layer, no rollup tables until the volumes justify them.
 import { RepositoryError, requireRole } from './repository.mjs';
@@ -37,6 +38,7 @@ export async function progressByArea(db, site) {
 
 export async function dashboard(db, options = {}) {
   const site = await requireDashboardSite(db, options);
+  for (const module of ['overview', 'deviations', 'progress', 'bookings', 'wbs', 'impacts']) await requireModule(db, site, options.user, module);
 
   const deviations = await db.all(`SELECT status, COUNT(*) AS count FROM deviations
     WHERE site_id = ? GROUP BY status`, site);

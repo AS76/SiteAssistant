@@ -1,3 +1,4 @@
+import { requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
 import { createServer as createHttpServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
@@ -217,6 +218,15 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (view && method === 'DELETE') {
         return json(response, 200, await deleteView(db, view[1], user));
       }
+      if (path === '/api/member-access' && method === 'GET') {
+        return json(response, 200, await listModuleAccess(db, { siteId: url.searchParams.get('site_id') }, user));
+      }
+      if (path === '/api/member-access' && method === 'PUT') {
+        const input = await readJson(request);
+        return json(response, 200, await saveModuleAccess(db, {
+          siteId: input.site_id, memberId: input.member_id, module: input.module, allowed: input.allowed,
+        }, user));
+      }
       if (path === '/api/tools' && method === 'GET') {
         return json(response, 200, await listTools(db, {
           siteId: url.searchParams.get('site_id'), company: url.searchParams.get('company'),
@@ -336,6 +346,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const siteId = url.searchParams.get('site_id');
         if (!siteId) throw new RepositoryError(400, 'site_id is required.', 'VALIDATION_ERROR');
         await requireRole(db, siteId, user);
+        await requireModule(db, siteId, user, 'wbs');
         return json(response, 200, await listWbs(db, { siteId, flat: url.searchParams.get('flat') }));
       }
       if (path === '/api/wbs/import' && method === 'POST') {
@@ -346,6 +357,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (wbs && method === 'GET') {
         const node = await getWbs(db, wbs[1]);
         await requireRole(db, node.site_id, user);
+        await requireModule(db, node.site_id, user, 'wbs');
         return json(response, 200, node);
       }
       if (path === '/api/site-progress' && method === 'GET') {
@@ -354,6 +366,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
         }
         await requireRole(db, siteId.toLowerCase(), user);
+        await requireModule(db, siteId.toLowerCase(), user, 'progress');
         return await paginatedJson(response, url, db, listSiteProgress, countSiteProgress,
           { siteId, wbsId: url.searchParams.get('wbs_id') });
       }
@@ -368,6 +381,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (siteProgress && method === 'GET') {
         const item = await getSiteProgressItem(db, siteProgress[1]);
         await requireRole(db, item.site_id, user);
+        await requireModule(db, item.site_id, user, 'progress');
         return json(response, 200, { ...item, booked_hours: await bookedHoursForItem(db, item.id) });
       }
       if (path === '/api/progress-types' && method === 'GET') {
@@ -376,6 +390,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
         }
         await requireRole(db, siteId.toLowerCase(), user);
+        await requireModule(db, siteId.toLowerCase(), user, 'progress');
         return json(response, 200, await listProgressTypes(db, { siteId }));
       }
       if (path === '/api/progress-types' && method === 'POST') {
@@ -415,6 +430,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
         }
         await requireRole(db, siteId.toLowerCase(), user);
+        await requireModule(db, siteId.toLowerCase(), user, 'impacts');
         return json(response, 200, await listCostImpacts(db, { siteId, status: url.searchParams.get('status') }));
       }
       if (path === '/api/cost-impacts' && method === 'POST') {
@@ -422,8 +438,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       const costImpact = /^\/api\/cost-impacts\/([^/]+)$/.exec(path);
       if (costImpact && method === 'GET') {
-        const record = await getCostImpact(db, costImpact[1]);
+        const record = await getCostImpact(db, costImpact[1], user);
         await requireRole(db, record.site_id, user);
+        await requireModule(db, record.site_id, user, 'impacts');
         return json(response, 200, record);
       }
       const costImpactTransition = /^\/api\/cost-impacts\/([^/]+)\/transition$/.exec(path);
@@ -436,6 +453,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
         }
         await requireRole(db, siteId.toLowerCase(), user);
+        await requireModule(db, siteId.toLowerCase(), user, 'deviations');
         return await paginatedJson(response, url, db, listDeviations, countDeviations, { siteId,
           status: url.searchParams.get('status'), priority: url.searchParams.get('priority') });
       }
@@ -447,6 +465,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (deviation && method === 'GET') {
         const record = await getDeviation(db, deviation[1]);
         await requireRole(db, record.site_id, user);
+        await requireModule(db, record.site_id, user, 'deviations');
         return json(response, 200, record);
       }
       if (path === '/api/attachments' && method === 'POST') {
@@ -501,7 +520,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (members && method === 'POST') return json(response, 200, await setMember(db, members[1], await readJson(request), user));
       if (path === '/api/tasks' && method === 'GET') {
         const siteId = siteFromQuery(url, ['site_id', 'siteId', 'status', 'kind', 'limit', 'offset']);
-        if (siteId) await requireRole(db, siteId, user);
+        if (siteId) {
+          await requireRole(db, siteId, user);
+          await requireModule(db, siteId, user, 'tasks');
+        }
         return await paginatedJson(response, url, db, listTasks, countTasks, {
           siteId, status: url.searchParams.get('status'), kind: url.searchParams.get('kind'),
         }, user);
@@ -510,6 +532,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const { input, requestHash } = await readJson(request, { includeHash: true });
         if (typeof input.siteId !== 'string' || !input.siteId.trim()) throw new RepositoryError(400, 'siteId is required.', 'VALIDATION_ERROR');
         await requireRole(db, input.siteId.trim(), user, WRITE_ROLES);
+        await requireModule(db, input.siteId.trim(), user, 'tasks');
         const result = await createTaskResponse(db, { ...input, actor: user.name }, {
           key: request.headers['idempotency-key'],
           requestHash: createHash('sha256').update(user.id).update(requestHash).digest('hex'),
@@ -520,6 +543,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (task && method === 'GET') {
         const record = await getTask(db, task[1]);
         await requireRole(db, record.site_id, user);
+        await requireModule(db, record.site_id, user, 'tasks');
         return json(response, 200, record);
       }
       const transition = /^\/api\/tasks\/([^/]+)\/transition$/.exec(path);
@@ -528,13 +552,17 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (path === '/api/diary' && method === 'GET') {
         const siteId = siteFromQuery(url, ['site_id', 'siteId', 'limit', 'offset']);
-        if (siteId) await requireRole(db, siteId, user);
+        if (siteId) {
+          await requireRole(db, siteId, user);
+          await requireModule(db, siteId, user, 'diary');
+        }
         return await paginatedJson(response, url, db, listDiary, countDiary, { siteId }, user);
       }
       if (path === '/api/diary' && method === 'POST') {
         const input = await readJson(request);
         if (typeof input.siteId !== 'string' || !input.siteId.trim()) throw new RepositoryError(400, 'siteId is required.', 'VALIDATION_ERROR');
         await requireRole(db, input.siteId.trim(), user, WRITE_ROLES);
+        await requireModule(db, input.siteId.trim(), user, 'diary');
         return json(response, 201, await createDiary(db, input));
       }
       json(response, 404, { error: 'Route not found.', code: 'NOT_FOUND' });

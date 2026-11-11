@@ -1,8 +1,10 @@
+import { requireModule } from './module-access.mjs';
 import { progressByArea, requireDashboardSite, STATUS_ORDER } from './dashboard.mjs';
 import { earnedValue } from './earned-value.mjs';
 
 export async function report(db, options = {}) {
   const siteId = await requireDashboardSite(db, options);
+  for (const module of ['overview', 'deviations', 'progress', 'bookings', 'wbs']) await requireModule(db, siteId, options.user, module);
   const site = await db.get('SELECT code, name FROM sites WHERE id = ?', siteId);
   const progress = await progressByArea(db, siteId);
   // The application deviations schema has plc_area, but no zone or section.
