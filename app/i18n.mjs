@@ -1,5 +1,11 @@
 export const messages = {
   it: {
+    report: 'Report del cantiere', reportSub: 'Stato attuale per macro-area · avanzamento e deviazioni.',
+    reportPrint: 'Stampa PDF', reportGenerated: 'Generato il', reportCockpit: 'Cockpit · effettivo e pianificato',
+    reportArea: 'Macro-area', reportItems: 'Elementi', reportActual: 'Effettivo', reportPlanned: 'Pianificato',
+    reportSource: 'Origine avanzamento', reportSource_computed: 'Calcolato', reportSource_imported: 'Importato',
+    reportSource_mixed: 'Misto', reportTotal: 'Totale', reportOpen: 'Aperte', reportClosed: 'Chiuse / respinte',
+    reportByStatus: 'Conteggio per stato',
     viewSelector: 'Vista salvata', viewNone: 'Nessuna vista', viewShared: 'Condivisa', viewSaveAs: 'Salva come vista',
     viewUpdate: 'Aggiorna allo stato attuale', viewRename: 'Rinomina', viewDelete: 'Elimina vista', viewName: 'Nome della vista',
     viewShareWithSite: 'Condividi con i membri del cantiere', viewReadOnly: 'Vista in sola lettura: le modifiche locali non cambiano la vista salvata.',
@@ -192,6 +198,12 @@ export const messages = {
     actorPlaceholder:"Nome della persona",loading:"Caricamento…",retry:"Riprova",apiUnavailable:"API non raggiungibile. Controlla la connessione e riprova.",apiError:"Richiesta API non riuscita. Controlla i dati e riprova.",duplicateDiary:"Esiste già un contributo per questo cantiere, giorno e turno.",noteRequired:"Inserisci una nota di esecuzione o verifica.",verifierRequired:"Solo il verificatore assegnato può chiudere questa attività.",transitionTo:"Passa a",noTransitions:"Nessuna transizione disponibile per questo stato.",reason:"Motivazione",noSites:"Nessun cantiere",noSitesHint:"Crea il primo cantiere per iniziare.",
   },
   en: {
+    report: 'Site report', reportSub: 'Current state by macro-area · progress and deviations.',
+    reportPrint: 'Print PDF', reportGenerated: 'Generated at', reportCockpit: 'Cockpit · actual and planned',
+    reportArea: 'Macro-area', reportItems: 'Items', reportActual: 'Actual', reportPlanned: 'Planned',
+    reportSource: 'Progress source', reportSource_computed: 'Computed', reportSource_imported: 'Imported',
+    reportSource_mixed: 'Mixed', reportTotal: 'Total', reportOpen: 'Open', reportClosed: 'Closed / rejected',
+    reportByStatus: 'Count by status',
     viewSelector: 'Saved view', viewNone: 'No view', viewShared: 'Shared', viewSaveAs: 'Save as view',
     viewUpdate: 'Update to current state', viewRename: 'Rename', viewDelete: 'Delete view', viewName: 'View name',
     viewShareWithSite: 'Share with site members', viewReadOnly: 'Read-only view: local changes do not change the saved view.',

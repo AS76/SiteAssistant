@@ -27,7 +27,7 @@ const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 let session = null;
 let state = { sites: [], tasks: [], diary: [], attachments: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
-let view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+let view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'report'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 let filters = { search: '', status: '', person: '', priority: '' };
 let taskView = 'board';
 let taskSort = defaultViewState().sort, taskColumns = [...TASK_COLUMNS];
@@ -35,6 +35,7 @@ let selectedViewId = '', savedViewsCache = null;
 let wbsView = 'tree', wbsLoad = null;
 const wbsCache = new Map();
 let reportDate = today();
+let reportPrintIntent = null;
 const t = key => Object.hasOwn(messages[language], key) ? messages[language][key] : key;
 const personName = name => esc(name || '—');
 const currentSite = () => state.sites.find(site => site.id === siteId);
@@ -59,6 +60,7 @@ function toast(message) {
 const errorKeys = { VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
+  reportPrintIntent = null;
   resetSavedViews();
   wbsCache.clear(); wbsLoad = null; resetCore();
   session = null; actor = ''; siteId = undefined; loadError = null; offlineScope = undefined; pendingOps = [];
@@ -234,11 +236,58 @@ function renderOverview() {
   }).slice(0, 5);
   const lastEntry = state.diary.filter(item => item.siteId === siteId && item.date === today()).at(-1);
   $('#main').innerHTML = heading('overviewTitle', 'overviewSub',
-    (canImport() ? button('importOpen', 'import-open') : '') + button('newTask', 'new-task', '', 'primary')) +
+    button('reportPrint', 'open-report') + (canImport() ? button('importOpen', 'import-open') : '') + button('newTask', 'new-task', '', 'primary')) +
     `<div id="overview-kpis" class="overview-kpis" aria-live="polite"></div><div class="date-caption">${t('today')} · ${new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}</div>` +
     `<div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div>` +
     `<div class="grid-overview"><section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section><div class="summary-stack"><section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack"><div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div><div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div></div></div></section><section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2><span class="badge">${t('draft')}</span></div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}<a class="subtitle" href="#diary">${t('openDiary')} →</a></div></section></div></div>`;
   void loadOverviewDashboard();
+}
+
+// Every report opening fetches current data; a late response cannot print another site or view.
+function renderReport() {
+  $('#main').innerHTML = heading('report', 'reportSub', button('reportPrint', 'open-report', 'disabled'))
+    + `<div id="site-report" class="site-report" aria-busy="true"><p role="status">${t('loading')}</p></div>`;
+  void loadReport($('#site-report'));
+}
+async function loadReport(target) {
+  const selected = siteId, user = session?.user.id;
+  const current = () => view === 'report' && siteId === selected && session?.user.id === user && document.body.contains(target);
+  try {
+    const data = await freshApi.report(selected);
+    if (!current()) return;
+    const percent = value => value == null ? esc(t('coreUnknown')) : `<span>${coreNumber(value)}%</span>
+      <span class="report-bar" aria-hidden="true"><span style="width:${Math.min(100, Math.max(0, Number(value)))}%"></span></span>`;
+    const table = (caption, columns, rows) => `<div class="report-table-wrap"><table class="report-table"><caption>${t(caption)}</caption>
+      <thead><tr>${columns.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.length ? rows.map(cells => `<tr>${cells.map((cell, index) => index === 0 ? `<th scope="row">${cell}</th>` : `<td>${cell}</td>`).join('')}</tr>`).join('')
+        : `<tr><td colspan="${columns.length}">${t('noResults')}</td></tr>`}</tbody></table></div>`;
+    // Keep an explicit UTC label on the timestamp, including on the printed copy.
+    const generated = new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', {
+      dateStyle: 'medium', timeStyle: 'medium', timeZone: 'UTC',
+    }).format(new Date(data.generated_at));
+    target.innerHTML = `<header class="report-header"><h2>${esc(data.site.code)} · ${esc(data.site.name)}</h2>
+      <p>${t('reportGenerated')}: <time datetime="${esc(data.generated_at)}">${esc(generated)} UTC</time></p></header>`
+      + table('reportCockpit', ['reportArea', 'reportItems', 'reportActual', 'reportPlanned', 'reportSource'],
+        data.progress.map(row => [esc(row.area), coreNumber(row.items), percent(row.actual), percent(row.planned), esc(t(`reportSource_${row.source}`))]))
+      + table('deviations', ['reportArea', 'reportTotal', 'reportOpen', 'reportClosed', 'reportByStatus'],
+        data.deviations.map(row => [esc(row.area), coreNumber(row.total), coreNumber(row.open), coreNumber(row.closed),
+          row.by_status.map(entry => `<span class="report-status">${esc(entry.status == null ? t('coreUnknown') : t(entry.status))}: ${coreNumber(entry.count)}</span>`).join(' ')]));
+    target.setAttribute('aria-busy', 'false');
+    $('#main [data-command="open-report"]').disabled = false;
+    if (reportPrintIntent?.site === selected && reportPrintIntent?.user === user) {
+      const intent = reportPrintIntent;
+      await document.fonts?.ready;
+      requestAnimationFrame(() => {
+        if (!current() || reportPrintIntent !== intent) return;
+        reportPrintIntent = null;
+        window.print();
+      });
+    }
+  } catch (error) {
+    if (!current()) return;
+    target.setAttribute('aria-busy', 'false');
+    target.innerHTML = `<div role="alert"><p>${esc(errorMessage(error))}</p>${button('retry', 'report-retry')}</div>`;
+  }
 }
 
 // Overview dashboard: counters plus three small charts, computed server-side per site and cached.
@@ -536,7 +585,7 @@ function progressBar(value) {
 }
 function renderCore() {
   $('#main').innerHTML = heading(view, `${view}Sub`,
-    button(columnFiltersOn ? 'columnFiltersHide' : 'columnFiltersShow', 'column-filters', `aria-pressed="${columnFiltersOn}"`) + button('coreRefresh', 'core-reload'));
+    (view === 'progress' ? button('reportPrint', 'open-report') : '') + button(columnFiltersOn ? 'columnFiltersHide' : 'columnFiltersShow', 'column-filters', `aria-pressed="${columnFiltersOn}"`) + button('coreRefresh', 'core-reload'));
   if (offline || !navigator.onLine) {
     $('#main').insertAdjacentHTML('beforeend', empty('coreOnlineOnly', 'coreOnlineHint')); return;
   }
@@ -856,6 +905,7 @@ async function submitCore(form, data) {
 }
 
 function render() {
+  document.body.classList.toggle('report-view', view === 'report');
   renderChrome();
   $('#main').setAttribute('aria-busy', String(loading));
   if (loading) { $('#main').innerHTML = `<p role="status">${t('loading')}</p>`; return; }
@@ -865,10 +915,11 @@ function render() {
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
   if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
-  ({ overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore })[view]();
+  ({ report: renderReport, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore })[view]();
 }
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
 function selectSite(id) {
+  reportPrintIntent = null;
   if (!state.sites.some(site => site.id === id)) return;
   wbsLoad = null; wbsCache.clear(); resetCore(); resetSavedViews(); closeModal();
   siteId = id; filters = { search: '', status: '', person: '', priority: '' }; render();
@@ -1055,6 +1106,8 @@ document.addEventListener('click', event => {
     'close-modal': closeModal, 'task-view': () => { taskView = target.dataset.value; renderTasks(); },
     'clear-filters': () => { filters = { search: '', status: '', person: '', priority: '' }; renderTasks(); },
     csv: exportCsv, print: () => window.print(),
+    'open-report': () => { reportPrintIntent = { site: siteId, user: session?.user.id }; go('report'); },
+    'report-retry': () => render(),
     'import-open': showImportForm,
     'column-filters': () => { columnFiltersOn = !columnFiltersOn; render(); },
     'detail-tab': () => {
@@ -1204,7 +1257,7 @@ document.addEventListener('change', event => {
 });
 document.addEventListener('input', event => { if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
 $('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
-window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary'].includes(next) ? next : 'overview'; closeModal(); render(); $('#main').focus(); });
+window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'report'].includes(next) ? next : 'overview'; if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
 window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view]) { closeModal(); render(); } });
 window.matchMedia('(max-width: 800px)').addEventListener('change', () => renderChrome());
 window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view]) render(); void syncQueue(); });

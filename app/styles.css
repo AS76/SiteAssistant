@@ -240,6 +240,36 @@ footer{font-size:11px}
 .view-checkbox input[type=checkbox] { min-width: 18px; width: 18px; height: 18px; padding: 0; accent-color: var(--green); }
 .saved-view-sharing { margin-top: 16px; }
 @media print { .saved-views, .task-list-controls { display: none !important; } }
+
+.site-report { max-width: 1000px; margin: 0 auto; }
+.report-header { margin-bottom: 24px; overflow-wrap: anywhere; }
+.report-header h2 { margin-bottom: 8px; }
+.report-header p { font-size: 13px; }
+.report-table-wrap { overflow-x: auto; margin-bottom: 28px; }
+.report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.report-table caption { text-align: left; font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+.report-table th, .report-table td { padding: 10px; border: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.report-table thead { background: var(--pale); }
+.report-bar { display: block; width: 100%; min-width: 70px; height: 8px; border: 1px solid currentColor; margin-top: 6px; }
+.report-bar > span { display: block; height: 100%; background: currentColor; }
+.report-status { display: block; }
+
+@page { size: A4 portrait; margin: 15mm; }
+@media print {
+  #ai-fab, #ai-panel, #offline-banner { display: none !important; }
+  .report-view button, .report-view nav { display: none !important; }
+  .report-view { --ink: #000; --muted: #000; --green: #000; --line: #000; --pale: #fff; }
+  body.report-view, .report-view .shell, .report-view main, .site-report { background: white !important; color: black !important; }
+  .report-view main { width: auto; }
+  .report-table-wrap { overflow: visible; }
+  .report-table { table-layout: fixed; font-size: 10pt; color: black; }
+  .report-table th, .report-table td { border-color: black; padding: 6pt; }
+  .report-table thead { display: table-header-group; background: white; }
+  .report-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .report-table caption, .report-header { break-after: avoid; }
+  .report-bar { min-width: 0; }
+  .report-bar > span { background: black !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
 /* Keep filter labels readable on a phone: two selects per row instead of ellipsis. */
 @media (max-width: 520px) {
   .toolbar select { flex: 1 1 46%; min-width: 0; }

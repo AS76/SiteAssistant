@@ -16,6 +16,7 @@ import { listTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForI
 import { chat as assistantChat } from './assistant.mjs';
 import { searchPlaces } from './geocode.mjs';
 import { dashboard } from './dashboard.mjs';
+import { report } from './report.mjs';
 import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
 import { progressCurve } from './progress-curve.mjs';
 import { listViews, createView, updateView, deleteView } from './view-settings.mjs';
@@ -169,6 +170,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (path === '/api/dashboard' && method === 'GET') {
         return json(response, 200, await dashboard(db, { siteId: url.searchParams.get('site_id'), user }));
+      }
+      if (path === '/api/report' && method === 'GET') {
+        return json(response, 200, await report(db, { siteId: url.searchParams.get('site_id'), user }));
       }
       if (path === '/api/progress/curve' && method === 'GET') {
         return json(response, 200, await progressCurve(db, { siteId: url.searchParams.get('site_id'), user,

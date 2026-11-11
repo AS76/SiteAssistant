@@ -2,17 +2,44 @@
 // scoped to one site: no caching layer, no rollup tables until the volumes justify them.
 import { RepositoryError, requireRole } from './repository.mjs';
 
-const fail = (code, message, status = 400) => { throw new RepositoryError(message, status, code); };
+const fail = (code, message, status = 400) => { throw new RepositoryError(status, message, code); };
 
-const STATUS_ORDER = ['open', 'approved', 'in_progress', 'work_completed', 'closed', 'rejected'];
+export const STATUS_ORDER = ['open', 'approved', 'in_progress', 'work_completed', 'closed', 'rejected'];
 
-export async function dashboard(db, { siteId, user } = {}) {
+export async function requireDashboardSite(db, { siteId, user } = {}) {
   if (!user?.id) fail('UNAUTHENTICATED', 'Authentication required.', 401);
   const site = typeof siteId === 'string' ? siteId.toLowerCase() : '';
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(site)) {
     fail('VALIDATION_ERROR', 'site_id must be a UUID.');
   }
   await requireRole(db, site, user);
+  return site;
+}
+
+// Shared by the cockpit and the printable report. Choose each item's effective
+// value before averaging; unrecorded steps count as zero against all type weights.
+export async function progressByArea(db, site) {
+  const rows = await db.all(`SELECT COALESCE(s.section, s.plc_area, 'Senza sezione') AS area,
+      COUNT(*) AS items,
+      SUM(CASE WHEN s.progress_type_id IS NOT NULL THEN 1 ELSE 0 END) AS computed_items,
+      AVG(CASE WHEN s.progress_type_id IS NULL THEN s.progress_pct ELSE COALESCE((
+        SELECT SUM(ps.weight * st.percent * 1.0)
+        FROM site_progress_item_steps st JOIN progress_type_steps ps ON ps.id = st.progress_type_step_id
+        WHERE st.site_progress_item_id = s.id AND ps.progress_type_id = s.progress_type_id
+      ) / NULLIF((SELECT SUM(ps2.weight) FROM progress_type_steps ps2
+        WHERE ps2.progress_type_id = s.progress_type_id), 0), 0) END) AS actual,
+      AVG(s.planned_progress_pct) AS planned
+    FROM site_progress_items s WHERE s.site_id = ?
+    GROUP BY COALESCE(s.section, s.plc_area, 'Senza sezione') ORDER BY items DESC, area ASC`, site);
+  return rows.map(row => ({ area: row.area, items: Number(row.items),
+    actual: round(row.actual), planned: round(row.planned),
+    source: Number(row.computed_items) === 0 ? 'imported'
+      : Number(row.computed_items) === Number(row.items) ? 'computed' : 'mixed',
+  }));
+}
+
+export async function dashboard(db, options = {}) {
+  const site = await requireDashboardSite(db, options);
 
   const deviations = await db.all(`SELECT status, COUNT(*) AS count FROM deviations
     WHERE site_id = ? GROUP BY status`, site);
@@ -20,20 +47,8 @@ export async function dashboard(db, { siteId, user } = {}) {
     status, count: Number(deviations.find(row => row.status === status)?.count || 0),
   }));
 
-  // Progress by section: average of the effective percentage, imported or computed.
-  const sections = await db.all(`SELECT COALESCE(section, plc_area, 'Senza sezione') AS section,
-      COUNT(*) AS items, AVG(s.progress_pct) AS imported,
-      AVG(CASE WHEN s.progress_type_id IS NOT NULL THEN (
-        SELECT COALESCE(SUM(ps.weight * st.percent), 0) / NULLIF(SUM(ps.weight), 0)
-        FROM site_progress_item_steps st JOIN progress_type_steps ps ON ps.id = st.progress_type_step_id
-        WHERE st.site_progress_item_id = s.id) END) AS computed,
-      AVG(s.planned_progress_pct) AS planned
-    FROM site_progress_items s WHERE s.site_id = ?
-    GROUP BY COALESCE(section, plc_area, 'Senza sezione') ORDER BY items DESC LIMIT 8`, site);
-  const progress = sections.map(row => ({
-    section: row.section, items: Number(row.items),
-    actual: round(row.computed ?? row.imported), planned: round(row.planned),
-  }));
+  const progress = (await progressByArea(db, site)).slice(0, 8)
+    .map(({ area, items, actual, planned }) => ({ section: area, items, actual, planned }));
 
   // Hours per operational week, last six weeks present in the data.
   const weeks = await db.all(`SELECT w.operational_date AS day, COALESCE(SUM(b.hours), 0) AS hours
