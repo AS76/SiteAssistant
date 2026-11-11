@@ -79,13 +79,13 @@ test('booking grouping uses operational date, retains shifts, and sums employee 
   const employees = [{ id: 'e1', employeeNo: 'E-01' }, { id: 'e2', employeeNo: 'E-02' }], items = [{ id: 'spi', description: 'Example item' }];
   const bookings = [{ id: 'a', workDayId: 'night', siteProgressItemId: 'spi', hours: 1.5, createdAt: '2026-03-29T01:00:00Z' }, { id: 'b', workDayId: 'day', siteProgressItemId: 'spi', hours: 2 }, { id: 'c', workDayId: 'next', siteProgressItemId: 'spi', hours: 0 }];
   const before = structuredClone(bookings), groups = groupBookings(bookings, days, employees, items);
-  assert.deepEqual(groups.map(group => [group.date, group.hours]), [['2026-03-29', 0], ['2026-03-28', 3.5]]);
-  assert.deepEqual(groups[1].rows.map(row => row.id), ['b', 'a']); assert.equal(groups[1].rows[1].day.shift, 'night');
-  assert.equal(groups[1].rows[1].item.description, 'Example item'); assert.deepEqual(bookings, before);
+  assert.deepEqual(groups.map(group => [group.date, group.employeeId, group.appBookedHours]), [['2026-03-29', 'e1', 0], ['2026-03-28', 'e1', 2], ['2026-03-28', 'e2', 1.5]]);
+  assert.deepEqual(groups[1].rows.map(row => row.id), ['b']); assert.equal(groups[2].rows[0].day.shift, 'night');
+  assert.equal(groups[2].rows[0].item.description, 'Example item'); assert.deepEqual(bookings, before);
 });
 test('missing booking references remain visible without an invented date or employee', () => {
   const groups = groupBookings([{ id: 'orphan', workDayId: 'missing', siteProgressItemId: 'missing', hours: 3 }], [], [], []);
-  assert.equal(groups[0].date, null); assert.equal(groups[0].hours, 3); assert.equal(groups[0].rows[0].employee, undefined);
+  assert.equal(groups[0].date, null); assert.equal(groups[0].appBookedHours, 3); assert.equal(groups[0].rows[0].employee, undefined);
   assert.deepEqual(groupBookings([], [], [], []), []);
 });
 test('list filtering combines fields and ordering is stable with nulls last in both directions', () => {

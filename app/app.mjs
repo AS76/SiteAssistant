@@ -1,4 +1,4 @@
-import { defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
+import { defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
@@ -348,14 +348,15 @@ function renderOverviewWidgets(target, widgets, data, failed = false) {
     const total = data.deviations.reduce((sum, row) => sum + row.count, 0);
     kpis.kpi_open_deviations = data.deviations.filter(row => !['closed', 'rejected'].includes(row.status)).reduce((sum, row) => sum + row.count, 0);
     const number = value => new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 1 }).format(value);
-    kpis.kpi_booked_hours = number(data.hours.reduce((sum, row) => sum + row.hours, 0));
+    const weeks = weeklyBookingHours(data.hours, data.workDays || []);
+    kpis.kpi_booked_hours = number(weeks.reduce((sum, row) => sum + row.appBookedHours, 0));
     kpis.kpi_open_claims = money(data.claims.open);
     kpis.kpi_settled_claims = money(data.claims.settled);
-    const maxHours = Math.max(1, ...data.hours.map(row => row.hours));
+    const maxHours = Math.max(1, ...weeks.map(row => row.appBookedHours));
     content.deviations_by_status = panel('dashDeviations', `<div class="dash-donut">${donut(data.deviations, total)}
       <ul class="donut-legend">${data.deviations.map(row => `<li><i style="background:${STATUS_COLORS[row.status] || '#94a3a3'}"></i>${esc(t(row.status))}<strong>${row.count}</strong></li>`).join('')}</ul></div>`);
     content.progress_by_section = panel('dashProgress', data.progress.length ? sectionBars(data.progress) : `<p class="note">${t('noResults')}</p>`);
-    content.hours_by_week = panel('dashHours', data.hours.length ? `<ul class="mini-bars">${data.hours.map(row => `<li><span class="bar-label">${esc(row.week)}</span><span class="bar-track"><span class="bar-actual" style="width:${(row.hours / maxHours * 100).toFixed(1)}%"></span></span><span class="bar-value">${number(row.hours)}</span></li>`).join('')}</ul>` : `<p class="note">${t('noResults')}</p>`);
+    content.hours_by_week = panel('dashHours', weeks.length ? `<ul class="mini-bars weekly-hours">${weeks.map(row => `<li><span class="bar-label">${esc(row.week)}</span><span class="bar-track"><span class="bar-actual" style="width:${(row.appBookedHours / maxHours * 100).toFixed(1)}%"></span></span><span class="bar-value"><span>${t('coreAppBookedHours')}: ${number(row.appBookedHours)}</span>${row.sourceWorkTime == null ? '' : `<span>${t('coreSourceWorkTime')}: ${number(row.sourceWorkTime)}</span>`}</span></li>`).join('')}</ul>` : `<p class="note">${t('noResults')}</p>`);
     content.earned_value = panel('earnedValueTitle', earnedValueSummary(data.earnedValue));
   }
   const chosen = widgets.map(id => DASHBOARD_WIDGETS.find(widget => widget.id === id));
@@ -377,7 +378,9 @@ async function loadOverviewDashboard() {
   if (!target || !selected) return;
   const current = () => view === 'overview' && siteId === selected && session?.user.id === user && document.body.contains(target);
   // Fetch independently: local widgets and layout still work if the figures fail.
-  const figures = (overviewCache.has(selected) ? Promise.resolve(overviewCache.get(selected)) : freshApi.dashboard(selected)).catch(() => null);
+  const figures = (overviewCache.has(selected) ? Promise.resolve(overviewCache.get(selected))
+    : Promise.all([freshApi.dashboard(selected), freshApi.listWorkDays({ siteId: selected }).catch(() => [])])
+      .then(([data, workDays]) => ({ ...data, workDays }))).catch(() => null);
   const layout = await readOverviewLayout(selected);
   if (!current()) return;
   renderOverviewWidgets(target, layout.widgets, null);
@@ -699,6 +702,14 @@ function resetCore() {
   coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' }, hse: { type: '', severity: '', from: '', to: '' } };
   toolEditingId = ''; certEditingId = ''; hseEditingId = '';
 }
+async function loadBookingRows(selected) {
+  const rows = [], limit = 200;
+  for (let offset = 0; ; offset += limit) {
+    const page = await freshApi.listBookings({ siteId: selected, limit, offset });
+    rows.push(...page);
+    if (page.length < limit) return rows;
+  }
+}
 function coreResource(name) {
   const selected = siteId;
   if (!coreCache.has(selected)) coreCache.set(selected, new Map());
@@ -709,7 +720,7 @@ function coreResource(name) {
   const loaders = {
     deviations: () => freshApi.listDeviations({ siteId: selected }), progress: () => freshApi.listProgress({ siteId: selected }),
     progressTypes: () => freshApi.listProgressTypes(selected),
-    bookings: () => freshApi.listBookings({ siteId: selected }), impacts: () => freshApi.listImpacts({ siteId: selected }),
+    bookings: () => loadBookingRows(selected), impacts: () => freshApi.listImpacts({ siteId: selected }),
     tools: () => freshApi.listTools({ siteId: selected }),
     certifications: () => freshApi.listCertifications({ siteId: selected }),
     hse: () => freshApi.listHseEvents({ siteId: selected }),
@@ -866,10 +877,23 @@ function renderBookings() {
   let html = `<div class="toolbar core-toolbar">${coreSelect('date', 'reportDate', dates.map(date => [date, dateLabel(date)]), coreFilters.bookings.date, 'coreAllDays')}</div>`;
   if (permissions().book) {
     if (!days.length || !items.length) html += `<p class="blank-message">${t('coreBookingPrerequisites')}</p>`;
-    else html += `<form id="booking-form" class="panel panel-body core-booking-form"><h2>${t('coreBookHours')}</h2><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="core-entry-grid"><label class="field">${t('coreWorkDay')}<select name="workDayId" required><option value="">${t('coreChoose')}</option>${filterSortRecords(days, {}, [{ key: 'operationalDate', descending: true }, { key: 'employeeId' }]).map(day => `<option value="${esc(day.id)}">${esc(`${day.operationalDate} · ${employeeLabel(employees.find(employee => employee.id === day.employeeId))} · ${t(day.shift || 'coreUnknown')} · ${day.startTime ?? t('coreUnknown')}`)}</option>`).join('')}</select></label><label class="field">${t('coreProgressItem')}<select name="siteProgressItemId" required><option value="">${t('coreChoose')}</option>${items.map(item => `<option value="${esc(item.id)}">${esc(progressLabel(item))}</option>`).join('')}</select></label><label class="field">${t('coreHours')}<input name="hours" type="number" min="0" step="0.5" value="1" required></label><div class="core-stepper">${button('coreMinusHalf', 'booking-step', 'data-step="-0.5"')}${button('corePlusHalf', 'booking-step', 'data-step="0.5"')}${button('corePlusOne', 'booking-step', 'data-step="1"')}</div></div><div class="form-actions"><button type="submit" class="primary">${t('coreBookHours')}</button></div></form>`;
+    else html += `<form id="booking-form" class="panel panel-body core-booking-form"><h2>${t('coreBookHours')}</h2><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="core-entry-grid"><label class="field">${t('coreWorkDay')}<select name="workDayId" required><option value="">${t('coreChoose')}</option>${filterSortRecords(days, {}, [{ key: 'operationalDate', descending: true }, { key: 'employeeId' }]).map(day => `<option value="${esc(day.id)}">${esc(`${day.operationalDate} · ${employeeLabel(employees.find(employee => employee.id === day.employeeId))} · ${t(day.shift || 'coreUnknown')} · ${day.startTime ?? t('coreUnknown')}`)}</option>`).join('')}</select></label><label class="field">${t('coreProgressItem')}<select name="siteProgressItemId" required><option value="">${t('coreChoose')}</option>${items.map(item => `<option value="${esc(item.id)}">${esc(progressLabel(item))}</option>`).join('')}</select></label><label class="field">${t('coreAppBookedHours')}<input name="hours" type="number" min="0" step="0.5" value="1" required></label><div class="core-stepper">${button('coreMinusHalf', 'booking-step', 'data-step="-0.5"')}${button('corePlusHalf', 'booking-step', 'data-step="0.5"')}${button('corePlusOne', 'booking-step', 'data-step="1"')}</div></div><div class="form-actions"><button type="submit" class="primary">${t('coreBookHours')}</button></div></form>`;
   }
-  html += groups.length ? groups.map(group => `<section class="core-day"><h2>${group.date ? dateLabel(group.date) : t('coreUnknown')} <small>${coreNumber(group.hours)} ${t('coreHours')}</small></h2>${coreTable(['coreEmployee', 'coreProgressItem', 'coreHours', ...(permissions().book ? ['coreActions'] : [])], group.rows.map(row => [esc(employeeLabel(row.employee)), esc(row.item ? progressLabel(row.item) : row.siteProgressItemId), coreNumber(row.hours), ...(permissions().book ? [button('coreDelete', 'booking-delete', `data-id="${esc(row.id)}"`, 'danger small')] : [])]))}</section>`).join('') : empty('noResults', 'noResultsHint');
+  html += `<p class="note booking-legend">${t('coreHoursLegendSource')}<br>${t('coreHoursLegendApp')}</p>`;
+  html += groups.length ? groups.map(group => `<section class="core-day"><h2>${group.date ? dateLabel(group.date) : t('coreUnknown')} · ${esc(employeeLabel(group.employee))}</h2>`
+    + '<div class="booking-summary">' + coreTable(['coreSourceWorkTime', 'coreSourceBookedHours', 'coreAppBookedHours', 'coreSourceOpenHours', 'coreVariance'], [[
+      coreNumber(group.sourceWorkTime), coreNumber(group.sourceBookedHours), coreNumber(group.appBookedHours), coreNumber(group.sourceOpenHours), bookingVariance(group.variance),
+    ]]) + '</div>'
+    + (group.rows.length ? coreTable(['coreEmployee', 'coreProgressItem', 'coreAppBookedHours', ...(permissions().book ? ['coreActions'] : [])], group.rows.map(row => [esc(employeeLabel(row.employee)), esc(row.item ? progressLabel(row.item) : row.siteProgressItemId), coreNumber(row.hours), ...(permissions().book ? [button('coreDelete', 'booking-delete', `data-id="${esc(row.id)}"`, 'danger small')] : [])])) : '')
+    + '</section>').join('') : empty('noResults', 'noResultsHint');
   return html;
+}
+function bookingVariance(value) {
+  if (value == null) return `<strong class="booking-variance">${t('coreNotCalculable')}</strong>`;
+  const direction = value > 0 ? 'positive' : value < 0 ? 'negative' : 'zero';
+  const label = value > 0 ? 'coreVariancePositive' : value < 0 ? 'coreVarianceNegative' : 'coreVarianceBalanced';
+  const formatted = new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 4, signDisplay: 'always' }).format(value);
+  return `<strong class="booking-variance booking-variance-${direction}"><span class="mono">${esc(formatted)}</span><small>${t(label)}</small></strong>`;
 }
 function renderTools() {
   const all = coreData('tools'), filter = coreFilters.tools, canWrite = permissions().tools;
@@ -1252,7 +1276,7 @@ function showBookingDelete(id) {
   if (!permissions().book) return toast(t('forbidden'));
   const row = coreData('bookings').find(booking => booking.id === id);
   if (!row) return;
-  showModal(t('coreDeleteBooking'), `<form id="booking-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('coreDeleteConfirm')}</p><p>${coreNumber(row.hours)} ${t('coreHours')} · ${esc(progressLabel(coreData('progress').find(item => item.id === row.siteProgressItemId)))}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
+  showModal(t('coreDeleteBooking'), `<form id="booking-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('coreDeleteConfirm')}</p><p>${coreNumber(row.hours)} ${t('coreAppBookedHours')} · ${esc(progressLabel(coreData('progress').find(item => item.id === row.siteProgressItemId)))}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
 }
 function showToolForm() {
   if (!permissions().tools) return toast(t('forbidden'));

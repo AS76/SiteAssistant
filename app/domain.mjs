@@ -276,16 +276,54 @@ export function impactTotals(records) {
 export function groupBookings(bookings, workDays, employees, items) {
   const days = new Map(workDays.map(row => [row.id, row])), people = new Map(employees.map(row => [row.id, row]));
   const progress = new Map(items.map(row => [row.id, row])), groups = new Map();
+  const groupFor = (day, workDayId) => {
+    const date = day?.operationalDate ?? null, employeeId = day?.employeeId ?? null;
+    // Keep unresolved work days separate rather than inventing a shared employee.
+    const key = JSON.stringify([day?.siteId ?? null, date, employeeId ?? workDayId]);
+    if (!groups.has(key)) groups.set(key, { date, employeeId, employee: people.get(employeeId), workDays: [], rows: [] });
+    return groups.get(key);
+  };
+  for (const day of workDays) groupFor(day, day.id).workDays.push(day);
   for (const booking of bookings) {
     const day = days.get(booking.workDayId), employee = people.get(day?.employeeId);
-    const date = day?.operationalDate ?? null;
-    if (!groups.has(date)) groups.set(date, { date, hours: 0, rows: [] });
-    const group = groups.get(date);
-    group.hours += Number(booking.hours);
+    const group = groupFor(day, booking.workDayId);
     group.rows.push({ ...booking, day, employee, item: progress.get(booking.siteProgressItemId), employeeNo: employee?.employeeNo ?? null });
   }
-  return [...groups.values()].sort((a, b) => a.date == null ? 1 : b.date == null ? -1 : b.date.localeCompare(a.date))
-    .map(group => ({ ...group, rows: filterSortRecords(group.rows, {}, [{ key: 'employeeNo' }, { key: 'siteProgressItemId' }]) }));
+  const result = [...groups.values()].map(group => {
+    // Source totals count each work day once, even when it has several bookings.
+    const sourceWorkTime = sourceHours(group.workDays, 'workTime');
+    const sourceBookedHours = sourceHours(group.workDays, 'bookedHours');
+    const sourceOpenHours = sourceHours(group.workDays, 'openHours');
+    const appBookedHours = Number(decimalTotal(group.rows.map(row => row.hours)));
+    const missing = Object.entries({ sourceWorkTime, sourceBookedHours, sourceOpenHours })
+      .filter(([, value]) => value == null).map(([field]) => field);
+    const variance = sourceWorkTime == null || sourceBookedHours == null ? null
+      : Number(decimalTotal([sourceWorkTime, -sourceBookedHours, -appBookedHours]));
+    return { ...group, sourceWorkTime, sourceBookedHours, sourceOpenHours, appBookedHours, variance, missing,
+      employeeNo: group.employee?.employeeNo ?? null,
+      rows: filterSortRecords(group.rows, {}, [{ key: 'siteProgressItemId' }]) };
+  });
+  return filterSortRecords(result, {}, [{ key: 'date', descending: true }, { key: 'employeeNo' }, { key: 'employeeId' }]);
+}
+
+// A partial source total is unknown; missing input must never become zero.
+function sourceHours(workDays, field) {
+  if (!workDays.length || workDays.some(day => day[field] == null)) return null;
+  return Number(decimalTotal(workDays.map(day => day[field])));
+}
+
+export function weeklyBookingHours(bookedWeeks, workDays) {
+  const byWeek = new Map(bookedWeeks.map(row => [row.week, { week: row.week, appBookedHours: row.hours, workDays: [] }]));
+  for (const day of workDays) {
+    if (!validDate(day.operationalDate)) continue;
+    const date = new Date(`${day.operationalDate}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 6) % 7);
+    const week = date.toISOString().slice(0, 10);
+    if (!byWeek.has(week)) byWeek.set(week, { week, appBookedHours: 0, workDays: [] });
+    byWeek.get(week).workDays.push(day);
+  }
+  return [...byWeek.values()].sort((a, b) => a.week.localeCompare(b.week)).slice(-6)
+    .map(({ week, appBookedHours, workDays: days }) => ({ week, appBookedHours, sourceWorkTime: sourceHours(days, 'workTime') }));
 }
 export function progressWithHours(items, bookings) {
   const hours = new Map();
