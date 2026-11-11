@@ -38,8 +38,8 @@ The API is an HTTP service that the frontend calls directly. There are no API to
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/tasks?site_id=&status=` | member | Optional filters; `siteId` is accepted too |
-| POST | `/api/tasks` | owner/editor/verifier | Supports `Idempotency-Key` |
+| GET | `/api/tasks?site_id=&status=&kind=` | member | Optional filters; `siteId` is accepted too |
+| POST | `/api/tasks` | owner/editor/verifier | Supports `Idempotency-Key`; `kind` is `ordinary` (default) or `corrective` |
 | GET | `/api/tasks/{id}` | member | Includes the event history |
 | POST | `/api/tasks/{id}/transition` | owner/editor/verifier | `{ to, note?, reason? }` |
 
@@ -134,6 +134,22 @@ The tools register is the same one managed from the **Tools** view. Reading is o
 
 `name` is required, 1 to 120 characters. `code`, `company`, `location` and `notes` are free text, up to 10000 characters, and may be `null`. The status is `available`, `in_use`, `maintenance` or `retired`; when omitted on creation it is `available`. The list is sorted by contractor, with rows without a contractor last, then by name. There is no history: `DELETE` removes the row and leaves no copy.
 
+## Fitness
+
+Employee certifications are managed from the **Fitness** view. Reading is open to owners, editors and verifiers; writing to owners and editors. The `viewer` role has no access: certifications are personal records and the response is `403 CERT_FORBIDDEN`.
+
+| Method | Path | Access | Notes |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/certifications?site_id=&employee_id=&category=&status=&within=` | owner/editor/verifier | List with the computed status and days left |
+| GET | `/api/certifications?site_id=&summary=1` | owner/editor/verifier | Only the counts by status and the total |
+| POST | `/api/certifications` | owner/editor | `{ siteId, employeeId, name, category?, issuer?, issuedOn?, expiresOn?, outcome?, notes? }` |
+| PATCH | `/api/certifications/{id}` | owner/editor | Updates only the fields sent |
+| DELETE | `/api/certifications/{id}` | owner/editor | Deletes the row |
+
+`site_id` is required on the list. The category is `qualification`, `medical`, `training` or `other`; when omitted on creation it is `other`. The status is `expired`, `expiring`, `valid` or `no_expiry` and is **computed**, not stored: `within` is the threshold in days for “expiring” (default **30**, from 0 to 365) and `days_left` is the difference in days between expiry and today, negative for expired certificates and `null` for certificates without an expiry date.
+
+`name` is required, 1 to 120 characters; `issuer` allows up to 200 characters, `outcome` up to 500 and `notes` up to 2000. `issued_on` and `expires_on` are `YYYY-MM-DD` dates and the expiry cannot precede the issue date. The `employee_id` must belong to the site. Deletion leaves no copy and no history. Dedicated codes: `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404).
+
 ## Overview and assistant
 
 | Method | Path | Access | Notes |
@@ -168,9 +184,15 @@ Attachments on **tasks and diary** can also be uploaded from the interface; for 
 
 Files up to **15 MiB** are accepted, images or PDF only (`UNSUPPORTED_MEDIA_TYPE`, `ATTACHMENT_TOO_LARGE`). Upload and deletion are reserved to owners and editors; reading to all members. Before registering the attachment the application reads the stored bytes back and compares the checksum: if it does not match, the file is removed and the response is `502`.
 
+## Request limits and pagination
+
+Every request to `/api/` consumes a one-minute sliding-window limit: **600 requests per minute per authenticated session** and **60 per minute per network address** for anonymous requests. The four authentication routes (`/api/auth/login`, `/api/auth/forgot`, `/api/auth/password`, `/api/auth/request`) have their own limiter and do not consume the general one. Past the limit the response is `429 RATE_LIMITED` with a `Retry-After` header in seconds; `X-RateLimit-Remaining` says how many requests are left in the window. The values are changed with the `RATE_LIMIT_USER_PER_MIN` and `RATE_LIMIT_ANON_PER_MIN` variables.
+
+The **tasks**, **diary**, **deviations**, **site progress** and **time bookings** lists accept `limit` (default **50**, maximum **200**) and `offset` (default 0). Non-integer or out-of-range values are rejected with `400 VALIDATION_ERROR`. The response stays an array; the total, the applied limit and the offset arrive in the `X-Total-Count`, `X-Limit` and `X-Offset` headers. The application asks for 200 rows on the views that load the whole list, so no view loses records.
+
 ## Errors
 
-Error responses have the shape `{ "error": "message", "code": "CODE" }`. The most common codes: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` and `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `TIME_BOOKING_DUPLICATE` (409), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
+Error responses have the shape `{ "error": "message", "code": "CODE" }`. The most common codes: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` and `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `TIME_BOOKING_DUPLICATE` (409), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
 
 :::note
 The API does not expose an OpenAPI schema: the tables above are the current contract. For the full data schema see `database/README.md` in the repository.

@@ -38,8 +38,8 @@ L'API è un servizio HTTP che il frontend chiama direttamente. Non esistono toke
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/tasks?site_id=&status=` | membro | Filtri opzionali; accetta anche `siteId` |
-| POST | `/api/tasks` | owner/editor/verifier | Supporta `Idempotency-Key` |
+| GET | `/api/tasks?site_id=&status=&kind=` | membro | Filtri opzionali; accetta anche `siteId` |
+| POST | `/api/tasks` | owner/editor/verifier | Supporta `Idempotency-Key`; `kind` vale `ordinary` (predefinito) o `corrective` |
 | GET | `/api/tasks/{id}` | membro | Include la cronologia eventi |
 | POST | `/api/tasks/{id}/transition` | owner/editor/verifier | `{ to, note?, reason? }` |
 
@@ -134,6 +134,22 @@ Il registro delle attrezzature è lo stesso che si gestisce dalla vista **Attrez
 
 `name` è obbligatorio, da 1 a 120 caratteri. `code`, `company`, `location` e `notes` sono testo libero, fino a 10000 caratteri, e possono essere `null`. Lo stato vale `available`, `in_use`, `maintenance` o `retired`; se manca in creazione vale `available`. L'elenco è ordinato per appaltatore, con le righe senza appaltatore in fondo, poi per nome. Non esiste uno storico: `DELETE` rimuove la riga e non lascia una copia.
 
+## Idoneità
+
+Le certificazioni dei dipendenti si gestiscono dalla vista **Idoneità**. La lettura è aperta a owner, editor e verificatori; la scrittura a owner ed editor. Il ruolo `viewer` non accede: le certificazioni sono dati personali e la risposta è `403 CERT_FORBIDDEN`.
+
+| Metodo | Percorso | Accesso | Note |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/certifications?site_id=&employee_id=&category=&status=&within=` | owner/editor/verifier | Elenco con stato calcolato e giorni residui |
+| GET | `/api/certifications?site_id=&summary=1` | owner/editor/verifier | Solo i conteggi per stato e il totale |
+| POST | `/api/certifications` | owner/editor | `{ siteId, employeeId, name, category?, issuer?, issuedOn?, expiresOn?, outcome?, notes? }` |
+| PATCH | `/api/certifications/{id}` | owner/editor | Aggiorna solo i campi inviati |
+| DELETE | `/api/certifications/{id}` | owner/editor | Elimina la riga |
+
+`site_id` è obbligatorio nell'elenco. La categoria vale `qualification`, `medical`, `training` o `other`; se manca in creazione vale `other`. Lo stato vale `expired`, `expiring`, `valid` o `no_expiry` ed è **calcolato**, non memorizzato: `within` è la soglia in giorni per «in scadenza» (default **30**, da 0 a 365) e `days_left` è la differenza in giorni tra scadenza e oggi, negativa per le scadute e `null` per le certificazioni senza scadenza.
+
+`name` è obbligatorio, da 1 a 120 caratteri; `issuer` arriva a 200 caratteri, `outcome` a 500 e `notes` a 2000. `issued_on` ed `expires_on` sono date `YYYY-MM-DD` e la scadenza non può precedere il rilascio. L'`employee_id` deve appartenere al cantiere. L'eliminazione non lascia copia né storico. Codici dedicati: `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404).
+
 ## Panoramica e assistente
 
 | Metodo | Percorso | Accesso | Note |
@@ -168,9 +184,15 @@ Gli allegati a **attività e diario** si caricano anche dall'interfaccia; per il
 
 Sono ammessi file fino a **15 MiB**, di tipo immagine o PDF (`UNSUPPORTED_MEDIA_TYPE`, `ATTACHMENT_TOO_LARGE`). Il caricamento e l'eliminazione sono riservati a owner ed editor; la lettura a tutti i membri. Prima di registrare l'allegato l'applicazione rilegge i byte salvati e confronta il checksum: se non coincide, il file viene rimosso e la risposta è `502`.
 
+## Limiti di richiesta e paginazione
+
+Ogni richiesta a `/api/` consuma un limite a finestra mobile di un minuto: **600 richieste al minuto per sessione autenticata** e **60 al minuto per indirizzo di rete** per le richieste anonime. Le quattro rotte di autenticazione (`/api/auth/login`, `/api/auth/forgot`, `/api/auth/password`, `/api/auth/request`) hanno un limite proprio e non consumano quello generale. Oltre il limite la risposta è `429 RATE_LIMITED` con l'intestazione `Retry-After` in secondi; `X-RateLimit-Remaining` dice quante richieste restano nella finestra. I valori si cambiano con le variabili `RATE_LIMIT_USER_PER_MIN` e `RATE_LIMIT_ANON_PER_MIN`.
+
+Le liste di **attività**, **diario**, **deviazioni**, **avanzamento di cantiere** e **prenotazioni ore** accettano `limit` (default **50**, massimo **200**) e `offset` (default 0). Valori non interi o fuori intervallo sono rifiutati con `400 VALIDATION_ERROR`. La risposta resta un array; il totale, il limite applicato e l'offset arrivano nelle intestazioni `X-Total-Count`, `X-Limit` e `X-Offset`. L'applicazione chiede 200 righe per le viste che caricano l'elenco intero, quindi nessuna vista perde record.
+
 ## Errori
 
-Le risposte d'errore hanno la forma `{ "error": "messaggio", "code": "CODICE" }`. I codici più comuni: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` e `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` e `TIME_BOOKING_DUPLICATE` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
+Le risposte d'errore hanno la forma `{ "error": "messaggio", "code": "CODICE" }`. I codici più comuni: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` e `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` e `TIME_BOOKING_DUPLICATE` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
 
 :::note
 L'API non espone uno schema OpenAPI: le tabelle qui sopra sono il contratto corrente. Per lo schema dati completo vedi `database/README.md` nel repository.

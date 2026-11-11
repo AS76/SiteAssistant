@@ -17,7 +17,7 @@ What it is for: putting work on site with someone who executes it and someone wh
 1. Open **Tasks** and press **New task**.
 2. Fill in title, area and company.
 3. Choose **executor** and **reviewer**: they must be two different people.
-4. Choose the **priority** and, if needed, the **due date**.
+4. Choose the **type** — **Ordinary** or **Corrective** — the **priority** and, if needed, the **due date**.
 5. Press **Save**: the task starts in status `todo` and appears in the **To do** column.
 
 | Field | Required | Notes |
@@ -27,6 +27,7 @@ What it is for: putting work on site with someone who executes it and someone wh
 | Company | No | At most 100 characters |
 | Executor | Yes | The person doing the work |
 | Reviewer | Yes | The person who checks and closes the work |
+| Type | No | **Ordinary** (default) or **Corrective** |
 | Priority | Yes | `normal`, `high`, `urgent` |
 | Due date | No | Date, pre-filled with today |
 
@@ -37,6 +38,15 @@ What it is for: putting work on site with someone who executes it and someone wh
 - **Required fields empty:** the form shows the error above the buttons and moves focus to the first field to fix.
 - **Task created but not visible:** check the board filters and the selected site.
 :::
+
+## Ordinary and corrective tasks
+
+The **type** tells planned work apart from work that fixes something:
+
+- **Ordinary**: the planned work. It is the default and it is not stored as a type, so tasks created before this classification stay ordinary.
+- **Corrective**: work that fixes a defect or a non-conformity. The board cards show a **Corrective** badge.
+
+The type is chosen at creation and cannot be changed afterwards: tasks are not editable. The **Type** filter in the filter bar applies to the board, to the list and to the CSV export, which has a **Type** column with the translated label.
 
 ## The statuses
 
@@ -106,7 +116,7 @@ In a task detail you can attach photos or PDFs, up to **15 MiB** per file; uploa
   <figcaption>On the left the board, with columns by status; on the right the list, with one row per task.</figcaption>
 </figure>
 
-The **board** groups tasks by status, the **list** orders them by due date and priority. From both you open the detail with the fields and the full history. The filters (text, status, executor, priority) apply to both views and to the CSV export.
+The **board** groups tasks by status, the **list** orders them by due date and priority. From both you open the detail with the fields and the full history. The filters (text, status, executor, priority, type) apply to both views and to the CSV export.
 
 ## Saved views
 

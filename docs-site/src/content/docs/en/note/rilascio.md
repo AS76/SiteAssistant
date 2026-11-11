@@ -11,7 +11,7 @@ This page describes the currently published version. It is deliberately explicit
 - Self-service access request and password reset, with approval by an owner.
 - Per-site roles: `owner`, `editor`, `verifier`, `viewer`.
 - Site creation reserved to owners; unique code.
-- Tasks with separate executor and reviewer, priority, due date, area and company.
+- Tasks with separate executor and reviewer, priority, due date, area, company and ordinary or corrective type.
 - Status transitions with notes and reasons, full history.
 - Separate review: whoever executes cannot close their own work.
 - Diary per operational day and shift, with plan, actual results, blockers and next step.
@@ -19,6 +19,7 @@ This page describes the currently published version. It is deliberately explicit
 - **Project structure (WBS)** read-only view: tree and flat table.
 - **Deviations**, **Site progress**, **Time bookings** and **Cost impacts** views.
 - **Tools** view: a register by contractor, status and location, with create, edit and delete in the interface.
+- **Fitness** view: employee qualifications, medical checks and training, with expiry, days left and a computed status; owners, editors and verifiers read it, owners and editors write.
 - Site progress with weighted step types: weights must total 100; completion is recorded in the application.
 - Overview with four indicators, a deviations donut, progress by section and hours per week.
 - planning export import from the interface, with preview and confirmation, for six data families.
@@ -47,7 +48,7 @@ This page describes the currently published version. It is deliberately explicit
 - Acceptance criteria, long descriptions, checklists.
 - Signatures in the interface.
 - Notifications, calendar, planning and maps.
-- Offline operation of the core module views (Deviations, Site progress, Time bookings, Cost impacts, Tools): they require a connection.
+- Offline operation of the core module views (Deviations, Site progress, Time bookings, Cost impacts, Tools, Fitness): they require a connection.
 - Connectors to ERP, Primavera P6 or other systems.
 - Server-generated PDF reports.
 
@@ -66,6 +67,7 @@ This page describes the currently published version. It is deliberately explicit
 - The data assistant reads the selected site's data and writes nothing; it requires a connection.
 - The link between progress and WBS exists only with a unique match of PLC area and section: without a match the item stays unlinked.
 - Tools have no history: edits and deletions are immediate, and a deletion leaves no copy of the row.
+- Employee certifications have no history either: deletion is immediate and leaves no copy. The `viewer` role does not read them.
 - Deviation statuses come from the source system; an unrecognised status stays empty instead of being interpreted.
 
 :::caution[Data]

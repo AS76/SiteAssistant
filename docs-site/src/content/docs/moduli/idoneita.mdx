@@ -1,0 +1,76 @@
+---
+title: Idoneità
+description: Abilitazioni, visite mediche e formazione dei dipendenti, con scadenze e giorni residui.
+---
+
+La vista **Idoneità** raccoglie le certificazioni dei dipendenti del cantiere selezionato: abilitazioni, visite mediche, corsi di formazione e altri attestati, ciascuno con ente o medico, data di rilascio, scadenza ed esito.
+
+A differenza dei dati che arrivano dai sistemi di cantiere, le certificazioni si inseriscono e si mantengono dall'applicazione. Lo stato non è un campo salvato: viene calcolato dalla data di scadenza ogni volta che l'elenco viene letto, quindi non c'è nulla da riallineare.
+
+## Consultare le idoneità
+
+A cosa serve: sapere chi è idoneo, con quale attestato e fino a quando.
+
+1. Apri **Idoneità** dalla navigazione, nel gruppo **Gestione**.
+2. Leggi i quattro contatori in alto: **Scadute**, **In scadenza**, **Valide** e **Senza scadenza**.
+3. Restringi l'elenco con i menu **Dipendente**, **Categoria** e **Stato**.
+4. Leggi la tabella: **Dipendente**, **Categoria**, **Certificato**, **Ente o medico**, **Rilascio**, **Scadenza**, **Giorni residui** e **Stato**.
+5. Clicca un'intestazione per ordinare: il primo clic ordina in modo crescente, il secondo in modo decrescente.
+6. Svuota i tre menu per tornare all'elenco completo.
+
+L'elenco parte ordinato per scadenza; le certificazioni senza scadenza stanno in fondo. I quattro contatori contano tutte le certificazioni del cantiere, non solo quelle che passano dai filtri. Nella colonna **Giorni residui** una certificazione già scaduta mostra da quanti giorni è scaduta.
+
+## Gli stati
+
+| Stato | Significato |
+| :-- | :-- |
+| Scaduta | La data di scadenza è passata |
+| In scadenza | Scade entro 30 giorni |
+| Valida | Scade tra più di 30 giorni |
+| Senza scadenza | Nessuna data di scadenza |
+
+La soglia di **30 giorni** è quella predefinita usata dall'interfaccia. Il calcolo avviene al momento della lettura: una certificazione diventa **In scadenza** e poi **Scaduta** da sola, senza che nessuno debba aggiornare la riga. Per usare una soglia diversa vedi [API REST](../../riferimento/api/#idoneita).
+
+## Aggiungere o modificare una certificazione
+
+Owner ed editor vedono il pulsante **Nuova certificazione**.
+
+1. Premi **Nuova certificazione**.
+2. Scegli il **Dipendente** dall'elenco dei dipendenti del cantiere.
+3. Scegli la **Categoria**: **Abilitazione**, **Visita medica**, **Formazione** o **Altro**.
+4. Scrivi il **Certificato**, obbligatorio, da 1 a 120 caratteri.
+5. Aggiungi, se servono, **Ente o medico** (fino a 200 caratteri), **Rilascio**, **Scadenza**, **Esito** (fino a 500 caratteri) e **Note** (fino a 2000 caratteri).
+6. Premi **Salva certificazione**. La finestra si chiude, i contatori e l'elenco si aggiornano e compare il messaggio «Certificazione salvata».
+
+Per correggere una riga, premi **Modifica** sulla riga stessa: si apre la stessa finestra con i valori attuali e il pulsante diventa **Salva modifiche**.
+
+La **scadenza** non può precedere il **rilascio**: se le due date sono invertite il salvataggio viene rifiutato. Una certificazione senza scadenza resta **Senza scadenza** e non genera avvisi.
+
+## Eliminare una certificazione
+
+1. Premi **Elimina** sulla riga.
+2. Controlla nome, dipendente ed eventuale scadenza indicati nella conferma.
+3. Conferma con **Elimina**.
+
+L'eliminazione è immediata e definitiva: l'applicazione non conserva una copia della riga e non tiene uno storico delle modifiche. Se l'attestato deve restare consultabile, correggine i dati invece di eliminarlo.
+
+## Chi può fare cosa
+
+| Azione | Ruolo |
+| :-- | :-- |
+| Consultare le idoneità | owner, editor, verifier |
+| Aggiungere, modificare o eliminare una certificazione | owner, editor |
+
+Le certificazioni sono dati personali: il ruolo `viewer` non le consulta. La vista compare nella navigazione, ma per un viewer il caricamento dell'elenco viene rifiutato dal server.
+
+:::caution[Se qualcosa non torna]
+- **Non vedo i dati o compare un errore:** il tuo ruolo sul cantiere è `viewer`; la lettura è riservata a owner, editor e verificatori. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/).
+- **Non vedo i pulsanti:** solo owner ed editor scrivono; i verificatori consultano soltanto.
+- **Il dipendente non compare nell'elenco:** il menu propone i dipendenti del cantiere; una persona che non è tra le presenze del cantiere non si può selezionare.
+- **«La certificazione non è più disponibile»:** qualcun altro l'ha eliminata. Chiudi la finestra e ricarica l'elenco.
+- **I contatori non seguono i filtri:** è voluto; contano tutte le certificazioni del cantiere.
+- **Offline:** la vista richiede la connessione, come le altre viste dei moduli; senza rete non si consultano né si modificano le certificazioni.
+- **Elenco vuoto:** il cantiere non ha ancora certificazioni, oppure i tre filtri si sommano; azzera dipendente, categoria e stato.
+:::
+
+Le stesse righe sono disponibili via API, con gli endpoint `/api/certifications`: vedi [API REST](../../riferimento/api/#idoneita).

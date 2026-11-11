@@ -17,7 +17,7 @@ A cosa serve: mettere in cantiere un lavoro con qualcuno che lo esegue e qualcun
 1. Apri **Attività** e premi **Nuova attività**.
 2. Compila titolo, area e impresa.
 3. Scegli **esecutore** e **verificatore**: devono essere due persone diverse.
-4. Scegli la **priorità** e, se serve, la **scadenza**.
+4. Scegli il **tipo** — **Ordinaria** o **Correttiva** — la **priorità** e, se serve, la **scadenza**.
 5. Premi **Salva**: l'attività nasce in stato `todo` e compare nella colonna **Da fare**.
 
 | Campo | Obbligatorio | Note |
@@ -27,6 +27,7 @@ A cosa serve: mettere in cantiere un lavoro con qualcuno che lo esegue e qualcun
 | Impresa | No | Massimo 100 caratteri |
 | Esecutore | Sì | Chi esegue il lavoro |
 | Verificatore | Sì | Chi controlla e chiude il lavoro |
+| Tipo | No | **Ordinaria** (predefinito) o **Correttiva** |
 | Priorità | Sì | `normal`, `high`, `urgent` |
 | Scadenza | No | Data, già impostata a oggi |
 
@@ -37,6 +38,15 @@ A cosa serve: mettere in cantiere un lavoro con qualcuno che lo esegue e qualcun
 - **Campi obbligatori vuoti:** il modulo segnala l'errore sopra i pulsanti e porta il focus sul primo campo da correggere.
 - **Attività creata ma non visibile:** controlla i filtri della bacheca e il cantiere selezionato.
 :::
+
+## Attività ordinarie e correttive
+
+Il **tipo** distingue il lavoro previsto dall'intervento che corregge qualcosa:
+
+- **Ordinaria**: il lavoro pianificato. È il valore predefinito e non viene memorizzato come tipo, quindi le attività create prima di questa classificazione restano ordinarie.
+- **Correttiva**: un intervento che corregge un difetto o una non conformità. Sulle schede della bacheca compare il badge **Correttiva**.
+
+Il tipo si sceglie alla creazione e non si modifica dopo: le attività non sono modificabili. Il filtro **Tipo** nella barra dei filtri vale per la bacheca, per l'elenco e per l'esportazione CSV, che ha una colonna **Tipo** con l'etichetta tradotta.
 
 ## Gli stati
 
@@ -106,7 +116,7 @@ Nel dettaglio di un'attività puoi allegare foto o PDF, fino a **15 MiB** per fi
   <figcaption>A sinistra la bacheca, con le colonne per stato; a destra l'elenco, con una riga per attività.</figcaption>
 </figure>
 
-La **bacheca** raggruppa le attività per stato, l'**elenco** le ordina per scadenza e priorità. Da entrambe si apre il dettaglio con i campi e la cronologia completa. I filtri (testo, stato, esecutore, priorità) si applicano a entrambe le viste e all'esportazione CSV.
+La **bacheca** raggruppa le attività per stato, l'**elenco** le ordina per scadenza e priorità. Da entrambe si apre il dettaglio con i campi e la cronologia completa. I filtri (testo, stato, esecutore, priorità, tipo) si applicano a entrambe le viste e all'esportazione CSV.
 
 ## Viste salvate
 

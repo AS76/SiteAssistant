@@ -11,7 +11,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Richiesta autonoma di accesso e reset password, con approvazione da parte di un owner.
 - Ruoli per cantiere: `owner`, `editor`, `verifier`, `viewer`.
 - Creazione di cantieri riservata agli owner; codice univoco.
-- Attività con esecutore e verificatore separati, priorità, scadenza, area e impresa.
+- Attività con esecutore e verificatore separati, priorità, scadenza, area, impresa e tipo ordinaria o correttiva.
 - Transizioni di stato con note e motivazioni, cronologia completa.
 - Verifica separata: chi esegue non può chiudere il proprio lavoro.
 - Diario per giorno operativo e turno, con piano, consuntivo, impedimenti e prossimo passo.
@@ -19,6 +19,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Vista **Struttura progetto (WBS)** in sola lettura: albero e tabella piatta.
 - Viste **Deviazioni**, **Avanzamento**, **Prenotazioni ore** e **Impatti economici**.
 - Vista **Attrezzature**: registro per appaltatore, stato e posizione, con inserimento, modifica ed eliminazione dall'interfaccia.
+- Vista **Idoneità**: abilitazioni, visite mediche e formazione dei dipendenti, con scadenza, giorni residui e stato calcolato; leggono owner, editor e verificatori, scrivono owner ed editor.
 - Avanzamento con tipi a step ponderati: i pesi devono sommare 100; il completamento si registra dall'applicazione.
 - Panoramica con quattro indicatori, ciambella delle deviazioni, avanzamento per sezione e ore per settimana.
 - Import degli export planning dall'interfaccia, con anteprima e conferma, per sei famiglie di dati.
@@ -47,7 +48,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Criteri di accettazione, descrizioni lunghe, checklist.
 - Firme nell'interfaccia.
 - Notifiche, calendario, pianificazione e mappe.
-- Funzionamento offline delle viste dei moduli core (Deviazioni, Avanzamento, Prenotazioni ore, Impatti economici, Attrezzature): richiedono la connessione.
+- Funzionamento offline delle viste dei moduli core (Deviazioni, Avanzamento, Prenotazioni ore, Impatti economici, Attrezzature, Idoneità): richiedono la connessione.
 - Connettori verso ERP, Primavera P6 o altri sistemi.
 - Report PDF generati dal server.
 
@@ -67,6 +68,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Il collegamento tra avanzamento e WBS avviene solo con una corrispondenza univoca di area PLC e sezione: senza corrispondenza la voce resta scollegata.
 - Gli stati delle deviazioni arrivano dal sistema di origine; uno stato non riconosciuto resta vuoto invece di essere interpretato.
 - Le attrezzature non hanno storico: modifica ed eliminazione sono immediate e l'eliminazione non lascia una copia della riga.
+- Anche le certificazioni dei dipendenti non hanno storico: l'eliminazione è immediata e non lascia una copia. Il ruolo `viewer` non le consulta.
 
 :::caution[Dati]
 La versione attuale è una demo operativa con dati di prova. Non inserire informazioni riservate, credenziali o dati contrattuali.

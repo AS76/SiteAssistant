@@ -1,0 +1,76 @@
+---
+title: Fitness
+description: Employee qualifications, medical checks and training, with expiry and days left.
+---
+
+The **Fitness** view collects the certifications of the employees on the selected site: qualifications, medical checks, training courses and other certificates, each with issuer or doctor, issue date, expiry and outcome.
+
+Unlike the data that comes from the site systems, certifications are created and maintained in the application. The status is not a stored field: it is computed from the expiry date every time the list is read, so there is nothing to re-align.
+
+## Reading the certifications
+
+What it is for: knowing who is fit, with which certificate and until when.
+
+1. Open **Fitness** from the navigation, in the **Management** group.
+2. Read the four counters at the top: **Expired**, **Expiring**, **Valid** and **No expiry**.
+3. Narrow the list with the **Employee**, **Category** and **Status** menus.
+4. Read the table: **Employee**, **Category**, **Certificate**, **Issuer or doctor**, **Issued**, **Expires**, **Days left** and **Status**.
+5. Click a header to sort: the first click sorts ascending, the second descending.
+6. Clear the three menus to go back to the full list.
+
+The list starts sorted by expiry; certificates without an expiry date go last. The four counters count every certification on the site, not only those that pass the filters. In the **Days left** column an already expired certificate shows how many days ago it expired.
+
+## The statuses
+
+| Status | Meaning |
+| :-- | :-- |
+| Expired | The expiry date is in the past |
+| Expiring | Expires within 30 days |
+| Valid | Expires in more than 30 days |
+| No expiry | No expiry date |
+
+The **30 days** threshold is the default used by the interface. The calculation happens at read time: a certificate becomes **Expiring** and then **Expired** on its own, without anyone updating the row. For a different threshold see [REST API](../../riferimento/api/#fitness).
+
+## Adding or editing a certificate
+
+Owners and editors see the **New certificate** button.
+
+1. Press **New certificate**.
+2. Choose the **Employee** from the employees of the site.
+3. Choose the **Category**: **Qualification**, **Medical check**, **Training** or **Other**.
+4. Type the **Certificate**, required, from 1 to 120 characters.
+5. Add **Issuer or doctor** (up to 200 characters), **Issued**, **Expires**, **Outcome** (up to 500 characters) and **Notes** (up to 2000 characters) if you need them.
+6. Press **Save certificate**. The window closes, the counters and the list refresh and the message “Certificate saved.” appears.
+
+To correct a row, press **Edit** on the row itself: the same window opens with the current values and the button becomes **Save changes**.
+
+The **expiry** date cannot precede the **issue** date: if the two dates are swapped the save is rejected. A certificate without an expiry date stays **No expiry** and raises no warnings.
+
+## Deleting a certificate
+
+1. Press **Delete** on the row.
+2. Check the name, employee and expiry shown in the confirmation.
+3. Confirm with **Delete**.
+
+Deletion is immediate and permanent: the application keeps no copy of the row and no history of changes. If the certificate must stay readable, correct its data instead of deleting it.
+
+## Who can do what
+
+| Action | Role |
+| :-- | :-- |
+| Read the certifications | owner, editor, verifier |
+| Add, edit or delete a certificate | owner, editor |
+
+Certifications are personal records: the `viewer` role does not read them. The view appears in the navigation, but for a viewer the server refuses to load the list.
+
+:::caution[If something does not add up]
+- **I cannot see the data, or an error appears:** your role on the site is `viewer`; reading is reserved to owners, editors and verifiers. See [Users and roles](../../amministrazione/utenti-e-ruoli/).
+- **I cannot see the buttons:** only owners and editors write; verifiers only read.
+- **The employee is not in the list:** the menu offers the employees of the site; a person who is not among the site attendance records cannot be selected.
+- **“This certificate is no longer available”:** someone else deleted it. Close the window and reload the list.
+- **The counters do not follow the filters:** that is intentional; they count every certification on the site.
+- **Offline:** the view requires a connection, like the other module views; without a network you can neither read nor edit certifications.
+- **Empty list:** the site has no certifications yet, or the three filters add up; clear employee, category and status.
+:::
+
+The same rows are available through the API, with the `/api/certifications` endpoints: see [REST API](../../riferimento/api/#fitness).

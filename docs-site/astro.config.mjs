@@ -56,6 +56,7 @@ export default defineConfig({
             { label: 'Prenotazioni ore', translations: { en: 'Time bookings' }, slug: 'moduli/prenotazioni-ore' },
             { label: 'Impatti economici', translations: { en: 'Cost impacts' }, slug: 'moduli/impatti-economici' },
             { label: 'Attrezzature', translations: { en: 'Tools' }, slug: 'moduli/attrezzature' },
+            { label: 'Idoneità', translations: { en: 'Fitness' }, slug: 'moduli/idoneita' },
             { label: 'Diario di cantiere', translations: { en: 'Site diary' }, slug: 'moduli/diario' },
           ],
         },

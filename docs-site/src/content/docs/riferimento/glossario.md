@@ -7,6 +7,8 @@ description: Terminologia italiana e inglese usata in SiteAssistant.
 | :-- | :-- | :-- |
 | Cantiere | Site | Unità organizzativa che raccoglie attività e diario |
 | Attività | Task | Unità di lavoro con esecutore e verificatore distinti |
+| Tipo di attività | Task type | Classificazione dell'attività: ordinaria (predefinita) o correttiva |
+| Idoneità | Fitness | Certificazione di un dipendente: abilitazione, visita medica, formazione o altro attestato |
 | Esecutore | Executor | Chi esegue materialmente l'attività |
 | Verificatore | Verifier | Chi controlla e chiude il lavoro |
 | Sottomissione | Submission | Passaggio a `to_verify` con nota di esecuzione |
