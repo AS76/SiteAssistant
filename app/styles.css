@@ -240,3 +240,9 @@ footer{font-size:11px}
 .view-checkbox input[type=checkbox] { min-width: 18px; width: 18px; height: 18px; padding: 0; accent-color: var(--green); }
 .saved-view-sharing { margin-top: 16px; }
 @media print { .saved-views, .task-list-controls { display: none !important; } }
+/* Keep filter labels readable on a phone: two selects per row instead of ellipsis. */
+@media (max-width: 520px) {
+  .toolbar select { flex: 1 1 46%; min-width: 0; }
+  .diary-toolbar { row-gap: 10px; }
+  .diary-toolbar .badge { white-space: normal; max-width: 100%; }
+}
