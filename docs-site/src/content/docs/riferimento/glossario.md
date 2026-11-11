@@ -27,6 +27,10 @@ description: Terminologia italiana e inglese usata in SiteAssistant.
 | Tipo di avanzamento | Progress type | Insieme di step con pesi che definisce come si misura una voce |
 | Peso dello step | Step weight | Percentuale di una voce assegnata a uno step; la somma deve essere 100 |
 | Storico avanzamento | Progress history | Registrazioni in sola aggiunta da cui si calcolano le curve |
+| Ore pianificate | Planned hours | Ore previste per una voce di avanzamento; se assenti si usano quelle del nodo WBS collegato |
+| Earned value | Earned value | Blocco EV, PV, AC, CPI e SPI calcolato dalle ore pianificate e dalle ore prenotate |
+| Mappatura colonne | Column mapping | Alias e campi di identità configurati per cantiere e famiglia di import |
+| Identità di riga | Row identity | Campi che riconoscono una riga tra un import e il successivo |
 | Import planning | planning import | Caricamento di un export xlsx con anteprima e conferma, senza cancellazioni |
 | Assistente dati | Data assistant | Pannello di domande sui dati del cantiere, in sola lettura |
 | Impostazioni | Settings | Valuta, decimali e separatori degli importi, salvati nel browser |

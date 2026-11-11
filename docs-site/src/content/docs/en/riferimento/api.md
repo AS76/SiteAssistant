@@ -74,7 +74,8 @@ Progress items imported from the site system are visible in the **Site progress*
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/site-progress?site_id=&wbs_id=` | member | Site items; optional filter by WBS item |
-| GET | `/api/site-progress/{id}` | member | Item with `booked_hours` (sum of booked hours) and its steps |
+| GET | `/api/site-progress/{id}` | member | Item with `booked_hours` (sum of booked hours), `planned_hours` and its steps |
+| PATCH | `/api/site-progress/{id}` | owner/editor | `{ planned_hours }`: updates the planned hours only |
 | POST | `/api/site-progress/import` | owner | Promotes a progress snapshot |
 | GET | `/api/progress-types?site_id=` | member | Site progress types |
 | POST | `/api/progress-types` | owner | Creates a type; step weights must total 100 |
@@ -82,9 +83,11 @@ Progress items imported from the site system are visible in the **Site progress*
 | PATCH | `/api/site-progress/{id}/progress-type` | owner | Assigns or removes a type (`progress_type_id`) |
 | PUT | `/api/site-progress/{id}/steps` | owner/editor | `{ steps: [{ step_id, percent }] }`; appends a history record |
 
-Each item reports description, PLC area, section, progress and planned progress, delta, assignee, planned and actual dates, expected delay and the `has_files`, `has_notes`, `has_deviations` flags. When the item is linked to a WBS node, the response also includes the node's `wbs_code` and `wbs_description`; without a link both fields are `null`. The item is linked to a WBS node only when PLC area and section identify **a single** node; in every other case the item stays unlinked.
+Each item reports description, PLC area, section, progress and planned progress, delta, assignee, planned and actual dates, expected delay, `planned_hours`, `booked_hours` and the `has_files`, `has_notes`, `has_deviations` flags. When the item is linked to a WBS node, the response also includes the node's `wbs_code` and `wbs_description`; without a link both fields are `null`. The item is linked to a WBS node only when PLC area and section identify **a single** node; in every other case the item stays unlinked. `planned_hours` is a number or `null`; when it is `null`, earned value uses the hours of the linked WBS node, when present.
 
 A progress type is a list of steps with a weight. The weights must total **100**, otherwise creation is rejected with `WEIGHTS_NOT_100`. When an item has a type assigned, the returned progress is `computed` (weighted average of the steps); with no recorded step it is `0`, not the imported value. Every `PUT` inserts a row in `progress_entries`: the history is never rewritten and the curves are calculated from it.
+
+`PATCH /api/site-progress/{id}` accepts only `{ planned_hours }`, with a number between **0** and **1000000** or `null` to fall back to the WBS node hours. Any other field is rejected with `VALIDATION_ERROR`; access is reserved to site owners and editors.
 
 ## Deviations
 
@@ -154,13 +157,15 @@ Employee certifications are managed from the **Fitness** view. Reading is open t
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/dashboard?site_id=` | member | Four indicators, deviations by status, progress by section, hours per week |
-| GET | `/api/report?site_id=` | member | Two tables: progress and deviations by macro-area |
+| GET | `/api/dashboard?site_id=` | member | Four indicators, earned value, deviations by status, progress by section, hours per week |
+| GET | `/api/report?site_id=` | member | Two tables and an earned value block: progress and deviations by macro-area |
 | POST | `/api/assistant/chat` | member | `{ site_id, messages, view, language }`; read-only answer with citations |
 
-The dashboard computes values from the site tables: deviations by status, average effective progress by section (with planned), hours per week and claim amounts. The per-section average also includes items without a progress type, using their imported value. The assistant answers in the requested language (`it` or `en`) and cites records with `family`, `id` and `label`; if the provider is not configured it returns `503 ASSISTANT_NOT_CONFIGURED`.
+The dashboard computes values from the site tables: deviations by status, average effective progress by section (with planned), hours per week, claim amounts and the `earnedValue` block. The per-section average also includes items without a progress type, using their imported value. The assistant answers in the requested language (`it` or `en`) and cites records with `family`, `id` and `label`; if the provider is not configured it returns `503 ASSISTANT_NOT_CONFIGURED`.
 
-`/api/report` returns the data of the printable report: `site` with `code` and `name`, `generated_at` in UTC, `progress` and `deviations`. Each `progress` row has `area`, `items`, `actual`, `planned` and `source` (`computed`, `imported` or `mixed`); each `deviations` row has `area`, `total`, `open`, `closed` and `by_status` with `{ status, count }`. Deviations are grouped by PLC area (`plc_area`, otherwise `Senza sezione`) and sorted by total descending; `closed` adds `closed` and `rejected`, while a missing status stays open.
+`/api/report` returns the data of the printable report: `site` with `code` and `name`, `generated_at` in UTC, `progress`, `deviations` and `earnedValue`. Each `progress` row has `area`, `items`, `actual`, `planned` and `source` (`computed`, `imported` or `mixed`); each `deviations` row has `area`, `total`, `open`, `closed` and `by_status` with `{ status, count }`. Deviations are grouped by PLC area (`plc_area`, otherwise `Senza sezione`) and sorted by total descending; `closed` adds `closed` and `rejected`, while a missing status stays open.
+
+`earnedValue` has `available` (false when planned hours are missing, with `reason: "NO_PLANNED_HOURS"`), `bac_hours`, `ev_hours`, `pv_hours`, `ac_hours`, `cpi`, `spi`, `items_total`, `items_without_hours` and `by_section` (with `section`, `ev_hours`, `pv_hours`, `bac_hours` and `cpi`). BAC is the sum of the planned hours of the items or linked WBS nodes; `EV = BAC × actual progress / 100`, `PV = BAC × planned progress / 100`, `AC` is the sum of booked hours; `CPI = EV / AC` and `SPI = EV / PV`, `null` when the denominator is zero or missing.
 
 ## planning export import
 
@@ -168,8 +173,13 @@ The dashboard computes values from the site tables: deviations by status, averag
 | :-- | :-- | :-- | :-- |
 | POST | `/api/import/preview` | owner/editor | `{ site_id, family, filename, data_base64 }`; writes nothing |
 | POST | `/api/import/apply` | owner/editor | Same as above, plus `preview_token` |
+| GET | `/api/import-mappings?site_id=` | owner/editor | One entry per family: `family`, `aliases`, `identity`, `custom`, `columns`, `required`, `fields` |
+| PUT | `/api/import-mappings` | owner/editor | `{ site_id, family, aliases, identity }`; saves or replaces the mapping |
+| DELETE | `/api/import-mappings/{family}?site_id=` | owner/editor | Removes the saved mapping and returns to the defaults |
 
-`family` is `employees`, `work_days`, `time_schedule`, `site_progress_items`, `deviations` or `daily_log`. The file is an xlsx up to **20 MiB**, sent in base64. The preview returns the `added`, `updated`, `unchanged`, `removed`, `rejected` counts, samples of rejected rows and a `preview_token` valid for **15 minutes**. The application checks that the file and family match the preview; missing rows are never deleted and the applied `removed` count is always zero.
+`family` is `employees`, `work_days`, `time_schedule`, `site_progress_items`, `deviations` or `daily_log`. The file is an xlsx up to **20 MiB**, sent in base64. The preview returns the `added`, `updated`, `unchanged`, `removed`, `rejected` counts, samples of rejected rows and a `preview_token` valid for **15 minutes**. The application checks that file, family, rows and mapping match the preview; missing rows are never deleted and the applied `removed` count is always zero.
+
+The mapping is per site and family and also applies to API calls: `aliases` maps each field to a list of alternative headers, `identity` lists in order the fields that identify the row. Aliases must be unique, non-empty and at most **80 characters**; `identity` must contain at least one field, without duplicates. An invalid mapping is rejected with `MAP_INVALID`; an alias and a canonical column disagreeing on the same field with `AMBIGUOUS_COLUMNS`. If the mapping changes after the preview, confirmation is rejected with `PREVIEW_MISMATCH` (409).
 
 ## Attachments
 
@@ -192,7 +202,7 @@ The **tasks**, **diary**, **deviations**, **site progress** and **time bookings*
 
 ## Errors
 
-Error responses have the shape `{ "error": "message", "code": "CODE" }`. The most common codes: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` and `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `TIME_BOOKING_DUPLICATE` (409), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
+Error responses have the shape `{ "error": "message", "code": "CODE" }`. The most common codes: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` and `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `TIME_BOOKING_DUPLICATE` (409), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `MAP_INVALID` (400), `AMBIGUOUS_COLUMNS` (400), `PREVIEW_MISMATCH`/`PREVIEW_EXPIRED` (409), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
 
 :::note
 The API does not expose an OpenAPI schema: the tables above are the current contract. For the full data schema see `database/README.md` in the repository.

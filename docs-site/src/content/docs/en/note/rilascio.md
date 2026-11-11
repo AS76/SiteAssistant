@@ -20,9 +20,10 @@ This page describes the currently published version. It is deliberately explicit
 - **Deviations**, **Site progress**, **Time bookings** and **Cost impacts** views.
 - **Tools** view: a register by contractor, status and location, with create, edit and delete in the interface.
 - **Fitness** view: employee qualifications, medical checks and training, with expiry, days left and a computed status; owners, editors and verifiers read it, owners and editors write.
-- Site progress with weighted step types: weights must total 100; completion is recorded in the application.
-- Overview with four indicators, a deviations donut, progress by section and hours per week.
-- planning export import from the interface, with preview and confirmation, for six data families.
+- Site progress with weighted step types: weights must total 100; completion is recorded in the application. Each item has **planned hours** of its own or from the linked WBS node.
+- **Earned value** on the Overview and in the report: EV, PV and AC in hours, with CPI and SPI, calculated from planned hours and booked hours.
+- Overview with four indicators, a deviations donut, progress by section, hours per week and an earned value panel.
+- planning export import from the interface, with preview and confirmation, for six data families and with per-site column mapping.
 - Read-only data assistant, with record citations.
 - Settings for currency, decimals and separators on amounts.
 - Sortable tables, optional column filters and cards on phones.
@@ -44,7 +45,7 @@ This page describes the currently published version. It is deliberately explicit
 ## Not available
 
 - Editing or deleting sites, tasks and diary entries.
-- Editing or deleting imported data: progress, deviations and attendance stay read-only.
+- Editing or deleting imported data: progress, deviations and attendance stay read-only, except the planned hours of progress items.
 - Acceptance criteria, long descriptions, checklists.
 - Signatures in the interface.
 - Notifications, calendar, planning and maps.
@@ -62,8 +63,9 @@ This page describes the currently published version. It is deliberately explicit
 - The language switch translates the interface, not the entered content.
 - Attachments in the interface and via API are limited to **15 MiB** and to images and PDF only.
 - The planning import does not delete rows missing from the file and cannot be undone from the interface.
+- The column mapping is per site and family: it is not inherited across sites and does not add fields to the model.
 - The currency in Settings changes the symbol and format, it does not convert amounts.
-- The import preview is valid for 15 minutes: after that, it must be repeated.
+- The import preview is valid for 15 minutes: after that, it must be repeated. Changing the file or the mapping invalidates it immediately.
 - The data assistant reads the selected site's data and writes nothing; it requires a connection.
 - The link between progress and WBS exists only with a unique match of PLC area and section: without a match the item stays unlinked.
 - Tools have no history: edits and deletions are immediate, and a deletion leaves no copy of the row.

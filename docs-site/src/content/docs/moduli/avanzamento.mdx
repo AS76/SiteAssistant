@@ -39,11 +39,12 @@ Il dettaglio mostra:
 - l'assegnatario;
 - l'avanzamento e l'avanzamento pianificato;
 - lo scostamento calcolato dalla sorgente;
+- le ore pianificate, se presenti;
 - le ore prenotate;
 - inizio e fine pianificati, inizio effettivo e ritardo previsto;
 - i contrassegni **File presenti**, **Note presenti** e **Deviazioni presenti**.
 
-I campi importati sono in sola lettura. L'unico dato che scrivi è il completamento degli step.
+I campi importati sono in sola lettura, tranne le **ore pianificate**, che owner ed editor possono impostare. Il completamento degli step resta l'altro dato che scrivi.
 
 ## Tipi di avanzamento e pesi
 
@@ -74,18 +75,40 @@ Ogni salvataggio aggiunge una registrazione allo **storico**. Lo storico non vie
 - **Ruolo insufficiente:** registrare gli step è riservato a owner ed editor; consultare il dettaglio è consentito a tutti i membri.
 :::
 
+## Ore pianificate
+
+A cosa serve: dare a una voce le ore previste, senza le quali l'earned value del cantiere non è calcolabile.
+
+1. Apri il dettaglio della voce di avanzamento.
+2. Nel campo **Ore pianificate** inserisci un numero non negativo.
+3. Lascia il campo vuoto per usare le ore del nodo WBS collegato, quando il nodo ne ha.
+4. Premi **Salva**.
+
+Le ore pianificate possono arrivare anche dall'export planning (colonne `Planned Hours` o `Planned Hours Total`) oppure essere impostate qui. Non cambiano l'avanzamento importato né gli step. Owner ed editor possono modificarle; gli altri membri le leggono nel dettaglio. Il valore ammesso va da 0 a 1.000.000.
+
+Le ore pianificate alimentano il blocco **Earned value** della Panoramica e del report: se nessuna voce del cantiere ha ore pianificate, il blocco non mostra numeri e segnala che le ore mancano.
+
+:::caution[Se il campo delle ore non c'è]
+- **Ruolo insufficiente:** solo owner ed editor vedono il modulo di modifica; per gli altri il valore è in sola lettura.
+- **Valore rifiutato:** usa un numero tra 0 e 1.000.000, oppure lascia vuoto per usare il nodo WBS.
+- **Ore del nodo assenti:** se la voce non ha ore proprie e il nodo WBS collegato non ne ha, la voce resta senza ore pianificate e viene esclusa dall'earned value.
+:::
+
 ## Report del cantiere
 
 A cosa serve: portare su carta, o in un foglio di calcolo, lo stato di avanzamento e le deviazioni del cantiere.
 
 Il pulsante **Stampa PDF** compare nella **Panoramica** e nella vista **Avanzamento**. Apre la vista **Report del cantiere** e, quando i dati sono caricati, avvia la stampa del browser: nella finestra di stampa scegli «Salva come PDF». Non esiste un PDF generato dal server.
 
-Il report contiene due tabelle:
+Il report contiene due tabelle e un blocco **Earned value**:
 
 - **Cockpit · effettivo e pianificato** — per ogni macro-area: numero di elementi, avanzamento effettivo, avanzamento pianificato e origine del valore (**Calcolato**, **Importato** o **Misto**).
+- **Earned value** — EV, PV e AC in ore, con CPI e SPI. L'EV è il valore guadagnato, il PV il valore pianificato e l'AC il costo effettivo, pari alle ore prenotate; CPI è EV diviso AC e SPI è EV diviso PV.
 - **Deviazioni** — per ogni macro-area: totale, aperte, chiuse o respinte e conteggio per stato.
 
 L'effettivo di una macro-area è la media delle sue voci: quelle con un tipo di avanzamento usano il valore calcolato dagli step, le altre il valore importato. Le voci senza un valore mostrano **Non disponibile**; nel CSV la cella resta vuota.
+
+L'earned value usa le ore pianificate delle voci o, quando la voce non ne ha, quelle del nodo WBS collegato. `EV = ore pianificate × avanzamento effettivo / 100`, `PV = ore pianificate × avanzamento pianificato / 100`, `AC = ore prenotate`. Se il cantiere non ha nessuna ora pianificata, al posto dei numeri compare un avviso (`NO_PLANNED_HOURS`); le voci prive di ore sono escluse e il loro numero è indicato sotto il blocco. CPI e SPI restano vuoti quando il denominatore è zero o manca.
 
 Le deviazioni sono raggruppate per **area PLC**, perché i dati importati non hanno zona né sezione; quelle senza area finiscono in **Senza sezione**. **Chiuse / respinte** somma gli stati `closed` e `rejected`: respinta è uno stato finale. Una deviazione con stato mancante resta tra le aperte.
 
@@ -117,12 +140,13 @@ I numeri sono grezzi, senza simbolo di percentuale; una cella resta vuota quando
 | Aprire, stampare ed esportare il report | Tutti i membri del cantiere |
 | Assegnare o togliere un tipo di avanzamento | owner |
 | Registrare il completamento degli step | owner, editor |
+| Impostare le ore pianificate di una voce | owner, editor |
 | Creare o eliminare un tipo di avanzamento | owner, solo via API |
 
 ## Cosa non è ancora disponibile
 
 - Creare o modificare un tipo di avanzamento dall'interfaccia.
-- Modificare i campi importati di una voce.
+- Modificare i campi importati di una voce, salvo le ore pianificate.
 - Creare o eliminare voci di avanzamento dall'interfaccia: arrivano dall'import.
 
 Per il rapporto tra avanzamento e struttura progetto vedi [Struttura progetto (WBS)](../wbs/). Per i dati grezzi vedi [API REST](../../riferimento/api/).

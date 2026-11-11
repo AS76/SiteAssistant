@@ -7,6 +7,10 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 11 novembre 2026
 
+- **Ore pianificate sulle voci di avanzamento.** Il dettaglio di una voce ha il campo **Ore pianificate**, modificabile da owner ed editor; vuoto, usa le ore del nodo WBS collegato quando presenti. Le ore alimentano l'earned value. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/#ore-pianificate).
+- **Earned value nella Panoramica e nel report.** Nuovo pannello con EV, PV e AC in ore, CPI e SPI, calcolati dalle ore pianificate e dalle ore prenotate; se mancano le ore pianificate il pannello lo segnala. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/#report-del-cantiere).
+- **Mappatura colonne negli import planning.** Ogni cantiere può configurare alias di colonna e campi di identità per famiglia; l'anteprima resta legata al file e alla mappatura, e si ripristinano i default quando serve. Vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/#mappatura-delle-colonne).
+
 - **Idoneità dei dipendenti.** Nuova vista **Idoneità**, nel gruppo **Gestione** della navigazione: abilitazioni, visite mediche, formazione e altri attestati, con ente o medico, rilascio, scadenza, giorni residui e stato calcolato dalla data — scaduta, in scadenza entro 30 giorni, valida o senza scadenza. Owner ed editor inseriscono, modificano ed eliminano; i verificatori consultano; i viewer non accedono perché sono dati personali. Vedi [Idoneità](../../moduli/idoneita/).
 - **Tipo delle attività: ordinaria o correttiva.** Il modulo di creazione ha il campo **Tipo**, la barra dei filtri il menu **Tipo**, le schede correttive il badge **Correttiva** e l'esportazione CSV una colonna **Tipo**. Vedi [Attività e verifiche](../../moduli/attivita/).
 - **Limiti e pagine nelle API.** Le richieste a `/api/` sono limitate a 600 al minuto per sessione e a 60 per indirizzo anonimo, con risposta `429` e `Retry-After`; le liste di attività, diario, deviazioni, avanzamento e ore si leggono a pagine con `limit` e `offset`, e il totale arriva nelle intestazioni. Vedi [API REST](../../riferimento/api/).

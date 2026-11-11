@@ -74,7 +74,8 @@ Le voci di avanzamento importate dal sistema di cantiere sono visibili nella vis
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/site-progress?site_id=&wbs_id=` | membro | Voci del cantiere; filtro opzionale per voce WBS |
-| GET | `/api/site-progress/{id}` | membro | Voce con `booked_hours` (somma delle ore prenotate) e gli step |
+| GET | `/api/site-progress/{id}` | membro | Voce con `booked_hours` (somma delle ore prenotate), `planned_hours` e gli step |
+| PATCH | `/api/site-progress/{id}` | owner/editor | `{ planned_hours }`: aggiorna solo le ore pianificate |
 | POST | `/api/site-progress/import` | owner | Promuove uno snapshot di avanzamento |
 | GET | `/api/progress-types?site_id=` | membro | Tipi di avanzamento del cantiere |
 | POST | `/api/progress-types` | owner | Crea un tipo; i pesi degli step devono sommare 100 |
@@ -82,9 +83,11 @@ Le voci di avanzamento importate dal sistema di cantiere sono visibili nella vis
 | PATCH | `/api/site-progress/{id}/progress-type` | owner | Assegna o toglie un tipo (`progress_type_id`) |
 | PUT | `/api/site-progress/{id}/steps` | owner/editor | `{ steps: [{ step_id, percent }] }`; aggiunge una registrazione allo storico |
 
-Ogni voce riporta descrizione, area PLC, sezione, avanzamento e avanzamento pianificato, scostamento, assegnatario, date pianificate ed effettive, ritardo atteso e i contrassegni `has_files`, `has_notes`, `has_deviations`. Quando la voce è collegata a un nodo WBS, la risposta include anche `wbs_code` e `wbs_description` del nodo; senza collegamento i due campi sono `null`. Il collegamento alla voce WBS avviene solo quando area PLC e sezione individuano **un solo** nodo; in tutti gli altri casi la voce resta senza collegamento.
+Ogni voce riporta descrizione, area PLC, sezione, avanzamento e avanzamento pianificato, scostamento, assegnatario, date pianificate ed effettive, ritardo atteso, `planned_hours`, `booked_hours` e i contrassegni `has_files`, `has_notes`, `has_deviations`. Quando la voce è collegata a un nodo WBS, la risposta include anche `wbs_code` e `wbs_description` del nodo; senza collegamento i due campi sono `null`. Il collegamento alla voce WBS avviene solo quando area PLC e sezione individuano **un solo** nodo; in tutti gli altri casi la voce resta senza collegamento. `planned_hours` è un numero o `null`; se è `null`, l'earned value usa le ore del nodo WBS collegato, quando presenti.
 
 Un tipo di avanzamento è un elenco di step con un peso. La somma dei pesi deve essere **100**, altrimenti la creazione è rifiutata con `WEIGHTS_NOT_100`. Se una voce ha un tipo assegnato, l'avanzamento restituito è `computed` (media pesata degli step); senza step registrati vale `0`, non il valore importato. Ogni `PUT` inserisce una riga in `progress_entries`: lo storico non viene riscritto e le curve si calcolano da lì.
+
+`PATCH /api/site-progress/{id}` accetta solo `{ planned_hours }`, con un numero tra **0** e **1000000** oppure `null` per tornare alle ore del nodo WBS. Qualsiasi altro campo è rifiutato con `VALIDATION_ERROR`; l'accesso è riservato a owner ed editor del cantiere.
 
 ## Deviazioni
 
@@ -154,13 +157,15 @@ Le certificazioni dei dipendenti si gestiscono dalla vista **Idoneità**. La let
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/dashboard?site_id=` | membro | Quattro indicatori, deviazioni per stato, avanzamento per sezione, ore per settimana |
-| GET | `/api/report?site_id=` | membro | Due tabelle: avanzamento e deviazioni per macro-area |
+| GET | `/api/dashboard?site_id=` | membro | Quattro indicatori, earned value, deviazioni per stato, avanzamento per sezione, ore per settimana |
+| GET | `/api/report?site_id=` | membro | Due tabelle e un blocco earned value: avanzamento e deviazioni per macro-area |
 | POST | `/api/assistant/chat` | membro | `{ site_id, messages, view, language }`; risposta in sola lettura con citazioni |
 
-La dashboard calcola i valori dalle tabelle del cantiere: deviazioni per stato, media dell'avanzamento effettivo per sezione (con il pianificato), ore per settimana e importi dei reclami. La media per sezione include anche le voci senza tipo di avanzamento, per le quali vale il valore importato. L'assistente risponde nella lingua richiesta (`it` o `en`) e cita i record con `family`, `id` e `label`; se il provider non è configurato risponde `503 ASSISTANT_NOT_CONFIGURED`.
+La dashboard calcola i valori dalle tabelle del cantiere: deviazioni per stato, media dell'avanzamento effettivo per sezione (con il pianificato), ore per settimana, importi dei reclami e blocco `earnedValue`. La media per sezione include anche le voci senza tipo di avanzamento, per le quali vale il valore importato. L'assistente risponde nella lingua richiesta (`it` o `en`) e cita i record con `family`, `id` e `label`; se il provider non è configurato risponde `503 ASSISTANT_NOT_CONFIGURED`.
 
-`/api/report` restituisce i dati del report stampabile: `site` con `code` e `name`, `generated_at` in UTC, `progress` e `deviations`. Ogni riga di `progress` ha `area`, `items`, `actual`, `planned` e `source` (`computed`, `imported` o `mixed`); ogni riga di `deviations` ha `area`, `total`, `open`, `closed` e `by_status` con `{ status, count }`. Le deviazioni sono raggruppate per area PLC (`plc_area`, altrimenti `Senza sezione`) e ordinate per totale decrescente; `closed` somma `closed` e `rejected`, mentre uno stato mancante resta aperto.
+`/api/report` restituisce i dati del report stampabile: `site` con `code` e `name`, `generated_at` in UTC, `progress`, `deviations` ed `earnedValue`. Ogni riga di `progress` ha `area`, `items`, `actual`, `planned` e `source` (`computed`, `imported` o `mixed`); ogni riga di `deviations` ha `area`, `total`, `open`, `closed` e `by_status` con `{ status, count }`. Le deviazioni sono raggruppate per area PLC (`plc_area`, altrimenti `Senza sezione`) e ordinate per totale decrescente; `closed` somma `closed` e `rejected`, mentre uno stato mancante resta aperto.
+
+`earnedValue` ha `available` (falso quando mancano le ore pianificate, con `reason: "NO_PLANNED_HOURS"`), `bac_hours`, `ev_hours`, `pv_hours`, `ac_hours`, `cpi`, `spi`, `items_total`, `items_without_hours` e `by_section` (con `section`, `ev_hours`, `pv_hours`, `bac_hours` e `cpi`). Il BAC è la somma delle ore pianificate delle voci o dei nodi WBS collegati; `EV = BAC × avanzamento effettivo / 100`, `PV = BAC × avanzamento pianificato / 100`, `AC` è la somma delle ore prenotate; `CPI = EV / AC` e `SPI = EV / PV`, `null` quando il denominatore è zero o manca.
 
 ## Import degli export planning
 
@@ -168,8 +173,13 @@ La dashboard calcola i valori dalle tabelle del cantiere: deviazioni per stato, 
 | :-- | :-- | :-- | :-- |
 | POST | `/api/import/preview` | owner/editor | `{ site_id, family, filename, data_base64 }`; non scrive nulla |
 | POST | `/api/import/apply` | owner/editor | Come sopra, più `preview_token` |
+| GET | `/api/import-mappings?site_id=` | owner/editor | Un elemento per famiglia: `family`, `aliases`, `identity`, `custom`, `columns`, `required`, `fields` |
+| PUT | `/api/import-mappings` | owner/editor | `{ site_id, family, aliases, identity }`; salva o sostituisce la mappatura |
+| DELETE | `/api/import-mappings/{family}?site_id=` | owner/editor | Rimuove la mappatura salvata e torna ai default |
 
-`family` vale `employees`, `work_days`, `time_schedule`, `site_progress_items`, `deviations` o `daily_log`. Il file è un xlsx fino a **20 MiB**, inviato in base64. L'anteprima restituisce i conteggi `added`, `updated`, `unchanged`, `removed`, `rejected`, i campioni delle righe rifiutate e un `preview_token` valido **15 minuti**. L'applicazione verifica che il file e la famiglia siano gli stessi dell'anteprima; le righe assenti non vengono cancellate e il conteggio `removed` applicato è sempre zero.
+`family` vale `employees`, `work_days`, `time_schedule`, `site_progress_items`, `deviations` o `daily_log`. Il file è un xlsx fino a **20 MiB**, inviato in base64. L'anteprima restituisce i conteggi `added`, `updated`, `unchanged`, `removed`, `rejected`, i campioni delle righe rifiutate e un `preview_token` valido **15 minuti**. L'applicazione verifica che file, famiglia, righe e mappatura siano gli stessi dell'anteprima; le righe assenti non vengono cancellate e il conteggio `removed` applicato è sempre zero.
+
+La mappatura è per cantiere e famiglia e si applica anche alle chiamate API: `aliases` associa ogni campo a un elenco di intestazioni alternative, `identity` elenca in ordine i campi che riconoscono la riga. Gli alias devono essere univoci, non vuoti e di massimo **80 caratteri**; `identity` deve contenere almeno un campo, senza duplicati. Una mappatura non valida è rifiutata con `MAP_INVALID`; un alias e una colonna canonica in disaccordo sullo stesso campo con `AMBIGUOUS_COLUMNS`. Se la mappatura cambia dopo l'anteprima, la conferma è rifiutata con `PREVIEW_MISMATCH` (409).
 
 ## Allegati
 
@@ -192,7 +202,7 @@ Le liste di **attività**, **diario**, **deviazioni**, **avanzamento di cantiere
 
 ## Errori
 
-Le risposte d'errore hanno la forma `{ "error": "messaggio", "code": "CODICE" }`. I codici più comuni: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` e `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` e `TIME_BOOKING_DUPLICATE` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
+Le risposte d'errore hanno la forma `{ "error": "messaggio", "code": "CODICE" }`. I codici più comuni: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` e `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` e `TIME_BOOKING_DUPLICATE` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `MAP_INVALID` (400), `AMBIGUOUS_COLUMNS` (400), `PREVIEW_MISMATCH`/`PREVIEW_EXPIRED` (409), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
 
 :::note
 L'API non espone uno schema OpenAPI: le tabelle qui sopra sono il contratto corrente. Per lo schema dati completo vedi `database/README.md` nel repository.

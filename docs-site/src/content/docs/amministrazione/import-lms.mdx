@@ -24,7 +24,7 @@ L'import è riservato a **owner** ed **editor** del cantiere. Il pulsante **Impo
 | Dipendenti | Anagrafica del personale: numero, nome, impresa, qualifica, squadra, date |
 | Presenze | Giorni lavorati, orari, ore e stato di origine |
 | Time Schedule | Voci della struttura progetto, con codice, date e avanzamento pianificato |
-| Avanzamento | Voci di avanzamento, con sezione, area PLC e percentuali |
+| Avanzamento | Voci di avanzamento, con sezione, area PLC, percentuali e ore pianificate |
 | Deviazioni | Deviazioni con stato, priorità, date e importi |
 | Diario | Voci di diario importate dal registro planning |
 
@@ -34,9 +34,10 @@ A cosa serve: aggiornare i dati del cantiere da un export, senza cancellare ciò
 
 1. Apri la **Panoramica** del cantiere e premi **Importa export di pianificazione**.
 2. Scegli il **Tipo di export** e il **File xlsx**.
-3. Premi **Anteprima** e attendi il riepilogo **Cosa cambierebbe**.
-4. Controlla i cinque conteggi e l'elenco delle righe rifiutate.
-5. Se i numeri tornano, premi **Conferma import**. Il pulsante cambia etichetta dopo l'anteprima.
+3. Se l'export usa intestazioni diverse da quelle canoniche, apri **Mappatura colonne** e configura gli alias (vedi sotto). Salva la mappatura prima di procedere.
+4. Premi **Anteprima** e attendi il riepilogo **Cosa cambierebbe**.
+5. Controlla i cinque conteggi e l'elenco delle righe rifiutate.
+6. Se i numeri tornano, premi **Conferma import**. Il pulsante cambia etichetta dopo l'anteprima.
 
 <Shot
   src="/images/2026-11/overview-desktop.png"
@@ -60,13 +61,15 @@ Esempio: una riga di presenza con un numero dipendente che non esiste nel cantie
 - **Il pulsante non c'è:** il tuo ruolo non è owner o editor, oppure stai guardando un altro cantiere.
 - **«Il file supera i 20 MiB»:** riduci l'export o dividilo per famiglia.
 - **Anteprima scaduta:** vale **15 minuti**. Ripeti l'anteprima prima di confermare.
+- **Anteprima non più valida:** se cambi file o mappatura dopo l'anteprima, l'anteprima decade e il pulsante torna a **Anteprima**; richiedi una nuova anteprima.
+- **Mappatura non salvata:** salva la mappatura o ripristina i default prima di chiedere l'anteprima.
 - **Righe rifiutate:** correggi l'export e ripeti l'import; le righe rifiutate non vengono applicate.
 - **Numeri diversi dal previsto:** le righe assenti non vengono cancellate, quindi il conteggio delle rimosse resta zero. Controlla le chiavi di riconoscimento prima di confermare.
 :::
 
 ## Come vengono riconosciute le righe
 
-Ogni famiglia usa una chiave stabile dell'export:
+Ogni famiglia usa una chiave stabile dell'export. I valori predefiniti sono:
 
 - dipendenti: numero dipendente;
 - presenze: data e numero dipendente;
@@ -77,6 +80,21 @@ Ogni famiglia usa una chiave stabile dell'export:
 
 Una riga con la stessa chiave e valori diversi viene aggiornata. Una riga identica resta invariata.
 
+## Mappatura delle colonne
+
+A cosa serve: importare un export che usa intestazioni diverse da quelle canoniche, senza rinominare le colonne nel file.
+
+La mappatura vale per **cantiere** e **famiglia di dati**. Nell'import apri la sezione **Mappatura colonne**: per ogni campo della famiglia trovi gli **alias** e la casella **Identità di riga**.
+
+- **Alias:** scrivi le intestazioni alternative separate da virgola. Per un alias che contiene una virgola, scrivi `\,`; per una barra rovesciata, `\\`.
+- **Colonne canoniche:** restano sempre valide, anche quando aggiungi alias.
+- **Identità di riga:** scegli uno o più campi; l'ordine con cui li selezioni è l'ordine della chiave. Per cambiarlo, deseleziona e riseleziona i campi; l'ordine compare sotto il riquadro.
+- **Salva mappatura:** applica alias e identità alla famiglia selezionata. **Ripristina default** rimuove la mappatura salvata e torna ai valori predefiniti.
+
+Gli alias devono essere univoci, non vuoti e lunghi al massimo **80 caratteri**; serve almeno un campo di identità, senza duplicati. Se un alias e una colonna canonica indicano lo stesso campo con valori diversi, l'import rifiuta il file come ambiguo invece di scegliere un valore. Per l'avanzamento la mappatura include anche le **ore pianificate** (`Planned Hours` o `Planned Hours Total`).
+
+L'anteprima è legata al file, alle righe e alla mappatura: se cambi il file o la mappatura, l'anteprima precedente non è più valida e va ripetuta. La mappatura salvata viene usata anche dalle chiamate API di anteprima e conferma.
+
 ## Righe rifiutate
 
 Una riga viene rifiutata, e non applicata, quando:
@@ -84,7 +102,8 @@ Una riga viene rifiutata, e non applicata, quando:
 - un dipendente della presenza non esiste nell'anagrafica del cantiere;
 - l'identità di una voce di avanzamento è ambigua;
 - lo stato di una deviazione non è riconosciuto;
-- manca una cella obbligatoria.
+- manca una cella obbligatoria o una colonna dell'identità di riga;
+- un alias e una colonna canonica dello stesso campo hanno valori diversi.
 
 Le righe rifiutate restano elencate nell'anteprima. Correggi l'export e ripeti l'import.
 
@@ -98,5 +117,6 @@ L'applicazione ricarica i dati del cantiere e aggiorna le viste. La Panoramica r
 - **Non annulla un import** dall'interfaccia.
 - **Non importa allegati**: i file restano fuori dall'export.
 - **Non crea dipendenti**: una presenza con un numero dipendente sconosciuto viene rifiutata.
+- **Non crea nuovi campi**: gli alias puntano ai campi previsti dalla famiglia, non aggiungono colonne al modello.
 
 Per il formato dei dati e gli endpoint vedi [API REST](../../riferimento/api/). Per i ruoli vedi [Utenti e ruoli](../utenti-e-ruoli/).

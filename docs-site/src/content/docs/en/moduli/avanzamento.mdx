@@ -39,11 +39,12 @@ The detail shows:
 - the assignee;
 - progress and planned progress;
 - the delta calculated by the source;
+- the planned hours, when present;
 - booked hours;
 - planned start and finish, actual start and expected delay;
 - the **Has files**, **Has notes** and **Has deviations** flags.
 
-Imported fields are read-only. The only data you write is step completion.
+Imported fields are read-only, except **planned hours**, which owners and editors can set. Step completion remains the other data you write.
 
 ## Progress types and weights
 
@@ -74,18 +75,40 @@ Every save appends a record to the **history**. The history is never rewritten, 
 - **Insufficient role:** recording steps is reserved to owners and editors; viewing the detail is open to every member.
 :::
 
+## Planned hours
+
+What it is for: giving an item its expected hours, without which the site earned value cannot be calculated.
+
+1. Open the progress item detail.
+2. In the **Planned hours** field enter a non-negative number.
+3. Leave the field blank to use the hours of the linked WBS node, when the node has any.
+4. Press **Save**.
+
+Planned hours can also come from the planning export (`Planned Hours` or `Planned Hours Total` columns) or be set here. They do not change the imported progress or the steps. Owners and editors can edit them; other members read them in the detail. The allowed value runs from 0 to 1,000,000.
+
+Planned hours feed the **Earned value** block on the Overview and in the report: if no item in the site has planned hours, the block shows no figures and says the hours are missing.
+
+:::caution[If the hours field is not there]
+- **Insufficient role:** only owners and editors see the edit form; for everyone else the value is read-only.
+- **Value rejected:** use a number between 0 and 1,000,000, or leave it blank to use the WBS node.
+- **No node hours:** if the item has no hours of its own and the linked WBS node has none, the item stays without planned hours and is excluded from earned value.
+:::
+
 ## Site report
 
 What it is for: putting the site's progress and deviations on paper, or into a spreadsheet.
 
 The **Print PDF** button appears on the **Overview** and in the **Site progress** view. It opens the **Site report** view and, once the data is loaded, starts the browser print dialog: choose “Save as PDF” there. There is no server-generated PDF.
 
-The report contains two tables:
+The report contains two tables and an **Earned value** block:
 
 - **Cockpit · actual and planned** — for each macro-area: number of items, actual progress, planned progress and the source of the value (**Computed**, **Imported** or **Mixed**).
+- **Earned value** — EV, PV and AC in hours, with CPI and SPI. EV is the earned value, PV the planned value and AC the actual cost, equal to the booked hours; CPI is EV divided by AC and SPI is EV divided by PV.
 - **Deviations** — for each macro-area: total, open, closed or rejected and the count by status.
 
 A macro-area's actual value is the average of its items: those with a progress type use the value computed from the steps, the others the imported value. Items without a value show **Not available**; in the CSV the cell stays empty.
+
+Earned value uses the planned hours of the items or, when an item has none, those of the linked WBS node. `EV = planned hours × actual progress / 100`, `PV = planned hours × planned progress / 100`, `AC = booked hours`. If the site has no planned hours at all, a notice appears instead of the figures (`NO_PLANNED_HOURS`); items without hours are excluded and their number is shown below the block. CPI and SPI stay empty when the denominator is zero or missing.
 
 Deviations are grouped by **PLC area**, because imported data has no zone or section; those without an area go under **Senza sezione** (no section). **Closed / rejected** adds the `closed` and `rejected` statuses: rejected is terminal. A deviation with a missing status stays among the open ones.
 
@@ -117,12 +140,13 @@ Numbers are raw, without a percentage sign; a cell stays empty when the value is
 | Open, print and export the report | Every site member |
 | Assign or remove a progress type | owner |
 | Record step completion | owner, editor |
+| Set the planned hours of an item | owner, editor |
 | Create or delete a progress type | owner, API only |
 
 ## What is not available yet
 
 - Creating or editing a progress type from the interface.
-- Editing the imported fields of an item.
+- Editing the imported fields of an item, except the planned hours.
 - Creating or deleting progress items from the interface: they come from the import.
 
 For the link between progress and the work structure see [Project structure (WBS)](../wbs/). For the raw data see [REST API](../../riferimento/api/).

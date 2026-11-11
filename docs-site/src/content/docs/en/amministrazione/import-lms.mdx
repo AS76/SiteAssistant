@@ -24,7 +24,7 @@ The import is reserved to site **owners** and **editors**. The **Import planning
 | Employees | Personnel records: number, name, company, qualification, team, dates |
 | Work days | Worked days, times, hours and source status |
 | Time schedule | Work structure items, with code, dates and planned progress |
-| Site progress | Progress items, with section, PLC area and percentages |
+| Site progress | Progress items, with section, PLC area, percentages and planned hours |
 | Deviations | Deviations with status, priority, dates and amounts |
 | Daily log | Diary entries imported from the planning log |
 
@@ -34,9 +34,10 @@ What it is for: refreshing site data from an export without deleting what the fi
 
 1. Open the site **Overview** and press **Import planning export**.
 2. Pick the **Export type** and the **xlsx file**.
-3. Press **Preview** and wait for the **What would change** summary.
-4. Check the five counts and the list of rejected rows.
-5. If the numbers look right, press **Confirm import**. The button label changes after the preview.
+3. If the export uses headers other than the canonical ones, open **Column mapping** and configure the aliases (see below). Save the mapping before continuing.
+4. Press **Preview** and wait for the **What would change** summary.
+5. Check the five counts and the list of rejected rows.
+6. If the numbers look right, press **Confirm import**. The button label changes after the preview.
 
 <Shot
   src="/images/2026-11/en/overview-desktop.png"
@@ -60,13 +61,15 @@ Example: a work-day row with an employee number that does not exist in the site 
 - **The button is missing:** your role is not owner or editor, or you are looking at another site.
 - **“The file exceeds 20 MiB”:** reduce the export or split it by family.
 - **Preview expired:** it is valid for **15 minutes**. Repeat the preview before confirming.
+- **Preview no longer valid:** if you change the file or the mapping after the preview, the preview lapses and the button returns to **Preview**; request a new preview.
+- **Mapping not saved:** save the mapping or restore the defaults before requesting the preview.
 - **Rejected rows:** fix the export and repeat the import; rejected rows are not applied.
 - **Unexpected numbers:** missing rows are not deleted, so the applied removed count stays zero. Check the matching keys before confirming.
 :::
 
 ## How rows are matched
 
-Each family uses a stable key from the export:
+Each family uses a stable key from the export. The defaults are:
 
 - employees: employee number;
 - work days: date and employee number;
@@ -77,6 +80,21 @@ Each family uses a stable key from the export:
 
 A row with the same key and different values is updated. An identical row stays unchanged.
 
+## Column mapping
+
+What it is for: importing an export that uses headers other than the canonical ones, without renaming columns in the file.
+
+The mapping applies to a **site** and a **data family**. In the import, open the **Column mapping** section: for each field of the family you find the **aliases** and the **Row identity** checkbox.
+
+- **Aliases:** enter the alternative headers separated by commas. For an alias containing a comma write `\,`; for a backslash write `\\`.
+- **Canonical headers:** they always stay valid, even when you add aliases.
+- **Row identity:** choose one or more fields; the order in which you select them is the key order. To change it, deselect and reselect the fields; the order appears below the box.
+- **Save mapping:** applies aliases and identity to the selected family. **Restore defaults** removes the saved mapping and returns to the default values.
+
+Aliases must be unique, non-empty and at most **80 characters** long; at least one identity field is required, without duplicates. If an alias and a canonical column map to the same field with different values, the import rejects the file as ambiguous instead of choosing a value. For site progress the mapping also includes the **planned hours** (`Planned Hours` or `Planned Hours Total`).
+
+The preview is bound to the file, the rows and the mapping: if you change the file or the mapping, the previous preview is no longer valid and must be repeated. The saved mapping is also used by the preview and apply API calls.
+
 ## Rejected rows
 
 A row is rejected, and not applied, when:
@@ -84,7 +102,8 @@ A row is rejected, and not applied, when:
 - an employee on a work day does not exist in the site's personnel records;
 - the identity of a progress item is ambiguous;
 - a deviation status is not recognised;
-- a required cell is empty.
+- a required cell or a row-identity column is missing;
+- an alias and a canonical column for the same field hold different values.
 
 Rejected rows stay listed in the preview. Fix the export and repeat the import.
 
@@ -98,5 +117,6 @@ The application reloads the site data and refreshes the views. The Overview reca
 - **It does not undo an import** from the interface.
 - **It does not import attachments**: files stay outside the export.
 - **It does not create employees**: a work day with an unknown employee number is rejected.
+- **It does not create new fields**: aliases point to the fields the family already has, they do not add columns to the model.
 
 For the data format and endpoints see [REST API](../../riferimento/api/). For roles see [Users and roles](../utenti-e-ruoli/).

@@ -25,6 +25,10 @@ description: Italian and English terminology used in SiteAssistant.
 | Tipo di avanzamento | Progress type | Set of weighted steps defining how an item is measured |
 | Peso dello step | Step weight | Percentage of an item assigned to a step; the total must be 100 |
 | Storico avanzamento | Progress history | Append-only records the curves are calculated from |
+| Ore pianificate | Planned hours | Expected hours for a progress item; when missing, those of the linked WBS node are used |
+| Earned value | Earned value | EV, PV, AC, CPI and SPI block calculated from planned hours and booked hours |
+| Mappatura colonne | Column mapping | Aliases and identity fields configured per site and import family |
+| Identità di riga | Row identity | Fields that identify a row between one import and the next |
 | Import planning | planning import | Upload of an xlsx export with preview and confirmation, with no deletions |
 | Assistente dati | Data assistant | Question panel over the site data, read-only |
 | Impostazioni | Settings | Currency, decimals and separators for amounts, stored in the browser |

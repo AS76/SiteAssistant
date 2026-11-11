@@ -7,6 +7,10 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 11 November 2026
 
+- **Planned hours on progress items.** The item detail has a **Planned hours** field, editable by owners and editors; when blank, it uses the hours of the linked WBS node when present. The hours feed earned value. See [Site progress](../../moduli/avanzamento/#planned-hours).
+- **Earned value on the Overview and in the report.** New panel with EV, PV and AC in hours, CPI and SPI, calculated from planned hours and booked hours; when planned hours are missing the panel says so. See [Site progress](../../moduli/avanzamento/#site-report).
+- **Column mapping in planning imports.** Each site can configure column aliases and row identity fields per family; the preview stays bound to the file and the mapping, and the defaults can be restored when needed. See [Import a planning export](../../amministrazione/import-pianificazione/#column-mapping).
+
 - **Employee fitness.** New **Fitness** view, in the **Management** group of the navigation: qualifications, medical checks, training and other certificates, with issuer or doctor, issue date, expiry, days left and a status computed from the date — expired, expiring within 30 days, valid or no expiry. Owners and editors create, edit and delete; verifiers read; viewers have no access because these are personal records. See [Fitness](../../moduli/idoneita/).
 - **Task type: ordinary or corrective.** The creation form has the **Type** field, the filter bar the **Type** menu, corrective cards the **Corrective** badge and the CSV export a **Type** column. See [Tasks and reviews](../../moduli/attivita/).
 - **API limits and pages.** Requests to `/api/` are limited to 600 per minute per session and 60 per anonymous address, answering `429` with `Retry-After`; the tasks, diary, deviations, progress and bookings lists are read in pages with `limit` and `offset`, and the total arrives in the headers. See [REST API](../../riferimento/api/).

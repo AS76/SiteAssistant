@@ -20,9 +20,10 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Viste **Deviazioni**, **Avanzamento**, **Prenotazioni ore** e **Impatti economici**.
 - Vista **Attrezzature**: registro per appaltatore, stato e posizione, con inserimento, modifica ed eliminazione dall'interfaccia.
 - Vista **Idoneità**: abilitazioni, visite mediche e formazione dei dipendenti, con scadenza, giorni residui e stato calcolato; leggono owner, editor e verificatori, scrivono owner ed editor.
-- Avanzamento con tipi a step ponderati: i pesi devono sommare 100; il completamento si registra dall'applicazione.
-- Panoramica con quattro indicatori, ciambella delle deviazioni, avanzamento per sezione e ore per settimana.
-- Import degli export planning dall'interfaccia, con anteprima e conferma, per sei famiglie di dati.
+- Avanzamento con tipi a step ponderati: i pesi devono sommare 100; il completamento si registra dall'applicazione. Ogni voce ha **ore pianificate** proprie o del nodo WBS collegato.
+- **Earned value** nella Panoramica e nel report: EV, PV e AC in ore, con CPI e SPI, calcolati dalle ore pianificate e dalle ore prenotate.
+- Panoramica con quattro indicatori, ciambella delle deviazioni, avanzamento per sezione, ore per settimana e pannello earned value.
+- Import degli export planning dall'interfaccia, con anteprima e conferma, per sei famiglie di dati e con mappatura delle colonne per cantiere.
 - Assistente dati in sola lettura, con citazioni dei record.
 - Impostazioni di valuta, decimali e separatori per gli importi.
 - Tabelle ordinabili, filtri per colonna opzionali e card su telefono.
@@ -44,7 +45,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 ## Non disponibile
 
 - Modifica o eliminazione di cantieri, attività e voci di diario.
-- Modifica o eliminazione dei dati importati: avanzamento, deviazioni e presenze restano in sola lettura.
+- Modifica o eliminazione dei dati importati: avanzamento, deviazioni e presenze restano in sola lettura, salvo le ore pianificate delle voci di avanzamento.
 - Criteri di accettazione, descrizioni lunghe, checklist.
 - Firme nell'interfaccia.
 - Notifiche, calendario, pianificazione e mappe.
@@ -62,8 +63,9 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - La lingua traduce l'interfaccia, non i contenuti inseriti.
 - Gli allegati nell'interfaccia e via API sono limitati a **15 MiB** e ai soli formati immagine e PDF.
 - L'import planning non cancella le righe assenti dal file e non si annulla dall'interfaccia.
+- La mappatura delle colonne è per cantiere e famiglia: non si eredita tra cantieri e non aggiunge campi al modello.
 - La valuta nelle impostazioni cambia simbolo e formato, non converte gli importi.
-- L'anteprima di import vale 15 minuti: oltre, va ripetuta.
+- L'anteprima di import vale 15 minuti: oltre, va ripetuta. Cambiare file o mappatura la invalida subito.
 - L'assistente dati legge i dati del cantiere selezionato e non scrive nulla; richiede la connessione.
 - Il collegamento tra avanzamento e WBS avviene solo con una corrispondenza univoca di area PLC e sezione: senza corrispondenza la voce resta scollegata.
 - Gli stati delle deviazioni arrivano dal sistema di origine; uno stato non riconosciuto resta vuoto invece di essere interpretato.
