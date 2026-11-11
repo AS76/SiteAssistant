@@ -64,10 +64,18 @@ Chi crea il cantiere ne diventa automaticamente **owner**. Un codice già usato 
 
 L'appartenenza a un cantiere associa ogni persona a un ruolo: `owner`, `editor`, `verifier` o `viewer`. Senza appartenenza il cantiere non compare nel tuo elenco. I ruoli sono descritti in [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/).
 
+## Accessi per modulo
+
+A cosa serve: escludere un membro da un singolo modulo senza cambiargli il ruolo.
+
+Sotto le schede dei cantieri, chi ha il ruolo **owner** trova la tabella **Accessi per modulo** per il cantiere selezionato: una riga per membro, una colonna per modulo. Togliere la spunta esclude quel membro dal modulo; la modifica si salva subito ed è indipendente dal ruolo.
+
+**Panoramica** e **Cantieri** restano sempre accessibili e l'owner non può escludere se stesso. Per il membro escluso la voce sparisce dalla navigazione e un collegamento diretto mostra **Modulo non disponibile**. La tabella non è modificabile offline. I dettagli sono in [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/#accessi-per-modulo).
+
 ## Cosa non è ancora disponibile
 
 - Eliminare o archiviare un cantiere dall'interfaccia.
 - Modificare un cantiere dopo la creazione (nome, date, ubicazione).
-- Gestire i membri da una schermata dedicata: in questa versione si fa via API.
+- Gestire i **ruoli** dei membri da una schermata dedicata: in questa versione si fa via API. Gli accessi per modulo si gestiscono invece dalla tabella in fondo a questa vista.
 
 Queste operazioni non sono "nascoste": semplicemente non esistono ancora in questa versione.

@@ -59,7 +59,23 @@ L'import dall'interfaccia è descritto in [Importare un export di pianificazione
 
 ## Gestire i membri
 
-L'elenco e la modifica dei membri si fanno via API (`GET`/`POST /api/sites/{id}/members`) e sono riservati agli **owner**. In questa versione l'interfaccia **non** ha una schermata per i membri. Un owner non può rimuovere o declassare se stesso.
+L'elenco e la modifica dei **ruoli** si fanno via API (`GET`/`POST /api/sites/{id}/members`) e sono riservati agli **owner**. In questa versione l'interfaccia **non** ha una schermata dedicata ai ruoli. Un owner non può rimuovere o declassare se stesso.
+
+Gli **accessi per modulo**, invece, si gestiscono dall'interfaccia: vedi la sezione seguente.
+
+## Accessi per modulo
+
+A cosa serve: limitare ciò che un membro vede senza cambiargli il ruolo.
+
+Nella vista **Cantieri**, sotto le schede dei cantieri, un owner trova la tabella **Accessi per modulo** per il cantiere selezionato: una riga per membro e una colonna per modulo. Togli la spunta per escludere quel membro dal modulo. La modifica viene salvata subito e vale solo per quel cantiere.
+
+- **Nessuna configurazione, nessun cambiamento.** Finché non esiste una riga salvata, tutti i moduli restano consentiti: le restrizioni esistono solo dove un owner toglie la spunta.
+- **Sempre consentiti.** **Panoramica** e **Cantieri** restano accessibili a ogni membro. Le caselle degli owner sono bloccate, così nessun owner può chiudersi fuori da un modulo.
+- **Cosa cambia per il membro.** La voce del modulo sparisce dalla navigazione e un collegamento diretto mostra **Modulo non disponibile**. Le richieste via API rispondono `403 MODULE_FORBIDDEN`, sia in lettura sia in scrittura.
+- **Dati aggregati.** La Panoramica legge deviazioni, avanzamento, ore, struttura progetto e impatti; il report legge deviazioni, avanzamento, ore e struttura progetto. Se escludi uno di questi moduli a un membro, la sua Panoramica non riesce a mostrare i dati aggregati.
+- **Solo online.** La tabella non è modificabile offline: le caselle sono disabilitate finché l'applicazione non è connessa.
+
+Gli accessi per modulo si sommano ai permessi del ruolo e non li allargano mai: un `viewer` a cui resta attivo un modulo continua a non poter scrivere.
 
 ## Identità e sicurezza
 

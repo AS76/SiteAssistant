@@ -7,6 +7,8 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 11 novembre 2026
 
+- **Panoramica personale.** Il pulsante **Personalizza** sceglie quali blocchi mostrare e in che ordine, per utente e per cantiere; **Ripristina default** torna alla vista completa. Vedi [Funzioni comuni](../../guida/funzioni-comuni/#leggere-la-panoramica).
+- **Accessi per modulo.** Un owner può escludere un membro da un singolo modulo senza cambiargli il ruolo, dalla tabella in fondo alla vista **Cantieri**; le voci escluse spariscono dalla navigazione e le API rispondono `403`. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/#accessi-per-modulo).
 - **Ore pianificate sulle voci di avanzamento.** Il dettaglio di una voce ha il campo **Ore pianificate**, modificabile da owner ed editor; vuoto, usa le ore del nodo WBS collegato quando presenti. Le ore alimentano l'earned value. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/#ore-pianificate).
 - **Earned value nella Panoramica e nel report.** Nuovo pannello con EV, PV e AC in ore, CPI e SPI, calcolati dalle ore pianificate e dalle ore prenotate; se mancano le ore pianificate il pannello lo segnala. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/#report-del-cantiere).
 - **Mappatura colonne negli import planning.** Ogni cantiere può configurare alias di colonna e campi di identità per famiglia; l'anteprima resta legata al file e alla mappatura, e si ripristinano i default quando serve. Vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/#mappatura-delle-colonne).

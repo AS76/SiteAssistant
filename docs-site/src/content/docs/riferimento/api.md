@@ -33,6 +33,10 @@ L'API è un servizio HTTP che il frontend chiama direttamente. Non esistono toke
 | GET | `/api/sites/{id}` | membro | Dettaglio cantiere |
 | GET | `/api/sites/{id}/members` | owner | Elenco membri e ruoli |
 | POST | `/api/sites/{id}/members` | owner | `{ user_id, role }`; `role: null` rimuove |
+| GET | `/api/member-access?site_id=` | membro | Matrice effettiva degli accessi per modulo, per membro |
+| PUT | `/api/member-access` | owner | `{ site_id, member_id, module, allowed }`; aggiorna un accesso |
+
+`GET /api/member-access` restituisce `members`, ognuno con `user_id`, `email`, `name`, `role` e `modules`, la mappa dei moduli con il valore effettivo. `PUT` accetta i moduli `overview`, `tasks`, `deviations`, `diary`, `progress`, `bookings`, `wbs`, `impacts`, `tools`, `certifications` e `sites`; `overview` e `sites` restano sempre consentiti e un owner non può escludere se stesso, altrimenti la risposta è `400 ACCESS_INVALID`. Un modulo escluso risponde `403 MODULE_FORBIDDEN` in lettura e in scrittura; Panoramica, report e assistente non leggono i moduli esclusi.
 
 ## Attività
 
@@ -158,10 +162,15 @@ Le certificazioni dei dipendenti si gestiscono dalla vista **Idoneità**. La let
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/dashboard?site_id=` | membro | Quattro indicatori, earned value, deviazioni per stato, avanzamento per sezione, ore per settimana |
+| GET | `/api/dashboard/layout?site_id=` | membro | Layout personale: `widgets` e `custom` |
+| PUT | `/api/dashboard/layout` | membro | `{ site_id, widgets }`; salva il layout personale |
+| DELETE | `/api/dashboard/layout?site_id=` | membro | Ripristina il layout predefinito |
 | GET | `/api/report?site_id=` | membro | Due tabelle e un blocco earned value: avanzamento e deviazioni per macro-area |
 | POST | `/api/assistant/chat` | membro | `{ site_id, messages, view, language }`; risposta in sola lettura con citazioni |
 
 La dashboard calcola i valori dalle tabelle del cantiere: deviazioni per stato, media dell'avanzamento effettivo per sezione (con il pianificato), ore per settimana, importi dei reclami e blocco `earnedValue`. La media per sezione include anche le voci senza tipo di avanzamento, per le quali vale il valore importato. L'assistente risponde nella lingua richiesta (`it` o `en`) e cita i record con `family`, `id` e `label`; se il provider non è configurato risponde `503 ASSISTANT_NOT_CONFIGURED`.
+
+Il layout della Panoramica è personale per utente e cantiere. `widgets` è un elenco da 1 a 11 identificativi distinti del catalogo fisso: quattro indicatori (`kpi_open_deviations`, `kpi_booked_hours`, `kpi_open_claims`, `kpi_settled_claims`) e sette pannelli (`deviations_by_status`, `progress_by_section`, `hours_by_week`, `earned_value`, `priority_work`, `daily_pulse`, `journal_today`). Senza layout salvato la risposta è il predefinito con `custom: false`; un elenco vuoto, con duplicati o con identificativi sconosciuti è rifiutato con `400 LAYOUT_INVALID`.
 
 `/api/report` restituisce i dati del report stampabile: `site` con `code` e `name`, `generated_at` in UTC, `progress`, `deviations` ed `earnedValue`. Ogni riga di `progress` ha `area`, `items`, `actual`, `planned` e `source` (`computed`, `imported` o `mixed`); ogni riga di `deviations` ha `area`, `total`, `open`, `closed` e `by_status` con `{ status, count }`. Le deviazioni sono raggruppate per area PLC (`plc_area`, altrimenti `Senza sezione`) e ordinate per totale decrescente; `closed` somma `closed` e `rejected`, mentre uno stato mancante resta aperto.
 

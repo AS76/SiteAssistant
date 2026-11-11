@@ -7,6 +7,8 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 11 November 2026
 
+- **Personal Overview.** The **Customize** button chooses which blocks to show and in what order, per user and per site; **Restore defaults** returns to the full view. See [Common features](../../guida/funzioni-comuni/#reading-the-overview).
+- **Module access.** An owner can exclude a member from a single module without changing their role, from the table at the bottom of the **Sites** view; excluded entries disappear from the navigation and the APIs answer `403`. See [Users and roles](../../amministrazione/utenti-e-ruoli/#module-access).
 - **Planned hours on progress items.** The item detail has a **Planned hours** field, editable by owners and editors; when blank, it uses the hours of the linked WBS node when present. The hours feed earned value. See [Site progress](../../moduli/avanzamento/#planned-hours).
 - **Earned value on the Overview and in the report.** New panel with EV, PV and AC in hours, CPI and SPI, calculated from planned hours and booked hours; when planned hours are missing the panel says so. See [Site progress](../../moduli/avanzamento/#site-report).
 - **Column mapping in planning imports.** Each site can configure column aliases and row identity fields per family; the preview stays bound to the file and the mapping, and the defaults can be restored when needed. See [Import a planning export](../../amministrazione/import-pianificazione/#column-mapping).

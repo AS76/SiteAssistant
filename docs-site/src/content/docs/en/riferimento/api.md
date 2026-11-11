@@ -33,6 +33,10 @@ The API is an HTTP service that the frontend calls directly. There are no API to
 | GET | `/api/sites/{id}` | member | Site detail |
 | GET | `/api/sites/{id}/members` | owner | Members and roles |
 | POST | `/api/sites/{id}/members` | owner | `{ user_id, role }`; `role: null` removes |
+| GET | `/api/member-access?site_id=` | member | Effective module access matrix, per member |
+| PUT | `/api/member-access` | owner | `{ site_id, member_id, module, allowed }`; updates one access row |
+
+`GET /api/member-access` returns `members`, each with `user_id`, `email`, `name`, `role` and `modules`, the map of modules with the effective value. `PUT` accepts the modules `overview`, `tasks`, `deviations`, `diary`, `progress`, `bookings`, `wbs`, `impacts`, `tools`, `certifications` and `sites`; `overview` and `sites` stay always allowed and an owner cannot exclude themselves, otherwise the answer is `400 ACCESS_INVALID`. An excluded module answers `403 MODULE_FORBIDDEN` on reads and writes; the Overview, the report and the assistant do not read excluded modules.
 
 ## Tasks
 
@@ -158,10 +162,15 @@ Employee certifications are managed from the **Fitness** view. Reading is open t
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/dashboard?site_id=` | member | Four indicators, earned value, deviations by status, progress by section, hours per week |
+| GET | `/api/dashboard/layout?site_id=` | member | Personal layout: `widgets` and `custom` |
+| PUT | `/api/dashboard/layout` | member | `{ site_id, widgets }`; saves the personal layout |
+| DELETE | `/api/dashboard/layout?site_id=` | member | Restores the default layout |
 | GET | `/api/report?site_id=` | member | Two tables and an earned value block: progress and deviations by macro-area |
 | POST | `/api/assistant/chat` | member | `{ site_id, messages, view, language }`; read-only answer with citations |
 
 The dashboard computes values from the site tables: deviations by status, average effective progress by section (with planned), hours per week, claim amounts and the `earnedValue` block. The per-section average also includes items without a progress type, using their imported value. The assistant answers in the requested language (`it` or `en`) and cites records with `family`, `id` and `label`; if the provider is not configured it returns `503 ASSISTANT_NOT_CONFIGURED`.
+
+The Overview layout is personal per user and per site. `widgets` is a list of 1 to 11 distinct identifiers from the fixed catalogue: four indicators (`kpi_open_deviations`, `kpi_booked_hours`, `kpi_open_claims`, `kpi_settled_claims`) and seven panels (`deviations_by_status`, `progress_by_section`, `hours_by_week`, `earned_value`, `priority_work`, `daily_pulse`, `journal_today`). Without a saved layout the answer is the default with `custom: false`; an empty list, duplicates or unknown identifiers are rejected with `400 LAYOUT_INVALID`.
 
 `/api/report` returns the data of the printable report: `site` with `code` and `name`, `generated_at` in UTC, `progress`, `deviations` and `earnedValue`. Each `progress` row has `area`, `items`, `actual`, `planned` and `source` (`computed`, `imported` or `mixed`); each `deviations` row has `area`, `total`, `open`, `closed` and `by_status` with `{ status, count }`. Deviations are grouped by PLC area (`plc_area`, otherwise `Senza sezione`) and sorted by total descending; `closed` adds `closed` and `rejected`, while a missing status stays open.
 

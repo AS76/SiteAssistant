@@ -64,10 +64,18 @@ Whoever creates the site automatically becomes its **owner**. An already-used co
 
 Membership in a site associates each person with a role: `owner`, `editor`, `verifier` or `viewer`. Without membership the site does not appear in your list. The roles are described in [Users and roles](../../amministrazione/utenti-e-ruoli/).
 
+## Module access
+
+What it is for: excluding a member from a single module without changing their role.
+
+Below the site cards, users with the **owner** role find the **Module access** table for the selected site: one row per member, one column per module. Clearing a tick excludes that member from the module; the change is saved immediately and is independent of the role.
+
+**Overview** and **Sites** stay always available and an owner cannot exclude themselves. For the excluded member the entry disappears from the navigation and a direct link shows **Module unavailable**. The table cannot be edited offline. Details are in [Users and roles](../../amministrazione/utenti-e-ruoli/#module-access).
+
 ## What is not available yet
 
 - Deleting or archiving a site from the interface.
 - Editing a site after creation (name, dates, location).
-- Managing members from a dedicated screen: in this version it is done via API.
+- Managing member **roles** from a dedicated screen: in this version it is done via API. Module access is managed from the table at the bottom of this view.
 
 These operations are not "hidden": they simply do not exist yet in this version.
