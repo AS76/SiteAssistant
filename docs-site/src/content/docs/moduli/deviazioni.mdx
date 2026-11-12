@@ -38,16 +38,15 @@ Nell'**elenco** le colonne sono riferimento, titolo, stato, priorità, assegnata
 
 A cosa serve: vedere dove date e stati di una deviazione non tornano tra loro, senza correggerli.
 
-In cima alla vista, il pannello richiudibile **Da riconciliare** raccoglie i controlli sulle deviazioni del cantiere:
+In cima alla vista, il pannello richiudibile **Da riconciliare** raccoglie i controlli sulle date delle deviazioni del cantiere:
 
 - **Chiusa senza data** — lo stato è `closed` ma la data di chiusura manca.
 - **Chiusura prima dell'approvazione** — la data di chiusura precede quella di approvazione; i **giorni di distanza** sono la differenza tra le due date.
-- **Stati discordanti (≥ 3 giorni)** — lo stato ufficiale è diverso da quello interno e la distanza tra l'ultimo aggiornamento interno e la data ufficiale dello stato è di almeno tre giorni.
 
-Il pannello è **solo lettura**: nessuna data viene corretta. I tre pulsanti con il conteggio filtrano la tabella; un secondo clic toglie il filtro. La tabella mostra riferimento, titolo, stato ufficiale, ultimo stato interno, giorni di distanza e motivo, e un clic su una riga apre il dettaglio della deviazione. Quando non c'è nulla da segnalare compare «Cronologie allineate per i controlli valutabili».
+Il pannello è **solo lettura**: nessuna data viene corretta. I due pulsanti con il conteggio filtrano la tabella; un secondo clic toglie il filtro. La tabella mostra riferimento, titolo, stato ufficiale, giorni di distanza e motivo, e un clic su una riga apre il dettaglio della deviazione. Quando non c'è nulla da segnalare compare «Cronologie allineate».
 
-:::note[Gli stati discordanti oggi non sono valutabili]
-La storia interna delle deviazioni non è disponibile: le deviazioni sono solo importate, quindi un disaccordo di stato non viene segnalato e il conteggio di **Stati discordanti** resta a zero senza attestare l'allineamento. Le date ufficiali vengono controllate comunque. Il pannello lo dichiara in una nota.
+:::note[Perché non si confrontano gli stati]
+Le deviazioni sono solo importate: non hanno uno stato interno né una storia dei cambi di stato, quindi il pannello confronta soltanto le date ufficiali. Il controllo sugli stati discordanti è stato ritirato e il pannello lo dice in una nota: «Una deviazione importata non ha storia interna: la riconciliazione confronta solo le date ufficiali.»
 :::
 
 Gli stessi controlli compaiono nel [report del cantiere](../avanzamento/#report-del-cantiere), nella sezione **Cronologie incoerenti**.

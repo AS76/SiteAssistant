@@ -105,11 +105,11 @@ Deviations are imported and available read-only in the interface; the endpoints 
 | GET | `/api/deviations?site_id=&status=&priority=` | member | Site list, with optional filters |
 | GET | `/api/deviations/{id}` | member | Detail with the explicit links (`links`) |
 | POST | `/api/deviations/import` | owner | Promotes a deviations snapshot |
-| GET | `/api/deviations/reconciliation?site_id=` | member | Checks on the site's dates and statuses |
+| GET | `/api/deviations/reconciliation?site_id=` | member | Checks on the site's dates |
 
 The allowed statuses are `open`, `approved`, `in_progress`, `work_completed`, `closed`, `rejected`. An unknown or missing source status stays empty (`null`) and is counted during the import: it is never interpreted as `open`. Links point to `site_progress_item`, `work_day`, `task` or `diary`; the import neither creates nor deletes them on its own.
 
-`GET /api/deviations/reconciliation` returns `counts`, `items` and `history_source`. `counts` holds the three checks — `closed_without_date`, `close_before_approval`, `status_gap` — and `items` one row per finding, with `kind`, `id`, `deviation_no`, `title`, `official_status`, `internal_status`, `internal_updated_at` and `disagreement_days`. Access to the `deviations` module is required and `site_id` is mandatory: if it is missing or not a UUID the response is `400 VALIDATION_ERROR`. While the internal history is unavailable, `history_source` is `unavailable`, `internal_status` is `null` and `status_gap` is never reported: zero does not confirm aligned statuses.
+`GET /api/deviations/reconciliation` returns `counts` and `items`. `counts` holds the two checks — `closed_without_date` and `close_before_approval` — and `items` one row per finding, with `kind`, `id`, `deviation_no`, `title`, `official_status` and `disagreement_days`. Access to the `deviations` module is required and `site_id` is mandatory: if it is missing or not a UUID the response is `400 VALIDATION_ERROR`. Deviations are imported only and have no internal status and no status history: there is therefore no comparison between official and internal status, and `disagreement_days` stays `null` when the distance cannot be calculated.
 
 ## Time bookings
 

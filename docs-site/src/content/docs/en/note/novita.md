@@ -7,6 +7,8 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 12 November 2026
 
+- **Reconciliation without a status comparison.** The **To reconcile** panel in Deviations and the **Inconsistent timelines** section of the report check official dates only: closed without a date and closure before approval. The **Conflicting statuses** check — always zero, because deviations have no internal history — has been retired, together with the **Last internal status** column. See [Deviations](../../moduli/deviazioni/#to-reconcile).
+
 - **Change history on HSE, Fitness and Tools.** Deleting an HSE event, a certificate or a tool no longer erases the row: it leaves the views, the counters and the details but stays in an audit register with every creation, edit and deletion, the author and the date. The register is readable through the API only, with `GET /api/audit-events`, by owners and verifiers. See [REST API](../../riferimento/api/#audit-register).
 
 - **Today on a phone.** Below 800 px wide the first screen is **Today**, no longer the Overview: up to five rows with your assigned tasks that are due, the ones for you to verify, open steps, today's missing diary, open deviations and, at the bottom, overdue tasks with no executor, plus four **Quick actions** and the last three closures. Each row opens the view already filtered, with **Clear filters** at the top; the Overview moves to **More**. The desktop does not change. See [Mobile quick guide](../../guida/mobile/#the-today-screen).

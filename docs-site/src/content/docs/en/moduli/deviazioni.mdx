@@ -36,18 +36,17 @@ In the **list** the columns are reference, title, status, priority, assignee, cr
 
 ## To reconcile
 
-What it is for: seeing where a deviation's dates and statuses disagree, without correcting them.
+What it is for: seeing where a deviation's dates disagree with each other, without correcting them.
 
-At the top of the view, the collapsible **To reconcile** panel gathers the checks on the site's deviations:
+At the top of the view, the collapsible **To reconcile** panel gathers the date checks on the site's deviations:
 
 - **Closed without date** — the status is `closed` but the closure date is missing.
 - **Closure before approval** — the closure date comes before the approval date; the **days apart** are the difference between the two dates.
-- **Conflicting statuses (≥ 3 days)** — the official status differs from the internal one and the distance between the last internal update and the official date of the status is at least three days.
 
-The panel is **read only**: no date is corrected. The three buttons with the count filter the table; a second click removes the filter. The table shows reference, title, official status, last internal status, days apart and reason, and a click on a row opens the deviation detail. When there is nothing to report, “Timelines aligned for the checks that can be evaluated” appears.
+The panel is **read only**: no date is corrected. The two buttons with the count filter the table; a second click removes the filter. The table shows reference, title, official status, days apart and reason, and a click on a row opens the deviation detail. When there is nothing to report, “Timelines aligned” appears.
 
-:::note[Conflicting statuses cannot be evaluated today]
-The internal history of deviations is unavailable: deviations are only imported, so a status disagreement is not reported and the **Conflicting statuses** count stays at zero without confirming alignment. Official dates are still checked. The panel says so in a note.
+:::note[Why statuses are not compared]
+Deviations are imported only: they have no internal status and no status history, so the panel compares official dates only. The conflicting statuses check has been retired, and the panel says so in a note: “An imported deviation has no internal history: reconciliation only compares official dates.”
 :::
 
 The same checks appear in the [site report](../avanzamento/#site-report), in the **Inconsistent timelines** section.

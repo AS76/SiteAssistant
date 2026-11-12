@@ -7,6 +7,8 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 12 novembre 2026
 
+- **Riconciliazione senza confronto di stato.** Il pannello **Da riconciliare** delle Deviazioni e la sezione **Cronologie incoerenti** del report controllano solo le date ufficiali: chiusa senza data e chiusura prima dell'approvazione. Il controllo **Stati discordanti**, che restava sempre a zero perché le deviazioni non hanno una storia interna, è stato ritirato, e con lui la colonna **Ultimo stato interno**. Vedi [Deviazioni](../../moduli/deviazioni/#da-riconciliare).
+
 - **Storico delle modifiche su HSE, Idoneità e Attrezzature.** Eliminare un evento HSE, una certificazione o un'attrezzatura non cancella più la riga: esce dalle viste, dai contatori e dai dettagli, ma resta in un registro di audit con ogni inserimento, modifica ed eliminazione, l'autore e la data. Il registro si legge solo via API, con `GET /api/audit-events`, da owner e verificatori. Vedi [API REST](../../riferimento/api/#registro-di-audit).
 
 - **Oggi su telefono.** Sotto gli 800 px di larghezza la prima schermata è **Oggi**, non più la Panoramica: fino a cinque righe con le attività assegnate a te e scadute, quelle da verificare, gli step aperti, il diario di oggi mancante, le deviazioni aperte e in fondo le attività scadute senza responsabile, più quattro **Azioni rapide** e le ultime tre chiusure. Ogni riga apre la vista già filtrata, con **Azzera filtri** in cima; la Panoramica passa in **Altro**. Il desktop non cambia. Vedi [Guida rapida mobile](../../guida/mobile/#la-schermata-oggi).

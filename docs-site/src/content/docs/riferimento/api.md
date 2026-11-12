@@ -105,11 +105,11 @@ Le deviazioni sono importate e consultabili in sola lettura nell'interfaccia; gl
 | GET | `/api/deviations?site_id=&status=&priority=` | membro | Elenco per cantiere, con filtri opzionali |
 | GET | `/api/deviations/{id}` | membro | Dettaglio con i collegamenti espliciti (`links`) |
 | POST | `/api/deviations/import` | owner | Promuove uno snapshot deviazioni |
-| GET | `/api/deviations/reconciliation?site_id=` | membro | Controlli su date e stati del cantiere |
+| GET | `/api/deviations/reconciliation?site_id=` | membro | Controlli sulle date del cantiere |
 
 Gli stati ammessi sono `open`, `approved`, `in_progress`, `work_completed`, `closed`, `rejected`. Uno stato di origine sconosciuto o assente resta vuoto (`null`) e viene contato nell'import: non viene mai interpretato come `open`. I collegamenti puntano a `site_progress_item`, `work_day`, `task` o `diary`; l'import non li crea e non li elimina da solo.
 
-`GET /api/deviations/reconciliation` restituisce `counts`, `items` e `history_source`. `counts` contiene i tre controlli — `closed_without_date`, `close_before_approval`, `status_gap` — e `items` una riga per segnalazione, con `kind`, `id`, `deviation_no`, `title`, `official_status`, `internal_status`, `internal_updated_at` e `disagreement_days`. Serve l'accesso al modulo `deviations` e `site_id` è obbligatorio: se manca o non è un UUID la risposta è `400 VALIDATION_ERROR`. Finché la storia interna non è disponibile, `history_source` vale `unavailable`, `internal_status` è `null` e `status_gap` non viene segnalato: lo zero non attesta l'allineamento degli stati.
+`GET /api/deviations/reconciliation` restituisce `counts` e `items`. `counts` contiene i due controlli — `closed_without_date` e `close_before_approval` — e `items` una riga per segnalazione, con `kind`, `id`, `deviation_no`, `title`, `official_status` e `disagreement_days`. Serve l'accesso al modulo `deviations` e `site_id` è obbligatorio: se manca o non è un UUID la risposta è `400 VALIDATION_ERROR`. Le deviazioni sono solo importate e non hanno uno stato interno né una storia dei cambi di stato: non esiste quindi un confronto tra stato ufficiale e stato interno, e `disagreement_days` resta `null` quando la distanza non è calcolabile.
 
 ## Prenotazioni ore
 

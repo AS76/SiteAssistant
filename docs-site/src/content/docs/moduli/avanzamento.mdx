@@ -105,7 +105,7 @@ Il report contiene due tabelle, un blocco **Earned value** e una sezione di rico
 - **Cockpit · effettivo e pianificato** — per ogni macro-area: numero di elementi, avanzamento effettivo, avanzamento pianificato e origine del valore (**Calcolato**, **Importato** o **Misto**).
 - **Earned value** — EV, PV e AC in ore, con CPI e SPI. L'EV è il valore guadagnato, il PV il valore pianificato e l'AC il costo effettivo, pari alle ore prenotate; CPI è EV diviso AC e SPI è EV diviso PV.
 - **Deviazioni** — per ogni macro-area: totale, aperte, chiuse o respinte e conteggio per stato.
-- **Cronologie incoerenti** — il conteggio delle tre verifiche sulle deviazioni e le prime dieci segnalazioni.
+- **Cronologie incoerenti** — il conteggio delle due verifiche sulle date delle deviazioni e le prime dieci segnalazioni.
 
 L'effettivo di una macro-area è la media delle sue voci: quelle con un tipo di avanzamento usano il valore calcolato dagli step, le altre il valore importato. Le voci senza un valore mostrano **Non disponibile**; nel CSV la cella resta vuota.
 
@@ -113,7 +113,7 @@ L'earned value usa le ore pianificate delle voci o, quando la voce non ne ha, qu
 
 Le deviazioni sono raggruppate per **area PLC**, perché i dati importati non hanno zona né sezione; quelle senza area finiscono in **Senza sezione**. **Chiuse / respinte** somma gli stati `closed` e `rejected`: respinta è uno stato finale. Una deviazione con stato mancante resta tra le aperte.
 
-La sezione **Cronologie incoerenti** ripete nel report i controlli del pannello **Da riconciliare** della vista Deviazioni: deviazioni chiuse senza data, chiuse prima dell'approvazione e con stati discordanti. Mostra il conteggio di ciascun controllo e una tabella con le prime dieci segnalazioni, con l'indicazione di quante sono in tutto. È una lettura: nessuna data viene corretta. Finché la storia interna delle deviazioni non è disponibile, il confronto degli stati non è valutabile e il report lo dichiara. Vedi [Deviazioni](../deviazioni/#da-riconciliare).
+La sezione **Cronologie incoerenti** ripete nel report i controlli del pannello **Da riconciliare** della vista Deviazioni: deviazioni chiuse senza data e chiuse prima dell'approvazione. Mostra il conteggio di ciascun controllo e una tabella con le prime dieci segnalazioni, con l'indicazione di quante sono in tutto. È una lettura: nessuna data viene corretta. Le deviazioni non hanno uno stato interno, quindi il report non confronta gli stati. Vedi [Deviazioni](../deviazioni/#da-riconciliare).
 
 Data e ora di generazione sono indicate in **UTC**, anche sulla copia stampata. La stampa usa un formato A4 verticale, senza navigazione e senza pulsanti.
 
