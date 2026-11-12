@@ -19,8 +19,8 @@ What it is for: reaching the four views you use most with your thumb, without op
 
 <Shot
   src="/images/2026-11/en/overview-mobile.png"
-  alt="Overview on a phone with the SiteAssistant header, the site selector, the top controls and the bottom bar with Overview, Tasks, Deviations, Hours and More"
-  caption="The Overview on a phone, now reached from More. At the top the site selector and the controls (gear, Manual, user name, Sign out, EN)."
+  alt="Overview on a phone with the SiteAssistant header, the site selector, the top controls and the bottom bar with Today, Tasks, Deviations, Hours and More"
+  caption="The Overview on a phone. At the top the site selector and the controls (gear, Manual, user name, Sign out, EN); at the bottom the bar with five items."
   compact
 />
 
@@ -30,7 +30,6 @@ Above the content the **header** stays: full-width site selector, then the setti
 - The bar has five items when you have access to every module: if your access excludes one, its entry does not appear and the bar shows fewer. An excluded module does not appear in **More** either.
 - The bar appears only below **800 px** wide: on a landscape tablet you see the side navigation again.
 - If **More** does not open the list, reload the page: the list is a window of the application, not a separate page.
-- The captures on this page were taken before **Today** arrived: they show **Overview** as the first item in the bar. The rest of the interface is unchanged.
 :::
 
 ## The Today screen
@@ -52,6 +51,35 @@ Tapping a row opens the target view **already filtered** on the record: **Tasks*
 - Tasks with no executor are not "yours": they appear at the bottom as **no linked executor** only when they were due before today.
 - If the list is empty, the application says there are no actions to suggest from the available data: it does not mean the site has stopped.
 - Offline the screen shows the latest data saved on the device and the number of queued writes, which sync when the network returns.
+:::
+
+## Today: what to do now
+
+What it is for: opening the application and knowing where to start, without reading a dashboard.
+
+On a phone the first screen is **Today** (on desktop it stays the Overview).
+
+<Shot
+  src="/images/2026-11/en/today-mobile.png"
+  alt="Today screen on a phone: To do today with tasks assigned to me, one to verify and the missing site diary; the bottom bar with Today as the first entry"
+  caption="Today: at most five rows — my overdue or to-verify tasks, the missing diary, open deviations. Every row opens the view already filtered."
+  compact
+/>
+
+1. **To do today** — at most five rows, in order: tasks assigned to you that are due today or overdue, the ones you have to verify, up to two progress items with open steps, today's diary when missing, open deviations (read only). Tasks with no responsible are not *yours* and appear at the bottom, marked.
+2. **Quick actions** — four commands with a verb: **Close a task**, **Write the diary**, **Take a photo**, **Update progress**. They land on the right view within one or two taps.
+3. **Latest actions** — the three tasks closed most recently.
+4. **Connection status** — offline, one line says how many changes are queued; the list stays the last loaded one and says so.
+
+<Shot
+  src="/images/2026-11/en/today-actions-mobile.png"
+  alt="Today screen scrolled down: four Quick actions (Close a task, Write the diary, Take a photo, Update progress) and Latest actions with three closed tasks"
+  caption="Quick actions and latest actions, scrolling Today down."
+  compact
+/>
+
+:::note[Why five rows]
+The cap is deliberate: this is a decision screen, not a list. If you need more, the module view is one tap away.
 :::
 
 ## Cards instead of tables

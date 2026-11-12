@@ -19,8 +19,8 @@ A cosa serve: raggiungere con il pollice le quattro viste che si usano di più, 
 
 <Shot
   src="/images/2026-11/overview-mobile.png"
-  alt="Panoramica su telefono con l'intestazione SiteAssistant, il selettore del cantiere, i comandi in alto e la barra in basso con Panoramica, Attività, Deviazioni, Ore e Altro"
-  caption="La Panoramica su telefono, ora raggiungibile da Altro. In alto il selettore del cantiere e i comandi (ingranaggio, Manuale, nome utente, Esci, EN)."
+  alt="Panoramica su telefono con l'intestazione SiteAssistant, il selettore del cantiere, i comandi in alto e la barra in basso con Oggi, Attività, Deviazioni, Ore e Altro"
+  caption="La Panoramica su telefono, raggiungibile da Altro. In alto il selettore del cantiere e i comandi (ingranaggio, Manuale, nome utente, Esci, EN); in basso la barra con le cinque voci, la prima delle quali è Oggi."
   compact
 />
 
@@ -30,7 +30,6 @@ Sopra il contenuto resta l'**intestazione**: selettore del cantiere a tutta larg
 - Le voci della barra sono cinque quando hai accesso a tutti i moduli: se il tuo accesso ne esclude uno, la sua voce non compare e la barra ne mostra meno. Un modulo escluso non compare nemmeno in **Altro**.
 - La barra compare solo sotto gli **800 px** di larghezza: su tablet in orizzontale rivedi la navigazione laterale.
 - Se **Altro** non apre l'elenco, ricarica la pagina: l'elenco è una finestra dell'applicazione, non una pagina separata.
-- Le catture di questa pagina sono state prese prima dell'arrivo di **Oggi**: mostrano **Panoramica** come prima voce della barra. Il resto dell'interfaccia è invariato.
 :::
 
 ## La schermata Oggi
@@ -52,6 +51,35 @@ Toccando una riga si apre la vista di destinazione **già filtrata** sul record:
 - Le attività senza esecutore non sono «tue»: compaiono in fondo come **senza responsabile** solo quando sono scadute prima di oggi.
 - Se l'elenco è vuoto, l'applicazione scrive che non ci sono voci da proporre con i dati disponibili: non significa che il cantiere sia fermo.
 - Offline la schermata mostra gli ultimi dati salvati sul dispositivo e il numero di scritture in coda, che si sincronizzano al ritorno della rete.
+:::
+
+## Oggi: cosa fare adesso
+
+A cosa serve: aprire l'applicazione e sapere subito da dove cominciare, senza leggere un cruscotto.
+
+Aprendo l'applicazione su un telefono, la prima schermata è **Oggi** (sul desktop resta la Panoramica).
+
+<Shot
+  src="/images/2026-11/today-mobile.png"
+  alt="Schermata Oggi su telefono: Da fare oggi con attività assegnate a me, una da verificare e il diario di oggi mancante; in basso la barra con Oggi come prima voce"
+  caption="Oggi: al massimo cinque righe, le mie attività scadute o da verificare, il diario mancante, le deviazioni aperte. Ogni riga apre la vista già filtrata."
+  compact
+/>
+
+1. **Da fare oggi** — al massimo cinque righe, in ordine: le attività assegnate a te e scadute o in scadenza, quelle che devi verificare, fino a due voci di avanzamento con step aperti, il diario di oggi se manca, le deviazioni aperte (in sola lettura). Le attività senza responsabile non sono «tue» e compaiono in fondo, marcate.
+2. **Azioni rapide** — quattro comandi con un verbo: **Chiudi attività**, **Scrivi diario**, **Scatta foto**, **Aggiorna avanzamento**. Portano alla vista giusta in uno o due tocchi.
+3. **Ultime azioni** — le tre attività chiuse più di recente.
+4. **Stato della connessione** — se sei offline, una riga dice quante modifiche sono in coda; l'elenco resta quello dell'ultimo caricamento e viene dichiarato.
+
+<Shot
+  src="/images/2026-11/today-actions-mobile.png"
+  alt="Schermata Oggi scorsa verso il basso: quattro Azioni rapide (Chiudi attività, Scrivi diario, Scatta foto, Aggiorna avanzamento) e Ultime azioni con tre attività chiuse"
+  caption="Le azioni rapide e le ultime azioni, scorrendo Oggi verso il basso."
+  compact
+/>
+
+:::note[Perché cinque righe]
+Il tetto è voluto: è una schermata di decisione, non un elenco. Se serve di più, la vista del modulo è a un tocco.
 :::
 
 ## Le card al posto delle tabelle
