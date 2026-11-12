@@ -7,6 +7,7 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 12 novembre 2026
 
+- **Persone al posto dei nomi nelle attività.** Il modulo **Nuova attività** propone **esecutore** e **verificatore** scelti dai membri del cantiere, con il ruolo accanto al nome; **Altra persona…** mantiene il nome libero per chi non ha un account, per esempio un subappaltatore. Il membro scelto come esecutore è disabilitato tra i verificatori, che mostrano solo owner e verificatori. Un'attività collegata a una persona può essere verificata da quella persona; una con il solo nome resta verificabile dagli owner. Vedi [Attività e verifiche](../../moduli/attivita/).
 - **Export di pianificazione.** Il pulsante nella **Panoramica** e il dialogo di import dicono ora **Importa export di pianificazione**, senza il nome di un prodotto di terzi. Il manuale sposta la pagina in [Importare un export di pianificazione](../../amministrazione/import-pianificazione/) e i vecchi indirizzi reindirizzano lì; formato del file, famiglie di dati e anteprima non cambiano.
 
 ## 11 novembre 2026

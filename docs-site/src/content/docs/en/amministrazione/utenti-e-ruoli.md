@@ -29,7 +29,7 @@ Permissions in SiteAssistant are **per site**, not global: the same person can b
 | Create cost impacts — API only | Yes | Yes | Yes | No |
 | Move or close a cost impact | Yes | No | Yes | No |
 
-\* Only if designated reviewer of the task, and never on their own work. An owner can verify tasks they are not the designated reviewer of, but cannot verify what they executed themselves.
+\* Only if designated reviewer of the task, and never on their own work. An owner can verify tasks they are not the designated reviewer of, but cannot verify what they executed themselves. A task assigned with a free name, with no linked account, can be reviewed by owners only.
 
 ## How an account is created
 
@@ -64,6 +64,25 @@ The import from the interface is described in [Import a planning export](../impo
 Listing and editing **roles** is done via API (`GET`/`POST /api/sites/{id}/members`) and is reserved to **owners**. In this version the interface has **no** dedicated roles screen. An owner cannot remove or demote themselves.
 
 **Module access**, on the other hand, is managed from the interface: see the next section.
+
+## Linking existing tasks to people
+
+What it is for: giving an account to tasks created when the form accepted only a hand-typed name.
+
+The person identifiers existed from the authentication work onwards and permissions already used them, but the creation form never filled them: older tasks carry names only. The following command links them, without touching the names, the history or who submitted the task:
+
+```sh
+node server/recognise-responsibles.mjs --site <site_id>
+node server/recognise-responsibles.mjs --site <site_id> --apply
+```
+
+`--site` wants the site identifier, not the site code.
+
+- **Dry run first.** Without `--apply` the command writes nothing: it prints the `matched`, `unmatched` and `ambiguous` counts and the list of ambiguous cases. The counts are per assignment field, executor and reviewer, so one task can contribute twice.
+- **Exact matches only.** A name is linked when, after collapsing spaces and ignoring case, it matches a single active member with a suitable role: `owner`, `editor` or `verifier` for the executor, `owner` or `verifier` for the reviewer.
+- **Ambiguous and missing names stay.** Two members with the same name, or no member with that name, leave the task as it is: `--apply` does not guess.
+- **Repeatable.** Fields already linked are skipped, so running the command again changes nothing.
+- **Existing database.** The command opens the database already in place — `DATA_DIR` for SQLite, `DATABASE_URL` with `DB_DRIVER=pg` — and never runs migrations.
 
 ## Module access
 

@@ -29,7 +29,7 @@ I permessi in SiteAssistant sono **per cantiere**, non globali: la stessa person
 | Creare impatti economici — solo API | Sì | Sì | Sì | No |
 | Far avanzare o chiudere un impatto economico | Sì | No | Sì | No |
 
-\* Solo se designato verificatore dell'attività, e mai sul proprio lavoro. L'owner può verificare anche attività di cui non è il verificatore designato, ma non può verificare ciò che ha eseguito lui stesso.
+\* Solo se designato verificatore dell'attività, e mai sul proprio lavoro. L'owner può verificare anche attività di cui non è il verificatore designato, ma non può verificare ciò che ha eseguito lui stesso. Un'attività assegnata con un nome libero, senza account collegato, può essere verificata solo da un owner.
 
 ## Come nasce un account
 
@@ -64,6 +64,25 @@ L'import dall'interfaccia è descritto in [Importare un export di pianificazione
 L'elenco e la modifica dei **ruoli** si fanno via API (`GET`/`POST /api/sites/{id}/members`) e sono riservati agli **owner**. In questa versione l'interfaccia **non** ha una schermata dedicata ai ruoli. Un owner non può rimuovere o declassare se stesso.
 
 Gli **accessi per modulo**, invece, si gestiscono dall'interfaccia: vedi la sezione seguente.
+
+## Collegare le attività esistenti alle persone
+
+A cosa serve: dare un account alle attività create quando il modulo accettava soltanto un nome scritto a mano.
+
+Gli identificativi delle persone esistono dal passaggio all'autenticazione e i permessi li usavano già, ma il modulo di creazione non li compilava: le attività più vecchie portano solo i nomi. Il comando seguente li collega, senza toccare i nomi, la cronologia né chi ha inviato l'attività:
+
+```sh
+node server/recognise-responsibles.mjs --site <site_id>
+node server/recognise-responsibles.mjs --site <site_id> --apply
+```
+
+`--site` vuole l'identificativo del cantiere, non il codice.
+
+- **Prima la prova.** Senza `--apply` il comando non scrive nulla: stampa i conteggi `matched`, `unmatched` e `ambiguous` e l'elenco dei casi ambigui. I conteggi riguardano i singoli campi, esecutore e verificatore, quindi un'attività può contribuire due volte.
+- **Solo corrispondenze esatte.** Un nome viene collegato quando, dopo aver ridotto spazi e maiuscole, corrisponde a un solo membro attivo con un ruolo adatto: per l'esecutore `owner`, `editor` o `verifier`, per il verificatore `owner` o `verifier`.
+- **Ambigui e mancanti restano.** Due membri con lo stesso nome, o nessun membro con quel nome, lasciano l'attività com'è: `--apply` non indovina.
+- **Ripetibile.** I campi già collegati vengono saltati, quindi rieseguire il comando non cambia nulla.
+- **Database esistente.** Il comando apre il database già presente — `DATA_DIR` per SQLite, `DATABASE_URL` con `DB_DRIVER=pg` — e non esegue migrazioni.
 
 ## Accessi per modulo
 

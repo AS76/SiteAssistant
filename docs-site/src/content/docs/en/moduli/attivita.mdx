@@ -16,7 +16,7 @@ What it is for: putting work on site with someone who executes it and someone wh
 
 1. Open **Tasks** and press **New task**.
 2. Fill in title, area and company.
-3. Choose **executor** and **reviewer**: they must be two different people.
+3. Choose **executor** and **reviewer** from the site member lists; for someone without an account, such as a subcontractor, choose **Another person…** and type the name. They must still be two different people.
 4. Choose the **type** — **Ordinary** or **Corrective** — the **priority** and, if needed, the **due date**.
 5. Press **Save**: the task starts in status `todo` and appears in the **To do** column.
 
@@ -25,16 +25,19 @@ What it is for: putting work on site with someone who executes it and someone wh
 | Title | Yes | At most 180 characters |
 | Area | No | At most 100 characters |
 | Company | No | At most 100 characters |
-| Executor | Yes | The person doing the work |
-| Reviewer | Yes | The person who checks and closes the work |
+| Executor | Yes | A site member chosen from the list, or a free name |
+| Reviewer | Yes | The person who checks and closes the work; owners and the reviewer role only |
 | Type | No | **Ordinary** (default) or **Corrective** |
 | Priority | Yes | `normal`, `high`, `urgent` |
 | Due date | No | Date, pre-filled with today |
 
 **The executor and the reviewer must be two different people**: the application rejects the assignment if they coincide.
 
+**Choosing a member links the task to their account.** The name is still written on the task as a reference, but the chosen person can review it. With **Another person…** the task carries only a name: it is not linked to an account and reviews stay with owners. The reviewer list shows owners and the reviewer role only, and the person already chosen as executor appears disabled.
+
 :::caution[If the task is not created]
 - **Executor and reviewer are the same person:** choose two different people; the rule applies to owners too.
+- **Member list unavailable:** the form says so above the buttons. You can still choose **Another person…** and enter a free name.
 - **Required fields empty:** the form shows the error above the buttons and moves focus to the first field to fix.
 - **Task created but not visible:** check the board filters and the selected site.
 :::
@@ -97,7 +100,7 @@ Closing requires two distinct acts:
 1. the **executor** reports completion with an execution note;
 2. the **reviewer** confirms with their own note.
 
-Only the designated reviewer (or an owner) can close or reopen. Whoever executed the work can never verify it themselves.
+Only the reviewer linked to the task (or an owner) can close or reopen. When the task was assigned with a free name there is no linked reviewer: reviews stay with owners. Whoever executed the work can never verify it themselves.
 
 ## Attachments
 

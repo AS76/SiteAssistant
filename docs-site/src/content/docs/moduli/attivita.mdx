@@ -16,7 +16,7 @@ A cosa serve: mettere in cantiere un lavoro con qualcuno che lo esegue e qualcun
 
 1. Apri **Attività** e premi **Nuova attività**.
 2. Compila titolo, area e impresa.
-3. Scegli **esecutore** e **verificatore**: devono essere due persone diverse.
+3. Scegli **esecutore** e **verificatore** dagli elenchi dei membri del cantiere; per chi non ha un account, per esempio un subappaltatore, scegli **Altra persona…** e scrivi il nome. Devono restare due persone diverse.
 4. Scegli il **tipo** — **Ordinaria** o **Correttiva** — la **priorità** e, se serve, la **scadenza**.
 5. Premi **Salva**: l'attività nasce in stato `todo` e compare nella colonna **Da fare**.
 
@@ -25,16 +25,19 @@ A cosa serve: mettere in cantiere un lavoro con qualcuno che lo esegue e qualcun
 | Titolo | Sì | Massimo 180 caratteri |
 | Area | No | Massimo 100 caratteri |
 | Impresa | No | Massimo 100 caratteri |
-| Esecutore | Sì | Chi esegue il lavoro |
-| Verificatore | Sì | Chi controlla e chiude il lavoro |
+| Esecutore | Sì | Un membro del cantiere scelto dall'elenco, oppure un nome libero |
+| Verificatore | Sì | Chi controlla e chiude il lavoro; solo owner e chi ha ruolo verificatore |
 | Tipo | No | **Ordinaria** (predefinito) o **Correttiva** |
 | Priorità | Sì | `normal`, `high`, `urgent` |
 | Scadenza | No | Data, già impostata a oggi |
 
 **Esecutore e verificatore devono essere due persone diverse**: l'applicazione rifiuta l'assegnazione se coincidono.
 
+**Scegliere un membro collega l'attività al suo account.** Il nome resta scritto nell'attività come riferimento, ma la verifica la può fare la persona scelta. Con **Altra persona…** l'attività porta solo un nome: non è collegata a un account e la verifica resta agli owner. L'elenco dei verificatori mostra soltanto owner e chi ha ruolo verificatore, e la persona già scelta come esecutore compare disabilitata.
+
 :::caution[Se l'attività non viene creata]
 - **Esecutore e verificatore coincidono:** scegli due persone diverse; la regola vale anche per un owner.
+- **Elenco dei membri non disponibile:** il modulo lo segnala sopra i pulsanti. Puoi comunque scegliere **Altra persona…** e inserire un nome libero.
 - **Campi obbligatori vuoti:** il modulo segnala l'errore sopra i pulsanti e porta il focus sul primo campo da correggere.
 - **Attività creata ma non visibile:** controlla i filtri della bacheca e il cantiere selezionato.
 :::
@@ -97,7 +100,7 @@ La chiusura richiede due atti distinti:
 1. l'**esecutore** dichiara il completamento con una nota di esecuzione;
 2. il **verificatore** conferma con la propria nota.
 
-Solo il verificatore assegnato (o un owner) può chiudere o riaprire. Chi ha eseguito il lavoro non può mai verificarlo da solo.
+Solo il verificatore collegato all'attività (o un owner) può chiudere o riaprire. Se l'attività è stata assegnata con un nome libero non c'è un verificatore collegato: la verifica resta agli owner. Chi ha eseguito il lavoro non può mai verificarlo da solo.
 
 ## Allegati
 

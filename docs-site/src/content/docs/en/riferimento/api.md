@@ -31,8 +31,9 @@ The API is an HTTP service that the frontend calls directly. There are no API to
 | GET | `/api/sites` | authenticated | Only the sites you belong to |
 | POST | `/api/sites` | owner | `code`, `name`, `location`, `start_date`, `end_date` |
 | GET | `/api/sites/{id}` | member | Site detail |
-| GET | `/api/sites/{id}/members` | owner | Members and roles |
+| GET | `/api/sites/{id}/members` | owner | Members and roles, with emails |
 | POST | `/api/sites/{id}/members` | owner | `{ user_id, role }`; `role: null` removes |
+| GET | `/api/sites/{id}/assignable` | owner/editor/verifier | Active members with `user_id`, `name` and `role`, without emails |
 | GET | `/api/member-access?site_id=` | member | Effective module access matrix, per member |
 | PUT | `/api/member-access` | owner | `{ site_id, member_id, module, allowed }`; updates one access row |
 
@@ -46,6 +47,8 @@ The API is an HTTP service that the frontend calls directly. There are no API to
 | POST | `/api/tasks` | owner/editor/verifier | Supports `Idempotency-Key`; `kind` is `ordinary` (default) or `corrective` |
 | GET | `/api/tasks/{id}` | member | Includes the event history |
 | POST | `/api/tasks/{id}/transition` | owner/editor/verifier | `{ to, note?, reason? }` |
+
+`POST /api/tasks` accepts the names `executor` and `verifier` together with the identifiers `executor_id` and `verifier_id`: the names stay on the task as a readable reference, the identifiers link it to accounts and are the ones that count for permissions. With identifiers, review and reopening belong to the designated reviewer or an owner; without identifiers — a task assigned by free name — only owners can do it. Executor and reviewer must remain two different people by identifier too, otherwise the answer is `400 SEPARATE_PEOPLE_REQUIRED`. `GET /api/sites/{id}/assignable` is the list the creation form uses: active members only, without emails, for owners, editors and verifiers; `/members` stays reserved to owners and keeps the emails.
 
 ## Diary
 

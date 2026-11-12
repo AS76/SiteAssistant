@@ -31,8 +31,9 @@ L'API è un servizio HTTP che il frontend chiama direttamente. Non esistono toke
 | GET | `/api/sites` | autenticato | Solo i cantieri di cui sei membro |
 | POST | `/api/sites` | owner | `code`, `name`, `location`, `start_date`, `end_date` |
 | GET | `/api/sites/{id}` | membro | Dettaglio cantiere |
-| GET | `/api/sites/{id}/members` | owner | Elenco membri e ruoli |
+| GET | `/api/sites/{id}/members` | owner | Elenco membri e ruoli, con le email |
 | POST | `/api/sites/{id}/members` | owner | `{ user_id, role }`; `role: null` rimuove |
+| GET | `/api/sites/{id}/assignable` | owner/editor/verifier | Membri attivi con `user_id`, `name` e `role`, senza email |
 | GET | `/api/member-access?site_id=` | membro | Matrice effettiva degli accessi per modulo, per membro |
 | PUT | `/api/member-access` | owner | `{ site_id, member_id, module, allowed }`; aggiorna un accesso |
 
@@ -46,6 +47,8 @@ L'API è un servizio HTTP che il frontend chiama direttamente. Non esistono toke
 | POST | `/api/tasks` | owner/editor/verifier | Supporta `Idempotency-Key`; `kind` vale `ordinary` (predefinito) o `corrective` |
 | GET | `/api/tasks/{id}` | membro | Include la cronologia eventi |
 | POST | `/api/tasks/{id}/transition` | owner/editor/verifier | `{ to, note?, reason? }` |
+
+`POST /api/tasks` accetta i nomi `executor` e `verifier` insieme agli identificativi `executor_id` e `verifier_id`: i nomi restano sull'attività come riferimento leggibile, gli identificativi la collegano agli account e sono quelli che contano per i permessi. Con gli identificativi, la verifica e la riapertura spettano al verificatore designato o a un owner; senza identificativi — un'attività assegnata con un nome libero — servono solo gli owner. Esecutore e verificatore devono restare due persone diverse anche per identificativo, altrimenti la risposta è `400 SEPARATE_PEOPLE_REQUIRED`. `GET /api/sites/{id}/assignable` è l'elenco che usa il modulo di creazione: solo membri attivi, senza email, per owner, editor e verificatori; `/members` resta riservato agli owner e continua a includere le email.
 
 ## Diario
 

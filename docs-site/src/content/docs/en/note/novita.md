@@ -7,6 +7,7 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 12 November 2026
 
+- **People instead of names on tasks.** The **New task** form offers **executor** and **reviewer** chosen from the site members, with the role next to the name; **Another person…** keeps the free name for anyone without an account, such as a subcontractor. The member chosen as executor is disabled among reviewers, which show owners and the reviewer role only. A task linked to a person can be reviewed by that person; one with a name only stays with owners. See [Tasks and reviews](../../moduli/attivita/).
 - **Planning export.** The button on the **Overview** and the import dialog now read **Import planning export**, with no third-party product name. The manual moves the page to [Import a planning export](../../amministrazione/import-pianificazione/) and the old addresses redirect there; file format, data families and preview do not change.
 
 ## 11 November 2026
