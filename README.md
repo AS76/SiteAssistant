@@ -2,102 +2,88 @@
 
 **Built on site. For people working on site.**
 
-<img src="docs-site/public/images/2026-11/overview-desktop.png" alt="Panoramica di SiteAssistant: KPI del cantiere, deviazioni per stato, avanzamento per sezione e ore per settimana" width="100%">
+<img src="docs-site/public/images/2026-11/overview-desktop.png" alt="SiteAssistant overview: site KPIs, deviations by status, progress by section and hours per week" width="100%">
 
-SiteAssistant è una web app che aiuta chi gestisce un cantiere a tenere insieme, in un solo posto, le cose che di solito vivono separate: le attività da eseguire e verificare, il diario di giornata, la struttura dei lavori (WBS), le presenze e l'avanzamento. Non è un ERP: è lo strumento che manca tra il piano e la realtà quotidiana del cantiere.
+SiteAssistant is a web app for the person running a construction or installation site. It keeps in one place what usually lives in five: the work to execute and to verify, the daily diary, the work breakdown structure, attendance, progress, deviations and hours.
 
-Nasce dall'esperienza diretta nella gestione di cantieri industriali e di intralogistica, dove informazioni, verifiche e reporting spesso convivono in fogli e sistemi diversi. Stiamo costruendo qualcosa di utile partendo dal campo — e altre persone possono aiutarci a renderlo migliore.
+It is not an ERP. It is the layer between the plan and what actually happens on site.
 
-## Stato
+It comes from direct experience managing industrial and intralogistics sites, where checks, evidence and reporting end up split across spreadsheets, e-mails and systems that do not talk to each other.
 
-Progetto in sviluppo. Il nucleo (cantieri, attività con verifica, diario, allegati, WBS, presenze, avanzamento, deviazioni, ore, impatti economici) è implementato e in produzione su dati sintetici. Non è un prodotto finito: alcune funzioni esistono solo via API, e il supporto offline è in arrivo.
+## Who it is for
 
-## Documentazione
+Site managers, installation managers, supervisors and verifiers working in industrial automation and intralogistics: people who have to chase contractors, prove that work was done, and reconstruct why a date slipped.
 
-- Manuale utente (IT/EN): <https://as76.github.io/SiteAssistant/>
-- Architettura e stack reale: [docs/architecture.md](docs/architecture.md)
+## What is inside
 
-## Partecipa
+**Operations**
+Sites and per-site roles (`owner`, `editor`, `verifier`, `viewer`) · Tasks with a separate executor and verifier, state transitions with notes and full history, ordinary or corrective type · Light task view with a single close/reopen command · Site diary by operational day and shift · Photos and PDFs attached to tasks and diary entries · Saved views: personal or shared filters, order and visible columns
 
-Contribuire non significa solo scrivere codice: una segnalazione ben descritta o una proposta su un flusso di cantiere valgono quanto una pull request. Leggi [CONTRIBUTING.md](CONTRIBUTING.md) e apri una [Issue](https://github.com/AS76/SiteAssistant/issues).
+**Planning**
+WBS tree and flat table · Site progress with weighted steps that must sum to 100 · Planned hours per item, inherited from the linked WBS node when absent · Earned value — EV, PV, AC, CPI and SPI in hours · Progress curves from recorded entries
 
-## Avvio
+**Control**
+Deviations with links and a read-only reconciliation panel for inconsistent chronologies · Cost impacts · Time bookings, separating hours worked, booked at source and booked in the app, with a signed variance · Printable site report with progress and deviations per macro-area, plus CSV export
 
-Il frontend statico legge e salva cantieri, attività e diario tramite la REST API. La base URL predefinita è `https://api.siteassistant.asassi.cloud`; non usa localStorage, dati di ripiego o backup JSON.
+**Compliance**
+Tools register per contractor, with status and location · Employee fitness: certifications, medical visits and training, with expiry and computed status · HSE register: near misses, injuries and observations, with severity, location and a count of people involved — no names, no health data
 
-Per servire i file statici:
+**Administration**
+E-mail and password sessions, self-service sign-up with owner approval, password reset · Per-module access per member, independent of role · Import of planning exports with preview, confirmation and per-site column mapping · REST API with pagination and per-user rate limits · Read-only data assistant with record citations
 
-```sh
-python3 -m http.server 8000 --bind 127.0.0.1 --directory app
-```
+**Field use**
+Installable PWA, Italian and English interface, mobile bottom navigation, sortable tables, optional column filters · Tasks and diary work offline: writes are queued and synchronised when the network returns
 
-Per configurare un'altra API, aggiungere in `app/index.html`, prima dello script modulo:
+## What it is not
 
-```html
-<meta name="siteassistant-api-base" content="https://api.example.com">
-```
+- **Not an ERP, not a planning system.** It stays complementary to time schedules, purchasing and accounting, and does not try to replace them.
+- **Not a copy of another product.** The code is original and written from scratch. SiteAssistant is an independent project, not affiliated with or endorsed by any vendor.
+- **Not finished.** The [product status](https://as76.github.io/SiteAssistant/note/rilascio/) page lists what exists only via API and what does not exist yet. It is deliberately explicit.
 
-Con `content="/"` il client usa la **stessa origine** che serve i file statici, quindi l'app deve essere pubblicata dall'API (stesso host, stesso schema). Il valore vuoto risultante dalla rimozione degli slash finali produce chiamate relative come `/api/sites`.
+## Status
 
-Il client aggiunge `/api/sites`, `/api/tasks` e `/api/diary` alla base URL. È anche disponibile `createApi({ baseUrl })` in `app/api.mjs`. L'API deve consentire l'origine del frontend: il CORS del server autorizza `https://siteassistant.asassi.cloud`. Un frontend locale richiede un proxy della stessa origine o un'API di sviluppo con CORS appropriato; servire i soli file su localhost non abilita l'accesso cross-origin.
+Running on synthetic demo data. It is a working demo, not a product: do not put confidential data, credentials or contract terms into it.
 
-Per avviare il backend di sviluppo con Node.js 24, seguire [Backend incremento 1](docs/backend-increment-1.md). Nessuna configurazione o migrazione di produzione viene applicata dall'avvio del frontend.
+Known gaps that matter before real use: HSE, certification and tool records have no change history (deletes are immediate and leave no copy); imported data is read-only; there is no PDF generation on the server (printing goes through the browser); and there is no connector to ERP or planning systems.
 
-Le migrazioni applicative versionate, il calcolo del giorno operativo e l'header opzionale `Idempotency-Key` sono descritti nel [riferimento tecnico dell'incremento 4](docs/backend-increment-4.md).
+## Run it locally
 
-Le API per gli allegati a task, diario e cantiere, la configurazione S3 e il readback SHA-256 sono descritti nell'[incremento 8](docs/backend-increment-8.md). L'integrazione UI degli allegati resta da implementare.
-
-## Funzioni
-
-- Creazione cantieri e selezione del contesto di lavoro.
-- Attività per area, impresa, esecutore e verificatore; filtri e vista board/elenco.
-- Blocchi motivati, dichiarazione di completamento con evidenza testuale, verifica separata e riapertura con storico.
-- Diario per giorno operativo e turno, con piano, consuntivo, scostamenti e prossimo passo.
-- Indicatori coerenti con gli stati; CSV sulle attività caricate e filtrate, stampa del diario.
-- Interfaccia IT/EN, layout responsive e navigazione da tastiera; lingua e cantiere selezionato rimangono in memoria fino al ricaricamento.
-
-## Limiti della prima versione
-
-Il backend conserva i dati condivisi; il frontend non contiene autenticazione. Esecutore, verificatore e persona che registra una transizione sono testi liberi. La chiusura richiede il verificatore assegnato e una nota; dichiarare l'esecuzione richiede una nota, bloccare o riaprire richiede una motivazione.
-
-La UI segue le transizioni del backend: `todo → in_progress / blocked`, `in_progress → to_verify / blocked`, `to_verify → closed / blocked`, `closed → in_progress`. `blocked` non ha transizioni in uscita. Non sono disponibili modifica attività, criteri di accettazione, descrizioni o ripristino JSON. Il diario accetta un contributo per cantiere, giorno operativo e turno, senza autore né collegamento attività.
-
-Non inserire informazioni riservate. L'upload di allegati è disponibile via API; connettori e funzionamento offline non sono implementati. Nell'interfaccia l'evidenza è una nota testuale; la stampa usa il browser. Il cambio lingua traduce l'interfaccia, lasciando invariati i contenuti inseriti. Questa modifica collega il frontend all'API e non avvia deploy o attiva nuovi servizi. I documenti di architettura descrivono anche funzionalità proposte e il precedente stato della demo locale.
-
-## Verifica
-
-Per i test usare Node.js 24 e installare le dipendenze:
+Node.js 24. SQLite is the default driver, no external database needed:
 
 ```sh
 npm ci
-npm test
-npm run test:schema
+npm run seed        # 4 fictional users and 2 sites
+npm run seed:demo   # synthetic WBS, tasks, hours, deviations, HSE, tools
+npm start           # API on http://localhost:8787
 ```
 
-Il test browser opzionale richiede Playwright e Chromium disponibili nell'ambiente. Avvia un backend SQLite isolato in memoria e intercetta le richieste con Playwright: usa i file locali con l'origine frontend autorizzata, senza scrivere sul servizio pubblico. Non richiede un server statico separato. Configurare `CHROMIUM_PATH` se necessario:
+Demo account: `owner@example.invalid`, password `Local-owner-5b!` (fictional, seeded only outside production). For PostgreSQL set `DB_DRIVER=pg` and `DATABASE_URL`.
+
+The interface is a static app in `app/`. It must be served from the **same origin** as the API, or point it at another API by adding `<meta name="siteassistant-api-base" content="…">` before the module script in `app/index.html`. The API answers CORS requests only from the published origin, so a UI served on another local port is blocked: use a reverse proxy on the same origin, or `content="/"` behind the same host.
+
+Full configuration is read from the environment: `PORT`, `DATA_DIR`, `DB_DRIVER`, `DATABASE_URL`, `PUBLIC_URL`, `OWNER_EMAIL`.
+
+## Tests
 
 ```sh
-node tests/browser.cjs
+npm ci
+npm test              # SQLite and PostgreSQL suites
+npm run test:schema
+node tests/browser.cjs # optional, needs Playwright and Chromium
 ```
 
-[Requisiti e perimetro](docs/requirements.md).
+The suite currently runs 733 tests, 729 passing and 4 skipped, in about two and a half minutes.
 
-[Architettura e base dati proposte per la versione multiutente](docs/architecture.md).
+## Documentation
 
-[Tabella e infografica dell'architettura](docs/architecture-overview.html).
+- User manual, Italian and English: <https://as76.github.io/SiteAssistant/>
+- REST API reference: <https://as76.github.io/SiteAssistant/riferimento/api/>
+- Product status and known limits: <https://as76.github.io/SiteAssistant/note/rilascio/>
 
-[Specifica Pianificazione, layout e mappe](docs/planning-layouts.md).
+## Contributing
 
-[Import e archivio documenti in modalità complementare](docs/import-storage.md).
+Contributing is not only writing code: a well-described report or a proposal about a real site workflow is worth as much as a pull request. Read [CONTRIBUTING.md](CONTRIBUTING.md) and open an [issue](https://github.com/AS76/SiteAssistant/issues).
 
-[Valutazione economica della demo multiutente](docs/cost-options.md).
+## License
 
-[Ripresa dello sviluppo con Codex](docs/development-handoff.md).
-
-[Schema PostgreSQL generico e test sintetici](database/README.md).
-
-La [struttura progetto WBS](docs/wbs.md) aggiunge una vista in sola lettura del Time Schedule importato: albero e tabella, API con membership di cantiere, migrazione `008` e promozione idempotente da snapshot completati. La configurazione della sorgente e l’ingestione restano prerequisiti separati; nessun servizio viene attivato.
-
-## Licenza
-
-SiteAssistant è distribuito con licenza **GNU Affero General Public License v3.0** (`AGPL-3.0-only`): chi lo modifica e lo rende disponibile in rete deve pubblicare il codice modificato alle stesse condizioni. Il testo completo è in [LICENSE](LICENSE).
+**GNU Affero General Public License v3.0** (`AGPL-3.0-only`). If you modify SiteAssistant and make it available over a network, you must publish the modified source under the same terms. Full text in [LICENSE](LICENSE).
