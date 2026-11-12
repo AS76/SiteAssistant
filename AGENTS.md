@@ -33,3 +33,12 @@ Il repository è pubblico e la sua storia è stata ripulita dai dati personali d
 
 - Committa come `SiteAssistant Maintainer <maintainer@siteassistant.invalid>`; se il clone non lo è già, imposta `git config user.name` e `git config user.email` prima del primo commit.
 - Non usare indirizzi personali in committer, autore, commenti, esempi, user agent o documentazione.
+
+## Parole vietate
+
+Il repository non deve contenere il nome di alcun prodotto o fornitore di terzi con cui SiteAssistant potrebbe essere confuso, né nei testi, né nel codice, né negli identificatori di schema, né nei messaggi di commit.
+
+- Il token vietato è definito in `.githooks/` e in `.github/workflows/token-guard.yml` in forma codificata: non va mai scritto in chiaro in un file, in una issue o in un commento.
+- I hook in `.githooks/` bloccano il commit se il contenuto in stage o il messaggio contengono il token. Se un clone non li ha attivi: `git config core.hooksPath .githooks`.
+- La CI (`Token guard`) rifiuta il push se il token compare nell'albero o nei messaggi dell'ultimo push.
+- Se serve nominare la cosa in una discussione, si dice «il sistema di pianificazione» o «l'export di pianificazione».

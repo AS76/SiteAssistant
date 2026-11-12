@@ -1,0 +1,22 @@
+#!/bin/sh
+# Blocca il commit se il contenuto in stage contiene il token vietato.
+# Il token è codificato: questo file non deve contenerlo in chiaro.
+TOKEN=$(printf 'bG1z' | base64 -d)
+
+files=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$files" ] && exit 0
+
+found=""
+for f in $files; do
+  if git cat-file blob ":$f" 2>/dev/null | grep -qiI -- "$TOKEN"; then
+    found="$f"
+    break
+  fi
+done
+
+if [ -n "$found" ]; then
+  echo "COMMIT BLOCCATO: il file '$found' contiene il token vietato." >&2
+  echo "Rimuovilo dal contenuto (non solo dal messaggio) e riprova." >&2
+  exit 1
+fi
+exit 0

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Blocca il commit se il messaggio contiene il token vietato.
+TOKEN=$(printf 'bG1z' | base64 -d)
+
+if grep -qi -- "$TOKEN" "$1"; then
+  echo "COMMIT BLOCCATO: il messaggio contiene il token vietato." >&2
+  echo "Riscrivi il messaggio senza quella parola e riprova." >&2
+  exit 1
+fi
+exit 0
