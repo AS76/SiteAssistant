@@ -944,17 +944,16 @@ function applyColumnFilters(table) {
     });
   }
 }
-const RECONCILIATION_KINDS = ['closed_without_date', 'close_before_approval', 'status_gap'];
-const reconciliationColumns = ['coreReference', 'title', 'reconciliationOfficial', 'reconciliationInternal', 'reconciliationDays', 'reconciliationReason'];
+const RECONCILIATION_KINDS = ['closed_without_date', 'close_before_approval'];
+const reconciliationColumns = ['coreReference', 'title', 'reconciliationOfficial', 'reconciliationDays', 'reconciliationReason'];
 function reconciliationCells(row, interactive = false) {
   return [coreValue(row.deviation_no), interactive
     ? coreDetailButton('deviations', row, row.title || row.deviation_no || row.id) : coreValue(row.title),
-  coreStatus(row.official_status), coreStatus(row.internal_status), coreNumber(row.disagreement_days),
+  coreStatus(row.official_status), coreNumber(row.disagreement_days),
   esc(t(`reconciliation_${row.kind}`))];
 }
-function reconciliationNotes(data) {
-  return `<p class="note">${t('reconciliationReadOnly')}</p><p class="note">${t('reconciliationImported')}</p>`
-    + (data.history_source === 'unavailable' ? `<p class="note">${t('reconciliationUnavailable')}</p>` : '');
+function reconciliationNotes() {
+  return `<p class="note">${t('reconciliationReadOnly')}</p><p class="note">${t('reconciliationImported')}</p>`;
 }
 function renderReconciliation() {
   const data = coreData('reconciliation');
@@ -964,16 +963,15 @@ function renderReconciliation() {
       items.map(row => `data-command="core-detail" data-module="deviations" data-id="${esc(row.id)}"`))
       : `<p role="status">${t('noResults')}</p>`;
   return `<details id="deviation-reconciliation" class="panel reconciliation-panel" ${reconciliationOpen ? 'open' : ''}>
-    <summary>${t('reconciliationTitle')}</summary><div class="panel-body">${reconciliationNotes(data)}
+    <summary>${t('reconciliationTitle')}</summary><div class="panel-body">${reconciliationNotes()}
     <div class="toolbar reconciliation-counts">${RECONCILIATION_KINDS.map(kind => `<button type="button" data-command="reconciliation-filter"
-      data-kind="${kind}" aria-pressed="${reconciliationFilter === kind}" ${kind === 'status_gap' && data.history_source === 'unavailable' ? `aria-describedby="reconciliation-history-note"` : ''}>
+      data-kind="${kind}" aria-pressed="${reconciliationFilter === kind}">
       ${t(`reconciliation_${kind}`)}: <strong>${coreNumber(data.counts[kind])}</strong></button>`).join('')}</div>
-    ${data.history_source === 'unavailable' ? `<p id="reconciliation-history-note" class="note">${t('reconciliationNotEvaluable')}</p>` : ''}
     ${body}</div></details>`;
 }
 function reconciliationReport(data) {
   const first = data.items.slice(0, 10);
-  return `<section class="reconciliation-report"><h3>${t('reconciliationReportTitle')}</h3>${reconciliationNotes(data)}
+  return `<section class="reconciliation-report"><h3>${t('reconciliationReportTitle')}</h3>${reconciliationNotes()}
     ${data.items.length ? `<p>${RECONCILIATION_KINDS.map(kind => `${t(`reconciliation_${kind}`)}: ${coreNumber(data.counts[kind])}`).join(' · ')}</p>
       <div class="report-table-wrap"><table class="report-table"><thead><tr>${reconciliationColumns.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead>
       <tbody>${first.map(row => `<tr>${reconciliationCells(row).map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
