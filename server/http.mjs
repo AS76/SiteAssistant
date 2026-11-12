@@ -1,11 +1,13 @@
 import { requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
 import { createServer as createHttpServer } from 'node:http';
 import { createHash } from 'node:crypto';
+import { extname } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { pipeline } from 'node:stream/promises';
 import { S3Storage, ObjectStorageError, encodeS3Component } from './s3.mjs';
 import { authenticate, login, memberships, publicUser, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
+import { createStaticHandler } from './static-dev.mjs';
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage } from './signup.mjs';
 import { createTaskResponse } from './idempotency.mjs';
 import { createRateLimiter } from './limits.mjs';
@@ -124,7 +126,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   userLimiter = createRateLimiter({ max: Number(process.env.RATE_LIMIT_USER_PER_MIN ?? 600) }),
   anonLimiter = createRateLimiter({ max: Number(process.env.RATE_LIMIT_ANON_PER_MIN ?? 60) }),
   storage = new S3Storage(),
+  // Development only: serve the browser client from the same origin as the API.
+  staticDir = process.env.SERVE_APP === '1' ? new URL('../app/', import.meta.url).pathname : null,
 } = {}) {
+  const serveStatic = staticDir ? createStaticHandler(staticDir) : null;
   return createHttpServer(async (request, response) => {
     response.setHeader('Vary', 'Origin');
     response.setHeader('Cache-Control', 'no-store');
@@ -148,8 +153,15 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       } catch {
         throw new RepositoryError(400, 'Invalid request URL.', 'VALIDATION_ERROR');
       }
-      const path = url.pathname;
+      let path = url.pathname;
       const method = request.method;
+      if (serveStatic && !path.startsWith('/api/')) {
+        if (await serveStatic(request, response, url)) return;
+        // A client-side route (hash routing aside) still gets the shell.
+        if (!extname(path) && await serveStatic(request, response, new URL('/', url))) return;
+        json(response, 404, { error: 'Not found.', code: 'NOT_FOUND' });
+        return;
+      }
       let user = null, authError;
       if (path.startsWith('/api/')) {
         try { user = await authenticate(db, request.headers.cookie); }
