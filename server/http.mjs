@@ -12,6 +12,7 @@ import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changeP
 import { createTaskResponse } from './idempotency.mjs';
 import { createRateLimiter } from './limits.mjs';
 import { readPagination } from './pagination.mjs';
+import { listAuditEvents, countAuditEvents } from './audit.mjs';
 import { listWbs, getWbs, importWbs } from './wbs.mjs';
 import { listSiteProgress, countSiteProgress, getSiteProgressItem, importSiteProgress, updateSiteProgressItem } from './site-progress.mjs';
 import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.mjs';
@@ -240,6 +241,12 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, await saveModuleAccess(db, {
           siteId: input.site_id, memberId: input.member_id, module: input.module, allowed: input.allowed,
         }, user));
+      }
+      if (path === '/api/audit-events' && method === 'GET') {
+        return await paginatedJson(response, url, db, listAuditEvents, countAuditEvents, {
+          siteId: url.searchParams.get('site_id'), entityType: url.searchParams.get('entity_type'),
+          entityId: url.searchParams.get('entity_id'),
+        }, user);
       }
       if (path === '/api/tools' && method === 'GET') {
         return json(response, 200, await listTools(db, {

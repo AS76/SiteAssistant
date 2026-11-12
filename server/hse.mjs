@@ -1,3 +1,4 @@
+import { appendAuditEvent } from './audit.mjs';
 import { randomUUID } from 'node:crypto';
 import { RepositoryError, requireRole } from './repository.mjs';
 import { requireModule } from './module-access.mjs';
@@ -95,7 +96,7 @@ async function write(db, sql, ...values) {
   }
 }
 async function findEvent(db, id) {
-  const event = await db.get(`SELECT ${COLUMNS} FROM hse_events WHERE id = ?`, validId(id, 'id'));
+  const event = await db.get(`SELECT ${COLUMNS} FROM hse_events WHERE id = ? AND deleted_at IS NULL`, validId(id, 'id'));
   if (!event) fail(404, 'HSE event not found.', 'HSE_NOT_FOUND');
   return event;
 }
@@ -104,7 +105,7 @@ export async function listHseEvents(db, { siteId, type, severity, from, to } = {
   requireUser(user);
   const site = validId(siteId, 'site_id');
   await hseRole(db, site, user, READ_ROLES);
-  const clauses = ['site_id = ?'], values = [site];
+  const clauses = ['site_id = ?', 'deleted_at IS NULL'], values = [site];
   for (const [field, filter, validate, operator] of [
     ['type', type, v => choice(v, HSE_TYPES, 'type'), '='],
     ['severity', severity, v => choice(v, HSE_SEVERITIES, 'severity'), '='],
@@ -118,43 +119,59 @@ export async function listHseEvents(db, { siteId, type, severity, from, to } = {
 }
 
 export async function createHseEvent(db, input, user) {
-  requireUser(user);
-  object(input);
-  const siteId = validId(value(input, 'siteId', 'site_id'), 'site_id');
-  await hseRole(db, siteId, user, WRITE_ROLES);
-  const event = { ...nextEvent(input), site_id: siteId };
-  await checkDeviation(db, event);
-  const id = randomUUID(), at = new Date().toISOString();
-  await write(db, `INSERT INTO hse_events (id, site_id, event_no, type, severity, occurred_on,
-    location, persons_involved, measures, notes, deviation_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  id, siteId, event.event_no, event.type, event.severity, event.occurred_on, event.location,
-  event.persons_involved, event.measures, event.notes, event.deviation_id, at, at);
-  return await findEvent(db, id);
+  return await db.transaction(async tx => {
+    requireUser(user);
+    object(input);
+    const siteId = validId(value(input, 'siteId', 'site_id'), 'site_id');
+    await hseRole(tx, siteId, user, WRITE_ROLES);
+    const event = { ...nextEvent(input), site_id: siteId };
+    await checkDeviation(tx, event);
+    const id = randomUUID(), at = new Date().toISOString();
+    await write(tx, `INSERT INTO hse_events (id, site_id, event_no, type, severity, occurred_on,
+      location, persons_involved, measures, notes, deviation_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, siteId, event.event_no, event.type, event.severity, event.occurred_on, event.location,
+    event.persons_involved, event.measures, event.notes, event.deviation_id, at, at);
+    const row = await findEvent(tx, id);
+    await appendAuditEvent(tx, { entityType: 'hse_event', action: 'create', after: row, actor: user.id, at });
+    return row;
+  });
 }
 
 export async function updateHseEvent(db, id, input, user) {
-  requireUser(user);
-  object(input);
-  const event = await findEvent(db, id);
-  await hseRole(db, event.site_id, user, WRITE_ROLES);
-  if ((Object.hasOwn(input, 'siteId') || Object.hasOwn(input, 'site_id'))
-    && validId(value(input, 'siteId', 'site_id'), 'site_id') !== event.site_id) invalid('site_id cannot be changed.');
-  const next = nextEvent(input, event);
-  await checkDeviation(db, next);
-  await write(db, `UPDATE hse_events SET event_no = ?, type = ?, severity = ?, occurred_on = ?, location = ?,
-    persons_involved = ?, measures = ?, notes = ?, deviation_id = ?, updated_at = ? WHERE id = ?`,
-  next.event_no, next.type, next.severity, next.occurred_on, next.location, next.persons_involved,
-  next.measures, next.notes, next.deviation_id, new Date().toISOString(), next.id);
-  return await findEvent(db, next.id);
+  return await db.transaction(async tx => {
+    requireUser(user);
+    object(input);
+    // A no-op write locks the live row before reading its audit snapshot on both drivers.
+    await tx.run('UPDATE hse_events SET id = id WHERE id = ? AND deleted_at IS NULL', validId(id, 'id'));
+    const event = await findEvent(tx, id);
+    await hseRole(tx, event.site_id, user, WRITE_ROLES);
+    if ((Object.hasOwn(input, 'siteId') || Object.hasOwn(input, 'site_id'))
+      && validId(value(input, 'siteId', 'site_id'), 'site_id') !== event.site_id) invalid('site_id cannot be changed.');
+    const next = nextEvent(input, event);
+    await checkDeviation(tx, next);
+    await write(tx, `UPDATE hse_events SET event_no = ?, type = ?, severity = ?, occurred_on = ?, location = ?,
+      persons_involved = ?, measures = ?, notes = ?, deviation_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+    next.event_no, next.type, next.severity, next.occurred_on, next.location, next.persons_involved,
+    next.measures, next.notes, next.deviation_id, new Date().toISOString(), next.id);
+    const row = await findEvent(tx, next.id);
+    await appendAuditEvent(tx, { entityType: 'hse_event', action: 'update', before: event, after: row, actor: user.id });
+    return row;
+  });
 }
 
 export async function deleteHseEvent(db, id, user) {
-  requireUser(user);
-  const event = await findEvent(db, id);
-  await hseRole(db, event.site_id, user, WRITE_ROLES);
-  await db.run('DELETE FROM hse_events WHERE id = ?', event.id);
-  return { id: event.id };
+  return await db.transaction(async tx => {
+    requireUser(user);
+    // A no-op write locks the live row before reading its audit snapshot on both drivers.
+    await tx.run('UPDATE hse_events SET id = id WHERE id = ? AND deleted_at IS NULL', validId(id, 'id'));
+    const event = await findEvent(tx, id);
+    await hseRole(tx, event.site_id, user, WRITE_ROLES);
+    const at = new Date().toISOString();
+    await tx.run('UPDATE hse_events SET deleted_at = ? WHERE id = ?', at, event.id);
+    await appendAuditEvent(tx, { entityType: 'hse_event', action: 'delete', before: event, actor: user.id, at });
+    return { id: event.id };
+  });
 }
 
 export async function hseSummary(db, { siteId } = {}, user) {

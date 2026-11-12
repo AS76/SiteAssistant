@@ -53,6 +53,7 @@ import './tools-ui.test.mjs';
 import './certifications.test.mjs';
 import './static-dev.test.mjs';
 import './hse.test.mjs';
+import './audit.test.mjs';
 import './hse-ui.test.mjs';
 
 import './dashboard-layouts.test.mjs';

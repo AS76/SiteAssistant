@@ -10,7 +10,7 @@ import { openDb, closeDb } from '../server/db.mjs';
 import { migrate } from '../server/migrations/index.mjs';
 import { isPg, openTestDb } from './helpers/db.mjs';
 
-const versions = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020', '021', '022', '023', '024'];
+const versions = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020', '021', '022', '023', '024', '025'];
 
 async function temporarySqlite(t) {
   const directory = await mkdtemp(join(tmpdir(), 'siteassistant-migrations-'));

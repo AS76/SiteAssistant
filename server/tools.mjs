@@ -1,8 +1,10 @@
 import { requireModule } from './module-access.mjs';
+import { appendAuditEvent } from './audit.mjs';
 import { randomUUID } from 'node:crypto';
 import { RepositoryError, requireRole, WRITE_ROLES } from './repository.mjs';
 
 const statuses = new Set(['available', 'in_use', 'maintenance', 'retired']);
+const COLUMNS = 'id, site_id, name, code, company, status, location, notes, created_at, updated_at';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fail = (status, message, code) => { throw new RepositoryError(status, message, code); };
 const invalid = message => fail(400, message, 'TOOL_INVALID');
@@ -56,13 +58,13 @@ async function toolRole(db, siteId, user, roles) {
 export async function listTools(db, { siteId, company } = {}, user) {
   requireUser(user);
   const site = validId(siteId, 'site_id');
-  const clauses = ['site_id = ?'], values = [site];
+  const clauses = ['site_id = ?', 'deleted_at IS NULL'], values = [site];
   if (company != null && company !== '') {
     if (typeof company !== 'string') invalid('company must be a string.');
     clauses.push('company = ?'); values.push(company);
   }
   await toolRole(db, site, user);
-  return await db.all(`SELECT * FROM tools WHERE ${clauses.join(' AND ')}
+  return await db.all(`SELECT ${COLUMNS} FROM tools WHERE ${clauses.join(' AND ')}
     ORDER BY company IS NULL, company, name, id`, ...values);
 }
 
@@ -76,12 +78,16 @@ export async function createTool(db, input, user) {
   const company = optionalText(input.company, 'company');
   const location = optionalText(input.location, 'location');
   const notes = optionalText(input.notes, 'notes');
-  await toolRole(db, site, user, WRITE_ROLES);
-  const now = new Date().toISOString();
-  return await db.get(`INSERT INTO tools
-    (id, site_id, name, code, company, status, location, notes, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
-  randomUUID(), site, name, code, company, status, location, notes, now, now);
+  return await db.transaction(async tx => {
+    await toolRole(tx, site, user, WRITE_ROLES);
+    const now = new Date().toISOString();
+    const row = await tx.get(`INSERT INTO tools
+      (id, site_id, name, code, company, status, location, notes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ${COLUMNS}`,
+    randomUUID(), site, name, code, company, status, location, notes, now, now);
+    await appendAuditEvent(tx, { entityType: 'tool', action: 'create', after: row, actor: user.id, at: now });
+    return row;
+  });
 }
 
 export async function updateTool(db, id, input, user) {
@@ -97,7 +103,9 @@ export async function updateTool(db, id, input, user) {
     ['notes', value => optionalText(value, 'notes')],
   ]);
   return await db.transaction(async tx => {
-    const row = await tx.get('SELECT * FROM tools WHERE id = ?', toolId);
+    // Serialize writers before reading the snapshot, including on PostgreSQL.
+    await tx.run('UPDATE tools SET id = id WHERE id = ? AND deleted_at IS NULL', toolId);
+    const row = await tx.get(`SELECT ${COLUMNS} FROM tools WHERE id = ? AND deleted_at IS NULL`, toolId);
     if (!row) fail(404, 'Tool not found.', 'TOOL_NOT_FOUND');
     await toolRole(tx, row.site_id, user, WRITE_ROLES);
     const changes = [], values = [];
@@ -105,10 +113,14 @@ export async function updateTool(db, id, input, user) {
       if (!Object.hasOwn(input, field)) continue;
       changes.push(`${field} = ?`); values.push(validate(input[field]));
     }
-    if (!changes.length) return row;
+    if (!changes.length) {
+      await appendAuditEvent(tx, { entityType: 'tool', action: 'update', before: row, after: row, actor: user.id });
+      return row;
+    }
     changes.push('updated_at = ?'); values.push(new Date().toISOString(), toolId);
-    const updated = await tx.get(`UPDATE tools SET ${changes.join(', ')} WHERE id = ? RETURNING *`, ...values);
+    const updated = await tx.get(`UPDATE tools SET ${changes.join(', ')} WHERE id = ? RETURNING ${COLUMNS}`, ...values);
     if (!updated) fail(404, 'Tool not found.', 'TOOL_NOT_FOUND');
+    await appendAuditEvent(tx, { entityType: 'tool', action: 'update', before: row, after: updated, actor: user.id });
     return updated;
   });
 }
@@ -117,11 +129,14 @@ export async function deleteTool(db, id, user) {
   requireUser(user);
   const toolId = validId(id, 'id');
   return await db.transaction(async tx => {
-    const row = await tx.get('SELECT site_id FROM tools WHERE id = ?', toolId);
+    await tx.run('UPDATE tools SET id = id WHERE id = ? AND deleted_at IS NULL', toolId);
+    const row = await tx.get(`SELECT ${COLUMNS} FROM tools WHERE id = ? AND deleted_at IS NULL`, toolId);
     if (!row) fail(404, 'Tool not found.', 'TOOL_NOT_FOUND');
     await toolRole(tx, row.site_id, user, WRITE_ROLES);
-    const result = await tx.run('DELETE FROM tools WHERE id = ?', toolId);
+    const at = new Date().toISOString();
+    const result = await tx.run('UPDATE tools SET deleted_at = ? WHERE id = ?', at, toolId);
     if (!result.rowCount) fail(404, 'Tool not found.', 'TOOL_NOT_FOUND');
+    await appendAuditEvent(tx, { entityType: 'tool', action: 'delete', before: row, actor: user.id, at });
     return { deleted: true, id: toolId };
   });
 }

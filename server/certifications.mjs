@@ -1,3 +1,4 @@
+import { appendAuditEvent } from './audit.mjs';
 import { requireModule } from './module-access.mjs';
 import { randomUUID } from 'node:crypto';
 import { RepositoryError, requireRole, getSite } from './repository.mjs';
@@ -102,7 +103,7 @@ export async function listCertifications(db, { siteId, employeeId, status, categ
   if (!Number.isInteger(window) || window < 0 || window > 365) invalid('within must be an integer between 0 and 365.');
   await getSite(db, site);
   await certRole(db, site, user, READ_ROLES);
-  const clauses = ['site_id = ?'];
+  const clauses = ['site_id = ?', 'deleted_at IS NULL'];
   const values = [site];
   if (employeeId) { clauses.push('employee_id = ?'); values.push(validId(employeeId, 'employee_id')); }
   if (category) { clauses.push('category = ?'); values.push(category); }
@@ -112,61 +113,77 @@ export async function listCertifications(db, { siteId, employeeId, status, categ
 }
 
 export async function createCertification(db, input, user) {
-  requireUser(user);
-  object(input);
-  if ((input.siteId ?? input.site_id) == null) invalid('siteId is required.');
-  if ((input.employeeId ?? input.employee_id) == null) invalid('employeeId is required.');
-  const siteId = validId(input.siteId ?? input.site_id, 'site_id');
-  const employeeId = validId(input.employeeId ?? input.employee_id, 'employee_id');
-  const name = validName(input.name);
-  const category = validCategory(input.category ?? 'other');
-  const issuer = optionalText(input.issuer, 'issuer', 200);
-  const issuedOn = optionalDate(input.issuedOn ?? input.issued_on, 'issued_on');
-  const expiresOn = optionalDate(input.expiresOn ?? input.expires_on, 'expires_on');
-  const outcome = optionalText(input.outcome, 'outcome', 500);
-  const notes = optionalText(input.notes, 'notes', 2000);
-  if (issuedOn && expiresOn && expiresOn < issuedOn) invalid('expires_on must not precede issued_on.');
-  await certRole(db, siteId, user, WRITE_ROLES);
-  const employee = await db.get('SELECT id FROM employees WHERE id = ? AND site_id = ?', employeeId, siteId);
-  if (!employee) invalid('employee_id must belong to the site.');
-  const id = randomUUID();
-  const at = new Date().toISOString();
-  await db.run(`INSERT INTO employee_certifications
-    (id, site_id, employee_id, category, name, issuer, issued_on, expires_on, outcome, notes, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  id, siteId, employeeId, category, name, issuer, issuedOn, expiresOn, outcome, notes, at, at);
-  return withStatus(await db.get(`SELECT ${CERT_COLUMNS} FROM employee_certifications WHERE id = ?`, id), 30);
+  return await db.transaction(async tx => {
+    requireUser(user);
+    object(input);
+    if ((input.siteId ?? input.site_id) == null) invalid('siteId is required.');
+    if ((input.employeeId ?? input.employee_id) == null) invalid('employeeId is required.');
+    const siteId = validId(input.siteId ?? input.site_id, 'site_id');
+    const employeeId = validId(input.employeeId ?? input.employee_id, 'employee_id');
+    const name = validName(input.name);
+    const category = validCategory(input.category ?? 'other');
+    const issuer = optionalText(input.issuer, 'issuer', 200);
+    const issuedOn = optionalDate(input.issuedOn ?? input.issued_on, 'issued_on');
+    const expiresOn = optionalDate(input.expiresOn ?? input.expires_on, 'expires_on');
+    const outcome = optionalText(input.outcome, 'outcome', 500);
+    const notes = optionalText(input.notes, 'notes', 2000);
+    if (issuedOn && expiresOn && expiresOn < issuedOn) invalid('expires_on must not precede issued_on.');
+    await certRole(tx, siteId, user, WRITE_ROLES);
+    const employee = await tx.get('SELECT id FROM employees WHERE id = ? AND site_id = ?', employeeId, siteId);
+    if (!employee) invalid('employee_id must belong to the site.');
+    const id = randomUUID();
+    const at = new Date().toISOString();
+    await tx.run(`INSERT INTO employee_certifications
+      (id, site_id, employee_id, category, name, issuer, issued_on, expires_on, outcome, notes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, siteId, employeeId, category, name, issuer, issuedOn, expiresOn, outcome, notes, at, at);
+    const row = await tx.get(`SELECT ${CERT_COLUMNS} FROM employee_certifications WHERE id = ? AND deleted_at IS NULL`, id);
+    await appendAuditEvent(tx, { entityType: 'certification', action: 'create', after: row, actor: user.id, at });
+    return withStatus(row, 30);
+  });
 }
 
 export async function updateCertification(db, id, input, user) {
-  requireUser(user);
-  object(input);
-  const cert = await db.get(`SELECT ${CERT_COLUMNS} FROM employee_certifications WHERE id = ?`, validId(id, 'id'));
-  if (!cert) fail(404, 'Certification not found.', 'CERT_NOT_FOUND');
-  await certRole(db, cert.site_id, user, WRITE_ROLES);
-  const next = { ...cert };
-  if (input.name !== undefined) next.name = validName(input.name);
-  if (input.category !== undefined) next.category = validCategory(input.category);
-  if (input.issuer !== undefined) next.issuer = optionalText(input.issuer, 'issuer', 200);
-  if (input.issuedOn !== undefined || input.issued_on !== undefined) next.issued_on = optionalDate(input.issuedOn ?? input.issued_on, 'issued_on');
-  if (input.expiresOn !== undefined || input.expires_on !== undefined) next.expires_on = optionalDate(input.expiresOn ?? input.expires_on, 'expires_on');
-  if (input.outcome !== undefined) next.outcome = optionalText(input.outcome, 'outcome', 500);
-  if (input.notes !== undefined) next.notes = optionalText(input.notes, 'notes', 2000);
-  if (next.issued_on && next.expires_on && next.expires_on < next.issued_on) invalid('expires_on must not precede issued_on.');
-  await db.run(`UPDATE employee_certifications SET category = ?, name = ?, issuer = ?, issued_on = ?,
-    expires_on = ?, outcome = ?, notes = ?, updated_at = ? WHERE id = ?`,
-  next.category, next.name, next.issuer, next.issued_on, next.expires_on, next.outcome, next.notes,
-  new Date().toISOString(), next.id);
-  return withStatus(await db.get(`SELECT ${CERT_COLUMNS} FROM employee_certifications WHERE id = ?`, next.id), 30);
+  return await db.transaction(async tx => {
+    requireUser(user);
+    object(input);
+    // A no-op write locks the live row before reading its audit snapshot on both drivers.
+    await tx.run('UPDATE employee_certifications SET id = id WHERE id = ? AND deleted_at IS NULL', validId(id, 'id'));
+    const cert = await tx.get(`SELECT ${CERT_COLUMNS} FROM employee_certifications WHERE id = ? AND deleted_at IS NULL`, validId(id, 'id'));
+    if (!cert) fail(404, 'Certification not found.', 'CERT_NOT_FOUND');
+    await certRole(tx, cert.site_id, user, WRITE_ROLES);
+    const next = { ...cert };
+    if (input.name !== undefined) next.name = validName(input.name);
+    if (input.category !== undefined) next.category = validCategory(input.category);
+    if (input.issuer !== undefined) next.issuer = optionalText(input.issuer, 'issuer', 200);
+    if (input.issuedOn !== undefined || input.issued_on !== undefined) next.issued_on = optionalDate(input.issuedOn ?? input.issued_on, 'issued_on');
+    if (input.expiresOn !== undefined || input.expires_on !== undefined) next.expires_on = optionalDate(input.expiresOn ?? input.expires_on, 'expires_on');
+    if (input.outcome !== undefined) next.outcome = optionalText(input.outcome, 'outcome', 500);
+    if (input.notes !== undefined) next.notes = optionalText(input.notes, 'notes', 2000);
+    if (next.issued_on && next.expires_on && next.expires_on < next.issued_on) invalid('expires_on must not precede issued_on.');
+    await tx.run(`UPDATE employee_certifications SET category = ?, name = ?, issuer = ?, issued_on = ?,
+      expires_on = ?, outcome = ?, notes = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+    next.category, next.name, next.issuer, next.issued_on, next.expires_on, next.outcome, next.notes,
+    new Date().toISOString(), next.id);
+    const row = await tx.get(`SELECT ${CERT_COLUMNS} FROM employee_certifications WHERE id = ? AND deleted_at IS NULL`, next.id);
+    await appendAuditEvent(tx, { entityType: 'certification', action: 'update', before: cert, after: row, actor: user.id });
+    return withStatus(row, 30);
+  });
 }
 
 export async function deleteCertification(db, id, user) {
-  requireUser(user);
-  const cert = await db.get(`SELECT ${CERT_COLUMNS} FROM employee_certifications WHERE id = ?`, validId(id, 'id'));
-  if (!cert) fail(404, 'Certification not found.', 'CERT_NOT_FOUND');
-  await certRole(db, cert.site_id, user, WRITE_ROLES);
-  await db.run('DELETE FROM employee_certifications WHERE id = ?', cert.id);
-  return { id: cert.id };
+  return await db.transaction(async tx => {
+    requireUser(user);
+    // A no-op write locks the live row before reading its audit snapshot on both drivers.
+    await tx.run('UPDATE employee_certifications SET id = id WHERE id = ? AND deleted_at IS NULL', validId(id, 'id'));
+    const cert = await tx.get(`SELECT ${CERT_COLUMNS} FROM employee_certifications WHERE id = ? AND deleted_at IS NULL`, validId(id, 'id'));
+    if (!cert) fail(404, 'Certification not found.', 'CERT_NOT_FOUND');
+    await certRole(tx, cert.site_id, user, WRITE_ROLES);
+    const at = new Date().toISOString();
+    await tx.run('UPDATE employee_certifications SET deleted_at = ? WHERE id = ?', at, cert.id);
+    await appendAuditEvent(tx, { entityType: 'certification', action: 'delete', before: cert, actor: user.id, at });
+    return { id: cert.id };
+  });
 }
 
 // Counts for the view header: no per-employee fan-out in the client.
