@@ -87,13 +87,25 @@ Identità: `source_uuid ↔ internal_id` via `ingest.entity_keys`; righe importa
 
 Sviluppo/staging/produzione hanno database, credenziali e bucket separati. Solo dati sintetici nel repo pubblico.
 
+## Limiti noti
+
+- **Verifica di un'attività creata col solo nome.** Un'attività senza `executor_id`/`verifier_id`
+  può essere verificata **solo da un owner**: il nome digitato non è un'identità, quindi non può
+  autorizzare nessuno. L'interfaccia permette di scegliere i membri e evitare il caso; per i
+  subappaltatori senza account il nome resta l'unica opzione, e la verifica passa dall'owner.
+- **Deviazioni senza storico di stato.** Sono una proiezione dell'import: non esiste un percorso
+  interno di cambio stato, quindi la riconciliazione confronta solo le date ufficiali
+  (`closed_without_date`, `close_before_approval`).
+- **Ingest reale assente.** L'import avviene da export caricati a mano, non da un collegamento al
+  sistema di pianificazione.
+
 ## Prossimi passi
 
-1. **Pilot** su un cantiere reale: due professionisti, sei settimane (`specs/pilot-brief.md` nel vault).
-2. **Gate CI** già attivo: suite su ogni push e pull request, SQLite e PostgreSQL reale.
-3. **Responsabili collegati agli account** (#56) e poi **schermata «Oggi» su mobile** (#57).
-4. **Audit trail append-only** per HSE, certificazioni e attrezzature (#52), prerequisito per l'uso aziendale.
-5. Seguito: ingest reale (#5), storico di stato delle deviazioni (#50), perimetro per area (#48), viste reporting (#6), Google OAuth (#1).
-6. Logistica/procurement (#30) = milestone successiva.
+1. **Pilot** su un cantiere reale, condotto da Andrea: una persona, tre settimane.
+2. **Ingest reale** (#5) e, dopo, viste reporting (#6) e perimetro per area (#48).
+3. **Pannello «Storia»** dell'audit nell'interfaccia (#60).
+4. **UX review** dei flussi mobile/desktop (#7) dopo le prime settimane d'uso.
+5. Logistica/procurement (#30) = milestone successiva.
+6. Accesso aziendale: eventuale SSO OIDC/SAML, non un secondo provider OAuth (#1 chiusa).
 
 Le decisioni di perimetro restano documentate nel vault (blueprint/kanban), non qui.
