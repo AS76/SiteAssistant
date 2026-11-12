@@ -51,12 +51,12 @@ Il backend controlla identità, cantiere, ruolo e modulo prima di ogni operazion
 | Allegati | `attachments` | 007 | ✅ API |
 | WBS | `project_structure` | 008 | ✅ UI (albero) |
 | Presenze | `employees`, `work_days` | 009 | ✅ API |
-| Avanzamento | `site_progress_items` | 010 | ✅ API |
-| Deviazioni | `deviations`, `deviation_links` | 011 | ✅ API |
-| Prenotazioni ore | `time_bookings` | 012 | ✅ API |
-| Impatti economici | `cost_impacts`, `cost_impact_deviations` | 013 | ✅ API |
+| Avanzamento | `site_progress_items` | 010 | ✅ UI (barre, step pesati, ore pianificate) |
+| Deviazioni | `deviations`, `deviation_links` | 011 | ✅ UI (bacheca, dettaglio, riconciliazione) |
+| Prenotazioni ore | `time_bookings` | 012 | ✅ UI (ore sorgente e app, scostamento) |
+| Impatti economici | `cost_impacts`, `cost_impact_deviations` | 013 | ✅ UI |
 
-**UI attuale:** Panoramica, Cantieri, Attività, Struttura progetto (WBS), Diario. I moduli avanzamento/deviazioni/ore/impatti sono **solo API** (nessuna vista UI); il frontend espone anche il link al manuale.
+**UI attuale:** Panoramica (widget configurabili per utente), Cantieri, Attività (bacheca, elenco, vista leggera), Struttura progetto (WBS), Diario, Avanzamento, Deviazioni (con pannello di riconciliazione), Prenotazioni ore, Impatti economici, Attrezzature, Idoneità, HSE, Report stampabile. Il frontend espone anche il link al manuale e funziona offline su attività e diario, con coda di scritture sincronizzata al ritorno della rete.
 
 ## Regola del giorno operativo
 
@@ -89,9 +89,11 @@ Sviluppo/staging/produzione hanno database, credenziali e bucket separati. Solo 
 
 ## Prossimi passi
 
-1. **Offline-first** (incremento 15, spec pronta).
-2. **UI dei moduli core** (avanzamento, deviazioni, ore, impatti) — oggi solo API.
-3. Seguito: rate limiting, ingest reale, viste reporting, Google OAuth, restrizioni dati.
-4. Logistica/procurement = milestone successiva.
+1. **Pilot** su un cantiere reale: due professionisti, sei settimane (`specs/pilot-brief.md` nel vault).
+2. **Gate CI** già attivo: suite su ogni push e pull request, SQLite e PostgreSQL reale.
+3. **Responsabili collegati agli account** (#56) e poi **schermata «Oggi» su mobile** (#57).
+4. **Audit trail append-only** per HSE, certificazioni e attrezzature (#52), prerequisito per l'uso aziendale.
+5. Seguito: ingest reale (#5), storico di stato delle deviazioni (#50), perimetro per area (#48), viste reporting (#6), Google OAuth (#1).
+6. Logistica/procurement (#30) = milestone successiva.
 
 Le decisioni di perimetro restano documentate nel vault (blueprint/kanban), non qui.

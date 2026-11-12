@@ -44,7 +44,7 @@ Installable PWA, Italian and English interface, mobile bottom navigation, sortab
 
 Running on synthetic demo data. It is a working demo, not a product: do not put confidential data, credentials or contract terms into it.
 
-Known gaps that matter before real use: HSE, certification and tool records have no change history (deletes are immediate and leave no copy); imported data is read-only; there is no PDF generation on the server (printing goes through the browser); and there is no connector to ERP or planning systems.
+Known gaps that matter before real use: HSE, certification and tool records have no change history, so a correction or a delete leaves no copy (#52); imported rows are updated by re-import but only planned hours can be edited by hand; the deviations timeline cannot be fully reconciled because the database keeps no status history (#50); there is no PDF generation on the server (printing goes through the browser); and there is no connector to ERP or planning systems.
 
 ## Run it locally
 
@@ -54,12 +54,14 @@ Node.js 24. SQLite is the default driver, no external database needed:
 npm ci
 npm run seed        # 4 fictional users and 2 sites
 npm run seed:demo   # synthetic WBS, tasks, hours, deviations, HSE, tools
-npm start           # API on http://localhost:8787
+npm run dev         # API and interface on http://localhost:8787
 ```
+
+`npm start` runs the API alone, which is what production does behind the reverse proxy. `npm run dev` also serves `app/` from the same origin, so the interface works without any proxy or CORS exception.
 
 Demo account: `owner@example.invalid`, password `Local-owner-5b!` (fictional, seeded only outside production). For PostgreSQL set `DB_DRIVER=pg` and `DATABASE_URL`.
 
-The interface is a static app in `app/`. It must be served from the **same origin** as the API, or point it at another API by adding `<meta name="siteassistant-api-base" content="…">` before the module script in `app/index.html`. The API answers CORS requests only from the published origin, so a UI served on another local port is blocked: use a reverse proxy on the same origin, or `content="/"` behind the same host.
+The interface is a static app in `app/`. It is meant to be served from the **same origin** as the API: `npm run dev` does that locally, the reverse proxy does it in production. The API answers CORS requests only from the published origin, so a UI served from a different port is refused; if you need one, point the app at another API with `<meta name="siteassistant-api-base" content="…">` in `app/index.html` and serve both from one host.
 
 Full configuration is read from the environment: `PORT`, `DATA_DIR`, `DB_DRIVER`, `DATABASE_URL`, `PUBLIC_URL`, `OWNER_EMAIL`.
 
@@ -72,7 +74,7 @@ npm run test:schema
 node tests/browser.cjs # optional, needs Playwright and Chromium
 ```
 
-The suite currently runs 733 tests, 729 passing and 4 skipped, in about two and a half minutes.
+The suite currently runs 734 tests, 730 passing and 4 skipped, in about two and a half minutes. The same suite runs on every push and pull request through GitHub Actions, against SQLite and against a real PostgreSQL service, and `main` requires both checks to be green.
 
 ## Documentation
 
