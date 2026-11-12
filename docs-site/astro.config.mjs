@@ -9,11 +9,6 @@ const base = process.env.DOCS_BASE || '/SiteAssistant';
 export default defineConfig({
   site,
   base,
-  // Gli URL pubblicati prima del 2026-11-12 non devono rompersi.
-  redirects: {
-    '/amministrazione/import-pianificazione': `${base}/amministrazione/import-pianificazione`,
-    '/en/amministrazione/import-pianificazione': `${base}/en/amministrazione/import-pianificazione`,
-  },
   integrations: [
     starlight({
       title: { it: 'SiteAssistant Docs', en: 'SiteAssistant Docs' },
