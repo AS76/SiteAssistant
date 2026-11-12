@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && node scripts/check-links.mjs",
+    "build": "astro build && node scripts/sterilize-pagefind.mjs && node scripts/check-links.mjs",
     "preview": "astro preview",
     "check": "astro check"
   },
