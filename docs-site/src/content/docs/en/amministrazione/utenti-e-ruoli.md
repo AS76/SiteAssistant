@@ -91,7 +91,7 @@ What it is for: limiting what a member sees without changing their role.
 In the **Sites** view, below the site cards, an owner finds the **Module access** table for the selected site: one row per member and one column per module. Clear the tick to exclude that member from the module. The change is saved immediately and applies to that site only.
 
 - **No configuration, no change.** Until a row is saved, every module stays allowed: restrictions exist only where an owner clears a tick.
-- **Always allowed.** **Overview** and **Sites** stay available to every member. Owner rows are locked, so no owner can lock themselves out of a module.
+- **Always allowed.** **Overview** and **Sites** stay available to every member. Owner rows are locked, so no owner can lock themselves out of a module. **Today**, the first screen on a phone, has no checkbox either: it only shows the modules you are allowed.
 - **What changes for the member.** The module entry disappears from the navigation and a direct link shows **Module unavailable**. API requests answer `403 MODULE_FORBIDDEN`, on reads and writes alike.
 - **Aggregate data.** The Overview reads deviations, progress, hours, project structure and impacts; the report reads deviations, progress, hours and project structure. If you exclude one of these modules from a member, their Overview cannot show the aggregate data.
 - **Online only.** The table cannot be edited offline: the boxes are disabled until the application is connected.

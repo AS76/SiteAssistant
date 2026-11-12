@@ -1,26 +1,26 @@
 ---
 title: Mobile quick guide
-description: "How SiteAssistant changes on a phone: bottom bar, cards instead of tables, touch targets."
+description: "How SiteAssistant changes on a phone: the Today screen, bottom bar, cards instead of tables, touch targets."
 ---
 
 import Shot from '../../../../components/Shot.astro';
 
-On a phone SiteAssistant shows the **same data** and the **same permissions** as on the desktop. What changes is how you move around: navigation moves to the bottom, tables become cards and controls grow for your finger.
+On a phone SiteAssistant shows the **same data** and the **same permissions** as on the desktop. What changes is how you move around: the first screen is **Today**, which answers "what do I do now", navigation moves to the bottom, tables become cards and controls grow for your finger.
 
 ## The bottom bar
 
 What it is for: reaching the four views you use most with your thumb, without opening a menu.
 
 1. Open the application in your phone browser and sign in.
-2. Use the **bottom bar**: **Overview**, **Tasks**, **Deviations**, **Hours**, **More**.
+2. Use the **bottom bar**: **Today**, **Tasks**, **Deviations**, **Hours**, **More**.
 3. Tap **Hours** for Time bookings: it is the same view the desktop calls *Time bookings*.
-4. Tap **More** for the remaining views: **Sites**, **Project structure**, **Site progress**, **Cost impacts**, **Diary**.
+4. Tap **More** for the remaining views: **Overview**, **Sites**, **Project structure**, **Site progress**, **Cost impacts**, **Diary**, **Tools**, **Fitness**, **HSE**.
 5. The active item is highlighted; when you are in a view opened from **More**, it is **More** that looks active.
 
 <Shot
   src="/images/2026-11/en/overview-mobile.png"
   alt="Overview on a phone with the SiteAssistant header, the site selector, the top controls and the bottom bar with Overview, Tasks, Deviations, Hours and More"
-  caption="The Overview on a phone. At the top the site selector and the controls (gear, Manual, user name, Sign out, EN); at the bottom the bar with five items."
+  caption="The Overview on a phone, now reached from More. At the top the site selector and the controls (gear, Manual, user name, Sign out, EN)."
   compact
 />
 
@@ -30,6 +30,28 @@ Above the content the **header** stays: full-width site selector, then the setti
 - The bar has five items when you have access to every module: if your access excludes one, its entry does not appear and the bar shows fewer. An excluded module does not appear in **More** either.
 - The bar appears only below **800 px** wide: on a landscape tablet you see the side navigation again.
 - If **More** does not open the list, reload the page: the list is a window of the application, not a separate page.
+- The captures on this page were taken before **Today** arrived: they show **Overview** as the first item in the bar. The rest of the interface is unchanged.
+:::
+
+## The Today screen
+
+What it is for: knowing what to do now without opening each module.
+
+Below **800 px** wide the application opens on **Today** when the address does not name a view; on the desktop, and on a direct link to a view, the first screen stays the one you asked for. **Today** is always available and composes only the modules you can access.
+
+The screen has three blocks:
+
+1. **To do today**: at most five rows, without duplicates, in this order — your open tasks due today or already past (**Assigned to me**), the ones you have to verify (**For me to verify**), at most two progress items with open steps (**Open steps**), today's diary when it is missing (**Today’s diary is missing**), deviations not closed or rejected (**Read only**) and, at the bottom, overdue tasks with no executor (**no linked executor**). Each row also shows status and due date when there is one.
+2. **Quick actions**: **Close task**, **Write diary**, **Take photo**, **Update progress**. They take at most two taps and follow your permissions: a command you cannot use is disabled, and an action from an excluded module does not appear.
+3. **Recent actions**: the last three closed tasks, with their closing date; when the date is missing the row says so.
+
+Tapping a row opens the target view **already filtered** on the record: **Tasks** in list mode, **Site progress** or **Deviations** in list mode, **Diary** on the given day. At the top of the view a note says the selection comes from **Today**, with **Clear filters** to drop it.
+
+:::caution[If Today looks incomplete]
+- **Site progress** and **Deviations** only show data already viewed in this session: the screen says so. Open their modules to refresh them.
+- Tasks with no executor are not "yours": they appear at the bottom as **no linked executor** only when they were due before today.
+- If the list is empty, the application says there are no actions to suggest from the available data: it does not mean the site has stopped.
+- Offline the screen shows the latest data saved on the device and the number of queued writes, which sync when the network returns.
 :::
 
 ## Cards instead of tables
@@ -94,7 +116,7 @@ What it is for: hitting the right control first time, even with gloves on.
 
 ## The remaining views
 
-**Sites**, **Cost impacts** and **Diary** keep the desktop structure, with controls stacked vertically. Open **More** to pick one.
+**Overview**, **Sites**, **Cost impacts** and **Diary** keep the desktop structure, with controls stacked vertically. Open **More** to pick one.
 
 <div class="shot-pair">
   <Shot
@@ -128,12 +150,12 @@ What it is for: hitting the right control first time, even with gloves on.
 
 :::caution[If a view does not load]
 - **Deviations**, **Site progress**, **Time bookings** and **Cost impacts** require a connection: offline they show a message instead of data.
-- **Overview**, **Tasks** and **Diary** remain readable offline with the data saved on the device; queued changes sync when the network returns.
+- **Today**, **Overview**, **Tasks** and **Diary** remain readable offline with the data saved on the device; queued changes sync when the network returns.
 - If the data looks old, press **Refresh data** in the view or reload the page.
 :::
 
 ## What does not change
 
-- Sites, roles and permissions are the same as on the desktop.
+- Sites, roles and permissions are the same as on the desktop; **Today** is one more view, not one more permission.
 - The **IT/EN** selector and [Settings](../impostazioni/) stay in the header.
 - CSV exports and diary printing use the phone browser's features.

@@ -1,26 +1,26 @@
 ---
 title: Guida rapida mobile
-description: "Come cambia SiteAssistant su telefono: barra in basso, card al posto delle tabelle, bersagli tattili."
+description: "Come cambia SiteAssistant su telefono: schermata Oggi, barra in basso, card al posto delle tabelle, bersagli tattili."
 ---
 
 import Shot from '../../../components/Shot.astro';
 
-Su telefono SiteAssistant mostra gli **stessi dati** e gli **stessi permessi** del desktop. Cambia il modo di muoversi: la navigazione scende in basso, le tabelle diventano card e i comandi si allargano per il dito.
+Su telefono SiteAssistant mostra gli **stessi dati** e gli **stessi permessi** del desktop. Cambia il modo di muoversi: la prima schermata è **Oggi**, che risponde a «cosa faccio adesso», la navigazione scende in basso, le tabelle diventano card e i comandi si allargano per il dito.
 
 ## La barra in basso
 
 A cosa serve: raggiungere con il pollice le quattro viste che si usano di più, senza aprire menu.
 
 1. Apri l'applicazione nel browser del telefono e accedi.
-2. Usa la **barra in basso**: **Panoramica**, **Attività**, **Deviazioni**, **Ore**, **Altro**.
+2. Usa la **barra in basso**: **Oggi**, **Attività**, **Deviazioni**, **Ore**, **Altro**.
 3. Tocca **Ore** per le Prenotazioni ore: è la stessa vista che sul desktop si chiama *Prenotazioni ore*.
-4. Tocca **Altro** per l'elenco delle viste restanti: **Cantieri**, **Struttura progetto**, **Avanzamento**, **Impatti economici**, **Diario**.
+4. Tocca **Altro** per l'elenco delle viste restanti: **Panoramica**, **Cantieri**, **Struttura progetto**, **Avanzamento**, **Impatti economici**, **Diario**, **Attrezzature**, **Idoneità**, **HSE**.
 5. La voce attiva è evidenziata; quando sei in una vista dentro **Altro**, è **Altro** a risultare attivo.
 
 <Shot
   src="/images/2026-11/overview-mobile.png"
   alt="Panoramica su telefono con l'intestazione SiteAssistant, il selettore del cantiere, i comandi in alto e la barra in basso con Panoramica, Attività, Deviazioni, Ore e Altro"
-  caption="La Panoramica su telefono. In alto il selettore del cantiere e i comandi (ingranaggio, Manuale, nome utente, Esci, EN); in basso la barra con le cinque voci."
+  caption="La Panoramica su telefono, ora raggiungibile da Altro. In alto il selettore del cantiere e i comandi (ingranaggio, Manuale, nome utente, Esci, EN)."
   compact
 />
 
@@ -30,6 +30,28 @@ Sopra il contenuto resta l'**intestazione**: selettore del cantiere a tutta larg
 - Le voci della barra sono cinque quando hai accesso a tutti i moduli: se il tuo accesso ne esclude uno, la sua voce non compare e la barra ne mostra meno. Un modulo escluso non compare nemmeno in **Altro**.
 - La barra compare solo sotto gli **800 px** di larghezza: su tablet in orizzontale rivedi la navigazione laterale.
 - Se **Altro** non apre l'elenco, ricarica la pagina: l'elenco è una finestra dell'applicazione, non una pagina separata.
+- Le catture di questa pagina sono state prese prima dell'arrivo di **Oggi**: mostrano **Panoramica** come prima voce della barra. Il resto dell'interfaccia è invariato.
+:::
+
+## La schermata Oggi
+
+A cosa serve: sapere cosa fare adesso senza aprire i singoli moduli.
+
+Con una larghezza sotto gli **800 px** l'applicazione si apre su **Oggi** quando l'indirizzo non indica una vista; sul desktop, e su un collegamento diretto a una vista, la prima schermata resta quella richiesta. **Oggi** è sempre disponibile e compone solo i moduli a cui hai accesso.
+
+La schermata ha tre blocchi:
+
+1. **Da fare oggi**: al massimo cinque righe, senza duplicati, in quest'ordine — le tue attività non chiuse con scadenza oggi o già passata (**Assegnata a me**), quelle che devi verificare tu (**Da verificare da me**), al massimo due voci di avanzamento con step aperti (**Step aperti**), il diario di oggi se manca (**Diario di oggi mancante**), le deviazioni non chiuse e non respinte (**Sola lettura**) e in fondo le attività scadute senza esecutore (**senza responsabile**). Ogni riga mostra anche lo stato e la scadenza quando ci sono.
+2. **Azioni rapide**: **Chiudi attività**, **Scrivi diario**, **Scatta foto**, **Aggiorna avanzamento**. Sono al massimo due tocchi e rispettano i permessi: un comando che non puoi usare è disabilitato, e un'azione di un modulo escluso non compare.
+3. **Ultime azioni**: le ultime tre attività chiuse, con la data di chiusura; se la data manca la riga lo dice.
+
+Toccando una riga si apre la vista di destinazione **già filtrata** sul record: **Attività** in elenco, **Avanzamento** o **Deviazioni** in elenco, **Diario** nel giorno indicato. In cima alla vista un avviso ricorda che la selezione viene da **Oggi**, con **Azzera filtri** per toglierla.
+
+:::caution[Se Oggi sembra incompleto]
+- **Avanzamento** e **Deviazioni** mostrano solo i dati già consultati in questa sessione: la schermata lo dichiara. Apri i rispettivi moduli per aggiornarli.
+- Le attività senza esecutore non sono «tue»: compaiono in fondo come **senza responsabile** solo quando sono scadute prima di oggi.
+- Se l'elenco è vuoto, l'applicazione scrive che non ci sono voci da proporre con i dati disponibili: non significa che il cantiere sia fermo.
+- Offline la schermata mostra gli ultimi dati salvati sul dispositivo e il numero di scritture in coda, che si sincronizzano al ritorno della rete.
 :::
 
 ## Le card al posto delle tabelle
@@ -94,7 +116,7 @@ A cosa serve: toccare il comando giusto al primo colpo, anche con i guanti.
 
 ## Il resto delle viste
 
-**Cantieri**, **Impatti economici** e **Diario** mantengono la stessa struttura del desktop, con i comandi in verticale. Da **Altro** apri l'elenco e scegli la vista.
+**Panoramica**, **Cantieri**, **Impatti economici** e **Diario** mantengono la stessa struttura del desktop, con i comandi in verticale. Da **Altro** apri l'elenco e scegli la vista.
 
 <div class="shot-pair">
   <Shot
@@ -128,12 +150,12 @@ A cosa serve: toccare il comando giusto al primo colpo, anche con i guanti.
 
 :::caution[Se una vista non carica]
 - **Deviazioni**, **Avanzamento**, **Prenotazioni ore** e **Impatti economici** richiedono la connessione: offline mostrano un messaggio e non i dati.
-- **Panoramica**, **Attività** e **Diario** restano consultabili offline con i dati salvati sul dispositivo; le modifiche in coda si sincronizzano al ritorno della rete.
+- **Oggi**, **Panoramica**, **Attività** e **Diario** restano consultabili offline con i dati salvati sul dispositivo; le modifiche in coda si sincronizzano al ritorno della rete.
 - Se i dati sembrano vecchi, premi **Aggiorna dati** nella vista o ricarica la pagina.
 :::
 
 ## Cosa non cambia
 
-- Cantieri, ruoli e permessi sono gli stessi del desktop.
+- Cantieri, ruoli e permessi sono gli stessi del desktop; **Oggi** è una vista in più, non un permesso in più.
 - Il selettore **IT/EN** e le [Impostazioni](../impostazioni/) restano nell'intestazione.
 - Le esportazioni CSV e la stampa del diario usano le funzioni del browser del telefono.

@@ -91,7 +91,7 @@ A cosa serve: limitare ciò che un membro vede senza cambiargli il ruolo.
 Nella vista **Cantieri**, sotto le schede dei cantieri, un owner trova la tabella **Accessi per modulo** per il cantiere selezionato: una riga per membro e una colonna per modulo. Togli la spunta per escludere quel membro dal modulo. La modifica viene salvata subito e vale solo per quel cantiere.
 
 - **Nessuna configurazione, nessun cambiamento.** Finché non esiste una riga salvata, tutti i moduli restano consentiti: le restrizioni esistono solo dove un owner toglie la spunta.
-- **Sempre consentiti.** **Panoramica** e **Cantieri** restano accessibili a ogni membro. Le caselle degli owner sono bloccate, così nessun owner può chiudersi fuori da un modulo.
+- **Sempre consentiti.** **Panoramica** e **Cantieri** restano accessibili a ogni membro. Le caselle degli owner sono bloccate, così nessun owner può chiudersi fuori da un modulo. Anche **Oggi**, la prima schermata su telefono, non ha una casella: mostra solo i moduli consentiti.
 - **Cosa cambia per il membro.** La voce del modulo sparisce dalla navigazione e un collegamento diretto mostra **Modulo non disponibile**. Le richieste via API rispondono `403 MODULE_FORBIDDEN`, sia in lettura sia in scrittura.
 - **Dati aggregati.** La Panoramica legge deviazioni, avanzamento, ore, struttura progetto e impatti; il report legge deviazioni, avanzamento, ore e struttura progetto. Se escludi uno di questi moduli a un membro, la sua Panoramica non riesce a mostrare i dati aggregati.
 - **Solo online.** La tabella non è modificabile offline: le caselle sono disabilitate finché l'applicazione non è connessa.
