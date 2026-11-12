@@ -1,0 +1,48 @@
+name: Feature
+description: Una funzione nuova o un cambiamento di comportamento voluto
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Una feature cambia quello che il prodotto sa fare. Se qualcosa è rotto, usa *Bug*.
+        Se è un'idea da discutere e non una decisione presa, apri una Discussion in *Ideas*.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Chi lo incontra, in quale momento, e cosa fa oggi invece.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+      description: Il comportamento desiderato, in modo verificabile.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterio di accettazione
+      description: Come si riconosce che è fatto. Frasi osservabili, non desideri.
+      placeholder: |
+        - La vista mostra X quando Y
+        - Il test Z passa su sqlite e PostgreSQL
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative considerate
+      description: Compreso «non farlo». Se non ce ne sono, scrivilo.
+    validations:
+      required: false
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Fuori perimetro
+      description: Cosa NON deve entrare in questo incremento.
+    validations:
+      required: false

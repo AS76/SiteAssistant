@@ -1,0 +1,48 @@
+name: Bug
+description: Qualcosa non funziona come dovrebbe
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Un bug è un comportamento sbagliato, non una funzione mancante. Se manca una funzione, usa *Feature*.
+  - type: textarea
+    id: observed
+    attributes:
+      label: Cosa succede
+      description: Il comportamento osservato, senza interpretazioni.
+      placeholder: "Premendo Salva sull'attività, la pagina resta in caricamento e non compare nulla."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Cosa dovrebbe succedere
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passi per riprodurlo
+      placeholder: |
+        1. Login come editor
+        2. Apri Attività
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Dove
+      description: Ambiente (produzione, staging, locale), vista, dispositivo e larghezza schermo.
+      placeholder: "staging, vista Attività, iPhone 12, 390 px"
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidenza
+      description: Messaggio d'errore, codice HTTP, cattura. Nessun dato personale reale.
+    validations:
+      required: false

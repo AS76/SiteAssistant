@@ -1,0 +1,40 @@
+name: Task
+description: Lavoro, verifica o operazione che non cambia il prodotto
+title: "[task] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Un task è lavoro da fare: una verifica, un'operazione, un allineamento.
+        Se cambia ciò che il prodotto sa fare, è una *Feature*.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Obiettivo
+      description: Cosa deve essere vero alla fine, in una frase verificabile.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Contesto
+      description: Perché ora, cosa lo rende necessario, quali vincoli ci sono.
+    validations:
+      required: false
+  - type: textarea
+    id: done
+    attributes:
+      label: Fatto quando
+      description: Le prove che chiudono il task (comando, controllo, documento).
+      placeholder: |
+        - Il comando X restituisce Y
+        - Il servizio risponde 200 con il commit atteso
+    validations:
+      required: true
+  - type: input
+    id: effort
+    attributes:
+      label: Costo stimato
+      description: Ordine di grandezza (minuti, mezz'ora, un pomeriggio), non una promessa.
+    validations:
+      required: false
