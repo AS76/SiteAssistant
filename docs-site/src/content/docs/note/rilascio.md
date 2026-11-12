@@ -24,7 +24,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Avanzamento con tipi a step ponderati: i pesi devono sommare 100; il completamento si registra dall'applicazione. Ogni voce ha **ore pianificate** proprie o del nodo WBS collegato.
 - **Earned value** nella Panoramica e nel report: EV, PV e AC in ore, con CPI e SPI, calcolati dalle ore pianificate e dalle ore prenotate.
 - Panoramica con quattro indicatori, ciambella delle deviazioni, avanzamento per sezione, ore per settimana e pannello earned value.
-- Import degli export planning dall'interfaccia, con anteprima e conferma, per sei famiglie di dati e con mappatura delle colonne per cantiere.
+- Import degli export di pianificazione dall'interfaccia, con anteprima e conferma, per sei famiglie di dati e con mappatura delle colonne per cantiere.
 - Assistente dati in sola lettura, con citazioni dei record.
 - Impostazioni di valuta, decimali e separatori per gli importi.
 - Tabelle ordinabili, filtri per colonna opzionali e card su telefono.
@@ -37,7 +37,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 ## Disponibile solo via API (non nell'interfaccia)
 
 - Gestione dei membri del cantiere.
-- Import degli snapshot tramite endpoint dedicati (oltre all'import planning dall'interfaccia): WBS, presenze, avanzamento e deviazioni.
+- Import degli snapshot tramite endpoint dedicati (oltre all'import di pianificazione dall'interfaccia): WBS, presenze, avanzamento e deviazioni.
 - Creazione ed eliminazione dei tipi di avanzamento e dei loro pesi.
 - **Impatti economici**: consultazione e chiusura con esito sono disponibili anche dall'interfaccia; creazione e aggiornamento degli importi restano via API.
 - **Allegati al cantiere** e **eliminazione degli allegati**: caricamento e rimozione restano via API.
@@ -63,7 +63,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - La stampa usa il browser: l'aspetto dipende dal browser e dai margini scelti.
 - La lingua traduce l'interfaccia, non i contenuti inseriti.
 - Gli allegati nell'interfaccia e via API sono limitati a **15 MiB** e ai soli formati immagine e PDF.
-- L'import planning non cancella le righe assenti dal file e non si annulla dall'interfaccia.
+- L'import di pianificazione non cancella le righe assenti dal file e non si annulla dall'interfaccia.
 - La mappatura delle colonne è per cantiere e famiglia: non si eredita tra cantieri e non aggiunge campi al modello.
 - La valuta nelle impostazioni cambia simbolo e formato, non converte gli importi.
 - L'anteprima di import vale 15 minuti: oltre, va ripetuta. Cambiare file o mappatura la invalida subito.

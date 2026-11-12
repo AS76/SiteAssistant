@@ -5,7 +5,7 @@ description: Consultare le voci di avanzamento importate, assegnare un tipo e re
 
 import Shot from '../../../components/Shot.astro';
 
-La vista **Avanzamento** mostra le voci di avanzamento del cantiere selezionato. I dati di base arrivano dall'export planning; il completamento degli step si registra nell'applicazione.
+La vista **Avanzamento** mostra le voci di avanzamento del cantiere selezionato. I dati di base arrivano dall'export di pianificazione; il completamento degli step si registra nell'applicazione.
 
 ## Consultare le voci
 
@@ -26,7 +26,7 @@ Il filtro in alto limita l'elenco alle voci collegate a un nodo della struttura 
 
 :::caution[Se una voce non c'è]
 - Il filtro **Struttura progetto** può escludere la voce: riportalo su **Tutti i nodi WBS**.
-- Le voci arrivano dall'import planning: se manca un elemento, va corretto l'export e ripetuto l'import, non creato a mano.
+- Le voci arrivano dall'import di pianificazione: se manca un elemento, va corretto l'export e ripetuto l'import, non creato a mano.
 - Questa vista richiede la connessione: offline mostra un messaggio al posto dell'elenco.
 :::
 
@@ -84,7 +84,7 @@ A cosa serve: dare a una voce le ore previste, senza le quali l'earned value del
 3. Lascia il campo vuoto per usare le ore del nodo WBS collegato, quando il nodo ne ha.
 4. Premi **Salva**.
 
-Le ore pianificate possono arrivare anche dall'export planning (colonne `Planned Hours` o `Planned Hours Total`) oppure essere impostate qui. Non cambiano l'avanzamento importato né gli step. Owner ed editor possono modificarle; gli altri membri le leggono nel dettaglio. Il valore ammesso va da 0 a 1.000.000.
+Le ore pianificate possono arrivare anche dall'export di pianificazione (colonne `Planned Hours` o `Planned Hours Total`) oppure essere impostate qui. Non cambiano l'avanzamento importato né gli step. Owner ed editor possono modificarle; gli altri membri le leggono nel dettaglio. Il valore ammesso va da 0 a 1.000.000.
 
 Le ore pianificate alimentano il blocco **Earned value** della Panoramica e del report: se nessuna voce del cantiere ha ore pianificate, il blocco non mostra numeri e segnala che le ore mancano.
 

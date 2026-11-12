@@ -262,7 +262,7 @@ export const messages = {
 
     importOpen: "Importa export di pianificazione",
     importTitle: "Importa export di pianificazione",
-    importHint: "Carica un file xlsx esportato da planning. Prima vedi cosa cambierebbe: nessuna scrittura finché non confermi. Le righe assenti non vengono cancellate.",
+    importHint: "Carica un file xlsx esportato dal sistema di pianificazione. Prima vedi cosa cambierebbe: nessuna scrittura finché non confermi. Le righe assenti non vengono cancellate.",
     importFamily: "Tipo di export",
     importFamily_employees: "Dipendenti",
     importFamily_work_days: "Presenze",
@@ -597,7 +597,7 @@ export const messages = {
 
     importOpen: "Import planning export",
     importTitle: "Import planning export",
-    importHint: "Upload an xlsx file exported from planning. You see what would change first: nothing is written until you confirm. Missing rows are never deleted.",
+    importHint: "Upload an xlsx file exported from your planning system. You see what would change first: nothing is written until you confirm. Missing rows are never deleted.",
     importFamily: "Export type",
     importFamily_employees: "Employees",
     importFamily_work_days: "Work days",

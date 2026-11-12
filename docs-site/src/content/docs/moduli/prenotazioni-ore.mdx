@@ -5,7 +5,7 @@ description: Prenotare in app le ore di un dipendente su un elemento di avanzame
 
 import Shot from '../../../components/Shot.astro';
 
-La vista **Prenotazioni ore** raccoglie le ore registrate sulle presenze del cantiere, raggruppate per **giorno operativo e dipendente**. Le presenze e gli elementi di avanzamento arrivano dall'import planning; le ore si prenotano qui.
+La vista **Prenotazioni ore** raccoglie le ore registrate sulle presenze del cantiere, raggruppate per **giorno operativo e dipendente**. Le presenze e gli elementi di avanzamento arrivano dall'import di pianificazione; le ore si prenotano qui.
 
 <Shot
   src="/images/2026-11/bookings-desktop.png"
@@ -20,7 +20,7 @@ A cosa serve: distinguere le ore che arrivano dall'export da quelle inserite in 
 Ogni gruppo ha una riga di riepilogo con cinque valori:
 
 - **Ore lavorate (sorgente)**: le ore di timbratura della presenza importata;
-- **Ore prenotate (sorgente)**: le ore già prenotate nell'export planning;
+- **Ore prenotate (sorgente)**: le ore già prenotate nell'export di pianificazione;
 - **Ore prenotate in app**: le prenotazioni inserite in SiteAssistant, modificabili;
 - **Ore non coperte (sorgente)**: le ore lavorate che l'export non copre con una prenotazione; sono la fotografia dell'export e non indicano la disponibilità di oggi;
 - **Scostamento**: **ore lavorate − (ore prenotate sorgente + ore prenotate in app)**.

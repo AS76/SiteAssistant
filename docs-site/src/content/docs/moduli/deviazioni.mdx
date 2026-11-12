@@ -5,7 +5,7 @@ description: Consultare le deviazioni importate, filtrarle per stato e priorità
 
 import Shot from '../../../components/Shot.astro';
 
-La vista **Deviazioni** mostra le deviazioni del cantiere selezionato. Sono dati **importati da planning** e si consultano in sola lettura: nell'applicazione non si creano e non si modificano. Per i totali per area PLC e il conteggio per stato in una tabella stampabile, vedi il [report del cantiere](../avanzamento/#report-del-cantiere).
+La vista **Deviazioni** mostra le deviazioni del cantiere selezionato. Sono dati **importati dal sistema di pianificazione** e si consultano in sola lettura: nell'applicazione non si creano e non si modificano. Per i totali per area PLC e il conteggio per stato in una tabella stampabile, vedi il [report del cantiere](../avanzamento/#report-del-cantiere).
 
 ## Consultare le deviazioni
 
@@ -29,7 +29,7 @@ Nell'**elenco** le colonne sono riferimento, titolo, stato, priorità, assegnata
 
 :::caution[Se una deviazione non compare]
 - Controlla i filtri **Stato** e **Priorità**: un filtro attivo restringe l'elenco senza avvisare.
-- Le deviazioni arrivano dall'import planning: una deviazione assente dal file non esiste nel cantiere. Non si crea a mano da questa vista.
+- Le deviazioni arrivano dall'import di pianificazione: una deviazione assente dal file non esiste nel cantiere. Non si crea a mano da questa vista.
 - Se lo stato non è tra quelli previsti, la scheda compare in **Stato non mappato**: va corretto l'export.
 - La vista richiede la connessione: offline mostra un messaggio al posto dei dati.
 :::
@@ -59,7 +59,7 @@ Il dettaglio è diviso in due schede:
 - **Dati:** riferimento, stato e priorità; descrizione del problema, autore e assegnatario; area PLC e date di creazione, scadenza, approvazione e chiusura; costo effettivo, quantità reclamata, ore di lavoro e percentuale di attività completate.
 - **Riferimenti:** i **riferimenti collegati** — voce di avanzamento, attività o voce di diario.
 
-Si passa da una scheda all'altra con un clic o con Tab e Invio. I campi sono in sola lettura. Per cambiare una deviazione si interviene sull'export planning e si ripete l'import.
+Si passa da una scheda all'altra con un clic o con Tab e Invio. I campi sono in sola lettura. Per cambiare una deviazione si interviene sull'export di pianificazione e si ripete l'import.
 
 :::caution[Se il dettaglio non si apre]
 - **Record non più disponibile:** i dati sono cambiati dopo il caricamento. Chiudi il dettaglio e ricarica la vista.

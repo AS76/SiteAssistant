@@ -193,7 +193,7 @@ The Overview layout is personal per user and per site. `widgets` is a list of 1 
 
 `earnedValue` has `available` (false when planned hours are missing, with `reason: "NO_PLANNED_HOURS"`), `bac_hours`, `ev_hours`, `pv_hours`, `ac_hours`, `cpi`, `spi`, `items_total`, `items_without_hours` and `by_section` (with `section`, `ev_hours`, `pv_hours`, `bac_hours` and `cpi`). BAC is the sum of the planned hours of the items or linked WBS nodes; `EV = BAC × actual progress / 100`, `PV = BAC × planned progress / 100`, `AC` is the sum of booked hours; `CPI = EV / AC` and `SPI = EV / PV`, `null` when the denominator is zero or missing.
 
-## planning export import
+## Planning export import
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |

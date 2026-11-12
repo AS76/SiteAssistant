@@ -31,7 +31,7 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 10 November 2026
 
-- **planning import from the Overview.** Owners and editors upload an xlsx file, see a preview with new, updated, unchanged, missing untouched and rejected rows, then confirm. No row is deleted. See [Import a planning export](../../amministrazione/import-pianificazione/).
+- **Planning import from the Overview.** Owners and editors upload an xlsx file, see a preview with new, updated, unchanged, missing untouched and rejected rows, then confirm. No row is deleted. See [Import a planning export](../../amministrazione/import-pianificazione/).
 - **Data assistant.** The **AI** button at the bottom right opens a panel with contextual suggestions and answers that cite records. It reads site data and writes nothing. See [Data assistant](../../guida/assistente-ai/).
 - **Overview with counters and charts.** Four indicators (open deviations, booked hours, open claims, settled), a deviations-by-status donut, progress by section with a planned marker, and hours per week. See [Common features](../../guida/funzioni-comuni/).
 - **Amount settings.** The gear at the top right sets currency, decimals and separators. See [Settings](../../guida/impostazioni/).

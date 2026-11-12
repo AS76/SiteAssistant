@@ -1,4 +1,4 @@
-# Import planning applicativo — incremento 18
+# Import di pianificazione applicativo — incremento 18
 
 Backend implementato, senza UI. Non attiva connettori, storage esterno o deploy.
 La migrazione **015**, per SQLite e PostgreSQL, aggiunge `planning_import_runs` e
@@ -26,7 +26,7 @@ Le colonne non riconosciute sono esplicitamente elencate, non interpretate.
 Il token HMAC-SHA256 scade dopo 15 minuti e vincola byte del file, famiglia,
 cantiere, fuso e risultato della normalizzazione. Non è un'autorizzazione: il ruolo
 viene verificato nuovamente all'apply e nella transazione. Con più processi occorre
-configurare lo stesso segreto casuale `PLANNING_IMPORT_TOKEN_SECRET` (almeno 32 byte di
+configurare lo stesso segreto casuale `planning_IMPORT_TOKEN_SECRET` (almeno 32 byte di
 entropia). Senza configurazione si usa un segreto casuale di processo: un riavvio
 invalida le anteprime ancora aperte.
 

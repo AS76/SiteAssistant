@@ -58,7 +58,7 @@ Le due liste accettano sia `site_id` sia `siteId`, perché le attività e il dia
 
 ## Struttura progetto (WBS) e presenze (HR)
 
-Queste aree sono esposte in **sola lettura**. L'import degli snapshot tramite endpoint dedicati è riservato agli owner; l'import planning dall'interfaccia copre anche Time Schedule e presenze (vedi [Import degli export planning](#import-degli-export-planning)).
+Queste aree sono esposte in **sola lettura**. L'import degli snapshot tramite endpoint dedicati è riservato agli owner; l'import di pianificazione dall'interfaccia copre anche Time Schedule e presenze (vedi [Import degli export di pianificazione](#import-degli-export-di-pianificazione)).
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
@@ -193,7 +193,7 @@ Il layout della Panoramica è personale per utente e cantiere. `widgets` è un e
 
 `earnedValue` ha `available` (falso quando mancano le ore pianificate, con `reason: "NO_PLANNED_HOURS"`), `bac_hours`, `ev_hours`, `pv_hours`, `ac_hours`, `cpi`, `spi`, `items_total`, `items_without_hours` e `by_section` (con `section`, `ev_hours`, `pv_hours`, `bac_hours` e `cpi`). Il BAC è la somma delle ore pianificate delle voci o dei nodi WBS collegati; `EV = BAC × avanzamento effettivo / 100`, `PV = BAC × avanzamento pianificato / 100`, `AC` è la somma delle ore prenotate; `CPI = EV / AC` e `SPI = EV / PV`, `null` quando il denominatore è zero o manca.
 
-## Import degli export planning
+## Import degli export di pianificazione
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
