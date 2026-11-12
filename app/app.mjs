@@ -1,4 +1,4 @@
-import { defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
+import { initialView, todayActions, recentActions, defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
@@ -28,7 +28,7 @@ const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 let session = null;
 let state = { sites: [], tasks: [], diary: [], attachments: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
-let view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'report'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+let view = initialView({ width: window.innerWidth, hash: location.hash });
 let filters = { search: '', status: '', person: '', priority: '', kind: '' };
 let taskView = 'board';
 let taskSort = defaultViewState().sort, taskColumns = [...TASK_COLUMNS];
@@ -117,7 +117,7 @@ async function loadData() {
           const accessRows = await Promise.all(sites.map(async site => [site.id, await freshApi.listModuleAccess(site.id)]));
           const memberAccess = Object.fromEntries(accessRows);
           const saved = storageReady ? await getMirror(`state:${offlineScope}`) : null;
-          state = { sites, tasks, diary, memberAccess, attachments: saved?.attachments || [] };
+          state = { sites, tasks, diary, memberAccess, attachments: saved?.attachments || [], todayResources: saved?.todayResources || {} };
           if (sites.length) {
             const selected = sites.some(site => site.id === siteId) ? siteId : sites[0].id;
             try {
@@ -234,6 +234,91 @@ function renderChrome() {
 function dueMarkup(task) { return `<span class="due ${task.status !== 'closed' && task.due && task.due < today() ? 'overdue' : ''}">${dateLabel(task.due)}</span>`; }
 function taskRow(task) {
   return `<div class="task-row"><div><h3><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></h3><p>${esc(task.area || t('noArea'))} · ${esc(task.company)}</p>${badge(task.status)} ${priorityBadge(task.priority)} ${syncBadge(task)}</div><div class="subtitle">${dueMarkup(task)}</div></div>`;
+}
+function todayResource(name) {
+  return coreCache.get(siteId)?.get(name)?.data ?? state.todayResources?.[siteId]?.[name] ?? [];
+}
+function rememberTodayResource(name, data, selected = siteId) {
+  if (!['progress', 'deviations'].includes(name)) return;
+  const cached = coreCache.get(selected)?.get(name);
+  if (cached?.data) cached.data = data;
+  state.todayResources ??= {};
+  state.todayResources[selected] ??= {};
+  state.todayResources[selected][name] = data;
+  const scope = offlineScope;
+  void accountLock(async () => {
+    if (scope === offlineScope) await persistState();
+  }).catch(() => { storageError = true; });
+}
+function currentTodayActions() {
+  return todayActions({ tasks: siteTasks(), progress: todayResource('progress'),
+    diary: state.diary.filter(entry => entry.siteId === siteId), deviations: todayResource('deviations'),
+    userId: session?.user.id, today: today(), modules: currentModules() });
+}
+function canCloseTodayTask(task) {
+  const selfReview = task.submitted_by_id ? task.submitted_by_id === session?.user.id : task.submitted_by === actor;
+  return canRunLightTransition(task) && task.status !== 'closed'
+    && (role() === 'owner' || task.verifier_id === session?.user.id)
+    && Boolean(task.submitted_by_id || task.submitted_by) && !selfReview;
+}
+function todayPhotoTargets() {
+  const entries = moduleVisible('diary') ? state.diary.filter(entry => entry.siteId === siteId && entry.date === today())
+    .map(entry => ({ type: 'diary', id: entry.id, title: `${t('journalToday')} · ${t(entry.shift)}` })) : [];
+  const tasks = moduleVisible('tasks') ? filterSortRecords(siteTasks().filter(task => task.status !== 'closed'), {}, [{ key: 'due' }, { key: 'title' }, { key: 'id' }])
+    .map(task => ({ type: 'task', id: task.id, title: task.title })) : [];
+  return [...entries, ...tasks].slice(0, 5);
+}
+function renderToday() {
+  const actions = currentTodayActions();
+  const recent = moduleVisible('tasks') ? recentActions({ tasks: siteTasks() }) : [];
+  const row = (item, kind = item.kind) => `<li><button type="button" class="today-row" data-command="today-open" data-kind="${kind}" data-id="${esc(item.id)}"><strong>${esc(item.title || (item.kind === 'diary' ? t('journalToday') : item.id))}</strong><span>${kind === 'recent'
+    ? `${t('todayClosed')} · ${item.date ? esc(timeLabel(item.date)) : t('todayClosureUnknown')}`
+    : `${t(item.meta.label)}${item.meta.status ? ` · ${t(item.meta.status)}` : ''}${item.meta.due ? ` · ${esc(dateLabel(item.meta.due))}` : ''}`}</span></button></li>`;
+  const quick = (label, action, enabled) => button(label, 'today-quick', `data-action="${action}" ${enabled ? '' : 'disabled'}`);
+  const quickActions = [
+    moduleVisible('tasks') ? quick('todayCloseTask', 'close', canWriteTask()) : '',
+    moduleVisible('diary') ? quick('todayWriteDiary', 'diary', canWriteTask()) : '',
+    moduleVisible('tasks') || moduleVisible('diary') ? quick('todayTakePhoto', 'photo', canWriteTask()) : '',
+    moduleVisible('progress') ? quick('todayUpdateProgress', 'progress', permissions().steps) : '',
+  ].join('');
+  $('#main').innerHTML = heading('today', 'todaySub') + `<div class="today-content">
+    <section class="panel today-section" aria-labelledby="today-todo"><h2 id="today-todo">${t('todayTodo')}</h2>
+      ${actions.length ? `<ul class="today-list">${actions.map(item => row(item)).join('')}</ul>` : `<p class="note">${t('todayEmpty')}</p>`}
+      ${moduleVisible('progress') || moduleVisible('deviations') ? `<p class="note">${t('todayLoadedOnly')}</p>` : ''}</section>
+    <section class="panel today-section" aria-labelledby="today-quick"><h2 id="today-quick">${t('todayQuick')}</h2><div class="today-quick">${quickActions}</div></section>
+    <section class="panel today-section" aria-labelledby="today-recent"><h2 id="today-recent">${t('todayRecent')}</h2>
+      ${recent.length ? `<ul class="today-list">${recent.map(item => row(item, 'recent')).join('')}</ul>` : `<p class="note">${t('todayRecentEmpty')}</p>`}</section>
+    ${offline ? `<p class="today-connection" role="status">${t('todayOffline')} <strong>${pendingOps.length}</strong> ${t('todayQueued')}</p>` : ''}</div>`;
+}
+function openTodayAction(control) {
+  const item = control.dataset.kind === 'recent'
+    ? (moduleVisible('tasks') ? recentActions({ tasks: siteTasks() }).find(row => row.id === control.dataset.id) : null)
+    : currentTodayActions().find(row => row.id === control.dataset.id && row.kind === control.dataset.kind);
+  if (!item || !moduleVisible(item.target.view)) return;
+  const target = item.target;
+  if (target.view === 'tasks') { resetSavedViews(); filters = { ...filters, ...target.filters }; taskView = 'list'; }
+  else if (target.view === 'diary') reportDate = target.date;
+  else { coreFilters[target.view] = { ...Object.fromEntries(Object.keys(coreFilters[target.view]).map(key => [key, ''])), ...target.filters }; if (target.view === 'deviations') deviationView = 'list'; }
+  go(target.view);
+}
+function runTodayQuick(action) {
+  if (action === 'close' && moduleVisible('tasks') && canWriteTask()) {
+    resetSavedViews(); filters = { ...filters, status: 'to_verify', kind: 'ordinary', closable: true }; taskView = 'light'; go('tasks');
+  } else if (action === 'diary' && moduleVisible('diary') && canWriteTask()) {
+    reportDate = today(); showEntryForm();
+  } else if (action === 'progress' && moduleVisible('progress') && permissions().steps) {
+    coreFilters.progress = { wbsId: '' }; go('progress');
+  } else if (action === 'photo' && canWriteTask() && (moduleVisible('tasks') || moduleVisible('diary'))) {
+    const targets = todayPhotoTargets();
+    showModal(t('todayTakePhoto'), `<p class="note">${t('todayPhotoTarget')}</p>${targets.length
+      ? `<div class="today-photo-targets">${targets.map(item => `<button type="button" data-command="today-photo-target" data-entity-type="${item.type}" data-id="${esc(item.id)}">${esc(item.title)}</button>`).join('')}</div>`
+      : `<p>${t('todayPhotoEmpty')}</p>`}`);
+  }
+}
+function openTodayPhoto(type, id) {
+  if (!canWriteTask() || !todayPhotoTargets().some(item => item.type === type && item.id === id)) return;
+  showAttachmentForm(type, id, { camera: true });
+  $('#attachment-form [name=file]')?.click();
 }
 function renderOverview() {
   $('#main').innerHTML = heading('overviewTitle', 'overviewSub',
@@ -470,7 +555,9 @@ function renderSites() {
 }
 function filteredTasks() {
   const needle = filters.search.trim().toLocaleLowerCase();
-  return siteTasks().filter(task => (!filters.status || task.status === filters.status) && (!filters.person || task.assignee === filters.person)
+  return siteTasks().filter(task => (!filters.id || task.id === filters.id)
+    && (!filters.closable || canCloseTodayTask(task))
+    && (!filters.status || task.status === filters.status) && (!filters.person || task.assignee === filters.person)
     && (!filters.priority || task.priority === filters.priority)
     && (!filters.kind || (task.kind ?? 'ordinary') === filters.kind)
     && (!needle || `${task.title} ${task.area} ${task.company}`.toLocaleLowerCase().includes(needle)));
@@ -618,6 +705,7 @@ function renderTaskResults() {
       : ['assignee', 'reviewer'].includes(key) ? personName(task[key]) : esc(task[key] || '—');
     html += `<div class="table-scroll"><table><thead><tr>${taskColumns.map(key => `<th scope="col" ${key === taskSort.key ? `aria-sort="${taskSort.direction === 'asc' ? 'ascending' : 'descending'}"` : ''}>${t(key)}</th>`).join('')}</tr></thead><tbody>${sorted.map(task => `<tr>${taskColumns.map((key, index) => `<td>${index === 0 ? `<button data-command="detail" data-id="${esc(task.id)}" aria-label="${esc(task.title)}">${cell(task, key)}</button>` : cell(task, key)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
+  if (filters.id || filters.closable) html = `<p class="note">${t('todayFiltered')} ${button('clearFilters', 'clear-filters')}</p>` + html;
   renderViewDirty();
   $('#task-results').innerHTML = html;
 }
@@ -693,8 +781,8 @@ const permissions = () => corePermissions(role());
 const moduleResources = { deviations: ['deviations', 'reconciliation'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'], hse: ['hse'] };
 // Mobile keeps four destinations reachable with the thumb; the rest lives behind «Altro».
 const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse'];
-const MOBILE_PRIMARY = ['overview', 'tasks', 'deviations', 'bookings'];
-const compactNavigation = () => window.matchMedia('(max-width: 800px)').matches;
+const MOBILE_PRIMARY = ['today', 'tasks', 'deviations', 'bookings'];
+const compactNavigation = () => window.matchMedia('(width < 800px)').matches;
 const coreCache = new Map();
 let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' }, hse: { type: '', severity: '', from: '', to: '' } };
 let reconciliationFilter = '', reconciliationOpen = true;
@@ -738,10 +826,14 @@ function coreResource(name) {
       return flattenWbs(result?.nodes || []);
     },
   };
+  const resourceUser = session?.user.id;
   const dependencyModule = ({ progressTypes: 'progress', wbs: 'wbs', progress: 'progress' })[name];
-  entry.promise = (dependencyModule && !moduleVisible(dependencyModule) ? Promise.resolve([]) : loaders[name]()).then(data => { entry.data = data; }, error => { entry.error = error; }).finally(() => {
+  entry.promise = (dependencyModule && !moduleVisible(dependencyModule) ? Promise.resolve([]) : loaders[name]()).then(data => {
+    entry.data = data;
+    if (coreCache.get(selected) === cache && cache.get(name) === entry && session?.user.id === resourceUser) rememberTodayResource(name, data, selected);
+  }, error => { entry.error = error; }).finally(() => {
     entry.pending = false;
-    if (coreCache.get(selected) === cache && cache.get(name) === entry && siteId === selected && moduleResources[view]?.includes(name)) render();
+    if (coreCache.get(selected) === cache && cache.get(name) === entry && siteId === selected && (moduleResources[view]?.includes(name) || view === 'today')) render();
   });
   return entry;
 }
@@ -775,6 +867,7 @@ function renderCore() {
     $('#main').insertAdjacentHTML('beforeend', empty('coreOnlineOnly', 'coreOnlineHint')); return;
   }
   if (view === 'hse' && !permissions().hse) { $('#main').insertAdjacentHTML('beforeend', empty('forbidden', 'hseRestricted')); return; }
+  if (coreFilters[view]?.id) $('#main').insertAdjacentHTML('beforeend', `<p class="note">${t('todayFiltered')} ${button('clearFilters', 'today-clear-filter')}</p>`);
   const resources = moduleResources[view].map(coreResource);
   if (resources.some(entry => entry.pending)) {
     $('#main').setAttribute('aria-busy', 'true');
@@ -1284,6 +1377,11 @@ async function showCoreDetail(module, id) {
     const row = await ({ deviations: freshApi.getDeviation, progress: freshApi.getProgress, impacts: freshApi.getImpact }[module])(id);
     if (version !== modalVersion || siteId !== selected || !$('#modal').open) return;
     if (row.siteId !== selected) throw new Error('forbidden');
+    if (['progress', 'deviations'].includes(module)) {
+      const previous = todayResource(module);
+      const updated = { ...previous.find(item => item.id === row.id), ...row };
+      rememberTodayResource(module, [...previous.filter(item => item.id !== row.id), updated]);
+    }
     let content;
     if (module === 'deviations') {
       const typeLabels = { site_progress_item: 'coreProgressItem', task: 'tasks', diary: 'diary' };
@@ -1384,6 +1482,7 @@ async function submitCore(form, data) {
   }
   if (session?.user.id !== user) return;
   const cache = coreCache.get(selected);
+  if (!isImpact && state.todayResources?.[selected]) { delete state.todayResources[selected].progress; void accountLock(persistState).catch(() => { storageError = true; }); }
   overviewCache.delete(selected);
   for (const key of isImpact ? ['impacts'] : ['bookings', 'progress']) cache?.delete(key);
   if (selected !== siteId) return;
@@ -1404,7 +1503,7 @@ function render() {
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
   if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
   if (!moduleVisible(view)) { $('#main').innerHTML = empty('moduleUnavailable', 'moduleUnavailableHint'); return; }
-  ({ report: renderReport, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore, tools: renderCore, certifications: renderCore, hse: renderCore })[view]();
+  ({ today: renderToday, report: renderReport, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore, tools: renderCore, certifications: renderCore, hse: renderCore })[view]();
 }
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
 function selectSite(id) {
@@ -1605,8 +1704,8 @@ function attachmentSection(entityType, entityId) {
   const files = (state.attachments || []).filter(file => file.entity_type === entityType && file.entity_id === entityId);
   return `<section class="attachment-section"><h3>${t('attachments')}</h3>${files.map(file => `<p>${button('openAttachment', 'open-attachment', `data-id="${esc(file.id)}"`)} ${esc(file.filename)} ${syncBadge(file)}</p>`).join('')}${button('addAttachment', 'new-attachment', `data-entity-type="${entityType}" data-id="${esc(entityId)}"`)}</section>`;
 }
-function showAttachmentForm(entityType, entityId) {
-  showModal(t('addAttachment'), `<form id="attachment-form" data-entity-type="${entityType}" data-entity-id="${esc(entityId)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><label class="field">${t('attachmentFile')}<input type="file" name="file" accept="image/*,application/pdf" required></label><p class="note">${t('attachmentHint')}</p>${formActions()}</form>`);
+function showAttachmentForm(entityType, entityId, { camera = false } = {}) {
+  showModal(t('addAttachment'), `<form id="attachment-form" data-entity-type="${entityType}" data-entity-id="${esc(entityId)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><label class="field">${t('attachmentFile')}<input type="file" name="file" accept="${camera ? 'image/*' : 'image/*,application/pdf'}" ${camera ? 'capture="environment"' : ''} required></label><p class="note">${t('attachmentHint')}</p>${formActions()}</form>`);
 }
 async function openAttachment(id) {
   const file = state.attachments.find(item => item.id === id);
@@ -1649,6 +1748,10 @@ document.addEventListener('click', event => {
   const target = event.target.closest('[data-command]'); if (!target) return;
   const command = target.dataset.command, id = target.dataset.id;
   const commands = {
+    'today-open': () => openTodayAction(target),
+    'today-quick': () => runTodayQuick(target.dataset.action),
+    'today-photo-target': () => openTodayPhoto(target.dataset.entityType, id),
+    'today-clear-filter': () => { if (view === 'tasks') filters = { search: '', status: '', person: '', priority: '', kind: '' }; else if (coreFilters[view]) delete coreFilters[view].id; render(); },
     'sync-now': () => { offline = !navigator.onLine; void syncQueue(); },
     'discard-op': async () => { await accountLock(async () => { await removeOp(id); }); await refreshPending(); render(); },
     'new-attachment': () => showAttachmentForm(target.dataset.entityType, id),
@@ -1715,7 +1818,7 @@ document.addEventListener('click', event => {
     'ai-close': () => { $('#ai-panel').hidden = true; $('#ai-fab').setAttribute('aria-expanded', 'false'); $('#ai-fab').focus(); },
     'ai-suggest': () => { askAssistant(target.dataset.text); },
     'more-nav': () => {
-      const rest = visibleModules(NAV_ITEMS, currentModules()).filter(key => !MOBILE_PRIMARY.includes(key));
+      const rest = visibleModules(['today', ...NAV_ITEMS], currentModules()).filter(key => !MOBILE_PRIMARY.includes(key));
       showModal(t('more'), `<nav class="more-nav" aria-label="${t('more')}">${rest.map(key => `<a href="#${key}">${icon(key)}${t(key)}</a>`).join('')}</nav>`);
     },
   };
@@ -1875,10 +1978,10 @@ document.addEventListener('input', event => {
   }
   if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
 $('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
-window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'report'].includes(next) ? next : 'overview'; if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
-window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view]) { closeModal(); render(); } });
-window.matchMedia('(max-width: 800px)').addEventListener('change', () => renderChrome());
-window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view]) render(); void syncQueue(); });
+window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = initialView({ width: window.innerWidth, hash: next ? `#${next}` : '#overview' }); if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
+window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view] || view === 'today') { closeModal(); render(); } });
+window.matchMedia('(width < 800px)').addEventListener('change', () => renderChrome());
+window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view] || view === 'today') render(); void syncQueue(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) void syncQueue(); });
 accountChannel?.addEventListener('message', () => { clearSession(); void loadData(); });
 navigator.serviceWorker?.addEventListener('message', event => {

@@ -147,6 +147,62 @@ export function counts(tasks, referenceDate = today()) {
     overdue: tasks.filter(task => task.status !== 'closed' && task.due && task.due < referenceDate).length,
     blocked: tasks.filter(task => task.status === 'blocked').length };
 }
+
+const APP_VIEWS = ['today', 'overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'report'];
+export function initialView({ width, hash = '' }) {
+  if (!hash) return width < 800 ? 'today' : 'overview';
+  const name = hash.replace(/^#/, '');
+  return APP_VIEWS.includes(name) ? name : 'overview';
+}
+
+// Targets and metadata contain contract fields and translation keys, never UI text.
+export function todayActions({ tasks = [], progress = [], diary = [], deviations = [], userId, today: day, modules = {} }) {
+  const rows = [], seen = new Set();
+  const orderedTasks = filterSortRecords(tasks, {}, [{ key: 'due' }, { key: 'title' }, { key: 'id' }]);
+  const addTask = (task, label) => {
+    if (seen.has(task.id)) return;
+    seen.add(task.id);
+    rows.push({ kind: 'task', id: task.id, title: task.title, meta: { label, status: task.status, due: task.due ?? null },
+      target: { view: 'tasks', filters: { id: task.id } } });
+  };
+  if (visibleModules(['tasks'], modules).length) {
+    for (const task of orderedTasks) if (userId && task.executor_id === userId && task.status !== 'closed' && task.due && task.due <= day) addTask(task, 'todayMine');
+    for (const task of orderedTasks) if (userId && task.verifier_id === userId && task.status === 'to_verify') addTask(task, 'todayVerify');
+  }
+  if (visibleModules(['progress'], modules).length) {
+    const open = progress.filter(item => Array.isArray(item.steps)
+      ? item.steps.some(step => step.percent == null || Number(step.percent) < 100)
+      // List responses expose the computed aggregate, detail responses expose steps.
+      : item.progressTypeId != null && item.progressPct != null && Number(item.progressPct) < 100);
+    for (const item of filterSortRecords(open, {}, [{ key: 'description' }, { key: 'id' }]).slice(0, 2)) {
+      rows.push({ kind: 'progress', id: item.id, title: item.description, meta: { label: 'todayOpenSteps' },
+        target: { view: 'progress', filters: { id: item.id } } });
+    }
+  }
+  if (visibleModules(['diary'], modules).length && !diary.some(entry => entry.date === day)) {
+    rows.push({ kind: 'diary', id: day, title: null, meta: { label: 'todayDiaryMissing', date: day }, target: { view: 'diary', date: day } });
+  }
+  if (visibleModules(['deviations'], modules).length) {
+    for (const item of filterSortRecords(deviations.filter(row => ['open', 'approved', 'in_progress', 'work_completed'].includes(row.status)), {}, [{ key: 'creationDate' }, { key: 'id' }])) {
+      rows.push({ kind: 'deviation', id: item.id, title: item.title, meta: { label: 'todayReadOnly', status: item.status },
+        target: { view: 'deviations', filters: { id: item.id } } });
+    }
+  }
+  if (visibleModules(['tasks'], modules).length) {
+    for (const task of orderedTasks) if (task.executor_id == null && task.status !== 'closed' && task.due && task.due < day) addTask(task, 'todayUnassigned');
+  }
+  return rows.slice(0, 5);
+}
+
+export function recentActions({ tasks = [] }) {
+  const closure = task => typeof task.closedAt === 'string' && Number.isFinite(Date.parse(task.closedAt)) ? task.closedAt : null;
+  return tasks.filter(task => task.status === 'closed').sort((a, b) => {
+    const first = closure(a), second = closure(b);
+    if (first && second) return Date.parse(second) - Date.parse(first) || String(a.id).localeCompare(String(b.id));
+    if (Boolean(first) !== Boolean(second)) return first ? -1 : 1;
+    return String(b.due || '').localeCompare(String(a.due || '')) || String(a.id).localeCompare(String(b.id));
+  }).slice(0, 3).map(task => ({ id: task.id, title: task.title, date: closure(task), target: { view: 'tasks', filters: { id: task.id } } }));
+}
 export function csvCell(value) {
   let result = String(value ?? '');
   if (/^[\s\u0000-\u001f]*[=+@-]/u.test(result) || /^[\t\r\n]/u.test(result)) result = `'${result}`;
@@ -167,7 +223,7 @@ const NAV_GROUPS = Object.freeze([
   Object.freeze({ label: 'navManagement', items: Object.freeze(['sites', 'tools', 'certifications', 'hse']) }),
 ]);
 export function visibleModules(items, modules = {}) {
-  return items.filter(module => ['sites', 'overview'].includes(module) || modules[module] !== false);
+  return items.filter(module => ['sites', 'overview', 'today'].includes(module) || modules[module] !== false);
 }
 export function navGroups(modules = {}) {
   return NAV_GROUPS.map(group => ({ label: group.label, items: visibleModules(group.items, modules) }))

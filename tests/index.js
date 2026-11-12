@@ -41,6 +41,7 @@ import './import-mappings.test.mjs';
 import './offline.test.mjs';
 
 import './increment-16-ui.test.mjs';
+import './increment-25-today.test.mjs';
 import './view-settings.test.mjs';
 import './saved-views-ui.test.mjs';
 
