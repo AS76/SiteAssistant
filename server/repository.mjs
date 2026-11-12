@@ -99,6 +99,14 @@ export async function listMembers(db, siteId, user) {
     JOIN users u ON u.id = m.user_id WHERE m.site_id = ? ORDER BY u.id`, siteId);
 }
 
+export async function listAssignable(db, siteId, user) {
+  await requireRole(db, siteId, user, WRITE_ROLES);
+  return await db.all(`SELECT u.id AS user_id, u.name, m.role FROM site_members m
+    JOIN users u ON u.id = m.user_id
+    WHERE m.site_id = ? AND u.disabled_at IS NULL AND m.role IN ('owner', 'editor', 'verifier')
+    ORDER BY lower(u.name), u.name, u.id`, siteId);
+}
+
 export async function setMember(db, siteId, input, user) {
   object(input);
   return await db.transaction(async tx => {
@@ -207,6 +215,8 @@ export async function createTask(db, input) {
   const actor = text(input.actor, 'actor') || executor;
   let executorId = input.executor_id ?? null;
   let verifierId = input.verifier_id ?? null;
+  // IDs bind account assignments; names remain readable snapshots. Null IDs retain legacy
+  // name checks for internal calls; session-based review still requires the designated ID or owner role.
   for (const value of [executorId, verifierId]) {
     if (value !== null && (typeof value !== 'string' || !uuid.test(value))) fail(400, 'Invalid user UUID.', 'VALIDATION_ERROR');
   }
@@ -262,6 +272,8 @@ export async function transitionTask(db, id, input, user) {
     if (!action) {
       fail(409, `Transition from ${task.status} to ${to} is not allowed.`, 'INVALID_TRANSITION');
     }
+    // Session reviews use ID plus site role (owner override); null IDs permit only owners.
+    // Legacy calls without a session use names below; submitter checks also fall back to names.
     if (user && ['verify', 'reject', 'reopen'].includes(action) && role !== 'owner' && user.id !== task.verifier_id) {
       fail(403, 'Only the designated verifier or a site owner can perform this transition.', 'FORBIDDEN');
     }

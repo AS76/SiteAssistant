@@ -115,6 +115,10 @@ export function taskPayload(input) {
   if (input.kind === 'corrective') result.kind = 'corrective';
   else if (input.kind !== undefined && input.kind !== '' && input.kind !== 'ordinary') fail('invalidData');
   if (result.executor === result.verifier) fail('separatePeople');
+  for (const key of ['executor_id', 'verifier_id']) {
+    if (input[key] != null && input[key] !== '') result[key] = text(input[key], true);
+  }
+  if (result.executor_id && result.executor_id === result.verifier_id) fail('separatePeople');
   return result;
 }
 export function diaryPayload(input) {

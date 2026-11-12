@@ -33,7 +33,7 @@ import { listHseEvents, createHseEvent, updateHseEvent, deleteHseEvent, hseSumma
 import { importRequest, MAX_IMPORT_BYTES, listImportMappings, saveImportMapping, deleteImportMapping } from './planning-import.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, countTasks, getTask,
-  transitionTask, listDiary, countDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember,
+  transitionTask, listDiary, countDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember, listAssignable,
   createAttachment, listAttachments, getAttachment, deleteAttachment, MAX_ATTACHMENT_BYTES,
 } from './repository.mjs';
 
@@ -553,6 +553,8 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, await getSite(db, site[1]));
       }
       const members = /^\/api\/sites\/([^/]+)\/members$/.exec(path);
+      const assignable = /^\/api\/sites\/([^/]+)\/assignable$/.exec(path);
+      if (assignable && method === 'GET') return json(response, 200, await listAssignable(db, assignable[1], user));
       if (members && method === 'GET') return json(response, 200, await listMembers(db, members[1], user));
       if (members && method === 'POST') return json(response, 200, await setMember(db, members[1], await readJson(request), user));
       if (path === '/api/tasks' && method === 'GET') {

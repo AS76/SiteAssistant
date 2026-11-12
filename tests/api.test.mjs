@@ -30,12 +30,16 @@ test('API client round-trip: sites, tasks, transitions/events and diary against 
   assert.deepEqual((await api.listSites()).map(site => site.id), [bootstrap.id]);
   const site = await api.createSite({ code: 'API-01', name: 'Example site', start: '2026-01-01' });
   await db.run("INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'verifier')", site.id, users.verifier.id);
+  await db.run("INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'editor')", site.id, users.editor.id);
   assert.equal(site.start, '2026-01-01');
   assert.equal(site.end, null);
-  const task = await api.createTask({ siteId: site.id, title: 'Example task', assignee: 'Example executor', reviewer: 'Example verifier', due: '2026-01-02' });
-  // The legacy client sends display names; assign the reviewer's identity explicitly.
-  await db.run('UPDATE tasks SET verifier_id = ? WHERE id = ?', users.verifier.id, task.id);
-  assert.equal(task.assignee, 'Example executor');
+  const assignable = await api.listAssignable(site.id);
+  assert.deepEqual(assignable.map(row => row.role), ['editor', 'owner', 'verifier']);
+  const task = await api.createTask({ siteId: site.id, title: 'Example task', assignee: users.editor.name, reviewer: users.verifier.name,
+    executor_id: users.editor.id, verifier_id: users.verifier.id, due: '2026-01-02' });
+  const saved = await db.get('SELECT executor_id, verifier_id FROM tasks WHERE id = ?', task.id);
+  assert.deepEqual({ ...saved }, { executor_id: users.editor.id, verifier_id: users.verifier.id });
+  assert.equal(task.assignee, users.editor.name);
   assert.equal(task.reviewer, 'Example verifier');
   assert.equal(task.due, '2026-01-02');
   assert.deepEqual(await api.listTasks({ siteId: site.id, status: 'closed' }), []);

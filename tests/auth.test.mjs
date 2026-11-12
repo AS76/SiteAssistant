@@ -154,11 +154,16 @@ for (const [action, to] of [['verify', 'closed'], ['reject', 'in_progress'], ['r
       await db.run('UPDATE users SET name = ? WHERE id = ?', users.verifier.name, users.viewer.id);
       for (const reviewer of ['editor', 'viewer', 'verifier', 'owner']) {
         await t.test(reviewer === 'viewer' ? 'non-designated verifier' : `session ${reviewer}`, async t => {
-          const task = await createTask(db, {
+          const created = await as('editor', '/api/tasks', {
             siteId: site.id, title: 'Synthetic review authorization',
             executor: users.editor.name, executor_id: users.editor.id,
             verifier: users.verifier.name, verifier_id: assigned ? users.verifier.id : null,
           });
+          t.assert.strictEqual(created.status, 201);
+          const task = created.body;
+          const saved = await getTask(db, task.id);
+          t.assert.strictEqual(saved.executor_id, users.editor.id);
+          t.assert.strictEqual(saved.verifier_id, assigned ? users.verifier.id : null);
           const path = `/api/tasks/${task.id}/transition`;
           const move = (role, target) => as(role, path, {
             to: target, actor: users.verifier.name, verifier_id: users[role].id,
@@ -186,6 +191,40 @@ for (const [action, to] of [['verify', 'closed'], ['reject', 'in_progress'], ['r
     });
   }
 }
+
+test('assignable exposes only active writing members and no contact or credential data', async t => {
+  const { db, site, as, users } = await fixture(t);
+  const path = `/api/sites/${site.id}/assignable`;
+  const expected = ['editor', 'owner', 'verifier'].map(role => ({ user_id: users[role].id, name: users[role].name, role }));
+  for (const role of ['owner', 'editor', 'verifier']) {
+    const result = await as(role, path);
+    t.assert.strictEqual(result.status, 200);
+    t.assert.deepStrictEqual(result.body, expected);
+    t.assert.doesNotMatch(JSON.stringify(result.body), /email|password|hash|@/i);
+  }
+  t.assert.strictEqual((await as('viewer', path)).status, 403);
+  const other = await createSite(db, { code: 'UNASSIGNED', name: 'Other synthetic site' });
+  t.assert.strictEqual((await as('owner', `/api/sites/${other.id}/assignable`)).status, 403);
+  for (const id of [randomUUID(), 'missing']) t.assert.strictEqual((await as('owner', `/api/sites/${id}/assignable`)).status, 404);
+  await db.run('UPDATE users SET disabled_at = ? WHERE id = ?', new Date().toISOString(), users.verifier.id);
+  t.assert.deepStrictEqual((await as('editor', path)).body, expected.slice(0, 2));
+});
+
+test('free-name HTTP creation leaves IDs null and preserves current owner-only session review', async t => {
+  const { db, site, as, users } = await fixture(t);
+  const created = await as('editor', '/api/tasks', { siteId: site.id, title: 'Synthetic external task',
+    executor: 'External synthetic team', verifier: users.verifier.name });
+  t.assert.strictEqual(created.status, 201);
+  const task = await getTask(db, created.body.id);
+  t.assert.strictEqual(task.executor_id, null);
+  t.assert.strictEqual(task.verifier_id, null);
+  const path = `/api/tasks/${task.id}/transition`;
+  for (const to of ['in_progress', 'to_verify']) {
+    t.assert.strictEqual((await as('editor', path, { to, note: 'Synthetic evidence' })).status, 200);
+  }
+  t.assert.strictEqual((await as('verifier', path, { to: 'closed', note: 'Synthetic review' })).status, 403);
+  t.assert.strictEqual((await as('owner', path, { to: 'closed', note: 'Synthetic review' })).status, 200);
+});
 
 test('designated verifier cannot review their own submission even after a name change', async t => {
   const { db, task, as, users } = await fixture(t);

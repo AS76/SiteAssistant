@@ -1462,8 +1462,72 @@ function showSiteForm() {
   showModal(t('newSite'), `<form id="site-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('code', 'code', '', { required: true, max: 30, hint: 'codeHint' })}${field('name', 'name', '', { required: true, max: 120 })}<label class="field full" for="field-location"><span>${t('location')} <small>(${t('optional')})</small></span><input name="location" id="field-location" list="location-options" autocomplete="off" maxlength="160" placeholder="${t('locationHint')}"><datalist id="location-options"></datalist><small id="location-hint" class="note"></small></label>${field('startDate', 'start', today(), { type: 'date' })}${field('endDate', 'end', '', { type: 'date' })}</div>${formActions()}</form>`);
   wireLocationLookup();
 }
-function showTaskForm() {
-  showModal(t('newTask'), `<form id="task-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', '', { full: true, required: true, max: 180 })}${field('area', 'area', '', { max: 100 })}${field('company', 'company', '', { max: 100 })}${field('assignee', 'assignee', '', { required: true })}${field('reviewer', 'reviewer', '', { required: true })}${field('priority', 'priority', '', { options: PRIORITIES.map(priority => `<option value="${esc(priority)}">${esc(t(priority))}</option>`).join(''), required: true })}${field('kind', 'kind', 'ordinary', { options: TASK_KINDS.map(kind => `<option value="${esc(kind)}">${esc(t(taskKindLabelKey(kind)))}</option>`).join('') })}${field('due', 'due', today(), { type: 'date' })}</div>${formActions()}</form>`);
+function taskResponsibleFields() {
+  return [['executor', 'assignee'], ['verifier', 'reviewer']].map(([key, label]) => `
+    <div class="field"><label for="${key}-account">${esc(t(label))} *</label>
+      <select id="${key}-account" data-responsible="${key}" required aria-describedby="responsible-separate">
+        <option value="">${esc(t('responsibleChoose'))}</option><option value="other">${esc(t('responsibleOther'))}</option>
+      </select><input type="hidden" name="${key}_id" value="">
+      <label data-free-name="${key}" hidden>${esc(t('responsibleName'))}
+        <input type="hidden" name="${label}" maxlength="4000" required>
+      </label>
+    </div>`).join('') + `<p id="responsible-separate" class="note full">${esc(t('responsibleSeparate'))}</p>
+    <p data-assignable-status class="note full" role="status">${esc(t('loading'))}</p>`;
+}
+function wireTaskResponsibles(form) {
+  let members = [];
+  const controls = [['executor', 'assignee'], ['verifier', 'reviewer']].map(([key, name]) => ({
+    key, select: form.querySelector(`[data-responsible="${key}"]`),
+    id: form.elements[`${key}_id`], name: form.elements[name], free: form.querySelector(`[data-free-name="${key}"]`),
+  }));
+  const update = () => {
+    const [executor, verifier] = controls;
+    for (const option of verifier.select.options) {
+      option.disabled = option.value !== '' && option.value !== 'other' && option.value === executor.select.value;
+      option.title = option.disabled ? t('responsibleSeparate') : '';
+    }
+    if (verifier.select.value !== 'other' && verifier.select.value && verifier.select.value === executor.select.value) verifier.select.value = '';
+    for (const control of controls) {
+      const member = members.find(item => item.user_id === control.select.value);
+      const free = control.select.value === 'other';
+      control.id.value = member?.user_id || '';
+      control.free.hidden = !free;
+      control.name.type = free ? 'text' : 'hidden';
+      if (!free) control.name.value = member?.name || '';
+    }
+  };
+  for (const control of controls) control.select.addEventListener('change', update);
+  return rows => {
+    members = rows;
+    for (const control of controls) {
+      // Keep placeholder and free-name choice, including a name typed while loading.
+      while (control.select.options.length > 2) control.select.remove(1);
+      for (const member of members) {
+        if (control.key === 'verifier' && !['owner', 'verifier'].includes(member.role)) continue;
+        const option = document.createElement('option');
+        option.value = member.user_id;
+        option.textContent = `${member.name} (${t(`responsibleRole_${member.role}`)})`;
+        control.select.add(option, control.select.options.length - 1);
+      }
+    }
+    update();
+  };
+}
+async function showTaskForm() {
+  showModal(t('newTask'), `<form id="task-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', '', { full: true, required: true, max: 180 })}${field('area', 'area', '', { max: 100 })}${field('company', 'company', '', { max: 100 })}${taskResponsibleFields()}${field('priority', 'priority', '', { options: PRIORITIES.map(priority => `<option value="${esc(priority)}">${esc(t(priority))}</option>`).join(''), required: true })}${field('kind', 'kind', 'ordinary', { options: TASK_KINDS.map(kind => `<option value="${esc(kind)}">${esc(t(taskKindLabelKey(kind)))}</option>`).join('') })}${field('due', 'due', today(), { type: 'date' })}</div>${formActions()}</form>`);
+  const version = modalVersion, selectedSite = siteId;
+  const form = $('#task-form');
+  const setMembers = wireTaskResponsibles(form);
+  const status = form.querySelector('[data-assignable-status]');
+  try {
+    const members = await freshApi.listAssignable(selectedSite);
+    if (version !== modalVersion || selectedSite !== siteId || !$('#modal').open) return;
+    setMembers(members);
+    status.textContent = '';
+  } catch {
+    if (version !== modalVersion || selectedSite !== siteId || !$('#modal').open) return;
+    status.textContent = t('assignableUnavailable');
+  }
 }
 async function showDetail(taskId) {
   showModal(t('details'), `<p role="status">${t('loading')}</p>`);

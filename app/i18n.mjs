@@ -1,5 +1,10 @@
 export const messages = {
   it: {
+    responsibleChoose: 'Seleziona una persona…', responsibleOther: 'Altra persona…',
+    responsibleName: 'Nome della persona o squadra',
+    responsibleSeparate: 'Esecutore e verificatore devono essere persone diverse. Il membro scelto come esecutore è disabilitato tra i verificatori.',
+    responsibleRole_owner: 'Proprietario', responsibleRole_editor: 'Editor', responsibleRole_verifier: 'Verificatore',
+    assignableUnavailable: 'Elenco membri non disponibile. Puoi scegliere «Altra persona…» e inserire un nome libero.',
     reconciliationTitle: 'Da riconciliare', reconciliationReportTitle: 'Cronologie incoerenti',
     reconciliation_closed_without_date: 'Chiusa senza data', reconciliation_close_before_approval: 'Chiusura prima dell’approvazione',
     reconciliation_status_gap: 'Stati discordanti (≥ 3 giorni)',
@@ -335,6 +340,11 @@ export const messages = {
     actorPlaceholder:"Nome della persona",loading:"Caricamento…",retry:"Riprova",apiUnavailable:"API non raggiungibile. Controlla la connessione e riprova.",apiError:"Richiesta API non riuscita. Controlla i dati e riprova.",duplicateDiary:"Esiste già un contributo per questo cantiere, giorno e turno.",noteRequired:"Inserisci una nota di esecuzione o verifica.",verifierRequired:"Solo il verificatore assegnato può chiudere questa attività.",transitionTo:"Passa a",noTransitions:"Nessuna transizione disponibile per questo stato.",reason:"Motivazione",noSites:"Nessun cantiere",noSitesHint:"Crea il primo cantiere per iniziare.",
   },
   en: {
+    responsibleChoose: 'Choose a person…', responsibleOther: 'Another person…',
+    responsibleName: 'Person or team name',
+    responsibleSeparate: 'Executor and reviewer must be different people. The selected executor is disabled in the reviewer list.',
+    responsibleRole_owner: 'Owner', responsibleRole_editor: 'Editor', responsibleRole_verifier: 'Reviewer',
+    assignableUnavailable: 'Member list unavailable. You can choose “Another person…” and enter a free name.',
     reconciliationTitle: 'To reconcile', reconciliationReportTitle: 'Inconsistent timelines',
     reconciliation_closed_without_date: 'Closed without date', reconciliation_close_before_approval: 'Closure before approval',
     reconciliation_status_gap: 'Conflicting statuses (≥ 3 days)',
