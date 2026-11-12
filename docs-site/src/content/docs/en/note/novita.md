@@ -7,6 +7,9 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 12 November 2026
 
+- **Bigger controls on touch, indicators in two columns.** On a touch device buttons, small buttons, the **Board/List** selector and the hours booking stepper are at least **44 px** tall; on the desktop the sizes stay as before. Between **521 and 1100 px** the four Overview indicators move to two columns per row. See [Mobile quick guide](../../guida/mobile/#touch-targets) and [Common functions](../../guida/funzioni-comuni/#reading-the-overview).
+- **The operational day rule stays on the phone.** In the Diary the **One operational day, two shifts** panel, which used to disappear below 800 px, is now a collapsible panel open by default: the rule and the contribution limit stay readable on a phone too. See [Site diary](../../moduli/diario/#the-operational-day).
+
 - **Reconciliation without a status comparison.** The **To reconcile** panel in Deviations and the **Inconsistent timelines** section of the report check official dates only: closed without a date and closure before approval. The **Conflicting statuses** check — always zero, because deviations have no internal history — has been retired, together with the **Last internal status** column. See [Deviations](../../moduli/deviazioni/#to-reconcile).
 
 - **Change history on HSE, Fitness and Tools.** Deleting an HSE event, a certificate or a tool no longer erases the row: it leaves the views, the counters and the details but stays in an audit register with every creation, edit and deletion, the author and the date. The register is readable through the API only, with `GET /api/audit-events`, by owners and verifiers. See [REST API](../../riferimento/api/#audit-register).

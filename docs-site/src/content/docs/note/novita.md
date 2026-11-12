@@ -7,6 +7,9 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 12 novembre 2026
 
+- **Comandi più grandi al tocco e indicatori su due colonne.** Su un dispositivo a tocco i pulsanti, i comandi piccoli, il selettore **Board/Elenco** e il passo di prenotazione delle ore sono alti almeno **44 px**; sul desktop le dimensioni restano quelle di prima. Tra **521 e 1100 px** i quattro indicatori della Panoramica passano a due colonne per riga. Vedi [Guida rapida mobile](../../guida/mobile/#i-bersagli-tattili) e [Funzioni comuni](../../guida/funzioni-comuni/#leggere-la-panoramica).
+- **La regola del giorno operativo resta sul telefono.** Nel Diario il riquadro **Un giorno operativo, due turni**, che sotto gli 800 px spariva, è ora un pannello richiudibile aperto per impostazione predefinita: la regola e il limite dei contributi restano leggibili anche su telefono. Vedi [Diario di cantiere](../../moduli/diario/#il-giorno-operativo).
+
 - **Riconciliazione senza confronto di stato.** Il pannello **Da riconciliare** delle Deviazioni e la sezione **Cronologie incoerenti** del report controllano solo le date ufficiali: chiusa senza data e chiusura prima dell'approvazione. Il controllo **Stati discordanti**, che restava sempre a zero perché le deviazioni non hanno una storia interna, è stato ritirato, e con lui la colonna **Ultimo stato interno**. Vedi [Deviazioni](../../moduli/deviazioni/#da-riconciliare).
 
 - **Storico delle modifiche su HSE, Idoneità e Attrezzature.** Eliminare un evento HSE, una certificazione o un'attrezzatura non cancella più la riga: esce dalle viste, dai contatori e dai dettagli, ma resta in un registro di audit con ogni inserimento, modifica ed eliminazione, l'autore e la data. Il registro si legge solo via API, con `GET /api/audit-events`, da owner e verificatori. Vedi [API REST](../../riferimento/api/#registro-di-audit).
