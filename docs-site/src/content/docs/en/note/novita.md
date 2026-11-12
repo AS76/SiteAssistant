@@ -5,6 +5,10 @@ description: Changes to SiteAssistant that change the product or how you use it.
 
 This page collects the changes visible to those who use the application. It is not a technical changelog: for that, see the commit history in the repository.
 
+## 12 November 2026
+
+- **Planning export.** The button on the **Overview** and the import dialog now read **Import planning export**, with no third-party product name. The manual moves the page to [Import a planning export](../../amministrazione/import-pianificazione/) and the old addresses redirect there; file format, data families and preview do not change.
+
 ## 11 November 2026
 
 - **To reconcile in deviations.** At the top of the **Deviations** view a collapsible panel reports deviations closed without a date, closed before approval and with conflicting statuses for at least three days; the buttons with the count filter the list and a row opens the detail. It is read only: no date is corrected. While the internal history is unavailable, statuses cannot be compared and the panel says so. The same checks appear in the report, in the **Inconsistent timelines** section. See [Deviations](../../moduli/deviazioni/#to-reconcile).

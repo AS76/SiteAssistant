@@ -5,6 +5,10 @@ description: Le modifiche a SiteAssistant che cambiano il prodotto o il modo di 
 
 Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è un changelog tecnico: per quello vale la cronologia dei commit nel repository.
 
+## 12 novembre 2026
+
+- **Export di pianificazione.** Il pulsante nella **Panoramica** e il dialogo di import dicono ora **Importa export di pianificazione**, senza il nome di un prodotto di terzi. Il manuale sposta la pagina in [Importare un export di pianificazione](../../amministrazione/import-pianificazione/) e i vecchi indirizzi reindirizzano lì; formato del file, famiglie di dati e anteprima non cambiano.
+
 ## 11 novembre 2026
 
 - **Da riconciliare nelle deviazioni.** In cima alla vista **Deviazioni** un pannello richiudibile segnala le deviazioni chiuse senza data, quelle chiuse prima dell'approvazione e quelle con stati discordanti per almeno tre giorni; i pulsanti con il conteggio filtrano l'elenco e una riga apre il dettaglio. È solo lettura: nessuna data viene corretta. Finché la storia interna non è disponibile il confronto degli stati non è valutabile, e il pannello lo dichiara. Gli stessi controlli compaiono nel report, nella sezione **Cronologie incoerenti**. Vedi [Deviazioni](../../moduli/deviazioni/#da-riconciliare).
