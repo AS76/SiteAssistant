@@ -2,6 +2,8 @@
 
 **Built on site. For people working on site.**
 
+<img src="docs-site/public/images/2026-11/overview-desktop.png" alt="Panoramica di SiteAssistant: KPI del cantiere, deviazioni per stato, avanzamento per sezione e ore per settimana" width="100%">
+
 SiteAssistant è una web app che aiuta chi gestisce un cantiere a tenere insieme, in un solo posto, le cose che di solito vivono separate: le attività da eseguire e verificare, il diario di giornata, la struttura dei lavori (WBS), le presenze e l'avanzamento. Non è un ERP: è lo strumento che manca tra il piano e la realtà quotidiana del cantiere.
 
 Nasce dall'esperienza diretta nella gestione di cantieri industriali e di intralogistica, dove informazioni, verifiche e reporting spesso convivono in fogli e sistemi diversi. Stiamo costruendo qualcosa di utile partendo dal campo — e altre persone possono aiutarci a renderlo migliore.
