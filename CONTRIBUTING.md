@@ -1,65 +1,65 @@
-# Come si lavora su SiteAssistant
+# How we work on SiteAssistant
 
-Questo file descrive il modello di tracciamento, non lo stile del codice. Le regole valgono per chi
-lavora al repository, umano o agente.
+This file describes the tracking model, not the code style. The rules apply to anyone working on the
+repository, human or agent.
 
-## Gli oggetti di GitHub, e a cosa servono qui
+## The GitHub objects, and what they are for here
 
-| Oggetto | A cosa serve | Dove si vede |
+| Object | What it is for | Where it shows |
 | --- | --- | --- |
-| **Issue** (tipo `Bug`, `Feature`, `Task`) | unità di lavoro con un esito e qualcuno che la fa | Project *SiteAssistant*, kanban del vault |
-| **Pull request** | modifica di codice in attesa di revisione | collegata all'issue con `Closes #N` |
-| **Discussion** | proposta senza decisione | categoria *Ideas* |
-| **Project** (`Status`: Todo / In progress / Done, campo `Priority`) | stato e ordine del lavoro | vista board e tabella |
-| **Milestone** | fase con una fine | oggi solo `Pilot` |
+| **Issue** (type `Bug`, `Feature`, `Task`) | a unit of work with an outcome and someone doing it | Project *SiteAssistant*, vault kanban |
+| **Pull request** | a code change waiting for review | linked to the issue with `Closes #N` |
+| **Discussion** | a proposal with no decision yet | *Ideas* category |
+| **Project** (`Status`: Todo / In progress / Done, `Priority` field) | state and order of the work | board and table views |
+| **Milestone** | a phase with an end | today only `Pilot` |
 
-Regola di scelta:
+How to choose:
 
-1. serve fare qualcosa, con un esito verificabile → **issue**, con il tipo nativo;
-2. è una modifica di codice da rivedere prima del merge → **pull request** che chiude l'issue;
-3. è un'idea su cui nessuno ha deciso → **Discussion**, non issue.
+1. something must be done, with a verifiable outcome → **issue**, with the native type;
+2. it is a code change to review before merging → **pull request** that closes the issue;
+3. it is an idea nobody has decided on → **Discussion**, not an issue.
 
-Un issue non è una proposta. Il backlog è uno stato del lavoro, non un tipo di oggetto: un issue in
-`Todo` è backlog, lo stesso issue in `In progress` è lavoro in corso.
+An issue is not a proposal. Backlog is a state of the work, not a type of object: an issue in `Todo`
+is backlog, the same issue in `In progress` is work underway.
 
-## Tipo, priorità, area: tre cose distinte
+## Type, priority, area: three separate things
 
-- **Tipo** (`Bug` / `Feature` / `Task`) è nativo di GitHub, si imposta dall'issue e si filtra nei
-  Project. Non si duplica con un'etichetta.
-- **Priorità** (`P1` alta, `P2` media, `P3` bassa) vive **solo** nel campo `Priority` del Project:
-  una sola fonte, altrimenti le due copie divergono.
-- **Area** è un'etichetta: `ingest`, `reporting`, `progress`, `ux`, `ops`, `auth`, `hr`, `logistics`,
-  `planning`, `attachments`, più `security`, `debt`, `documentation`.
+- **Type** (`Bug` / `Feature` / `Task`) is native to GitHub, set on the issue and filterable in
+  Projects. It is not duplicated with a label.
+- **Priority** (`P1` high, `P2` medium, `P3` low) lives **only** in the Project `Priority` field:
+  one source, otherwise the two copies drift apart.
+- **Area** is a label: `ingest`, `reporting`, `progress`, `ux`, `ops`, `auth`, `hr`, `logistics`,
+  `planning`, `attachments`, plus `security`, `debt`, `documentation`.
 
-Le etichette non dicono lo stato: lo stato è `Status` nel Project.
+Labels never state the status: the status is `Status` in the Project.
 
-## Quando una pull request
+## When a pull request is required
 
-Obbligatoria per:
+Mandatory for:
 
-- migrazioni e cambi di schema;
-- autorizzazione, sessioni, password, ruoli;
-- cancellazioni o trasformazioni di dati;
-- modifiche che un'altra sessione deve poter rivedere mentre io lavoro.
+- migrations and schema changes;
+- authorisation, sessions, passwords, roles;
+- deletions or transformations of data;
+- changes another session must be able to review while I work.
 
-Diretta su `main` (con CI obbligatoria) per il resto: correzioni, testi, interfaccia, test.
-`main` è protetto: i due check di CI sono richiesti, il bypass amministratore resta per le
-emergenze documentate.
+Directly to `main` (with mandatory CI) for everything else: fixes, wording, interface, tests.
+`main` is protected: both CI checks are required, and the administrator bypass is kept for documented
+emergencies.
 
-## Commit
+## Commits
 
-Un commit per incremento accettato, messaggio in inglese, corpo con le decisioni e i numeri dei
-test. Niente amend dopo la revisione: una correzione è un commit nuovo.
+One commit per accepted increment, message in English, body with the decisions and the test counts.
+No amend after review: a fix is a new commit.
 
-## Issue: come si scrivono
+## Writing issues
 
-- titolo che dice il risultato, non l'attività («Il filtro area non nasconde lavoro legittimo»);
-- corpo con problema, criterio di verifica e fuori perimetro;
-- `Closes #N` nella pull request, non «rif. #N» quando l'intento è chiudere;
-- alla chiusura: una riga con il commit e la prova.
+- title states the result, not the activity ("The area filter hides legitimate work");
+- body with the problem, the verification criterion and what is out of scope;
+- `Closes #N` in the pull request, not "ref. #N" when the intent is to close;
+- on closing: one line with the commit and the evidence.
 
-## Documentazione
+## Documentation
 
-Il manuale utente è `docs-site/` ed è generato dal job `docs-sync`: non si modifica a mano se non
-per una correzione urgente. La documentazione tecnica sta in `docs/`. Le decisioni di perimetro
-stanno nel vault, non qui.
+The user manual is `docs-site/` and is generated by the `docs-sync` job: do not edit it by hand except
+for an urgent correction. Technical documentation lives in `docs/`. Scope decisions live in the
+vault, not here.
