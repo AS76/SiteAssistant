@@ -145,7 +145,7 @@ Il registro delle attrezzature è lo stesso che si gestisce dalla vista **Attrez
 | PATCH | `/api/tools/{id}` | owner/editor/verifier | Aggiorna solo i campi inviati |
 | DELETE | `/api/tools/{id}` | owner/editor/verifier | Elimina la riga |
 
-`name` è obbligatorio, da 1 a 120 caratteri. `code`, `company`, `location` e `notes` sono testo libero, fino a 10000 caratteri, e possono essere `null`. Lo stato vale `available`, `in_use`, `maintenance` o `retired`; se manca in creazione vale `available`. L'elenco è ordinato per appaltatore, con le righe senza appaltatore in fondo, poi per nome. Non esiste uno storico: `DELETE` rimuove la riga e non lascia una copia.
+`name` è obbligatorio, da 1 a 120 caratteri. `code`, `company`, `location` e `notes` sono testo libero, fino a 10000 caratteri, e possono essere `null`. Lo stato vale `available`, `in_use`, `maintenance` o `retired`; se manca in creazione vale `available`. L'elenco è ordinato per appaltatore, con le righe senza appaltatore in fondo, poi per nome. L'eliminazione è **logica**: `DELETE` toglie la riga dall'elenco, dai filtri e dalle letture successive, ma la conserva nel [registro di audit](#registro-di-audit).
 
 ## Idoneità
 
@@ -161,7 +161,7 @@ Le certificazioni dei dipendenti si gestiscono dalla vista **Idoneità**. La let
 
 `site_id` è obbligatorio nell'elenco. La categoria vale `qualification`, `medical`, `training` o `other`; se manca in creazione vale `other`. Lo stato vale `expired`, `expiring`, `valid` o `no_expiry` ed è **calcolato**, non memorizzato: `within` è la soglia in giorni per «in scadenza» (default **30**, da 0 a 365) e `days_left` è la differenza in giorni tra scadenza e oggi, negativa per le scadute e `null` per le certificazioni senza scadenza.
 
-`name` è obbligatorio, da 1 a 120 caratteri; `issuer` arriva a 200 caratteri, `outcome` a 500 e `notes` a 2000. `issued_on` ed `expires_on` sono date `YYYY-MM-DD` e la scadenza non può precedere il rilascio. L'`employee_id` deve appartenere al cantiere. L'eliminazione non lascia copia né storico. Codici dedicati: `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404).
+`name` è obbligatorio, da 1 a 120 caratteri; `issuer` arriva a 200 caratteri, `outcome` a 500 e `notes` a 2000. `issued_on` ed `expires_on` sono date `YYYY-MM-DD` e la scadenza non può precedere il rilascio. L'`employee_id` deve appartenere al cantiere. L'eliminazione è **logica**: la riga esce dagli elenchi, dai contatori e dai dettagli e resta nel [registro di audit](#registro-di-audit). Codici dedicati: `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404).
 
 ## HSE
 
@@ -175,7 +175,21 @@ Il registro HSE si gestisce dalla vista **HSE**. La lettura è aperta a owner, e
 | PATCH | `/api/hse-events/{id}` | owner/editor | Aggiorna solo i campi inviati |
 | DELETE | `/api/hse-events/{id}` | owner/editor | Elimina la riga |
 
-`site_id` è obbligatorio nell'elenco. `occurred_on` è obbligatoria in creazione ed è una data `YYYY-MM-DD`; `type` vale `near_miss`, `accident` o `observation`; `severity` vale `low`, `medium` o `high`. `event_no` è facoltativo, fino a 120 caratteri, e **univoco nel cantiere** quando presente. `location` arriva a 200 caratteri, `measures` e `notes` a 2000; `persons_involved` è un intero tra 0 e 2147483647 e non accetta nomi. `deviation_id` è facoltativo e deve appartenere allo stesso cantiere. Il registro non contiene dati sanitari e non ha relazioni con i dipendenti: si registrano fatti, luoghi, misure e un conteggio di persone. L'eliminazione non lascia copia né storico. Codici dedicati: `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404).
+`site_id` è obbligatorio nell'elenco. `occurred_on` è obbligatoria in creazione ed è una data `YYYY-MM-DD`; `type` vale `near_miss`, `accident` o `observation`; `severity` vale `low`, `medium` o `high`. `event_no` è facoltativo, fino a 120 caratteri, e **univoco nel cantiere** quando presente. `location` arriva a 200 caratteri, `measures` e `notes` a 2000; `persons_involved` è un intero tra 0 e 2147483647 e non accetta nomi. `deviation_id` è facoltativo e deve appartenere allo stesso cantiere. Il registro non contiene dati sanitari e non ha relazioni con i dipendenti: si registrano fatti, luoghi, misure e un conteggio di persone. L'eliminazione è **logica**: la riga esce dagli elenchi, dai contatori e dai dettagli e resta nel [registro di audit](#registro-di-audit). Codici dedicati: `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404).
+
+## Registro di audit
+
+Ogni inserimento, modifica ed eliminazione di un evento HSE, di una certificazione o di un'attrezzatura lascia una riga nel registro di audit, scritta nella stessa transazione della scrittura: se la scrittura fallisce, la traccia non viene salvata.
+
+| Metodo | Percorso | Accesso | Note |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/audit-events?site_id=&entity_type=&entity_id=` | owner/verifier | Righe dalla più recente, a pagine con `limit` e `offset` |
+
+`site_id` è obbligatorio; `entity_type` vale `hse_event`, `certification` o `tool` e `entity_id` è l'identificativo della riga da tracciare. L'accesso è per ruolo sul cantiere: leggono owner e verificatori, non editor e non viewer, anche quando sono loro a scrivere le righe tracciate. Non esistono rotte di scrittura: il registro è in sola aggiunta e non si modifica né si elimina dall'API.
+
+Ogni riga riporta `entity_type`, `entity_id`, `action` (`create`, `update`, `delete`), `at`, `actor` — l'identificativo dell'utente che ha scritto — e `changes`, un oggetto JSON. In `create` contiene i campi valorizzati della riga creata; in `delete` l'intera riga com'era prima; in `update` solo i campi cambiati, nella forma `{ "campo": { "from": …, "to": … } }`, senza `id`, `site_id`, `created_at`, `updated_at` e `deleted_at`. Una modifica che non cambia alcun campo resta registrata con `changes` vuoto.
+
+L'eliminazione è quindi **logica** per tutti e tre i tipi: la riga sparisce dagli elenchi, dai contatori e dai dettagli e le letture successive rispondono con il codice «non trovato» del modulo, ma resta leggibile nel registro di audit. Codici dedicati del registro: `AUDIT_INVALID` (400) per un identificativo non UUID, un `entity_type` sconosciuto o filtri non validi.
 
 ## Panoramica e assistente
 
@@ -227,11 +241,11 @@ Sono ammessi file fino a **15 MiB**, di tipo immagine o PDF (`UNSUPPORTED_MEDIA_
 
 Ogni richiesta a `/api/` consuma un limite a finestra mobile di un minuto: **600 richieste al minuto per sessione autenticata** e **60 al minuto per indirizzo di rete** per le richieste anonime. Le quattro rotte di autenticazione (`/api/auth/login`, `/api/auth/forgot`, `/api/auth/password`, `/api/auth/request`) hanno un limite proprio e non consumano quello generale. Oltre il limite la risposta è `429 RATE_LIMITED` con l'intestazione `Retry-After` in secondi; `X-RateLimit-Remaining` dice quante richieste restano nella finestra. I valori si cambiano con le variabili `RATE_LIMIT_USER_PER_MIN` e `RATE_LIMIT_ANON_PER_MIN`.
 
-Le liste di **attività**, **diario**, **deviazioni**, **avanzamento di cantiere** e **prenotazioni ore** accettano `limit` (default **50**, massimo **200**) e `offset` (default 0). Valori non interi o fuori intervallo sono rifiutati con `400 VALIDATION_ERROR`. La risposta resta un array; il totale, il limite applicato e l'offset arrivano nelle intestazioni `X-Total-Count`, `X-Limit` e `X-Offset`. L'applicazione chiede 200 righe per le viste che caricano l'elenco intero, quindi nessuna vista perde record.
+Le liste di **attività**, **diario**, **deviazioni**, **avanzamento di cantiere**, **prenotazioni ore** e **registro di audit** accettano `limit` (default **50**, massimo **200**) e `offset` (default 0). Valori non interi o fuori intervallo sono rifiutati con `400 VALIDATION_ERROR`. La risposta resta un array; il totale, il limite applicato e l'offset arrivano nelle intestazioni `X-Total-Count`, `X-Limit` e `X-Offset`. L'applicazione chiede 200 righe per le viste che caricano l'elenco intero, quindi nessuna vista perde record.
 
 ## Errori
 
-Le risposte d'errore hanno la forma `{ "error": "messaggio", "code": "CODICE" }`. I codici più comuni: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` e `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` e `TIME_BOOKING_DUPLICATE` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404), `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `MAP_INVALID` (400), `AMBIGUOUS_COLUMNS` (400), `PREVIEW_MISMATCH`/`PREVIEW_EXPIRED` (409), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
+Le risposte d'errore hanno la forma `{ "error": "messaggio", "code": "CODICE" }`. I codici più comuni: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` e `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` e `TIME_BOOKING_DUPLICATE` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404), `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404), `AUDIT_INVALID` (400), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `MAP_INVALID` (400), `AMBIGUOUS_COLUMNS` (400), `PREVIEW_MISMATCH`/`PREVIEW_EXPIRED` (409), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
 
 :::note
 L'API non espone uno schema OpenAPI: le tabelle qui sopra sono il contratto corrente. Per lo schema dati completo vedi `database/README.md` nel repository.

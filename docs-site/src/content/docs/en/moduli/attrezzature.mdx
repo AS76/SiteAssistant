@@ -39,7 +39,7 @@ To correct a row, press **Edit** on the row itself: the same window opens with t
 2. Check the name, code and contractor shown in the confirmation.
 3. Confirm with **Delete**.
 
-Deletion is immediate and permanent: the application keeps no copy of the row and no history of changes. If the tool must stay readable, change its status to **Retired** instead of deleting it.
+The tool disappears from the list, and later reads and edits on the same row return “not found”. The row itself is not erased: it stays in the audit register, which keeps a copy of the tool as it was plus a record of every creation, edit and deletion, with author and date. The trail is readable through the API only, by owners and verifiers: see [Audit register](../../riferimento/api/#audit-register). If the tool must stay readable in the interface, change its status to **Retired** instead of deleting it.
 
 ## Who can do what
 

@@ -76,7 +76,7 @@ Il **numero evento** è un riferimento interno: puoi lasciarlo vuoto, ma se lo c
 2. Controlla data, tipo ed eventuale numero indicati nella conferma.
 3. Conferma con **Elimina**.
 
-L'eliminazione è immediata e definitiva: l'applicazione non conserva una copia della riga e non tiene uno storico delle modifiche. Se l'evento deve restare consultabile, correggine i dati invece di eliminarlo.
+L'evento sparisce dall'elenco e dai contatori, e le letture e le modifiche successive sulla stessa riga rispondono «non trovato». La riga però non viene cancellata: resta nel registro di audit, che conserva una copia dell'evento com'era e la traccia di ogni inserimento, modifica ed eliminazione con autore e data. La traccia si legge solo via API, da owner e verificatori: vedi [Registro di audit](../../riferimento/api/#registro-di-audit). Se l'evento deve restare consultabile dall'interfaccia, correggine i dati invece di eliminarlo.
 
 ## Chi può fare cosa
 

@@ -39,7 +39,7 @@ Per correggere una riga, premi **Modifica** sulla riga stessa: si apre la stessa
 2. Controlla nome, codice e appaltatore indicati nella conferma.
 3. Conferma con **Elimina**.
 
-L'eliminazione è immediata e definitiva: l'applicazione non conserva una copia della riga e non tiene uno storico delle modifiche. Se l'attrezzatura deve restare consultabile, cambia lo stato in **Dismessa** invece di eliminarla.
+L'attrezzatura sparisce dall'elenco e le letture e le modifiche successive sulla stessa riga rispondono «non trovata». La riga però non viene cancellata: resta nel registro di audit, che conserva una copia dell'attrezzatura com'era e la traccia di ogni inserimento, modifica ed eliminazione con autore e data. La traccia si legge solo via API, da owner e verificatori: vedi [Registro di audit](../../riferimento/api/#registro-di-audit). Se l'attrezzatura deve restare consultabile dall'interfaccia, cambia lo stato in **Dismessa** invece di eliminarla.
 
 ## Chi può fare cosa
 

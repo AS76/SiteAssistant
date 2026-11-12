@@ -69,9 +69,7 @@ This page describes the currently published version. It is deliberately explicit
 - The import preview is valid for 15 minutes: after that, it must be repeated. Changing the file or the mapping invalidates it immediately.
 - The data assistant reads the selected site's data and writes nothing; it requires a connection.
 - The link between progress and WBS exists only with a unique match of PLC area and section: without a match the item stays unlinked.
-- Tools have no history: edits and deletions are immediate, and a deletion leaves no copy of the row.
-- Employee certifications have no history either: deletion is immediate and leaves no copy. The `viewer` role does not read them.
-- The HSE register has no history: deletion is immediate and leaves no copy. People involved are **a number only**: the register holds no names and no health data and is not linked to the employee record.
+- Deleting tools, certificates and HSE events is **logical**: the row disappears from the views, the counters and the details but stays in the audit register with author and date, readable through the API by owners and verifiers. Certifications stay restricted to owners, editors and verifiers: the `viewer` role does not read them. People involved in HSE events are **a number only**: the register holds no names and no health data and is not linked to the employee record.
 - Deviation statuses come from the source system; an unrecognised status stays empty instead of being interpreted.
 
 :::caution[Data]

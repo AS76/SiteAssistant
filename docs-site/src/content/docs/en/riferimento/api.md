@@ -145,7 +145,7 @@ The tools register is the same one managed from the **Tools** view. Reading is o
 | PATCH | `/api/tools/{id}` | owner/editor/verifier | Updates only the fields sent |
 | DELETE | `/api/tools/{id}` | owner/editor/verifier | Deletes the row |
 
-`name` is required, 1 to 120 characters. `code`, `company`, `location` and `notes` are free text, up to 10000 characters, and may be `null`. The status is `available`, `in_use`, `maintenance` or `retired`; when omitted on creation it is `available`. The list is sorted by contractor, with rows without a contractor last, then by name. There is no history: `DELETE` removes the row and leaves no copy.
+`name` is required, 1 to 120 characters. `code`, `company`, `location` and `notes` are free text, up to 10000 characters, and may be `null`. The status is `available`, `in_use`, `maintenance` or `retired`; when omitted on creation it is `available`. The list is sorted by contractor, with rows without a contractor last, then by name. Deletion is **logical**: `DELETE` removes the row from the list, from the filters and from later reads, but keeps it in the [audit register](#audit-register).
 
 ## Fitness
 
@@ -161,7 +161,7 @@ Employee certifications are managed from the **Fitness** view. Reading is open t
 
 `site_id` is required on the list. The category is `qualification`, `medical`, `training` or `other`; when omitted on creation it is `other`. The status is `expired`, `expiring`, `valid` or `no_expiry` and is **computed**, not stored: `within` is the threshold in days for “expiring” (default **30**, from 0 to 365) and `days_left` is the difference in days between expiry and today, negative for expired certificates and `null` for certificates without an expiry date.
 
-`name` is required, 1 to 120 characters; `issuer` allows up to 200 characters, `outcome` up to 500 and `notes` up to 2000. `issued_on` and `expires_on` are `YYYY-MM-DD` dates and the expiry cannot precede the issue date. The `employee_id` must belong to the site. Deletion leaves no copy and no history. Dedicated codes: `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404).
+`name` is required, 1 to 120 characters; `issuer` allows up to 200 characters, `outcome` up to 500 and `notes` up to 2000. `issued_on` and `expires_on` are `YYYY-MM-DD` dates and the expiry cannot precede the issue date. The `employee_id` must belong to the site. Deletion is **logical**: the row leaves the lists, the counters and the details and stays in the [audit register](#audit-register). Dedicated codes: `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404).
 
 ## HSE
 
@@ -175,7 +175,21 @@ The HSE register is managed from the **HSE** view. Reading is open to owners, ed
 | PATCH | `/api/hse-events/{id}` | owner/editor | Updates only the fields sent |
 | DELETE | `/api/hse-events/{id}` | owner/editor | Deletes the row |
 
-`site_id` is required on the list. `occurred_on` is required on creation and is a `YYYY-MM-DD` date; `type` is `near_miss`, `accident` or `observation`; `severity` is `low`, `medium` or `high`. `event_no` is optional, up to 120 characters, and **unique within the site** when present. `location` allows up to 200 characters, `measures` and `notes` up to 2000; `persons_involved` is an integer between 0 and 2147483647 and accepts no names. `deviation_id` is optional and must belong to the same site. The register holds no health data and has no relation to employees: it records facts, locations, measures and a count of people. Deletion leaves no copy and no history. Dedicated codes: `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404).
+`site_id` is required on the list. `occurred_on` is required on creation and is a `YYYY-MM-DD` date; `type` is `near_miss`, `accident` or `observation`; `severity` is `low`, `medium` or `high`. `event_no` is optional, up to 120 characters, and **unique within the site** when present. `location` allows up to 200 characters, `measures` and `notes` up to 2000; `persons_involved` is an integer between 0 and 2147483647 and accepts no names. `deviation_id` is optional and must belong to the same site. The register holds no health data and has no relation to employees: it records facts, locations, measures and a count of people. Deletion is **logical**: the row leaves the lists, the counters and the details and stays in the [audit register](#audit-register). Dedicated codes: `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404).
+
+## Audit register
+
+Every creation, edit and deletion of an HSE event, a certificate or a tool leaves a row in the audit register, written in the same transaction as the write: if the write fails, no trail is saved.
+
+| Method | Path | Access | Notes |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/audit-events?site_id=&entity_type=&entity_id=` | owner/verifier | Rows, most recent first, paged with `limit` and `offset` |
+
+`site_id` is required; `entity_type` is `hse_event`, `certification` or `tool`, and `entity_id` is the identifier of the row to trace. Access follows the site role: owners and verifiers read, editors and viewers do not, even when they are the ones writing the traced rows. There are no write routes: the register is append-only and cannot be edited or deleted through the API.
+
+Each row carries `entity_type`, `entity_id`, `action` (`create`, `update`, `delete`), `at`, `actor` — the identifier of the user who wrote — and `changes`, a JSON object. On `create` it holds the filled fields of the created row; on `delete` the whole row as it was before; on `update` only the fields that changed, as `{ "field": { "from": …, "to": … } }`, without `id`, `site_id`, `created_at`, `updated_at` and `deleted_at`. An edit that changes no field is still recorded, with empty `changes`.
+
+Deletion is therefore **logical** for all three types: the row disappears from the lists, the counters and the details and later reads return the module's “not found” code, but it stays readable in the audit register. Dedicated codes of the register: `AUDIT_INVALID` (400) for a non-UUID identifier, an unknown `entity_type` or invalid filters.
 
 ## Overview and assistant
 
@@ -227,11 +241,11 @@ Files up to **15 MiB** are accepted, images or PDF only (`UNSUPPORTED_MEDIA_TYPE
 
 Every request to `/api/` consumes a one-minute sliding-window limit: **600 requests per minute per authenticated session** and **60 per minute per network address** for anonymous requests. The four authentication routes (`/api/auth/login`, `/api/auth/forgot`, `/api/auth/password`, `/api/auth/request`) have their own limiter and do not consume the general one. Past the limit the response is `429 RATE_LIMITED` with a `Retry-After` header in seconds; `X-RateLimit-Remaining` says how many requests are left in the window. The values are changed with the `RATE_LIMIT_USER_PER_MIN` and `RATE_LIMIT_ANON_PER_MIN` variables.
 
-The **tasks**, **diary**, **deviations**, **site progress** and **time bookings** lists accept `limit` (default **50**, maximum **200**) and `offset` (default 0). Non-integer or out-of-range values are rejected with `400 VALIDATION_ERROR`. The response stays an array; the total, the applied limit and the offset arrive in the `X-Total-Count`, `X-Limit` and `X-Offset` headers. The application asks for 200 rows on the views that load the whole list, so no view loses records.
+The **tasks**, **diary**, **deviations**, **site progress**, **time bookings** and **audit register** lists accept `limit` (default **50**, maximum **200**) and `offset` (default 0). Non-integer or out-of-range values are rejected with `400 VALIDATION_ERROR`. The response stays an array; the total, the applied limit and the offset arrive in the `X-Total-Count`, `X-Limit` and `X-Offset` headers. The application asks for 200 rows on the views that load the whole list, so no view loses records.
 
 ## Errors
 
-Error responses have the shape `{ "error": "message", "code": "CODE" }`. The most common codes: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` and `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `TIME_BOOKING_DUPLICATE` (409), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404), `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `MAP_INVALID` (400), `AMBIGUOUS_COLUMNS` (400), `PREVIEW_MISMATCH`/`PREVIEW_EXPIRED` (409), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
+Error responses have the shape `{ "error": "message", "code": "CODE" }`. The most common codes: `VALIDATION_ERROR` (400), `INVALID_CREDENTIALS` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `DUPLICATE_SITE_CODE` and `DUPLICATE_DIARY` (409), `INVALID_TRANSITION` (409), `SEPARATE_PEOPLE_REQUIRED` (400), `NOTE_REQUIRED`/`REASON_REQUIRED` (400), `TIME_BOOKING_DUPLICATE` (409), `WEIGHTS_NOT_100` (400), `TOOL_INVALID` (400), `TOOL_FORBIDDEN` (403), `TOOL_NOT_FOUND` (404), `CERT_INVALID` (400), `CERT_FORBIDDEN` (403), `CERT_NOT_FOUND` (404), `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404), `AUDIT_INVALID` (400), `FILE_TOO_LARGE` (413), `LINK_EXPIRED` (410), `MAP_INVALID` (400), `AMBIGUOUS_COLUMNS` (400), `PREVIEW_MISMATCH`/`PREVIEW_EXPIRED` (409), `ATTACHMENT_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `MAIL_NOT_CONFIGURED`/`MAIL_UNAVAILABLE` (503), `ASSISTANT_NOT_CONFIGURED` (503).
 
 :::note
 The API does not expose an OpenAPI schema: the tables above are the current contract. For the full data schema see `database/README.md` in the repository.
