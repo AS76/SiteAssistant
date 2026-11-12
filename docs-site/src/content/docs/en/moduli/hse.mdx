@@ -68,6 +68,8 @@ To correct a row, press **Edit** on the row: the same window opens with the curr
 | Measures | No | Up to 2000 characters |
 | Factual notes | No | Up to 2000 characters |
 
+An **event number** already used stays reserved after deletion: deletion is logical, the row leaves the list and the counters but stays in the audit register, and the number cannot move to another event. If the number is wrong, correct the row instead of creating a new one with the same number.
+
 The **event number** is an internal reference: you can leave it empty, but when filled it must be unique within the site. Two events cannot share the same number, and the application rejects the save asking you to check the number.
 
 ## Deleting an event

@@ -80,9 +80,14 @@ test('HSE API errors retain server status and code', async () => {
 
 async function hseUi(role = 'editor') {
   const source = await readFile(new URL('../app/app.mjs', import.meta.url), 'utf8');
-  const escaped = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+  // Use the application's own escaper, not a copy: otherwise this suite would only prove
+  // that renderHse calls *some* esc function, and a regression in the real one would pass.
+  const escapeSource = source.slice(source.indexOf('const esc ='), source.indexOf('\nlet session'));
+  const escapeContext = createContext({});
+  runInContext(`${escapeSource}\nthis.__esc = esc;`, escapeContext);
+  const escaped = escapeContext.__esc;
   const row = { id: 'event-1', eventNo: 'SYN-001', type: 'near_miss', severity: 'low', occurredOn: '2026-11-10',
-    personsInvolved: 0, location: '<img src=x>', measures: '<b>Barrier installed</b>', notes: null };
+    personsInvolved: 0, location: '<img src=x>', measures: '<b>Barrier installed</b>', notes: '<script>alert(1)</script>' };
   const calls = [], dialogs = [], notifications = [];
   const context = createContext({
     HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts,
@@ -118,6 +123,10 @@ test('HSE view and modal render factual fields, escape text and respect write ro
   assert.match(html, /data-command="hse-edit"/);
   ui.run("hseEditingId = 'event-1'; showHseForm()");
   const form = ui.dialogs.at(-1).html;
+  // Hostile text reaches the modal through textarea/default values: it must come out escaped.
+  assert.match(form, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(form, /<script>alert\(1\)<\/script>/);
+  assert.match(form, /&lt;img src=x&gt;/);
   assert.match(form, /name="personsInvolved"[^>]*min="0"[^>]*step="1"[^>]*value="0"/);
   assert.match(form, /name="occurredOn"[^>]*required/);
   assert.doesNotMatch(form, /name="employeeId"/);

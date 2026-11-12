@@ -68,6 +68,8 @@ Per correggere una riga, premi **Modifica** sulla riga stessa: si apre la stessa
 | Misure | No | Fino a 2000 caratteri |
 | Note sui fatti | No | Fino a 2000 caratteri |
 
+Un **numero evento** già usato resta riservato anche dopo la cancellazione: l'eliminazione è logica, la riga esce dall'elenco e dai contatori ma resta nel registro di audit, e il numero non può passare a un altro evento. Se sbagli numero, correggi la riga invece di crearne una nuova con lo stesso numero.
+
 Il **numero evento** è un riferimento interno: puoi lasciarlo vuoto, ma se lo compili deve essere univoco nel cantiere. Due eventi non possono avere lo stesso numero, e l'applicazione rifiuta il salvataggio indicando di controllare il numero.
 
 ## Eliminare un evento
