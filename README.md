@@ -95,3 +95,7 @@ node tests/browser.cjs
 [Schema PostgreSQL generico e test sintetici](database/README.md).
 
 La [struttura progetto WBS](docs/wbs.md) aggiunge una vista in sola lettura del Time Schedule importato: albero e tabella, API con membership di cantiere, migrazione `008` e promozione idempotente da snapshot completati. La configurazione della sorgente e l’ingestione restano prerequisiti separati; nessun servizio viene attivato.
+
+## Licenza
+
+SiteAssistant è distribuito con licenza **GNU Affero General Public License v3.0** (`AGPL-3.0-only`): chi lo modifica e lo rende disponibile in rete deve pubblicare il codice modificato alle stesse condizioni. Il testo completo è in [LICENSE](LICENSE).
