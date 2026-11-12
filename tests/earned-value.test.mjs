@@ -156,7 +156,8 @@ test('Earned value: synthetic calculations and HTTP contract', async t => {
     assert.equal((await patch(item, { planned_hours: 20 }, null)).status, 401);
     await db.run('DELETE FROM site_members WHERE site_id = ? AND user_id = ?', f.site.id, auth.users.editor.id);
     assert.equal((await patch(item, { planned_hours: 20 }, 'editor')).status, 403);
-    assert.equal((await db.get('SELECT planned_hours FROM site_progress_items WHERE id = ?', item)).planned_hours, 50);
+    // Raw SQL: PostgreSQL returns NUMERIC as text, so compare the numeric value.
+    assert.equal(Number((await db.get('SELECT planned_hours FROM site_progress_items WHERE id = ?', item)).planned_hours), 50);
     assert.equal((await patch(randomUUID(), { planned_hours: 20 })).status, 404);
   });
 
