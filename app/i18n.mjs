@@ -1,5 +1,6 @@
 export const messages = {
   it: {
+    dateFormatHint: 'Data: giorno/mese/anno',
     todaySub: 'Le prossime azioni per il cantiere attivo.',
     todayTodo: 'Da fare oggi',
     todayMine: 'Assegnata a me',
@@ -367,6 +368,7 @@ export const messages = {
     actorPlaceholder:"Nome della persona",loading:"Caricamento…",retry:"Riprova",apiUnavailable:"API non raggiungibile. Controlla la connessione e riprova.",apiError:"Richiesta API non riuscita. Controlla i dati e riprova.",duplicateDiary:"Esiste già un contributo per questo cantiere, giorno e turno.",noteRequired:"Inserisci una nota di esecuzione o verifica.",verifierRequired:"Solo il verificatore assegnato può chiudere questa attività.",transitionTo:"Passa a",noTransitions:"Nessuna transizione disponibile per questo stato.",reason:"Motivazione",noSites:"Nessun cantiere",noSitesHint:"Crea il primo cantiere per iniziare.",
   },
   en: {
+    dateFormatHint: 'Date: day/month/year',
     todaySub: 'Next actions for the active site.',
     todayTodo: 'To do today',
     todayMine: 'Assigned to me',

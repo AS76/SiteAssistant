@@ -713,7 +713,7 @@ function renderDiary() {
   const entries = state.diary.filter(item => item.siteId === siteId && item.date === reportDate);
   const canWrite = ['owner', 'editor', 'verifier'].includes(role());
   $('#main').innerHTML = heading('diaryTitle', 'diarySub', button('print', 'print') + (canWrite ? button('newEntry', 'new-entry', '', 'primary') : '')) +
-    `<div class="diary-toolbar"><label for="report-date">${t('reportDate')}</label><input id="report-date" type="date" min="0001-01-01" max="9999-12-31" value="${reportDate}"><span class="badge">${t('draft')}</span><span class="subtitle">${entries.length} ${t('entries')}</span></div><div class="diary-grid"><section class="panel">${entries.length ? entries.map(entry => {
+    `<div class="diary-toolbar"><label for="report-date">${t('reportDate')}</label><input id="report-date" aria-describedby="date-hint-report-date" type="date" min="0001-01-01" max="9999-12-31" value="${reportDate}">${dateHint('date-hint-report-date')}<span class="badge">${t('draft')}</span><span class="subtitle">${entries.length} ${t('entries')}</span></div><div class="diary-grid"><section class="panel">${entries.length ? entries.map(entry => {
       return `<article class="diary-entry"><div class="entry-heading"><strong>${t(entry.shift)} ${syncBadge(entry)}</strong><span>${t('recordedAt')} ${timeLabel(entry.createdAt)}</span></div><div class="entry-grid">${['plan', 'actual', 'blockers', 'next'].map(key => `<section class="entry-section ${key === 'blockers' && entry[key] ? 'entry-blocker' : ''}"><h3>${t(key)}</h3><p>${esc(entry[key] || '—')}</p></section>`).join('')}</div>${attachmentSection('diary', entry.id)}</article>`;
     }).join('') : empty('diaryEmpty', 'diaryEmptyHint', canWrite ? button('newEntry', 'new-entry', '', 'primary') : '')}</section><details class="panel diary-aside" open><summary>${t('dayRule')}</summary><div class="panel-body"><p>${t('dayRuleNote')}</p><div class="blank-message">${t('diaryLimit')}</div></div></details></div><p class="note">${t('forDate')} ${dateLabel(reportDate)} · ${t('draft')} · ${t('diaryLimit')}</p>`;
 }
@@ -1162,9 +1162,9 @@ function renderHse() {
   const all = coreData('hse'), filter = coreFilters.hse, canWrite = permissions().hseWrite;
   const rows = filterHseEvents(all, filter), counts = hseCounts(all);
   const kpis = [...HSE_TYPES, 'total'].map(type => `<div class="panel panel-body"><span>${t(type === 'total' ? 'hseTotal' : `hseType_${type}`)}</span><strong class="cert-count">${counts[type]}</strong></div>`).join('');
-  const period = [['from', 'hseFrom'], ['to', 'hseTo']].map(([key, label]) => `<label class="field core-filter"><span>${t(label)}</span><input type="date" min="0001-01-01" max="9999-12-31" data-core-filter="${key}" value="${esc(filter[key])}"></label>`).join('');
+  const period = [['from', 'hseFrom'], ['to', 'hseTo']].map(([key, label]) => `<label class="field core-filter"><span>${t(label)}</span><input type="date" min="0001-01-01" max="9999-12-31" data-core-filter="${key}" value="${esc(filter[key])}" aria-describedby="date-hint-hse-${key}">${dateHint(`date-hint-hse-${key}`)}</label>`).join('');
   let html = `<p class="note">${t('hsePrivacy')}</p><div class="core-kpis" role="status">${kpis}</div><p class="note">${t('hseSummaryHint')}</p>`;
-  html += `<div class="toolbar core-toolbar">${coreSelect('type', 'hseType', HSE_TYPES.map(type => [type, t(`hseType_${type}`)]), filter.type, 'hseAllTypes')}${coreSelect('severity', 'hseSeverity', HSE_SEVERITIES.map(severity => [severity, t(`hseSeverity_${severity}`)]), filter.severity, 'hseAllSeverities')}${period}</div>`;
+  html += `<div class="toolbar core-toolbar">${coreSelect('type', 'hseType', HSE_TYPES.map(type => [type, t(`hseType_${type}`)]), filter.type, 'hseAllTypes')}${coreSelect('severity', 'hseSeverity', HSE_SEVERITIES.map(severity => [severity, t(`hseSeverity_${severity}`)]), filter.severity, 'hseAllSeverities')}<div class="hse-period-filters">${period}</div></div>`;
   if (filter.from && filter.to && filter.from > filter.to) return html + `<p role="alert">${t('hsePeriodInvalid')}</p>`;
   html += rows.length ? coreTable(['hseOccurredOn', 'hseEventNo', 'hseType', 'hseSeverity', 'hseLocation', 'hsePersons', 'hseMeasures', ...(canWrite ? ['coreActions'] : [])], rows.map(row => [
     coreValue(row.occurredOn), coreValue(row.eventNo), t(`hseType_${row.type}`), coreStatus(row.severity, t(`hseSeverity_${row.severity}`)),
@@ -1596,9 +1596,12 @@ function showModal(title, content) {
 }
 function closeModal() { modalVersion++; $('#modal').close(); }
 function field(label, name, value = '', { type = 'text', required = false, full = false, max = 4000, hint = '', options = null } = {}) {
-  const attrs = `name="${name}" id="field-${name}" ${required ? 'required' : ''}`;
+  const attrs = `name="${name}" id="field-${name}" ${required ? 'required' : ''}${type === 'date' ? ` aria-describedby="date-hint-${name}"` : ''}`;
   const control = options !== null ? `<select ${attrs}>${options}</select>` : type === 'textarea' ? `<textarea ${attrs} maxlength="${max}">${esc(value)}</textarea>` : `<input ${attrs} type="${type}" value="${esc(value)}" ${type === 'date' ? 'min="0001-01-01" max="9999-12-31"' : `maxlength="${max}"`}>`;
-  return `<label class="field ${full ? 'full' : ''}" for="field-${name}"><span>${t(label)} ${required ? '*' : `<small>(${t('optional')})</small>`}</span>${control}${hint ? `<small>${t(hint)}</small>` : ''}</label>`;
+  return `<label class="field ${full ? 'full' : ''}" for="field-${name}"><span>${t(label)} ${required ? '*' : `<small>(${t('optional')})</small>`}</span>${control}${type === 'date' ? dateHint(`date-hint-${name}`) : ''}${hint ? `<small>${t(hint)}</small>` : ''}</label>`;
+}
+function dateHint(id) {
+  return `<small class="field-hint" id="${esc(id)}">${t('dateFormatHint')}</small>`;
 }
 const formActions = () => `<div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="primary">${t('save')}</button></div>`;
 function formError(form, error) {

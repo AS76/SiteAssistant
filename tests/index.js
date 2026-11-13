@@ -62,3 +62,4 @@ import './hse-ui.test.mjs';
 
 import './dashboard-layouts.test.mjs';
 import './module-access.test.mjs';
+import './date-fields-ui.test.mjs';

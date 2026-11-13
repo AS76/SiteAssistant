@@ -10,7 +10,7 @@ dialog{border:1px solid var(--line);border-radius:15px;padding:0;max-width:760px
 @media(max-width:1150px){.sidebar{width:195px;padding:27px 14px}.brand{font-size:17px}.brand small{font-size:7px}.shell{margin-left:195px}.topbar{padding:0 25px}.shell main{padding:30px 25px}.demo-banner{padding:8px 25px}.actor-control>span{display:none}.board{grid-template-columns:repeat(3,minmax(0,1fr))}.site-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-overview{grid-template-columns:minmax(0,1.3fr) minmax(230px,1fr)}footer{padding:18px 25px}#toast{left:calc(50% + 97px)}}
 @media(max-width:800px){.sidebar{position:static;width:100%;padding:17px 20px 10px;display:block}.brand{font-size:19px;gap:10px}.brand small{font-size:8px}.brand-mark{width:32px;height:35px;font-size:23px}.nav-label,.sidebar-bottom{display:none}nav{display:flex;justify-content:space-between;margin-top:19px;gap:5px}nav a{padding:9px 10px;font-size:12px;gap:7px}nav svg{width:16px;height:16px}.shell{margin-left:0}.topbar{height:68px;padding:0 20px;gap:8px}.site-control>span{display:none}.site-control select{min-width:100px;max-width:180px;font-size:12px}.topbar-actions{gap:8px}.actor-control input{max-width:160px;font-size:11px}.demo-banner{padding:8px 20px}.shell main{padding:27px 20px}.grid-overview,.diary-grid{grid-template-columns:1fr}.metrics{gap:10px}.metric{padding:15px}.metric-top{font-size:11px}.metric strong{font-size:29px}.metric small{font-size:9px}.page-heading h1{font-size:26px}.site-grid{gap:14px}.heading-actions button{font-size:12px;padding:9px 12px}footer{padding:18px 20px;align-items:start;flex-direction:column}#toast{left:50%}}
 @media (pointer: coarse) {
-  button, .text-button { min-height: 44px; }
+  button, .text-button, input[type="date"] { min-height: 44px; }
   button.small { min-height: 44px; }
   .view-toggle button { min-height: 44px; min-width: 44px; }
   .core-stepper button { min-height: 44px; min-width: 44px; }
@@ -48,6 +48,8 @@ dialog{border:1px solid var(--line);border-radius:15px;padding:0;max-width:760px
 .nav-section { margin: 10px 12px 2px; color: #849fa0; font-size: 10px; letter-spacing: 1.8px; font-weight: 650; text-transform: uppercase; }
 .core-view { min-width: 0; max-width: 100%; }
 .core-toolbar { align-items: end; }
+.hse-period-filters { display: contents; }
+.field-hint { color: var(--muted); font-size: 10px; font-weight: 400; }
 .core-filter { flex: 1 1 180px; min-width: 0; max-width: 100%; }
 .core-filter select { min-width: 0; max-width: 100%; }
 .core-board { display: flex; gap: 14px; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding: 4px 3px 16px; }
@@ -315,6 +317,9 @@ footer{font-size:11px}
 }
 /* Keep filter labels readable on a phone: two selects per row instead of ellipsis. */
 @media (max-width: 520px) {
+  input[type="date"] { font-size: 16px; }
+  .hse-period-filters { display: flex; flex-direction: column; gap: 10px; width: 100%; min-width: 0; }
+  .hse-period-filters > .core-filter { flex: none; width: 100%; }
   .toolbar select { flex: 1 1 46%; min-width: 0; }
   .diary-toolbar { row-gap: 10px; }
   .diary-toolbar .badge { white-space: normal; max-width: 100%; }
