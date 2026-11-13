@@ -90,6 +90,7 @@ for (const driver of ['sqlite', 'pg']) test(`Audit trail ${driver === 'pg' ? 'PG
       t.assert.deepStrictEqual(JSON.parse(audit[0].changes), Object.fromEntries(Object.entries(created).filter(([, value]) => value !== null)));
       t.assert.strictEqual(audit[0].action, 'create');
       t.assert.strictEqual(audit[0].actor, users.editor.id);
+      t.assert.strictEqual(audit[0].actor_name, users.editor.name);
       t.assert.strictEqual(audit[0].site_id, f.site.id);
       t.assert.match(audit[0].id, /^[0-9a-f-]{36}$/);
       t.assert.strictEqual(new Date(audit[0].at).toISOString(), audit[0].at);
@@ -170,6 +171,29 @@ for (const driver of ['sqlite', 'pg']) test(`Audit trail ${driver === 'pg' ? 'PG
     });
   }
 
+  await t.test('actor name is resolved at read time and remains null after the user is deleted', async t => {
+    const f = await fixture();
+    const actor = { id: randomUUID(), name: 'Synthetic temporary editor' };
+    await db.run(`INSERT INTO users (id, email, name, password_hash, password_algo, created_at)
+      SELECT ?, ?, ?, password_hash, password_algo, created_at FROM users WHERE id = ?`,
+    actor.id, `${actor.id}@example.invalid`, actor.name, users.editor.id);
+    await db.run('INSERT INTO site_members VALUES (?, ?, ?)', f.site.id, actor.id, 'editor');
+    const row = await f.create(modules[2], actor);
+    t.assert.strictEqual((await events(f.site, modules[2], row))[0].actor_name, actor.name);
+    await db.run('UPDATE users SET name = ? WHERE id = ?', 'Synthetic renamed editor', actor.id);
+    t.assert.strictEqual((await events(f.site, modules[2], row))[0].actor_name, 'Synthetic renamed editor');
+    await db.run('DELETE FROM site_members WHERE user_id = ?', actor.id);
+    await db.run('DELETE FROM users WHERE id = ?', actor.id);
+    const result = await events(f.site, modules[2], row);
+    t.assert.strictEqual(result.length, 1);
+    t.assert.strictEqual(result[0].actor, actor.id);
+    t.assert.strictEqual(result[0].actor_name, null);
+    t.assert.strictEqual(await countAuditEvents(db, { siteId: f.site.id }, users.owner), 1);
+    const response = await api(`/api/audit-events?site_id=${f.site.id}&entity_type=tool`, { cookie: cookies.verifier });
+    t.assert.strictEqual(response.status, 200);
+    t.assert.strictEqual(response.body[0].actor_name, null);
+  });
+
   await t.test('site/entity/id filters, ordering, standard pagination, roles, isolation and no module gate', async t => {
     const f = await fixture(), other = await fixture(['viewer']);
     const rows = [];
@@ -190,6 +214,7 @@ for (const driver of ['sqlite', 'pg']) test(`Audit trail ${driver === 'pg' ? 'PG
     t.assert.strictEqual(all.headers['x-offset'], '0');
     t.assert.strictEqual(all.body.length, 6);
     t.assert.ok(all.body.every(event => event.site_id === f.site.id && typeof event.changes === 'string'));
+    t.assert.ok(all.body.every(event => event.actor_name === Object.values(users).find(user => user.id === event.actor).name));
     const compare = (a, b) => a.at === b.at ? (a.id < b.id ? 1 : a.id > b.id ? -1 : 0) : a.at < b.at ? 1 : -1;
     t.assert.deepStrictEqual(all.body, [...all.body].sort(compare));
     for (let index = 0; index < modules.length; index++) {

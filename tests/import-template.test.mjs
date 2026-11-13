@@ -126,5 +126,8 @@ test('import template UI: role gate, selected family download, shared download h
   assert.match(source, /button\('importTemplateDownload', 'import-template-download'\)/);
   for (const lang of ['it', 'en']) for (const key of ['importTemplateDownload', 'importTemplateHint']) assert.ok(messages[lang][key]);
   const sw = await readFile(new URL('../app/sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /siteassistant-v15-12/);
+  // A version bump must not fail this suite, but a regression to an older cache must.
+  const version = /siteassistant-v15-(\d+)/.exec(sw);
+  assert.ok(version, 'il service worker deve dichiarare una versione');
+  assert.ok(Number(version[1]) >= 12, `versione del service worker troppo vecchia: ${version[0]}`);
 });

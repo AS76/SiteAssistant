@@ -52,7 +52,10 @@ async function filters(db, { siteId, entityType, entityId }, user) {
 
 export async function listAuditEvents(db, input = {}, user) {
   const { where, values } = await filters(db, input, user);
-  return await db.all(`SELECT * FROM audit_events WHERE ${where} ORDER BY at DESC, id DESC LIMIT ? OFFSET ?`,
+  const qualifiedWhere = where.replace(/\b(site_id|entity_type|entity_id)\b/g, 'audit_events.$1');
+  return await db.all(`SELECT audit_events.*, users.name AS actor_name FROM audit_events
+    LEFT JOIN users ON audit_events.actor = users.id
+    WHERE ${qualifiedWhere} ORDER BY audit_events.at DESC, audit_events.id DESC LIMIT ? OFFSET ?`,
     ...values, input.limit ?? 50, input.offset ?? 0);
 }
 

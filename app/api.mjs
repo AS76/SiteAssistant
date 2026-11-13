@@ -101,6 +101,7 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     updateCertification: async (id, input) => certificationFromApi(await request(`/api/certifications/${encodeURIComponent(id)}`, certificationPayload(input), { method: 'PATCH' })),
     deleteCertification: id => request(`/api/certifications/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' }),
     listHseEvents: async (filters = {}) => (await request(`/api/hse-events${query(wireFilters(filters))}`)).map(hseFromApi),
+    listAuditEvents: ({ siteId, entityType, limit = 20 }) => request(`/api/audit-events${query({ site_id: siteId, entity_type: entityType, limit })}`),
     hseSummary: async siteId => camelRecord(await request(`/api/hse-events${query({ site_id: siteId, summary: 1 })}`)),
     createHseEvent: async input => hseFromApi(await request('/api/hse-events', hsePayload(input))),
     updateHseEvent: async (id, input) => hseFromApi(await request(`/api/hse-events/${encodeURIComponent(id)}`, hsePayload(input), { method: 'PATCH' })),

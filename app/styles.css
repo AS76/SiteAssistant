@@ -338,6 +338,17 @@ footer{font-size:11px}
 .module-access .table-scroll { overflow-x: auto; }
 .module-access th, .module-access td { padding: 10px; text-align: left; }
 .module-access input[type=checkbox] { width: 20px; height: 20px; }
+.audit-panel { margin-top: 24px; }
+.audit-panel > summary { padding: 16px; cursor: pointer; font-weight: 700; }
+.audit-panel > summary:focus-visible { outline: 3px solid #d89a44; outline-offset: -3px; }
+.audit-events { margin: 0; padding: 0; list-style: none; }
+.audit-events > li { padding: 16px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.audit-events > li:first-child { padding-top: 0; }
+.audit-events > li:last-child { border-bottom: 0; padding-bottom: 0; }
+.audit-event-heading { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; }
+.audit-event-heading time { color: var(--muted); }
+.audit-record { margin: 8px 0; font-size: 13px; font-weight: 600; }
+.audit-changes { padding-inline-start: 20px; font-size: 12px; white-space: pre-wrap; }
 .reconciliation-panel { margin-bottom: 20px; }
 .reconciliation-panel > summary { padding: 16px; cursor: pointer; font-weight: 700; }
 .reconciliation-counts { flex-wrap: wrap; }

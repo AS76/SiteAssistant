@@ -876,10 +876,71 @@ function renderCore() {
   const error = resources.find(entry => entry.error)?.error;
   if (error) { $('#main').insertAdjacentHTML('beforeend', `<p role="alert">${esc(errorMessage(error))}</p>`); return; }
   const content = { deviations: renderDeviations, progress: renderProgress, bookings: renderBookings, impacts: renderImpacts, tools: renderTools, certifications: renderCertifications, hse: renderHse }[view]();
-  $('#main').insertAdjacentHTML('beforeend', `<div class="core-view">${content}</div>`);
+  $('#main').insertAdjacentHTML('beforeend', `<div class="core-view">${content}${renderAuditPanel()}</div>`);
   const reconciliationPanel = $('#deviation-reconciliation');
   if (reconciliationPanel) reconciliationPanel.addEventListener('toggle', () => { reconciliationOpen = reconciliationPanel.open; });
   enhanceCoreTables();
+  bindAuditPanel();
+}
+
+function auditEntityType() {
+  return ({ hse: 'hse_event', certifications: 'certification', tools: 'tool' })[view];
+}
+function canReadAudit() { return ['owner', 'verifier'].includes(role()); }
+function renderAuditPanel() {
+  if (!auditEntityType() || !canReadAudit()) return '';
+  return `<details id="audit-panel" class="panel audit-panel"><summary>${t('auditTitle')}</summary><div class="panel-body" aria-live="polite"></div></details>`;
+}
+function auditFieldLabel(entityType, field) {
+  const labels = {
+    tool: { name: 'toolName', code: 'toolCode', company: 'toolCompany', status: 'toolStatus', location: 'toolLocation', notes: 'toolNotes' },
+    certification: { employee_id: 'coreEmployee', name: 'certName', category: 'certCategory', issuer: 'certIssuer', issued_on: 'certIssuedOn', expires_on: 'certExpiresOn', outcome: 'certOutcome', notes: 'certNotes' },
+    hse_event: { event_no: 'hseEventNo', type: 'hseType', severity: 'hseSeverity', occurred_on: 'hseOccurredOn', location: 'hseLocation', persons_involved: 'hsePersons', measures: 'hseMeasures', notes: 'hseNotes', deviation_id: 'deviations' },
+  };
+  return t(labels[entityType]?.[field] || field);
+}
+function auditValue(value) {
+  if (value === null) return 'null';
+  if (value === '') return '""';
+  return typeof value === 'object' ? JSON.stringify(value) : String(value);
+}
+function renderAuditEvents(events) {
+  if (!events.length) return `<p role="status">${t('auditEmpty')}</p>`;
+  const rows = events.map(event => {
+    const changes = typeof event.changes === 'string' ? JSON.parse(event.changes) : event.changes;
+    const name = ['name', 'event_no', 'title', 'deviation_no'].map(field => {
+      const value = changes[field];
+      return event.action === 'update' && value && typeof value === 'object' ? value.to || value.from : value;
+    }).find(value => value != null && value !== '');
+    const fields = event.action === 'update' ? Object.entries(changes) : [];
+    const summary = fields.length ? `<ul class="audit-changes">${fields.slice(0, 4).map(([field, change]) =>
+      `<li>${esc(auditFieldLabel(event.entity_type, field))}: ${esc(auditValue(change.from))} → ${esc(auditValue(change.to))}</li>`).join('')}</ul>` : '';
+    const more = fields.length > 4 ? `<p class="note">${esc(t('auditMore').replace('{count}', String(fields.length - 4)))}</p>` : '';
+    return `<li><div class="audit-event-heading"><strong>${esc(t({ create: 'auditCreated', update: 'auditUpdated', delete: 'auditDeleted' }[event.action]))}</strong><span>${esc(event.actor_name || t('auditUnknownUser'))}</span><time datetime="${esc(event.at)}">${esc(timeLabel(event.at))}</time></div><p class="audit-record">${esc(name ?? event.entity_id.slice(0, 8))}</p>${summary}${more}</li>`;
+  }).join('');
+  return `<ol class="audit-events">${rows}</ol>${events.length === 20 ? `<p class="note">${t('auditRecentOnly')}</p>` : ''}`;
+}
+function bindAuditPanel() {
+  const panel = $('#audit-panel');
+  if (!panel || !canReadAudit() || !auditEntityType()) return;
+  const selected = siteId, entityType = auditEntityType(), userId = session?.user.id;
+  const body = panel.querySelector('.panel-body');
+  let opened = false, version = 0;
+  panel.addEventListener('toggle', async () => {
+    if (panel.open === opened) return;
+    opened = panel.open;
+    const requestVersion = ++version;
+    const current = () => panel.isConnected && panel.open && version === requestVersion
+      && siteId === selected && auditEntityType() === entityType && session?.user.id === userId && canReadAudit();
+    if (!opened || !current()) return;
+    body.innerHTML = `<p role="status">${t('auditLoading')}</p>`;
+    try {
+      const events = await freshApi.listAuditEvents({ siteId: selected, entityType, limit: 20 });
+      if (current()) body.innerHTML = renderAuditEvents(events);
+    } catch (error) {
+      if (current()) body.innerHTML = `<p role="alert">${esc(t('auditError'))}: ${esc(errorMessage(error))}</p>`;
+    }
+  });
 }
 
 // Sorting and per-column filters work on the rendered table: every core view gets them the same way,
