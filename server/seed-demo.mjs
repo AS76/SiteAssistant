@@ -121,6 +121,84 @@ const IMPACTS = {
   'FITT-04': [['closed', 8000, 7200, 'settled'], ['closed', 1200, 0, 'dropped']],
 };
 
+
+// Health and safety register: realistic near misses of the trade, no health data and no names.
+// Categories follow what construction near-miss literature lists most often: dropped objects,
+// plant movements, fall protection, housekeeping, temporary electrical supply.
+const HSE = {
+  'FITT-01': [
+    ['near_miss', 'low', 2, 'Passerella di servizio linea A', null, 'Caduta di un bullone dalla passerella mentre si serrava una flangia. Nessuno sotto nel momento della caduta.',
+      'Il bullone è caduto dentro la zona di lavoro delimitata; nessuna persona presente.'],
+    ['near_miss', 'medium', 3, 'Corsia mezzi area 4', null, 'Carrello elevatore in retromarcia senza segnalatore acustico: un operatore si è spostato per tempo.',
+      'Il segnalatore era disinserito. Percorso pedonale e carraio non separati in quel tratto.'],
+    ['observation', 'low', 4, 'Ponteggi area 2', null, 'Ponteggio privo di cartello di portata massima sul lato est.',
+      'Cartello presente sugli altri tre lati, mancante su quello aggiunto la settimana precedente.'],
+    ['near_miss', 'high', 5, 'Area di sollevamento linea A', null, 'Il carico sospeso ha oscillato oltre l\'area interdetta, passando sopra il corridoio pedonale.',
+      'Raffica di vento durante il sollevamento. Area interdetta troppo stretta per la geometria del carico.'],
+    ['accident', 'medium', 7, 'Area montaggio carrelli', 1, 'Taglio superficiale alla mano durante la posa di lamierato grecato.',
+      'Guanto destro tagliato sul bordo lamiera; medicazione in cantiere, nessun ricorso a struttura sanitaria.'],
+    ['observation', 'medium', 9, 'Vano scale area 5', null, 'Illuminazione insufficiente nel vano scale: due lampade su cinque non funzionanti.',
+      'Segnalato dall\'impresa di finiture durante il sopralluogo serale.'],
+    ['near_miss', 'low', 11, 'Passaggio pedonale area 1', null, 'Prolunga elettrica attraversava il passaggio pedonale senza canalina di protezione.',
+      'Cavo di alimentazione di una levigatrice, posato temporaneamente.'],
+    ['near_miss', 'medium', 13, 'Area 6 quadri elettrici', null, 'Scala a pioli usata come appoggio su pavimento irregolare: si è ribaltata a vuoto.',
+      'Nessuno sulla scala. Superficie con residui di malta.'],
+  ],
+  'FITT-02': [
+    ['near_miss', 'high', 1, 'Impalcato campata 1', null, 'Caduta di un casseruola in legno dall\'impalcato verso l\'area sottostante.',
+      'Elemento scivolato oltre il bordo privo di tavola fermapiede nel tratto in lavorazione.'],
+    ['observation', 'low', 2, 'Accesso impalcato lato sud', null, 'Linea vita non installata per un tratto di tre metri all\'accesso dell\'impalcato.',
+      'Tratto in attesa di installazione; segnalato con nastro.'],
+    ['near_miss', 'medium', 4, 'Bordo scavo area A', null, 'Mezzo d\'opera in manovra a meno di un metro dal ciglio dello scavo non protetto.',
+      'Manovra di accostamento per scarico materiale, senza segnalazione a terra.'],
+    ['accident', 'low', 6, 'Area A armature', 1, 'Contusione lieve al ginocchio per inciampo su armatura non segnalata.',
+      'Ferramenta lasciata fuori dalla zona di stoccaggio; nessun giorno di assenza.'],
+  ],
+  'FITT-03': [
+    ['observation', 'medium', 1, 'Perimetro cantiere lato nord', null, 'Recinzione di cantiere incompleta: un pannello mancante consente l\'accesso dalla strada.',
+      'Pannello rimosso per il passaggio di un mezzo e non riposizionato.'],
+    ['near_miss', 'low', 2, 'Area di scavo C1', null, 'Un passante ha oltrepassato il nastro di delimitazione dello scavo aperto.',
+      'Nastro abbassato e non riposizionato dopo il turno precedente.'],
+    ['near_miss', 'medium', 3, 'Area taglio materiali', null, 'Taglio di blocchi senza bagnatura: polvere diffusa verso l\'area di transito.',
+      'Nebulizzatore non collegato alla rete idrica del cantiere.'],
+  ],
+  'FITT-04': [
+    ['accident', 'medium', 2, 'Pedana area D2', 1, 'Distorsione alla caviglia scendendo da una pedana priva di gradino.',
+      'Pedana di servizio senza rampa; valutazione medica senza giorni di assenza.'],
+    ['near_miss', 'medium', 5, 'Area D3 impianti', null, 'Pannello antincendio movimentato senza cinghie di contenimento su bancale.',
+      'Bancale non idoneo al peso del pannello.'],
+    ['observation', 'low', 7, 'Area D3 impianti', null, 'Estintori presenti ma non segnalati con cartello di posizione.',
+      'Segnaletica rimossa durante la tinteggiatura.'],
+    ['near_miss', 'high', 9, 'Area montaggio quadri', null, 'Carico sospeso transitato sopra la zona di montaggio dei quadri elettrici.',
+      'Coordinamento sollevamenti non aggiornato dopo lo spostamento dell\'area di montaggio.'],
+    ['observation', 'low', 12, 'Area D1 ufficio cantiere', null, 'Documentazione di collaudo non disponibile in cantiere, solo in sede.',
+      'Copia cartacea non aggiornata; il fascicolo digitale non era accessibile dal cantiere.'],
+  ],
+};
+
+// Diary entries per site: plan, what happened, impediments, next step.
+const DIARY = {
+  'FITT-01': [
+    ['Montaggio rulliere linea A e serraggio flange.', 'Completato il tratto 1-4; resta il tratto 5 per domani.', null, 'Completare il tratto 5 e iniziare l\'allineamento.'],
+    ['Allineamento guide linea A.', 'Allineamento eseguito su tre campate, tolleranze entro 2 mm.', 'Mancava la dima per la quarta campata.', 'Recuperare la dima e chiudere la quarta campata.'],
+    ['Getto fondazioni area 4.', 'Getto completato, maturazione in corso.', 'Fornaitura arrivata con due ore di ritardo.', 'Disarmo previsto tra due giorni.'],
+    ['Montaggio quadri secondari.', 'Installati quattro quadri su sei.', null, 'Completare i due quadri restanti.'],
+  ],
+  'FITT-02': [
+    ['Armature pile 1-3.', 'Armature chiuse, controllate dal direttore dei lavori.', null, 'Preparare il getto per domani.'],
+    ['Getto pile 1-3.', 'Getto eseguito in due fasi, provini prelevati.', 'Bettoniera in avaria a metà turno, sostituita.', 'Controllo maturazione e disarmo casseri.'],
+    ['Impalcato campata 1.', 'Posizionati i primi tre elementi.', 'Vento forte nel pomeriggio: sospensione dei sollevamenti.', 'Riprendere con il quarto elemento.'],
+  ],
+  'FITT-03': [
+    ['Scavo di sbancamento area C1.', 'Scavato circa il 60 per cento dell\'area.', 'Mezzo fermo per perdita idraulica.', 'Ripresa dello scavo con il secondo mezzo.'],
+    ['Magrone di sottofondo.', 'Getto eseguito su metà area.', null, 'Completare il magrone e tracciare i plinti.'],
+  ],
+  'FITT-04': [
+    ['Collaudo impianti elettrici.', 'Prove effettuate su tre quadri su quattro.', 'Manca la dichiarazione di conformità di un quadro.', 'Recuperare la dichiarazione e chiudere le prove.'],
+    ['Consegna documentazione.', 'Raccolta quasi completa, mancano gli as-built degli esterni.', null, 'Chiudere gli as-built e consegnare il fascicolo.'],
+  ],
+};
+
 const TASK_STATUSES = ['todo', 'todo', 'todo', 'todo', 'in_progress', 'in_progress', 'in_progress', 'to_verify', 'to_verify', 'to_verify', 'closed', 'closed', 'closed', 'closed', 'closed', 'blocked'];
 
 export function plan() {
@@ -330,6 +408,15 @@ export async function apply(db) {
         impactId, deviationIds[index % deviationIds.length]);
     }
 
+    for (const [index, [type, severity, dayOffset, location, persons, measures, notes]] of (HSE[code] || []).entries()) {
+      const eventId = id(`${code}:hse:${index + 1}`);
+      await db.run(`INSERT INTO hse_events (id, site_id, event_no, type, severity, occurred_on, location, persons_involved, measures, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (id) DO UPDATE SET type = excluded.type, severity = excluded.severity, measures = excluded.measures, notes = excluded.notes`,
+      eventId, siteId, `HSE-${String(index + 1).padStart(3, '0')}`, type, severity, date(dayOffset), location, persons, measures, notes, at2, at2);
+      bump('hse');
+    }
+
     const titles = ['Verifica planimetrie', 'Consegna materiale area 1', 'Coordinate con subappaltatore', 'Prova di carico',
       'Aggiornamento cronoprogramma', 'Pulizia area di lavoro', 'Controllo serraggi', 'Rilievo quote', 'Riunione sicurezza',
       'Approvvigionamento cavi', 'Verifica quadri', 'Collaudo parziale', 'Documentazione fotografica', 'Segnalazione ostacolo',
@@ -349,15 +436,19 @@ export async function apply(db) {
       }
     }
 
+    const diaryTexts = DIARY[code] || [];
     for (let index = 0; index < (SITE_META[code].diary || 12); index++) {
-      const operationalDate = date(index + Math.floor(index / 5) * 2);
+      const operationalDate = date(index + Math.floor(index / 5) * 2 - (SITE_META[code].weeks ? 0 : 0));
       const shift = index % 5 === 4 ? 'night' : 'day';
+      const [dPlan, dActual, dImp, dNext] = diaryTexts[index % Math.max(1, diaryTexts.length)] || [];
       await db.run(`INSERT INTO diary (id, site_id, operational_date, shift, plan, actual, impediments, next_step, created_at, time_zone, day_cutoff_time)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Europe/Rome', '06:00')
         ON CONFLICT (id) DO UPDATE SET actual = excluded.actual`,
       id(`${code}:diary:${operationalDate}:${shift}`), siteId, operationalDate, shift,
-      'Piano sintetico della giornata: montaggi e verifiche.', 'Eseguito quanto previsto, con lievi ritardi.',
-      index % 4 === 0 ? 'Materiale in ritardo dal fornitore.' : null, 'Proseguire secondo cronoprogramma.', at2);
+      dPlan || 'Piano sintetico della giornata: montaggi e verifiche.',
+      dActual || 'Eseguito quanto previsto, con lievi ritardi.',
+      dImp ?? (index % 4 === 0 ? 'Materiale in ritardo dal fornitore.' : null),
+      dNext || 'Proseguire secondo cronoprogramma.', at2);
       bump('diary');
     }
   }
