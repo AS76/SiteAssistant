@@ -19,7 +19,7 @@ SiteAssistant is organised into **views** that share the same context: the **sel
 The header contains, from left to right:
 
 - the **site selector**, which lists only the sites where you have a role;
-- the **navigation** between views, grouped on desktop in three sections: **Operations** (Overview, Tasks, Deviations, Diary), **Site** (Site progress, Time bookings, Project structure, Cost impacts) and **Management** (Sites, [Tools](../../moduli/attrezzature/), [Fitness](../../moduli/idoneita/), [HSE](../../moduli/hse/));
+- the **navigation** between views: on desktop the **Today** entry at the top, then three collapsible sections, **Operations** (Overview, Tasks, Deviations, Diary), **Site** (Site progress, Time bookings, Project structure, Cost impacts) and **Management** (Sites, [Tools](../../moduli/attrezzature/), [Fitness](../../moduli/idoneita/), [HSE](../../moduli/hse/));
 - the gear for [Settings](../impostazioni/) (currency, decimals, separators);
 - the link to the manual;
 - the **language selector** (IT / EN);
@@ -29,7 +29,11 @@ The **AI** button at the bottom right opens the [data assistant](../assistente-a
 
 ## The navigation groups
 
-On desktop the side navigation shows a heading per group: **Operations** for daily work, **Site** for progress and cost data, **Management** for sites, tools, fitness and the HSE register. The entries are the same as before; only the order they are collected in changes. On a phone the bottom bar does not use the groups, opens on **Today** and is described in the [Mobile quick guide](../mobile/).
+On desktop the side navigation opens with the **Today** entry, above the groups: it is the same screen that comes first on a phone, and it stays one click away on the desktop too.
+
+Below **Today** the navigation shows a heading per group: **Operations** for daily work, **Site** for progress and cost data, **Management** for sites, tools, fitness and the HSE register. The entries are the same as before; only the order they are collected in changes. Each group opens and closes when you click its heading; the arrow next to the name shows the state, **▸** closed and **▾** open. The choice is remembered in that browser: when you come back the groups are as you left them. The group of the view you are opening opens by itself if you had closed it; on the first visit, with no saved choice, every group is open when the window is at least 800 px tall, otherwise only the group of the current view.
+
+On a phone the bottom bar does not use the groups, opens on **Today** and is described in the [Mobile quick guide](../mobile/).
 
 If an owner has excluded a module from your access, its entry does not appear in the navigation and a direct link to the view shows **Module unavailable**. Module access is described in [Users and roles](../../amministrazione/utenti-e-ruoli/#module-access).
 
@@ -135,5 +139,7 @@ The IT/EN selector translates the interface labels immediately. The content you 
 ## Accessibility and devices
 
 The interface is responsive and keyboard-navigable. The input forms are modal windows with focus management; validation errors are announced in the form's message area. Every date field carries the hint “Date: day/month/year”, tied to the field with `aria-describedby`: screen readers announce it too, and it stays visible in filters as well as in forms.
+
+The navigation group headings also open from the keyboard: move focus to the heading with Tab and press **Enter** or **Space**. The focus ring on buttons, links, fields and headings is green, with a white halo that sets it off from the background; secondary text — subtitles, notes, table headings — has a higher contrast on the light background.
 
 On phones navigation moves to a **bottom bar**: the full description is in the [Mobile quick guide](../mobile/).
