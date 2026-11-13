@@ -4,7 +4,7 @@ Status: **SUPERSEDED (2026-11-10).** Railway set aside: the operational DB is **
 
 ## Goal
 
-A demo with an HTTPS URL, controlled access, shared persistent data and synthetic initial data. Limit recurring costs and rewriting work, while maintaining a path towards the operational pilot.
+A demo with an HTTPS URL, controlled access, shared persistent data and synthetic initial data. Limit recurring costs and rewriting work, keeping the option open for a later operational use, without committing to one in public documents.
 
 Updated constraint: the demo uses separate services; reuse of servers shared with other workloads is outside the current scope.
 

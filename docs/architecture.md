@@ -64,18 +64,15 @@ The backend checks identity, site, role and module before every operation; DB an
 
 ## Ingest
 
-6 actual source families (private `sa-handoff/` dossier, never in the public repo), mapped into `source_snapshot` and promoted to `app` **idempotently** via explicit bindings (`wbs_import_sources`, `hr_import_sources`, …):
+The importer accepts six families of planning exports — employees, attendance, work schedule,
+progress items, deviations, daily log — mapped into `source_snapshot` and promoted to `app`
+**idempotently** through explicit bindings (`wbs_import_sources`, `hr_import_sources`, …).
 
-| Family | Rows | → app |
-| --- | --- | --- |
-| Employees | 1.249 | `employees` |
-| Time Schedule | 2.322 | `project_structure` (WBS) |
-| Site Progress Items | 2.320 | `site_progress_items` (unresolved identity) |
-| Daily Log | 291 | — |
-| Work Days | 48.398 | `work_days` |
-| Deviations | 19.747 | `deviations` |
+Identity: `source_uuid ↔ internal_id` via `ingest.entity_keys`; immutable imported rows; internal
+annotations tied to persistent identity; reporting on the latest complete bundle.
 
-Identity: `source_uuid ↔ internal_id` via `ingest.entity_keys`; immutable imported rows; internal annotations tied to persistent identity; reporting on the latest complete bundle. **No real data imported into production** (demo on synthetic data).
+The repository and the demo run on **synthetic data only**. Real planning exports, when they were
+used to design the import contract, were processed outside this repository and are not part of it.
 
 ## Hosting and deployment
 
@@ -101,11 +98,9 @@ Development/staging/production have separate databases, credentials and buckets.
 
 ## Next steps
 
-1. **Pilot** on a real site, led by Andrea: one person, three weeks.
-2. **Real ingest** (#5) and, afterwards, reporting views (#6) and area scope (#48).
-3. **Audit “History” panel** in the interface (#60).
-4. **UX review** of mobile/desktop flows (#7) after the first weeks of use.
-5. Logistics/procurement (#30) = next milestone.
-6. Corporate access: possible OIDC/SAML SSO, not a second OAuth provider (#1 closed).
+1. **Real ingest** (#5) and, afterwards, reporting views (#6) and area scope (#48).
+2. **UX review** of mobile/desktop flows (#7) after the first weeks of use.
+3. Logistics/procurement (#30) = next milestone.
+4. Corporate access: possible OIDC/SAML SSO, not a second OAuth provider (#1 closed).
 
 Scope decisions remain documented in the vault (blueprint/kanban), not here.

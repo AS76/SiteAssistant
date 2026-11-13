@@ -37,7 +37,7 @@ Installable PWA, Italian and English interface, mobile bottom navigation, sortab
 ## What it is not
 
 - **Not an ERP, not a planning system.** It stays complementary to time schedules, purchasing and accounting, and does not try to replace them.
-- **Not a copy of another product.** The code is original and written from scratch. SiteAssistant is an independent project, not affiliated with or endorsed by any vendor.
+- **Not a copy of another product.** The application code was written for this project and contains no third-party source code. Its functional model was informed by the author's professional experience with construction site management and by the public behaviour of comparable tools. SiteAssistant is an independent project, not affiliated with, endorsed by, or supplied by any vendor.
 - **Not finished.** The [product status](https://as76.github.io/SiteAssistant/note/rilascio/) page lists what exists only via API and what does not exist yet. It is deliberately explicit.
 
 ## Status
