@@ -1,130 +1,130 @@
 # SiteAssistant — Design System
 
-Riferimento stabile per UI, UX e handoff. Fonte dei valori: `app/styles.css` (`:root`). I valori sono esportati in [`design-system.tokens.json`](design-system.tokens.json).
+Stable reference for UI, UX and handoff. Source of the values: `app/styles.css` (`:root`). The values are exported in [`design-system.tokens.json`](design-system.tokens.json).
 
-**Regola principale:** nessun colore, font, raggio o spaziatura fuori da questi token. Le eccezioni si dichiarano e si approvano, non si introducono in silenzio.
+**Main rule:** no colour, font, radius or spacing outside these tokens. Exceptions are declared and approved, never introduced silently.
 
-## 1. Token
+## 1. Tokens
 
-| Token | Valore | Uso | Nota di contrasto |
+| Token | Value | Use | Contrast note |
 |---|---|---|---|
-| `--ink` | `#182c32` | Testo primario, titoli, valori | 13,48:1 su `--paper`; 14,0:1 su bianco |
-| `--muted` | `#64757b` | Testo secondario, label, caption | 4,80:1 su bianco; **4,46:1 su `--paper`**: appena sotto AA per testo normale, non usarlo su paper per testi informativi |
-| `--line` | `#dce4e5` | Bordi, separatori, tabelle | Solo elemento grafico |
-| `--paper` | `#f4f7f6` | Sfondo pagina | — |
-| `--green` | `#126c57` | Azione primaria, accenti, stato completato | 6,35:1 su bianco; bianco su green 6,35:1 |
-| `--pale` | `#e7f3ec` | Sfondo tenue, highlight, skeleton | — |
-| `--orange` | `#c27320` | Alert soft, scadenze, severità alta | 3,64:1 su bianco: **solo testo grande, bold o con icona**; mai testo informativo piccolo da solo |
-| `--sidebar` | `#142c30` | Navigazione | Testo nav `#c5d7d7` su sidebar: 9,82:1 |
-| `--shadow` | `0 8px 32px #142c3009` | Elevazione pannelli/card | — |
-| `--mono` | IBM Plex Mono + fallback | Codici, ID, timestamp | — |
+| `--ink` | `#182c32` | Primary text, headings, values | 13.48:1 on `--paper`; 14.0:1 on white |
+| `--muted` | `#64757b` | Secondary text, labels, captions | 4.80:1 on white; **4.46:1 on `--paper`**: just below AA for normal text, do not use it on paper for informational text |
+| `--line` | `#dce4e5` | Borders, separators, tables | Graphic element only |
+| `--paper` | `#f4f7f6` | Page background | — |
+| `--green` | `#126c57` | Primary action, accents, completed state | 6.35:1 on white; white on green 6.35:1 |
+| `--pale` | `#e7f3ec` | Soft background, highlight, skeleton | — |
+| `--orange` | `#c27320` | Soft alert, due dates, high severity | 3.64:1 on white: **large, bold text or icon only**; never small informational text on its own |
+| `--sidebar` | `#142c30` | Navigation | Nav text `#c5d7d7` on sidebar: 9.82:1 |
+| `--shadow` | `0 8px 32px #142c3009` | Panel/card elevation | — |
+| `--mono` | IBM Plex Mono + fallback | Codes, IDs, timestamps | — |
 
-**Non sono token e non vanno inventati:** rosso d'errore, blu `to_verify`, grigi intermedi, verdi alternativi. Se servono, vanno proposti come nuovi token e approvati.
+**These are not tokens and must not be invented:** error red, `to_verify` blue, intermediate greys, alternative greens. If they are needed, they are proposed as new tokens and approved.
 
-### Gap noti
+### Known gaps
 
-- Il focus ring `#d89a44` su bianco ha 2,43:1 (sotto il 3:1 richiesto per indicatori non testuali). Non va rimosso: va corretto il token o aggiunto un secondo segnale (spessore/offset) finché non viene approvato un valore migliore.
-- I badge a 10px sono sotto la soglia di comfort per testo lungo: usarli per etichette brevi, non per frasi.
-- `--muted` su `--paper` è appena sotto AA per testo normale: sui pannelli usare `--muted` su bianco, oppure `--ink`.
+- The focus ring `#d89a44` on white has 2.43:1 (below the 3:1 required for non-text indicators). It must not be removed: fix the token or add a second signal (thickness/offset) until a better value is approved.
+- Badges at 10px are below the comfort threshold for long text: use them for short labels, not for sentences.
+- `--muted` on `--paper` is just below AA for normal text: on panels use `--muted` on white, or `--ink`.
 
-## 2. Tipografia
+## 2. Typography
 
-Famiglia: **IBM Plex Sans** (UI e testi), **IBM Plex Mono** (codici, ID, timestamp).
+Family: **IBM Plex Sans** (UI and text), **IBM Plex Mono** (codes, IDs, timestamps).
 
-| Ruolo | Dimensione / peso | Note |
+| Role | Size / weight | Notes |
 |---|---|---|
-| Body | 14px / 1.5 | Base dell'app |
-| H1 pagina | 30px / 650, letter-spacing -1px | Una sola per schermata |
-| H2 pannello | 15px / 650 | Header dei panel |
-| Eyebrow | 10px / uppercase, letter-spacing 1.8px, `--green` | Contesto, non titolo |
-| KPI | 35px / 620, letter-spacing -1px | Valore numerico |
-| Label tabella | 10px / uppercase, `--muted` | Header |
-| Cella tabella | 12px | Minimo per dati tabellari |
-| Badge | 10px / 600 | Solo etichette brevi |
+| Body | 14px / 1.5 | Application base |
+| Page H1 | 30px / 650, letter-spacing -1px | One per screen |
+| Panel H2 | 15px / 650 | Panel header |
+| Eyebrow | 10px / uppercase, letter-spacing 1.8px, `--green` | Context, not a heading |
+| KPI | 35px / 620, letter-spacing -1px | Numeric value |
+| Table label | 10px / uppercase, `--muted` | Header |
+| Table cell | 12px | Minimum for tabular data |
+| Badge | 10px / 600 | Short labels only |
 
-Non introdurre nuovi pesi o scale. Per gerarchie secondarie usare `--muted`, non nuove dimensioni.
+Do not introduce new weights or scales. For secondary hierarchy use `--muted`, not new sizes.
 
-## 3. Forma e spaziatura
+## 3. Shape and spacing
 
-- Raggi: **8px** input/bottoni/thumbnail, **12px** card/panel, **15px** dialog.
-- Padding main: **35px 38px** desktop; **24-27px 15-20px** mobile.
-- Card/panel: padding **20-21px**; gap griglie **16px**; overview **23px**.
-- Griglia KPI: 4 colonne, gap 16px. Overview: `1.7fr + 1fr`.
-- Touch target: minimo **44×44px** su pointer coarse; pulsanti standard `padding: 10px 15px`.
-- Focus: `outline: 3px solid #d89a44; outline-offset: 3px` su ogni elemento interattivo. Mai `outline: none` senza sostituto.
+- Radii: **8px** inputs/buttons/thumbnails, **12px** cards/panels, **15px** dialogs.
+- Main padding: **35px 38px** desktop; **24-27px 15-20px** mobile.
+- Card/panel: padding **20-21px**; grid gap **16px**; overview **23px**.
+- KPI grid: 4 columns, 16px gap. Overview: `1.7fr + 1fr`.
+- Touch target: minimum **44×44px** on pointer coarse; standard buttons `padding: 10px 15px`.
+- Focus: `outline: 3px solid #d89a44; outline-offset: 3px` on every interactive element. Never `outline: none` without a replacement.
 
-## 4. Componenti
+## 4. Components
 
 ### Button
-- Primary: fondo `--green`, testo bianco, bordo `--green`. Hover: `#0d5544` (variante interna al token green).
-- Secondary: bianco, bordo `--line`, testo `--ink`. Hover: `#eef3f0`.
-- Danger: testo `#a73c37`, bordo `#e5c4c1`. Non è un token: usarlo solo per azioni distruttive già previste.
-- Disabled: opacità 0.5, `cursor: not-allowed`.
-- Loading: label sostituita o spinner, `aria-busy="true"`, disabilitato.
+- Primary: `--green` background, white text, `--green` border. Hover: `#0d5544` (a variant inside the green token).
+- Secondary: white, `--line` border, `--ink` text. Hover: `#eef3f0`.
+- Danger: text `#a73c37`, border `#e5c4c1`. It is not a token: use it only for destructive actions that are already planned.
+- Disabled: opacity 0.5, `cursor: not-allowed`.
+- Loading: label replaced or spinner, `aria-busy="true"`, disabled.
 
 ### Badge
-- Base: 10px, padding 4px 8px, raggio 5px, peso 600.
-- Varianti stato: `todo` grigio, `in_progress` verde, `blocked` arancio, `to_verify` blu, `closed` verde.
-- Sempre **testo + colore**: il colore non è mai l'unico canale.
-- Il blu `to_verify` non ha un valore esadecimale in `:root`: è una variante di componente, non un token. Non replicarlo altrove.
+- Base: 10px, padding 4px 8px, radius 5px, weight 600.
+- Status variants: `todo` grey, `in_progress` green, `blocked` orange, `to_verify` blue, `closed` green.
+- Always **text + colour**: colour is never the only channel.
+- The `to_verify` blue has no hex value in `:root`: it is a component variant, not a token. Do not replicate it elsewhere.
 
 ### Panel / Card
-- Bordo 1px `--line`, raggio 12px, `--shadow`, header con H2 e azioni.
-- Error state: messaggio inline, bordo `--orange`, pulsante Riprova.
+- 1px `--line` border, 12px radius, `--shadow`, header with H2 and actions.
+- Error state: inline message, `--orange` border, Retry button.
 
-### Tabella
-- Header 10px su `#edf2ef`; celle 12px; bordo inferiore `#edf1ef`.
-- Su mobile: card impilate o scroll orizzontale contenuto. Mai 9 colonne a 9px.
+### Table
+- Header 10px on `#edf2ef`; cells 12px; bottom border `#edf1ef`.
+- On mobile: stacked cards or contained horizontal scroll. Never 9 columns at 9px.
 
 ### Form
-- Label visibile sopra il campo; asterisco + testo per i campi obbligatori, non solo colore.
-- Errore sotto il campo, con icona e testo; `role="alert"` per gli errori di invio.
-- Raggio 8px; bordo `#cdd9d6`.
+- Visible label above the field; asterisk + text for required fields, not colour alone.
+- Error below the field, with icon and text; `role="alert"` for submit errors.
+- Radius 8px; border `#cdd9d6`.
 
 ### Empty state
-- Centrato, padding 42px 20px, titolo forte, testo `--muted`, una sola azione primaria.
-- Distinguere sempre **vuoto** da **caricamento** e da **errore**.
+- Centred, padding 42px 20px, strong title, `--muted` text, a single primary action.
+- Always distinguish **empty** from **loading** and from **error**.
 
 ### Dialog
-- Raggio 15px, backdrop `#10282e80`, focus trap, Esc per chiudere, focus iniziale sull'azione sicura.
-- Conferma per azioni distruttive; in alternativa toast con Annulla 8-10 s.
+- Radius 15px, backdrop `#10282e80`, focus trap, Esc to close, initial focus on the safe action.
+- Confirmation for destructive actions; otherwise a toast with Undo for 8-10 s.
 
 ## 5. Responsive
 
-| Breakpoint | Comportamento |
+| Breakpoint | Behaviour |
 |---|---|
 | > 1150px | Sidebar 232px, KPI 4 col, overview 1.7fr + 1fr |
 | ≤ 1150px | Sidebar 195px, board 3 col, site grid 2 col |
-| ≤ 800px | Sidebar statica in alto, nav orizzontale, overview 1 col, KPI 4 col compresse |
-| ≤ 520px | KPI 2×2, board a scroll orizzontale con snap, toolbar a capo, topbar a due righe, tabelle → card |
+| ≤ 800px | Static sidebar on top, horizontal nav, overview 1 col, KPI 4 compressed col |
+| ≤ 520px | KPI 2×2, board with horizontal scroll and snap, toolbar wrapping, two-row topbar, tables → cards |
 
-Cosa non deve mai sparire su mobile: stato offline/sync, badge di stato con testo, azione primaria del ruolo, identificativo del record, motivo di blocco/rifiuto.
+What must never disappear on mobile: offline/sync state, status badge with text, the role's primary action, the record identifier, the reason for a block or a rejection.
 
-## 6. Accessibilità — regole non negoziabili
+## 6. Accessibility — non-negotiable rules
 
-1. Contrasto AA: 4,5:1 per testo normale, 3:1 per testo grande e indicatori grafici.
-2. Mai stato comunicato solo con il colore: serve testo, icona o forma.
-3. Touch target ≥ 44×44 su pointer coarse; nessun font < 12px per dati tabellari.
-4. Focus visibile su ogni interattivo; ordine di tabulazione = ordine DOM.
-5. Errori e conferme annunciati (`role="alert"`, `aria-live`), non solo visivi.
-6. Foto: alt descrittivo (cosa, dove, quando), non il nome file.
-7. Azioni distruttive: conferma esplicita o annullamento; mai silenziose.
+1. AA contrast: 4.5:1 for normal text, 3:1 for large text and graphic indicators.
+2. Never communicate a state with colour alone: text, icon or shape is required.
+3. Touch target ≥ 44×44 on pointer coarse; no font below 12px for tabular data.
+4. Visible focus on every interactive element; tab order = DOM order.
+5. Errors and confirmations announced (`role="alert"`, `aria-live`), not only visual.
+6. Photos: descriptive alt (what, where, when), not the file name.
+7. Destructive actions: explicit confirmation or undo; never silent.
 
-## 7. Cosa non fare
+## 7. What not to do
 
-- Introdurre nuovi hex, gradienti, font o raggi.
-- Usare `--orange` per frasi piccole su bianco.
-- Sostituire etichette con sole icone su touch.
-- Nascondere filtri o record senza un percorso alternativo.
-- Usare date solo relative in contesti di audit.
-- Lasciare il focus ring o rimuoverlo senza sostituto.
+- Introduce new hex values, gradients, fonts or radii.
+- Use `--orange` for small sentences on white.
+- Replace labels with icons only on touch.
+- Hide filters or records without an alternative path.
+- Use relative dates only in audit contexts.
+- Drop the focus ring, or remove it without a replacement.
 
-## 8. Manutenzione
+## 8. Maintenance
 
-1. Il valore nasce in `app/styles.css` (`:root`).
-2. Si rigenera `design-system.tokens.json` dallo stesso blocco.
-3. Pixel aggiorna questo documento per semantica e uso; Codex implementa valori e test di coerenza.
-4. Un test/CI dovrebbe fallire se CSS e JSON divergono. Il controllo automatico è di competenza Codex; nel frattempo la verifica manuale è questa, da eseguire dalla radice del repo:
+1. The value is born in `app/styles.css` (`:root`).
+2. `design-system.tokens.json` is regenerated from the same block.
+3. Pixel updates this document for semantics and usage; Codex implements values and consistency tests.
+4. A test/CI should fail if CSS and JSON diverge. The automated check is Codex's responsibility; meanwhile this is the manual verification, run from the repository root:
 
 ```sh
 python3 - <<'PY'
@@ -141,4 +141,4 @@ print('Token OK:', len(live))
 PY
 ```
 
-5. Ogni eccezione va scritta nella sezione "Eccezioni approvate" con motivo e data.
+5. Every exception must be written in the "Approved exceptions" section with reason and date.
