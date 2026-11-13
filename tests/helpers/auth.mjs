@@ -29,7 +29,7 @@ export function requestListener(server) {
       const response = {
         setHeader: (name, value) => { values[name.toLowerCase()] = value; },
         writeHead(status, extra = {}) { response.status = status; for (const [key, value] of Object.entries(extra)) response.setHeader(key, value); },
-        end(raw) { resolve({ status: response.status, headers: values, body: raw ? (values['content-type']?.startsWith('text/html') ? raw : JSON.parse(raw)) : null }); },
+        end(raw) { resolve({ status: response.status, headers: values, body: raw ? (Buffer.isBuffer(raw) || values['content-type']?.startsWith('text/html') ? raw : JSON.parse(raw)) : null }); },
       };
       server.emit('request', request, response);
     });

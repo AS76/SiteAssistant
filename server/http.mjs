@@ -32,6 +32,7 @@ import { listTools, createTool, updateTool, deleteTool } from './tools.mjs';
 import { listCertifications, createCertification, updateCertification, deleteCertification, certificationSummary } from './certifications.mjs';
 import { listHseEvents, createHseEvent, updateHseEvent, deleteHseEvent, hseSummary } from './hse.mjs';
 import { importRequest, MAX_IMPORT_BYTES, listImportMappings, saveImportMapping, deleteImportMapping } from './planning-import.mjs';
+import { importTemplate } from './import-template.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, listTasks, countTasks, getTask,
   transitionTask, listDiary, countDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember, listAssignable,
@@ -346,6 +347,16 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       const importMapping = /^\/api\/import-mappings\/([^/]+)$/.exec(path);
       if (importMapping && method === 'DELETE') {
         return json(response, 200, await deleteImportMapping(db, url.searchParams.get('site_id'), importMapping[1], user));
+      }
+      // Generic public contract: authentication only; no site data or module scope.
+      if (path === '/api/import/template' && method === 'GET') {
+        const family = url.searchParams.get('family'), buffer = importTemplate(family);
+        response.writeHead(200, {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="SiteAssistant-${family}-modello.xlsx"`,
+          'Cache-Control': 'private, no-store',
+        });
+        return response.end(buffer);
       }
       if (['/api/import/preview', '/api/import/apply'].includes(path) && method === 'POST') {
         const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_IMPORT_BYTES / 3) + 65536 });

@@ -52,7 +52,7 @@ export class ApiError extends Error {
 // Override via <meta name="siteassistant-api-base" content="…"> or createApi({ baseUrl }).
 export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.fetch, onUnauthorized = () => {}, fresh = false } = {}) {
   const base = baseUrl.replace(/\/+$/, '');
-  async function request(path, input, { idempotencyKey, method = 'POST' } = {}) {
+  async function request(path, input, { idempotencyKey, method = 'POST', binary = false } = {}) {
     let response;
     try {
       response = await fetchImpl(`${base}${path}`, input === undefined && method !== 'DELETE' ? { credentials: 'include', ...(fresh ? { cache: 'reload' } : {}) } : {
@@ -62,6 +62,7 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     } catch {
       throw new ApiError('apiUnavailable');
     }
+    if (binary && response.ok) return response.blob();
     let data;
     try { data = await response.json(); }
     catch { throw new ApiError('apiError', { status: response.status, code: 'INVALID_RESPONSE' }); }
@@ -142,6 +143,10 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     deleteImportMapping: (siteId, family) => request(`/api/import-mappings/${encodeURIComponent(family)}${query({ site_id: siteId })}`, undefined, { method: 'DELETE' }),
     previewImport: input => request('/api/import/preview', input),
     applyImport: input => request('/api/import/apply', input),
+    importTemplate: async family => ({
+      blob: await request(`/api/import/template${query({ family })}`, undefined, { binary: true }),
+      filename: `SiteAssistant-${family}-modello.xlsx`,
+    }),
     listProgressTypes: async siteId => request(`/api/progress-types${query({ site_id: siteId })}`),
     assignProgressType: async (id, progressTypeId) => progressFromApi(await request(
       `/api/site-progress/${encodeURIComponent(id)}/progress-type`, { progress_type_id: progressTypeId }, { method: 'PATCH' })),

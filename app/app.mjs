@@ -1239,11 +1239,14 @@ function showSettingsForm() {
 }
 
 async function showImportForm() {
+  if (!canImport()) return;
   importPreview = null;
   showModal(t('importTitle'), `<form id="import-form"><div class="form-error" role="alert" tabindex="-1" hidden></div>` +
     `<p class="note">${t('importHint')}</p>` +
     `<div class="form-grid"><label class="field">${t('importFamily')}<select name="family" required>${IMPORT_FAMILIES.map(family => `<option value="${family}">${t(`importFamily_${family}`)}</option>`).join('')}</select></label>` +
+    `<div class="field">${button('importTemplateDownload', 'import-template-download')}</div>` +
     `<label class="field">${t('importFile')}<input name="file" type="file" accept=".xlsx" required></label></div>` +
+    `<p class="note">${t('importTemplateHint')}</p>` +
     `<details id="import-mapping"><summary>${t('importMappingTitle')}</summary><p class="note">${t('importMappingHint')}</p><fieldset disabled><div id="import-mapping-fields"></div>` +
     `<p id="import-identity-order" class="note" aria-live="polite"></p><div class="form-actions">${button('importMappingSave', 'import-mapping-save')}${button('importMappingReset', 'import-mapping-reset')}</div></fieldset></details>` +
     `<p id="import-preview-hint" class="note" role="status">${t('importPreviewRequired')}</p><div id="import-result" class="import-result"></div><div class="form-actions">${button('importClose', 'close-modal')}<button type="submit" class="primary" disabled>${t('importPreview')}</button></div></form>`);
@@ -1255,6 +1258,16 @@ async function showImportForm() {
     form.importMappings = mappings;
     renderImportMapping(form);
   } catch (error) { if (form.isConnected && version === modalVersion) formError(form, error); }
+}
+async function downloadImportTemplate(target) {
+  const form = target.closest('form');
+  if (!canImport() || !form || target.disabled) return;
+  target.disabled = true;
+  try {
+    const file = await api.importTemplate(form.elements.family.value);
+    download(file.blob, file.blob.type, file.filename);
+  } catch (error) { if (form.isConnected) formError(form, error); }
+  finally { target.disabled = false; }
 }
 function renderImportMapping(form) {
   const mapping = form.importMappings.find(item => item.family === form.elements.family.value);
@@ -1790,6 +1803,7 @@ document.addEventListener('click', event => {
     'layout-move': () => moveLayoutWidget(target),
     'layout-reset': () => submitDashboardLayout(target.closest('form'), true),
     'import-open': showImportForm,
+    'import-template-download': () => downloadImportTemplate(target),
     'import-mapping-save': () => changeImportMapping(),
     'import-mapping-reset': () => changeImportMapping(true),
     'column-filters': () => { columnFiltersOn = !columnFiltersOn; render(); },

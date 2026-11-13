@@ -17,6 +17,39 @@ Solo `owner` ed `editor` del cantiere possono usare queste route autenticate:
 Il file decodificato non può superare 20 MiB; il limite HTTP include l'espansione
 base64 e un margine limitato per i metadati. Il nome file è descrittivo, mai un percorso.
 
+### Modello scaricabile — incremento 31
+
+`GET /api/import/template?family=<family>` restituisce un XLSX generico con le
+intestazioni canoniche e una sola riga di esempio sintetica. Richiede soltanto una
+sessione valida: anche viewer e verifier possono scaricarlo tramite API, senza
+`site_id`, appartenenza a un cantiere o controllo del modulo. Non legge dati di
+cantiere. Senza sessione risponde `401 AUTH_REQUIRED`; famiglia mancante o
+sconosciuta restituisce `400 UNKNOWN_FAMILY`.
+
+Il tipo è `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, il
+nome è `SiteAssistant-<family>-modello.xlsx` e la cache è `private, no-store`.
+Nel dialogo di import, disponibile a owner/editor, «Scarica modello» usa la famiglia
+selezionata. Compilare le righe mantenendo le intestazioni; la riga di esempio è
+un record importabile e va sostituita o rimossa prima di caricare dati propri.
+Per le presenze, l'esempio `EMP-001` richiede un dipendente corrispondente nel
+cantiere, come ogni altro import di questa famiglia.
+
+`canonicalHeaders` ricava da `FAMILIES` il primo nome di ciascun campo destinazione,
+nell'ordine di definizione: per esempio `Progress`, `PLC-Area`, `Planned Hours`,
+`Deviation Status`, `Activities` e `Delays`. Gli alias personalizzati del cantiere
+non cambiano questo modello; restano accettati dall'import come prima. I valori
+di esempio sono associati ai campi destinazione, con identificativi come
+`EMP-001`, `DEV-001`, `AREA-001`, date ISO e testo «Lavorazione di esempio».
+
+Lo scrittore `server/xlsx-write.mjs` genera cinque parti ZIP deflate con CRC32:
+`[Content_Types].xml`, `_rels/.rels`, `xl/workbook.xml`,
+`xl/_rels/workbook.xml.rels` e `xl/worksheets/sheet1.xml`. Il singolo foglio
+`Sheet1` contiene esclusivamente stringhe inline, senza stili, formule o shared
+strings. I caratteri speciali XML sono escapati; TAB, LF e CR sono preservati nel
+testo. I caratteri vietati da XML 1.0, che non possono essere rappresentati neppure
+come riferimenti numerici, causano un errore esplicito anziché una perdita silenziosa
+di dati. Il lettore e le regole di import non cambiano.
+
 L'anteprima non scrive su database. Restituisce `counts` e `samples` per
 `added`, `updated`, `unchanged`, `removed`, `rejected`, al massimo 50 esempi per
 categoria, oltre a `unmapped_columns`. Gli scarti contengono numero di riga,

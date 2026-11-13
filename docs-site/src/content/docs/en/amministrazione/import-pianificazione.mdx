@@ -28,6 +28,31 @@ The import is reserved to site **owners** and **editors**. The **Import planning
 | Deviations | Deviations with status, priority, dates and amounts |
 | Daily log | Diary entries imported from the planning system log |
 
+## Preparing the sheet
+
+You do not have to guess the headers: the application gives them to you.
+
+1. Open the **Import planning export** dialog and choose the **Export type**.
+2. Press **Download template**: you get an xlsx file with the accepted headers for that family and **one example row**.
+3. Fill in one row per record and **delete the example row**: it shows the formats, but if you leave it there it is imported as real data.
+4. Do not rename the columns and do not add new ones. Unrecognised columns are listed in the preview and ignored, never interpreted.
+5. Save as **xlsx** with a single sheet.
+
+Required columns, per family:
+
+| Export type | Columns that must be present and not empty |
+| :-- | :-- |
+| Employees | `Employee No` |
+| Work days | `Date`, `Employee No` |
+| Time schedule | `Time Schedule Item No` |
+| Progress | `Description`, `Planned Start`, `Planned Finish`, `PLC-Area`, `Section` |
+| Deviations | `Deviation No`, `Deviation Status` |
+| Daily log | `Date` |
+
+Formats: dates are `YYYY-MM-DD`; date-times are `YYYY-MM-DD HH:MM:SS`; decimal numbers accept both a dot and a comma. An empty cell means "no value", while an absent column leaves the field as it is: that is the difference that avoids erasing data by accident.
+
+If your sheet uses different column names, do not rewrite it by hand: open **Column mapping** in the import dialog and say which column matches which field.
+
 ## Importing a file
 
 What it is for: refreshing site data from an export without deleting what the file does not contain.

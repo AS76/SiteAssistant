@@ -28,6 +28,31 @@ L'import è riservato a **owner** ed **editor** del cantiere. Il pulsante **Impo
 | Deviazioni | Deviazioni con stato, priorità, date e importi |
 | Diario | Voci di diario importate dal registro del sistema di pianificazione |
 
+## Come preparare il foglio
+
+Non serve indovinare le intestazioni: l'applicazione te le dà già scritte.
+
+1. Apri il dialogo **Importa export di pianificazione** e scegli il **Tipo di export**.
+2. Premi **Scarica modello**: ottieni un file xlsx con le intestazioni accettate per quella famiglia e **una riga di esempio**.
+3. Compila una riga per ogni dato e **cancella la riga di esempio**: è lì per mostrare i formati, ma se resta viene importata come un dato vero.
+4. Non rinominare le colonne e non aggiungerne di nuove. Le colonne non riconosciute vengono elencate nell'anteprima e ignorate, non interpretate.
+5. Salva in **xlsx** con un solo foglio.
+
+Le colonne obbligatorie, per famiglia:
+
+| Tipo di export | Colonne che devono esserci e non essere vuote |
+| :-- | :-- |
+| Dipendenti | `Employee No` |
+| Presenze | `Date`, `Employee No` |
+| Time Schedule | `Time Schedule Item No` |
+| Avanzamento | `Description`, `Planned Start`, `Planned Finish`, `PLC-Area`, `Section` |
+| Deviazioni | `Deviation No`, `Deviation Status` |
+| Diario | `Date` |
+
+Formati: le date sono `AAAA-MM-GG`; le date con ora `AAAA-MM-GG HH:MM:SS`; i numeri decimali accettano sia il punto sia la virgola. Una cella vuota significa «nessun valore», mentre una colonna assente lascia il campo com'è: è la differenza che evita di cancellare dati senza volerlo.
+
+Se il tuo foglio usa nomi di colonna diversi, non riscriverlo a mano: apri **Mappatura colonne** nel dialogo di import e indica quale colonna corrisponde a quale campo.
+
 ## Importare un file
 
 A cosa serve: aggiornare i dati del cantiere da un export, senza cancellare ciò che il file non contiene.

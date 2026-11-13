@@ -109,6 +109,14 @@ const familyOf = family => {
   if (!Object.hasOwn(FAMILIES, family)) fail('UNKNOWN_FAMILY', 'Unknown import family.');
   return FAMILIES[family];
 };
+// First header for each destination field, in the public contract's definition order.
+export function canonicalHeaders(family) {
+  const seen = new Set();
+  return Object.entries(familyOf(family).columns).filter(([, column]) => {
+    if (seen.has(column.field)) return false;
+    seen.add(column.field); return true;
+  }).map(([header]) => header);
+}
 // aliases_json is an object of destination field -> alternative header arrays.
 export function resolveMapping(family, row = null) {
   const base = familyOf(family), columns = { ...base.columns };
