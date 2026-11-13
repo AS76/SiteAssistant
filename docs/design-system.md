@@ -124,5 +124,21 @@ Cosa non deve mai sparire su mobile: stato offline/sync, badge di stato con test
 1. Il valore nasce in `app/styles.css` (`:root`).
 2. Si rigenera `design-system.tokens.json` dallo stesso blocco.
 3. Pixel aggiorna questo documento per semantica e uso; Codex implementa valori e test di coerenza.
-4. Un test/CI dovrebbe fallire se CSS e JSON divergono. Il controllo è di competenza Codex: nessuna modifica manuale ai valori.
+4. Un test/CI dovrebbe fallire se CSS e JSON divergono. Il controllo automatico è di competenza Codex; nel frattempo la verifica manuale è questa, da eseguire dalla radice del repo:
+
+```sh
+python3 - <<'PY'
+import re, json, sys
+css = open('app/styles.css').read()
+body = re.search(r':root\{(.*?)\}', css, re.S).group(1)
+live = {n: v.strip() for n, v in re.findall(r'(--[a-z0-9-]+)\s*:\s*([^;]+);', body)}
+doc = json.load(open('docs/design-system.tokens.json'))['tokens']
+if live != doc:
+    diff = {k: (live.get(k), doc.get(k)) for k in set(live) | set(doc) if live.get(k) != doc.get(k)}
+    print('Token drift:', diff)
+    sys.exit(1)
+print('Token OK:', len(live))
+PY
+```
+
 5. Ogni eccezione va scritta nella sezione "Eccezioni approvate" con motivo e data.

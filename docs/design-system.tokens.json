@@ -1,0 +1,20 @@
+{
+  "$schema": "siteassistant.design-tokens/v1",
+  "source": "app/styles.css",
+  "sourceSelector": ":root",
+  "commit": "1472093",
+  "generatedAt": "2026-11-13T15:05:00Z",
+  "note": "Generated from app/styles.css. Do not edit values by hand; change CSS first, then regenerate and commit both.",
+  "tokens": {
+    "--green": "#126c57",
+    "--ink": "#182c32",
+    "--line": "#dce4e5",
+    "--mono": "\"IBM Plex Mono\",ui-monospace,SFMono-Regular,Menlo,monospace",
+    "--muted": "#64757b",
+    "--orange": "#c27320",
+    "--pale": "#e7f3ec",
+    "--paper": "#f4f7f6",
+    "--shadow": "0 8px 32px #142c3009",
+    "--sidebar": "#142c30"
+  }
+}
