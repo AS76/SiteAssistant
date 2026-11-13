@@ -15,12 +15,12 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Transizioni di stato con note e motivazioni, cronologia completa.
 - Verifica separata: chi esegue non può chiudere il proprio lavoro.
 - Diario per giorno operativo e turno, con piano, consuntivo, impedimenti e prossimo passo.
-- Foto e PDF allegati ad attività e voci di diario, anche trascinati dal desktop, fino a 15 MiB per file.
+- Foto e PDF allegati ad attività e voci di diario, anche trascinati dal desktop, fino a 15 MiB per file; gli eventi HSE accettano foto e PDF dalla finestra di modifica.
 - Vista **Struttura progetto (WBS)** in sola lettura: albero e tabella piatta.
 - Viste **Deviazioni**, **Avanzamento**, **Prenotazioni ore** e **Impatti economici**.
 - Vista **Attrezzature**: registro per appaltatore, stato e posizione, con inserimento, modifica ed eliminazione dall'interfaccia.
 - Vista **Idoneità**: abilitazioni, visite mediche e formazione dei dipendenti, con scadenza, giorni residui e stato calcolato; leggono owner, editor e verificatori, scrivono owner ed editor.
-- Vista **HSE**: registro separato di near miss, infortuni e osservazioni, con data, tipo, gravità, luogo, un conteggio di persone coinvolte e misure; nessun dato sanitario. Leggono owner, editor e verificatori, scrivono owner ed editor.
+- Vista **HSE**: registro separato di near miss, infortuni e osservazioni, con data, tipo, gravità, luogo, un conteggio di persone coinvolte e misure; nessun dato sanitario. Leggono owner, editor e verificatori, scrivono owner ed editor; gli eventi salvati accettano allegati e ogni apertura di un allegato HSE resta nel registro di audit.
 - Avanzamento con tipi a step ponderati: i pesi devono sommare 100; il completamento si registra dall'applicazione. Ogni voce ha **ore pianificate** proprie o del nodo WBS collegato.
 - **Earned value** nella Panoramica e nel report: EV, PV e AC in ore, con CPI e SPI, calcolati dalle ore pianificate e dalle ore prenotate.
 - Panoramica con quattro indicatori, ciambella delle deviazioni, avanzamento per sezione, ore per settimana e pannello earned value.
@@ -40,7 +40,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Import degli snapshot tramite endpoint dedicati (oltre all'import di pianificazione dall'interfaccia): WBS, presenze, avanzamento e deviazioni.
 - Creazione ed eliminazione dei tipi di avanzamento e dei loro pesi.
 - **Impatti economici**: consultazione e chiusura con esito sono disponibili anche dall'interfaccia; creazione e aggiornamento degli importi restano via API.
-- **Allegati al cantiere** e **eliminazione degli allegati**: caricamento e rimozione restano via API.
+- **Allegati al cantiere** e **eliminazione degli allegati**: il caricamento al cantiere e la rimozione restano via API.
 - Ripristino di un'attività bloccata e rifiuto di una sottomissione (transizioni non ancora esposte nell'app).
 
 ## Non disponibile

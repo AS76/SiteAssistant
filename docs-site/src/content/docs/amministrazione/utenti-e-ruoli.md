@@ -24,7 +24,8 @@ I permessi in SiteAssistant sono **per cantiere**, non globali: la stessa person
 | Gestire il registro delle attrezzature | Sì | Sì | Sì | No |
 | Consultare il registro HSE | Sì | Sì | Sì | No |
 | Inserire, modificare o eliminare eventi HSE | Sì | Sì | No | No |
-| Caricare allegati su attività e diario | Sì | Sì | No | No |
+| Caricare allegati su attività, diario ed eventi HSE | Sì | Sì | No | No |
+| Aprire gli allegati di un evento HSE | Sì | Sì | Sì | No |
 | Eliminare un allegato — solo API | Sì | Sì | No | No |
 | Creare impatti economici — solo API | Sì | Sì | Sì | No |
 | Far avanzare o chiudere un impatto economico | Sì | No | Sì | No |

@@ -7,7 +7,7 @@ import Shot from '../../../../components/Shot.astro';
 
 The **HSE** view is the health and safety register of the selected site: near misses, accidents and observations. Every row records a fact — date, type, severity, location, number of people involved and measures taken — not the people themselves.
 
-The register does not come from an import: rows are created, edited and deleted in the application. It holds no health data and is not linked to the employee record: people involved are **a number only**, never a name.
+The register does not come from an import: rows are created, edited and deleted in the application. It holds no health data and is not linked to the employee record: people involved are **a number only**, never a name. A saved event can carry photos or PDFs, under an explicit rule: **photograph the condition, not the people**. See [Attachments on an event](#attachments-on-an-event).
 
 <Shot
   src="/images/2026-11/en/hse-desktop.png"
@@ -74,21 +74,36 @@ An **event number** already used stays reserved after deletion: deletion is logi
 
 The **event number** is an internal reference: you can leave it empty, but when filled it must be unique within the site. Two events cannot share the same number, and the application rejects the save asking you to check the number.
 
+## Attachments on an event
+
+A saved event can have attachments: images or PDFs up to **15 MiB** per file. An attachment documents a condition — a missing guard rail, an unmarked edge, a load that swung — not the people.
+
+1. Press **Edit** on the event: the **Attachments** section appears at the bottom of the window, below the buttons.
+2. Press **Add photo or PDF** and choose the file.
+3. If you want, write a **Description** up to 200 characters. It is used only for the check before upload and **is not saved**.
+4. Check the warning, if it appears, then press **Save**: the window closes and the message “Attachment recorded” appears. Open **Edit** again to see the file in the section and open it with **Open attachment**.
+
+The rule is written in the window and in the upload form: **photograph the condition, not the people**. No identifiable faces, no health data; if a photo is not necessary, you can attach a **diagram or pictogram**. The warning appears when the file name or the description contains words suggesting a person or an injury: it is a reminder for human review, not an examination of the image content, and it does not block the upload. The application does not recognise faces or diagnoses.
+
+Upload is reserved to **owners** and **editors**. Removal is not available in the interface: it is API only, by owners and editors. If the event is deleted, its attachments stop being served: the list does not show them and the download returns “not found”.
+
+Every opening of an HSE attachment writes a **Read** row in the audit register, with the file name. The row appears in **Latest changes** to owners and verifiers and is readable through the API; if the trail write fails, the download still works. Attachments on tasks and diary produce no read rows.
+
 ## Deleting an event
 
 1. Press **Delete** on the row.
 2. Check the date, type and any number shown in the confirmation.
 3. Confirm with **Delete**.
 
-The event disappears from the list and the counters, and later reads and edits on the same row return “not found”. The row itself is not erased: it stays in the audit register, which keeps a copy of the event as it was plus a record of every creation, edit and deletion, with author and date. The trail is readable from the **Latest changes** panel in the view and through the API, by owners and verifiers: see [Latest changes](#latest-changes) and [Audit register](../../riferimento/api/#audit-register). If the event must stay readable in the interface, correct its data instead of deleting it.
+The event disappears from the list and the counters, later reads and edits on the same row return “not found” and its attachments are no longer served. The row itself is not erased: it stays in the audit register, which keeps a copy of the event as it was plus a record of every creation, edit and deletion, with author and date. The trail is readable from the **Latest changes** panel in the view and through the API, by owners and verifiers: see [Latest changes](#latest-changes) and [Audit register](../../riferimento/api/#audit-register). If the event must stay readable in the interface, correct its data instead of deleting it.
 
 ## Latest changes
 
-At the bottom of the view, owners and verifiers have the collapsible **Latest changes** panel: the twenty most recent changes in the HSE register, newest first. It is closed by default and the list loads when you open it.
+At the bottom of the view, owners and verifiers have the collapsible **Latest changes** panel: the twenty most recent entries in the HSE register, newest first. It is closed by default and the list loads when you open it.
 
-1. Each row gives the action — **Created**, **Updated** or **Deleted** —, who made it and when.
-2. Below it the **event number**; if the event has no number, the first eight characters of the identifier.
-3. For an edit, up to four changed fields appear as **field: before → after**; when more fields changed, the row says how many others remain.
+1. Each row gives the action — **Created**, **Updated**, **Deleted** or **Read** —, who made it and when.
+2. For a read, the name of the attached file; for the other actions the **event number**, or the first eight characters of the identifier when it has none.
+3. For an edit, up to four changed fields appear as **field: before → after**; when more fields changed, the row says how many others remain. A read has no changed fields: it only says which attachment was opened.
 4. When the list reaches twenty rows the panel warns that only the most recent changes are shown: to go further back use `GET /api/audit-events` with `limit` and `offset`.
 
 Values are the stored ones: for type and severity you see the code (`near_miss`, `low`), not the translated label. The panel reloads every time you open it, so close and reopen it to see changes just made. Deleted events stay readable here, with the data they had before deletion. Editors and viewers do not see the panel.
@@ -99,7 +114,11 @@ Values are the stored ones: for type and severity you see the code (`near_miss`,
 | :-- | :-- |
 | Read the HSE register | owner, editor, verifier |
 | Add, edit or delete an event | owner, editor |
+| Open the attachments of an HSE event | owner, editor, verifier |
+| Add or remove attachments on an HSE event | owner, editor |
 | Read the latest changes | owner, verifier |
+
+The **Attachments** section is in the edit window, which only owners and editors see; verifiers read attachments through the API. Removing an attachment is API only.
 
 The `viewer` role has no access to the register: the entry appears in the navigation, but the view shows **Restricted register**. The register is separate from the other modules and feeds neither the Overview nor the report.
 
@@ -108,6 +127,8 @@ The `viewer` role has no access to the register: the entry appears in the naviga
 - **I cannot see the buttons:** only owners and editors write; verifiers only read.
 - **Event number rejected:** another event of the same site already uses it. Leave it empty or change it.
 - **Persons involved rejected:** the field accepts a whole number only, not text and not names.
+- **Attachment rejected:** it must be a non-empty image or PDF, up to 15 MiB.
+- **I cannot find the Attachments section:** it appears only when editing an event already saved, and only for owners and editors.
 - **Period rejected:** the **From** date must not follow the **To** date.
 - **Offline:** the view requires a connection, like the other module views; without a network you can neither read nor change the register.
 - **Empty list:** the site has no events yet, or type, severity and period add up; clear the filters.

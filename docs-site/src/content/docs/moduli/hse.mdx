@@ -7,7 +7,7 @@ import Shot from '../../../components/Shot.astro';
 
 La vista **HSE** è il registro degli eventi di salute e sicurezza del cantiere selezionato: near miss, infortuni e osservazioni. Ogni riga registra un fatto — data, tipo, gravità, luogo, numero di persone coinvolte e misure adottate — non le persone.
 
-Il registro non arriva da un import: le righe si inseriscono, modificano ed eliminano dall'applicazione. Non contiene dati sanitari e non è collegato alla scheda del dipendente: le persone coinvolte sono **solo un numero**, mai un nome.
+Il registro non arriva da un import: le righe si inseriscono, modificano ed eliminano dall'applicazione. Non contiene dati sanitari e non è collegato alla scheda del dipendente: le persone coinvolte sono **solo un numero**, mai un nome. A un evento salvato puoi allegare foto o PDF, con una regola esplicita: **fotografa la condizione, non le persone**. Vedi [Allegati a un evento](#allegati-a-un-evento).
 
 <Shot
   src="/images/2026-11/hse-desktop.png"
@@ -74,21 +74,36 @@ Un **numero evento** già usato resta riservato anche dopo la cancellazione: l'e
 
 Il **numero evento** è un riferimento interno: puoi lasciarlo vuoto, ma se lo compili deve essere univoco nel cantiere. Due eventi non possono avere lo stesso numero, e l'applicazione rifiuta il salvataggio indicando di controllare il numero.
 
+## Allegati a un evento
+
+Un evento salvato può avere allegati: immagini o PDF fino a **15 MiB** per file. L'allegato documenta una condizione — un parapetto mancante, un bordo non segnalato, un carico che ha oscillato — non le persone.
+
+1. Premi **Modifica** sull'evento: la sezione **Allegati** compare in fondo alla finestra, sotto i pulsanti.
+2. Premi **Aggiungi foto o PDF** e scegli il file.
+3. Se vuoi, scrivi una **Descrizione** fino a 200 caratteri. Serve solo al controllo prima del caricamento e **non viene salvata**.
+4. Controlla l'avviso, se compare, poi premi **Salva**: la finestra si chiude e compare il messaggio «Allegato registrato». Riapri **Modifica** per vedere il file nella sezione e aprirlo con **Apri allegato**.
+
+La regola è scritta nella finestra e nel modulo di caricamento: **fotografa la condizione, non le persone**. Nessun volto identificabile, nessun dato sanitario; se la foto non è necessaria, puoi allegare uno **schema o un pittogramma**. L'avviso compare quando il nome del file o la descrizione contengono parole che suggeriscono una persona o un infortunio: è un promemoria per il controllo umano, non un esame del contenuto dell'immagine, e non blocca il caricamento. L'applicazione non riconosce volti né diagnosi.
+
+Il caricamento è riservato a **owner** ed **editor**. La rimozione non è disponibile dall'interfaccia: si elimina solo via API, da owner ed editor. Se l'evento viene eliminato, i suoi allegati smettono di essere serviti: l'elenco non li mostra e il download risponde «non trovato».
+
+Ogni apertura di un allegato HSE scrive una voce **Letta** nel registro di audit, con il nome del file. La voce compare in **Ultime modifiche** a owner e verificatori e si legge via API; se la scrittura della traccia fallisce, il download riesce comunque. Gli allegati di attività e diario non producono voci di lettura.
+
 ## Eliminare un evento
 
 1. Premi **Elimina** sulla riga.
 2. Controlla data, tipo ed eventuale numero indicati nella conferma.
 3. Conferma con **Elimina**.
 
-L'evento sparisce dall'elenco e dai contatori, e le letture e le modifiche successive sulla stessa riga rispondono «non trovato». La riga però non viene cancellata: resta nel registro di audit, che conserva una copia dell'evento com'era e la traccia di ogni inserimento, modifica ed eliminazione con autore e data. La traccia si legge dal pannello **Ultime modifiche** della vista e via API, da owner e verificatori: vedi [Ultime modifiche](#ultime-modifiche) e [Registro di audit](../../riferimento/api/#registro-di-audit). Se l'evento deve restare consultabile dall'interfaccia, correggine i dati invece di eliminarlo.
+L'evento sparisce dall'elenco e dai contatori, le letture e le modifiche successive sulla stessa riga rispondono «non trovato» e i suoi allegati non vengono più serviti. La riga però non viene cancellata: resta nel registro di audit, che conserva una copia dell'evento com'era e la traccia di ogni inserimento, modifica ed eliminazione con autore e data. La traccia si legge dal pannello **Ultime modifiche** della vista e via API, da owner e verificatori: vedi [Ultime modifiche](#ultime-modifiche) e [Registro di audit](../../riferimento/api/#registro-di-audit). Se l'evento deve restare consultabile dall'interfaccia, correggine i dati invece di eliminarlo.
 
 ## Ultime modifiche
 
-In fondo alla vista, owner e verificatori hanno il pannello richiudibile **Ultime modifiche**: le venti modifiche più recenti del registro HSE, dalla più nuova. È chiuso per impostazione predefinita e l'elenco si carica quando lo apri.
+In fondo alla vista, owner e verificatori hanno il pannello richiudibile **Ultime modifiche**: le venti voci più recenti del registro HSE, dalla più nuova. È chiuso per impostazione predefinita e l'elenco si carica quando lo apri.
 
-1. Ogni riga dice l'azione — **Creata**, **Modificata** o **Eliminata** —, chi l'ha eseguita e quando.
-2. Sotto compare il **numero evento**; se l'evento non ha numero, i primi otto caratteri dell'identificativo.
-3. Per una modifica sono elencati fino a quattro campi cambiati nella forma **campo: prima → dopo**; se i campi sono più di quattro, la riga dice quanti altri ne restano.
+1. Ogni riga dice l'azione — **Creata**, **Modificata**, **Eliminata** o **Letta** —, chi l'ha eseguita e quando.
+2. Per una lettura compare il nome del file allegato; per le altre azioni il **numero evento**, oppure i primi otto caratteri dell'identificativo quando manca.
+3. Per una modifica sono elencati fino a quattro campi cambiati nella forma **campo: prima → dopo**; se i campi sono più di quattro, la riga dice quanti altri ne restano. Una lettura non ha campi cambiati: dice solo quale allegato è stato aperto.
 4. Quando l'elenco arriva a venti righe, il pannello avverte che sono mostrate solo le modifiche più recenti: per andare più indietro usa `GET /api/audit-events` con `limit` e `offset`.
 
 I valori sono quelli salvati: per tipo e gravità compare il codice (`near_miss`, `low`), non l'etichetta italiana. Il pannello si ricarica a ogni apertura, quindi chiudilo e riaprilo per vedere le modifiche appena fatte. Gli eventi eliminati restano leggibili qui, con i dati che avevano prima dell'eliminazione. Editor e viewer non vedono il pannello.
@@ -99,7 +114,11 @@ I valori sono quelli salvati: per tipo e gravità compare il codice (`near_miss`
 | :-- | :-- |
 | Consultare il registro HSE | owner, editor, verifier |
 | Aggiungere, modificare o eliminare un evento | owner, editor |
+| Aprire gli allegati di un evento HSE | owner, editor, verifier |
+| Aggiungere o rimuovere allegati a un evento HSE | owner, editor |
 | Consultare le ultime modifiche | owner, verifier |
+
+La sezione **Allegati** è nella finestra di modifica, che vedono solo owner ed editor; i verificatori leggono gli allegati via API. La rimozione di un allegato è solo via API.
 
 Il ruolo `viewer` non accede al registro: la voce compare nella navigazione, ma la vista mostra **Registro riservato**. Il registro è separato dagli altri moduli e non alimenta la Panoramica né il report.
 
@@ -108,6 +127,8 @@ Il ruolo `viewer` non accede al registro: la voce compare nella navigazione, ma 
 - **Non vedo i pulsanti:** solo owner ed editor scrivono; i verificatori consultano soltanto.
 - **Numero evento rifiutato:** è già usato da un altro evento dello stesso cantiere. Lascialo vuoto o cambialo.
 - **Persone coinvolte rifiutate:** il campo accetta solo un numero intero, non testo e non nomi.
+- **Allegato rifiutato:** deve essere un'immagine o un PDF non vuoto, fino a 15 MiB.
+- **Non trovo la sezione Allegati:** compare solo modificando un evento già salvato, e solo per owner ed editor.
 - **Periodo rifiutato:** la data **Dal** non può seguire la data **Al**.
 - **Offline:** la vista richiede la connessione, come le altre viste dei moduli; senza rete non si consulta né si modifica il registro.
 - **Elenco vuoto:** il cantiere non ha ancora eventi, oppure tipo, gravità e periodo si sommano; azzera i filtri.

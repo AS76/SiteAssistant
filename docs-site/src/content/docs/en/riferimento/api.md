@@ -175,11 +175,11 @@ The HSE register is managed from the **HSE** view. Reading is open to owners, ed
 | PATCH | `/api/hse-events/{id}` | owner/editor | Updates only the fields sent |
 | DELETE | `/api/hse-events/{id}` | owner/editor | Deletes the row |
 
-`site_id` is required on the list. `occurred_on` is required on creation and is a `YYYY-MM-DD` date; `type` is `near_miss`, `accident` or `observation`; `severity` is `low`, `medium` or `high`. `event_no` is optional, up to 120 characters, and **unique within the site** when present. `location` allows up to 200 characters, `measures` and `notes` up to 2000; `persons_involved` is an integer between 0 and 2147483647 and accepts no names. `deviation_id` is optional and must belong to the same site. The register holds no health data and has no relation to employees: it records facts, locations, measures and a count of people. Deletion is **logical**: the row leaves the lists, the counters and the details and stays in the [audit register](#audit-register). An `event_no` already used **stays reserved even after the row is logically deleted**: reusing it on another event returns `400 HSE_INVALID`, because the number identifies one event and must not move to another. Dedicated codes: `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404).
+`site_id` is required on the list. `occurred_on` is required on creation and is a `YYYY-MM-DD` date; `type` is `near_miss`, `accident` or `observation`; `severity` is `low`, `medium` or `high`. `event_no` is optional, up to 120 characters, and **unique within the site** when present. `location` allows up to 200 characters, `measures` and `notes` up to 2000; `persons_involved` is an integer between 0 and 2147483647 and accepts no names. `deviation_id` is optional and must belong to the same site. The register holds no health data and has no relation to employees: it records facts, locations, measures and a count of people. Deletion is **logical**: the row leaves the lists, the counters and the details and stays in the [audit register](#audit-register). An `event_no` already used **stays reserved even after the row is logically deleted**: reusing it on another event returns `400 HSE_INVALID`, because the number identifies one event and must not move to another. Events accept images and PDFs: access, rules and the read trail are in [Attachments](#attachments). Dedicated codes: `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404).
 
 ## Audit register
 
-Every creation, edit and deletion of an HSE event, a certificate or a tool leaves a row in the audit register, written in the same transaction as the write: if the write fails, no trail is saved.
+Every creation, edit and deletion of an HSE event, a certificate or a tool leaves a row in the audit register, written in the same transaction as the write: if the write fails, no trail is saved. In addition, every download of an attachment on an HSE event leaves a `read` row: it is written outside the download, so if it fails the file is served anyway and the error stays in the logs.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
@@ -187,9 +187,9 @@ Every creation, edit and deletion of an HSE event, a certificate or a tool leave
 
 `site_id` is required; `entity_type` is `hse_event`, `certification` or `tool`, and `entity_id` is the identifier of the row to trace. Access follows the site role: owners and verifiers read, editors and viewers do not, even when they are the ones writing the traced rows. There are no write routes: the register is append-only and cannot be edited or deleted through the API.
 
-Each row carries `entity_type`, `entity_id`, `action` (`create`, `update`, `delete`), `at`, `actor` — the identifier of the user who wrote —, `actor_name` — the user's name, taken from the users table and `null` when the user is no longer present — and `changes`, a JSON object. On `create` it holds the filled fields of the created row; on `delete` the whole row as it was before; on `update` only the fields that changed, as `{ "field": { "from": …, "to": … } }`, without `id`, `site_id`, `created_at`, `updated_at` and `deleted_at`. An edit that changes no field is still recorded, with empty `changes`.
+Each row carries `entity_type`, `entity_id`, `action` (`create`, `update`, `delete`, `read`), `at`, `actor` — the identifier of the user who wrote —, `actor_name` — the user's name, taken from the users table and `null` when the user is no longer present — and `changes`, a JSON object. On `create` it holds the filled fields of the created row; on `delete` the whole row as it was before; on `update` only the fields that changed, as `{ "field": { "from": …, "to": … } }`, without `id`, `site_id`, `created_at`, `updated_at` and `deleted_at`. On `read` it holds `{ "attachment": { "id": …, "filename": … } }`, with `entity_type` `hse_event` and the event's `entity_id`: it describes only the object opened, with no copy of the event and no data about people. The metadata list (`GET /api/attachments`) does not write a read. An edit that changes no field is still recorded, with empty `changes`.
 
-The interface uses the same endpoint in the **Latest changes** panel of the HSE, Fitness and Tools views, with `limit=20` and no `entity_id`; further pages are read with `offset`.
+The interface uses the same endpoint in the **Latest changes** panel of the HSE, Fitness and Tools views, with `limit=20` and no `entity_id`; further pages are read with `offset`. Reads of HSE attachments appear in the panel as the `read` action, with the file name.
 
 Deletion is therefore **logical** for all three types: the row disappears from the lists, the counters and the details and later reads return the module's “not found” code, but it stays readable in the audit register. Dedicated codes of the register: `AUDIT_INVALID` (400) for a non-UUID identifier, an unknown `entity_type` or invalid filters.
 
@@ -231,16 +231,18 @@ The mapping is per site and family and also applies to API calls: `aliases` maps
 
 ## Attachments
 
-Attachments on **tasks and diary** can also be uploaded from the interface; for sites they stay API only. Removal is API only.
+Attachments on **tasks, diary and HSE events** can also be uploaded from the interface; for sites they stay API only. Removal is API only. `entity_type` is `task`, `diary`, `site` or `hse_event`; an HSE event must exist and not be deleted.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
 | POST | `/api/attachments` | owner/editor | Upload a file (base64) |
-| GET | `/api/attachments?site_id=&entity_type=&entity_id=` | member | Attachment metadata |
-| GET | `/api/attachments/{id}` | member | Download the bytes |
+| GET | `/api/attachments?site_id=&entity_type=&entity_id=` | member; for `hse_event` owner/editor/verifier | Attachment metadata |
+| GET | `/api/attachments/{id}` | member; for `hse_event` owner/editor/verifier | Download the bytes |
 | DELETE | `/api/attachments/{id}` | owner/editor | Delete |
 
-Files up to **15 MiB** are accepted, images or PDF only (`UNSUPPORTED_MEDIA_TYPE`, `ATTACHMENT_TOO_LARGE`). Upload and deletion are reserved to owners and editors; reading to all members. Before registering the attachment the application reads the stored bytes back and compares the checksum: if it does not match, the file is removed and the response is `502`.
+Attachments on an HSE event follow the register's rules: the HSE module is required and reading is open to owners, editors and verifiers; upload and deletion stay with owners and editors. A deleted event hides its attachments: the list does not return them and the download answers `404 HSE_NOT_FOUND`. Every download of an HSE attachment writes a `read` row in the audit register, with the file id and name; if the write fails the download still works. The optional description in the upload form only feeds the warning in the interface: it is neither sent nor saved.
+
+Files up to **15 MiB** are accepted, images or PDF only (`UNSUPPORTED_MEDIA_TYPE`, `ATTACHMENT_TOO_LARGE`). Upload and deletion are reserved to owners and editors; reading to all members, with the HSE exception above. Before registering the attachment the application reads the stored bytes back and compares the checksum: if it does not match, the file is removed and the response is `502`.
 
 ## Request limits and pagination
 

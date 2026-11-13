@@ -24,7 +24,8 @@ Permissions in SiteAssistant are **per site**, not global: the same person can b
 | Manage the tools register | Yes | Yes | Yes | No |
 | Read the HSE register | Yes | Yes | Yes | No |
 | Add, edit or delete HSE events | Yes | Yes | No | No |
-| Upload attachments on tasks and diary | Yes | Yes | No | No |
+| Upload attachments on tasks, diary and HSE events | Yes | Yes | No | No |
+| Open the attachments of an HSE event | Yes | Yes | Yes | No |
 | Delete an attachment — API only | Yes | Yes | No | No |
 | Create cost impacts — API only | Yes | Yes | Yes | No |
 | Move or close a cost impact | Yes | No | Yes | No |

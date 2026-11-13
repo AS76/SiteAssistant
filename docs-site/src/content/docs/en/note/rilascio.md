@@ -15,12 +15,12 @@ This page describes the currently published version. It is deliberately explicit
 - Status transitions with notes and reasons, full history.
 - Separate review: whoever executes cannot close their own work.
 - Diary per operational day and shift, with plan, actual results, blockers and next step.
-- Photos and PDFs attached to tasks and diary entries, including drag and drop from the desktop, up to 15 MiB per file.
+- Photos and PDFs attached to tasks and diary entries, including drag and drop from the desktop, up to 15 MiB per file; HSE events accept photos and PDFs from the edit window.
 - **Project structure (WBS)** read-only view: tree and flat table.
 - **Deviations**, **Site progress**, **Time bookings** and **Cost impacts** views.
 - **Tools** view: a register by contractor, status and location, with create, edit and delete in the interface.
 - **Fitness** view: employee qualifications, medical checks and training, with expiry, days left and a computed status; owners, editors and verifiers read it, owners and editors write.
-- **HSE** view: a separate register of near misses, accidents and observations, with date, type, severity, location, a count of people involved and measures; no health data. Owners, editors and verifiers read it, owners and editors write.
+- **HSE** view: a separate register of near misses, accidents and observations, with date, type, severity, location, a count of people involved and measures; no health data. Owners, editors and verifiers read it, owners and editors write; saved events accept attachments and every opening of an HSE attachment stays in the audit register.
 - Site progress with weighted step types: weights must total 100; completion is recorded in the application. Each item has **planned hours** of its own or from the linked WBS node.
 - **Earned value** on the Overview and in the report: EV, PV and AC in hours, with CPI and SPI, calculated from planned hours and booked hours.
 - Overview with four indicators, a deviations donut, progress by section, hours per week and an earned value panel.
@@ -40,7 +40,7 @@ This page describes the currently published version. It is deliberately explicit
 - Importing snapshots through dedicated endpoints (in addition to the planning import in the interface): WBS, attendance, progress and deviations.
 - Creating and deleting progress types and their weights.
 - **Cost impacts**: viewing and closing with a result are also available in the interface; creating an impact and updating amounts stay API only.
-- **Site attachments** and **attachment deletion**: upload and removal stay API only.
+- **Site attachments** and **attachment deletion**: uploading to a site and removal stay API only.
 - Resuming a blocked task and rejecting a submission (transitions not yet exposed in the app).
 
 ## Not available

@@ -175,11 +175,11 @@ Il registro HSE si gestisce dalla vista **HSE**. La lettura è aperta a owner, e
 | PATCH | `/api/hse-events/{id}` | owner/editor | Aggiorna solo i campi inviati |
 | DELETE | `/api/hse-events/{id}` | owner/editor | Elimina la riga |
 
-`site_id` è obbligatorio nell'elenco. `occurred_on` è obbligatoria in creazione ed è una data `YYYY-MM-DD`; `type` vale `near_miss`, `accident` o `observation`; `severity` vale `low`, `medium` o `high`. `event_no` è facoltativo, fino a 120 caratteri, e **univoco nel cantiere** quando presente. `location` arriva a 200 caratteri, `measures` e `notes` a 2000; `persons_involved` è un intero tra 0 e 2147483647 e non accetta nomi. `deviation_id` è facoltativo e deve appartenere allo stesso cantiere. Il registro non contiene dati sanitari e non ha relazioni con i dipendenti: si registrano fatti, luoghi, misure e un conteggio di persone. L'eliminazione è **logica**: la riga esce dagli elenchi, dai contatori e dai dettagli e resta nel [registro di audit](#registro-di-audit). Un `event_no` già usato **resta riservato anche dopo l'eliminazione logica** della riga: riusarlo su un altro evento risponde `400 HSE_INVALID`, perché il numero identifica un evento e non deve passare a un altro. Codici dedicati: `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404).
+`site_id` è obbligatorio nell'elenco. `occurred_on` è obbligatoria in creazione ed è una data `YYYY-MM-DD`; `type` vale `near_miss`, `accident` o `observation`; `severity` vale `low`, `medium` o `high`. `event_no` è facoltativo, fino a 120 caratteri, e **univoco nel cantiere** quando presente. `location` arriva a 200 caratteri, `measures` e `notes` a 2000; `persons_involved` è un intero tra 0 e 2147483647 e non accetta nomi. `deviation_id` è facoltativo e deve appartenere allo stesso cantiere. Il registro non contiene dati sanitari e non ha relazioni con i dipendenti: si registrano fatti, luoghi, misure e un conteggio di persone. L'eliminazione è **logica**: la riga esce dagli elenchi, dai contatori e dai dettagli e resta nel [registro di audit](#registro-di-audit). Un `event_no` già usato **resta riservato anche dopo l'eliminazione logica** della riga: riusarlo su un altro evento risponde `400 HSE_INVALID`, perché il numero identifica un evento e non deve passare a un altro. Agli eventi si possono allegare immagini e PDF: accesso, regole e traccia delle letture sono in [Allegati](#allegati). Codici dedicati: `HSE_INVALID` (400), `HSE_FORBIDDEN` (403), `HSE_NOT_FOUND` (404).
 
 ## Registro di audit
 
-Ogni inserimento, modifica ed eliminazione di un evento HSE, di una certificazione o di un'attrezzatura lascia una riga nel registro di audit, scritta nella stessa transazione della scrittura: se la scrittura fallisce, la traccia non viene salvata.
+Ogni inserimento, modifica ed eliminazione di un evento HSE, di una certificazione o di un'attrezzatura lascia una riga nel registro di audit, scritta nella stessa transazione della scrittura: se la scrittura fallisce, la traccia non viene salvata. In più, ogni download di un allegato di un evento HSE lascia una riga `read`: è scritta fuori dal download, quindi se fallisce il file viene servito lo stesso e l'errore resta nei log.
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
@@ -187,9 +187,9 @@ Ogni inserimento, modifica ed eliminazione di un evento HSE, di una certificazio
 
 `site_id` è obbligatorio; `entity_type` vale `hse_event`, `certification` o `tool` e `entity_id` è l'identificativo della riga da tracciare. L'accesso è per ruolo sul cantiere: leggono owner e verificatori, non editor e non viewer, anche quando sono loro a scrivere le righe tracciate. Non esistono rotte di scrittura: il registro è in sola aggiunta e non si modifica né si elimina dall'API.
 
-Ogni riga riporta `entity_type`, `entity_id`, `action` (`create`, `update`, `delete`), `at`, `actor` — l'identificativo dell'utente che ha scritto —, `actor_name` — il nome dell'utente, ricavato dalla tabella utenti e `null` quando l'utente non è più presente — e `changes`, un oggetto JSON. In `create` contiene i campi valorizzati della riga creata; in `delete` l'intera riga com'era prima; in `update` solo i campi cambiati, nella forma `{ "campo": { "from": …, "to": … } }`, senza `id`, `site_id`, `created_at`, `updated_at` e `deleted_at`. Una modifica che non cambia alcun campo resta registrata con `changes` vuoto.
+Ogni riga riporta `entity_type`, `entity_id`, `action` (`create`, `update`, `delete`, `read`), `at`, `actor` — l'identificativo dell'utente che ha scritto —, `actor_name` — il nome dell'utente, ricavato dalla tabella utenti e `null` quando l'utente non è più presente — e `changes`, un oggetto JSON. In `create` contiene i campi valorizzati della riga creata; in `delete` l'intera riga com'era prima; in `update` solo i campi cambiati, nella forma `{ "campo": { "from": …, "to": … } }`, senza `id`, `site_id`, `created_at`, `updated_at` e `deleted_at`. In `read` contiene `{ "attachment": { "id": …, "filename": … } }`, con `entity_type` `hse_event` e `entity_id` dell'evento: descrive solo l'oggetto aperto, senza copia dell'evento né dati delle persone. La lista dei metadati (`GET /api/attachments`) non scrive una lettura. Una modifica che non cambia alcun campo resta registrata con `changes` vuoto.
 
-L'interfaccia usa lo stesso endpoint nel pannello **Ultime modifiche** delle viste HSE, Idoneità e Attrezzature, con `limit=20` e senza `entity_id`; le pagine successive si leggono con `offset`.
+L'interfaccia usa lo stesso endpoint nel pannello **Ultime modifiche** delle viste HSE, Idoneità e Attrezzature, con `limit=20` e senza `entity_id`; le pagine successive si leggono con `offset`. Le letture degli allegati HSE compaiono nel pannello come azione `read`, con il nome del file.
 
 L'eliminazione è quindi **logica** per tutti e tre i tipi: la riga sparisce dagli elenchi, dai contatori e dai dettagli e le letture successive rispondono con il codice «non trovato» del modulo, ma resta leggibile nel registro di audit. Codici dedicati del registro: `AUDIT_INVALID` (400) per un identificativo non UUID, un `entity_type` sconosciuto o filtri non validi.
 
@@ -231,16 +231,18 @@ La mappatura è per cantiere e famiglia e si applica anche alle chiamate API: `a
 
 ## Allegati
 
-Gli allegati a **attività e diario** si caricano anche dall'interfaccia; per il cantiere restano solo via API. La rimozione è solo via API.
+Gli allegati a **attività, diario ed eventi HSE** si caricano anche dall'interfaccia; per il cantiere restano solo via API. La rimozione è solo via API. `entity_type` vale `task`, `diary`, `site` o `hse_event`; un evento HSE deve esistere e non essere eliminato.
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
 | POST | `/api/attachments` | owner/editor | Carica un file (base64) |
-| GET | `/api/attachments?site_id=&entity_type=&entity_id=` | membro | Metadati degli allegati |
-| GET | `/api/attachments/{id}` | membro | Scarica i byte |
+| GET | `/api/attachments?site_id=&entity_type=&entity_id=` | membro; per `hse_event` owner/editor/verifier | Metadati degli allegati |
+| GET | `/api/attachments/{id}` | membro; per `hse_event` owner/editor/verifier | Scarica i byte |
 | DELETE | `/api/attachments/{id}` | owner/editor | Elimina |
 
-Sono ammessi file fino a **15 MiB**, di tipo immagine o PDF (`UNSUPPORTED_MEDIA_TYPE`, `ATTACHMENT_TOO_LARGE`). Il caricamento e l'eliminazione sono riservati a owner ed editor; la lettura a tutti i membri. Prima di registrare l'allegato l'applicazione rilegge i byte salvati e confronta il checksum: se non coincide, il file viene rimosso e la risposta è `502`.
+Per gli allegati a un evento HSE valgono le regole del registro: servono il modulo HSE e un ruolo tra owner, editor e verificatore per la lettura; caricamento ed eliminazione restano a owner ed editor. Un evento eliminato nasconde i suoi allegati: l'elenco non li restituisce e il download risponde `404 HSE_NOT_FOUND`. Ogni download di un allegato HSE scrive una voce `read` nel registro di audit, con id e nome del file; se la scrittura fallisce il download riesce comunque. La descrizione facoltativa del modulo di caricamento serve solo all'avviso nell'interfaccia: non viene inviata né salvata.
+
+Sono ammessi file fino a **15 MiB**, di tipo immagine o PDF (`UNSUPPORTED_MEDIA_TYPE`, `ATTACHMENT_TOO_LARGE`). Il caricamento e l'eliminazione sono riservati a owner ed editor; la lettura a tutti i membri, con l'eccezione HSE qui sopra. Prima di registrare l'allegato l'applicazione rilegge i byte salvati e confronta il checksum: se non coincide, il file viene rimosso e la risposta è `502`.
 
 ## Limiti di richiesta e paginazione
 
