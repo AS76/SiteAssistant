@@ -334,7 +334,7 @@ test('HSE attachment HTTP role matrix, minimal read audit and mixed-site listing
   t.assert.strictEqual((await invoke(server, path, { cookie: cookies.verifier })).status, 403);
   t.assert.strictEqual((await invoke(server, scoped, { cookie: cookies.verifier })).status, 403);
   t.assert.deepStrictEqual((await invoke(server, `/api/attachments?site_id=${site.id}`, { cookie: cookies.verifier })).body, [taskFile]);
-  t.assert.strictEqual((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'read'")).n, 3);
+  t.assert.strictEqual(Number((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'read'")).n), 3);
   for (const role of ['verifier', 'viewer']) {
     t.assert.strictEqual((await invoke(server, path, { method: 'DELETE', cookie: cookies[role] })).status, 403);
   }
@@ -359,7 +359,7 @@ test('soft-deleted HSE events hide attachments from every list and download whil
   t.assert.strictEqual(storage.calls.length, calls);
   t.assert.strictEqual(storage.objects.size, 1);
   t.assert.ok(await db.get('SELECT id FROM attachments WHERE id = ?', file.id));
-  t.assert.strictEqual((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'read'")).n, 0);
+  t.assert.strictEqual(Number((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'read'")).n), 0);
 });
 
 test('HSE download remains complete with HTTP 200 and an explicit log when audit writing fails', async t => {
@@ -379,7 +379,7 @@ test('HSE download remains complete with HTTP 200 and an explicit log when audit
   t.assert.strictEqual(response.complete, true);
   t.assert.deepStrictEqual(response.raw, data);
   t.assert.deepStrictEqual(logs, [['HSE attachment read audit failed.']]);
-  t.assert.strictEqual((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'read'")).n, 0);
+  t.assert.strictEqual(Number((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'read'")).n), 0);
 });
 
 test('HSE attachments keep size/type validation and recheck deletion after the storage round trip', async t => {

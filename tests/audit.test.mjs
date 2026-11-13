@@ -338,7 +338,7 @@ for (const driver of ['sqlite', 'pg']) test(`026 changes only the audit action c
   t.assert.deepStrictEqual(await columns(), oldColumns);
   t.assert.deepStrictEqual(await indexes(), oldIndexes);
   await insert('read');
-  t.assert.strictEqual((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'read'")).n, 1);
+  t.assert.strictEqual(Number((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'read'")).n), 1);
   await t.assert.rejects(() => insert('invented'), /check/i);
   await t.assert.rejects(() => db.run("UPDATE audit_events SET entity_type = 'invented'"), /check/i);
   await t.assert.rejects(() => db.run('UPDATE audit_events SET site_id = ?', randomUUID()), /foreign key/i);
