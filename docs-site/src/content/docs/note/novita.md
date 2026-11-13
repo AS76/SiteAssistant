@@ -5,6 +5,10 @@ description: Le modifiche a SiteAssistant che cambiano il prodotto o il modo di 
 
 Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è un changelog tecnico: per quello vale la cronologia dei commit nel repository.
 
+## 13 novembre 2026
+
+- **Modello xlsx da scaricare per ogni tipo di export.** Nel dialogo **Importa export di pianificazione** il pulsante **Scarica modello** produce un file con le intestazioni accettate per la famiglia scelta e una riga di esempio: si compila e si cancella la riga di esempio prima di importare. Vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/#come-preparare-il-foglio).
+
 ## 12 novembre 2026
 
 - **Comandi più grandi al tocco e indicatori su due colonne.** Su un dispositivo a tocco i pulsanti, i comandi piccoli, il selettore **Board/Elenco** e il passo di prenotazione delle ore sono alti almeno **44 px**; sul desktop le dimensioni restano quelle di prima. Tra **521 e 1100 px** i quattro indicatori della Panoramica passano a due colonne per riga. Vedi [Guida rapida mobile](../../guida/mobile/#i-bersagli-tattili) e [Funzioni comuni](../../guida/funzioni-comuni/#leggere-la-panoramica).

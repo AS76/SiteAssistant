@@ -5,6 +5,10 @@ description: Changes to SiteAssistant that change the product or how you use it.
 
 This page collects the changes visible to those who use the application. It is not a technical changelog: for that, see the commit history in the repository.
 
+## 13 November 2026
+
+- **An xlsx template to download for each export type.** In the **Import planning export** dialog the **Download template** button produces a file with the headers accepted for the chosen family and one example row: fill in the rows and delete the example row before importing. See [Importing a planning export](../../amministrazione/import-pianificazione/#preparing-the-sheet).
+
 ## 12 November 2026
 
 - **Bigger controls on touch, indicators in two columns.** On a touch device buttons, small buttons, the **Board/List** selector and the hours booking stepper are at least **44 px** tall; on the desktop the sizes stay as before. Between **521 and 1100 px** the four Overview indicators move to two columns per row. See [Mobile quick guide](../../guida/mobile/#touch-targets) and [Common functions](../../guida/funzioni-comuni/#reading-the-overview).

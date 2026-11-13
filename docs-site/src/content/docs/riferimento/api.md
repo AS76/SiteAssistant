@@ -219,8 +219,11 @@ Il layout della Panoramica è personale per utente e cantiere. `widgets` è un e
 | GET | `/api/import-mappings?site_id=` | owner/editor | Un elemento per famiglia: `family`, `aliases`, `identity`, `custom`, `columns`, `required`, `fields` |
 | PUT | `/api/import-mappings` | owner/editor | `{ site_id, family, aliases, identity }`; salva o sostituisce la mappatura |
 | DELETE | `/api/import-mappings/{family}?site_id=` | owner/editor | Rimuove la mappatura salvata e torna ai default |
+| GET | `/api/import/template?family=` | utente autenticato | Modello xlsx della famiglia: intestazioni canoniche e una riga di esempio |
 
 `family` vale `employees`, `work_days`, `time_schedule`, `site_progress_items`, `deviations` o `daily_log`. Il file è un xlsx fino a **20 MiB**, inviato in base64. L'anteprima restituisce i conteggi `added`, `updated`, `unchanged`, `removed`, `rejected`, i campioni delle righe rifiutate e un `preview_token` valido **15 minuti**. L'applicazione verifica che file, famiglia, righe e mappatura siano gli stessi dell'anteprima; le righe assenti non vengono cancellate e il conteggio `removed` applicato è sempre zero.
+
+`GET /api/import/template` restituisce un file xlsx (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, scaricato come `SiteAssistant-<family>-modello.xlsx`) con un solo foglio: la prima riga contiene le intestazioni canoniche della famiglia, la seconda una riga di esempio con valori fittizi. Non richiede `site_id` e non legge né scrive dati di cantiere: basta una sessione autenticata, di qualsiasi ruolo. La famiglia mancante o sconosciuta è rifiutata con `400 UNKNOWN_FAMILY`. La risposta è `Cache-Control: private, no-store`.
 
 La mappatura è per cantiere e famiglia e si applica anche alle chiamate API: `aliases` associa ogni campo a un elenco di intestazioni alternative, `identity` elenca in ordine i campi che riconoscono la riga. Gli alias devono essere univoci, non vuoti e di massimo **80 caratteri**; `identity` deve contenere almeno un campo, senza duplicati. Una mappatura non valida è rifiutata con `MAP_INVALID`; un alias e una colonna canonica in disaccordo sullo stesso campo con `AMBIGUOUS_COLUMNS`. Se la mappatura cambia dopo l'anteprima, la conferma è rifiutata con `PREVIEW_MISMATCH` (409).
 

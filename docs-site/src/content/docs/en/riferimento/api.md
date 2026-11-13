@@ -219,8 +219,11 @@ The Overview layout is personal per user and per site. `widgets` is a list of 1 
 | GET | `/api/import-mappings?site_id=` | owner/editor | One entry per family: `family`, `aliases`, `identity`, `custom`, `columns`, `required`, `fields` |
 | PUT | `/api/import-mappings` | owner/editor | `{ site_id, family, aliases, identity }`; saves or replaces the mapping |
 | DELETE | `/api/import-mappings/{family}?site_id=` | owner/editor | Removes the saved mapping and returns to the defaults |
+| GET | `/api/import/template?family=` | authenticated user | xlsx template for the family: canonical headers and one example row |
 
 `family` is `employees`, `work_days`, `time_schedule`, `site_progress_items`, `deviations` or `daily_log`. The file is an xlsx up to **20 MiB**, sent in base64. The preview returns the `added`, `updated`, `unchanged`, `removed`, `rejected` counts, samples of rejected rows and a `preview_token` valid for **15 minutes**. The application checks that file, family, rows and mapping match the preview; missing rows are never deleted and the applied `removed` count is always zero.
+
+`GET /api/import/template` returns an xlsx file (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, downloaded as `SiteAssistant-<family>-modello.xlsx`) with a single sheet: the first row holds the canonical headers of the family, the second an example row with made-up values. It needs no `site_id` and neither reads nor writes site data: any authenticated session is enough, whatever the role. A missing or unknown family is rejected with `400 UNKNOWN_FAMILY`. The response is `Cache-Control: private, no-store`.
 
 The mapping is per site and family and also applies to API calls: `aliases` maps each field to a list of alternative headers, `identity` lists in order the fields that identify the row. Aliases must be unique, non-empty and at most **80 characters**; `identity` must contain at least one field, without duplicates. An invalid mapping is rejected with `MAP_INVALID`; an alias and a canonical column disagreeing on the same field with `AMBIGUOUS_COLUMNS`. If the mapping changes after the preview, confirmation is rejected with `PREVIEW_MISMATCH` (409).
 
