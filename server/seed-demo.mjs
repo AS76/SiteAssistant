@@ -23,7 +23,23 @@ const date = (offsetDays, base = '2026-10-19') => {
   return value.toISOString().slice(0, 10);
 };
 
-const SITES = ['FITT-01', 'FITT-02'];
+const SITES = ['FITT-01', 'FITT-02', 'FITT-03', 'FITT-04'];
+
+// Four different stories: a large site well advanced, a bridge just started, a small site
+// only begun, and a finished one. Same synthetic namespace, different shape.
+const SITE_META = {
+  'FITT-01': { name: 'Cantiere dimostrativo Borgo Nuvolario', location: 'Comune immaginario di Nuvolario, area A', start: '2026-11-01', end: '2026-12-20', weeks: 3, diary: 12 },
+  'FITT-02': { name: 'Cantiere dimostrativo Ponte dei Sogni Blu', location: 'Comune immaginario di Sognalba, area B', start: '2026-11-02', end: '2026-12-22', weeks: 3, diary: 10 },
+  'FITT-03': { name: 'Cantiere dimostrativo Viale dei Mille', location: 'Comune immaginario di Vialba, area C', start: '2026-11-09', end: '2027-01-30', weeks: 1, diary: 4 },
+  'FITT-04': { name: 'Cantiere dimostrativo Magazzino Levante', location: 'Comune immaginario di Levante, area D', start: '2026-08-03', end: '2026-10-30', weeks: 3, diary: 8 },
+};
+
+const TASK_PROFILES = {
+  'FITT-01': ['todo', 'todo', 'todo', 'todo', 'in_progress', 'in_progress', 'in_progress', 'to_verify', 'to_verify', 'to_verify', 'closed', 'closed', 'closed', 'closed', 'closed', 'blocked'],
+  'FITT-02': ['todo', 'todo', 'todo', 'in_progress', 'in_progress', 'to_verify', 'closed', 'closed', 'closed', 'blocked'],
+  'FITT-03': ['todo', 'todo', 'todo', 'todo', 'todo', 'todo', 'in_progress', 'in_progress'],
+  'FITT-04': ['closed', 'closed', 'closed', 'closed', 'closed', 'closed', 'closed', 'to_verify', 'closed', 'closed'],
+};
 
 const WBS = {
   'FITT-01': [['1', 'Impianto di smistamento', 0, null], ['1.1', 'Linea A', 1, '1'], ['1.2', 'Linea B', 1, '1'],
@@ -33,10 +49,22 @@ const WBS = {
     ['2', 'Viabilità', 0, null], ['2.1', 'Accessi', 1, '2']],
 };
 
+const WBS_NEW = {
+  'FITT-03': [['1', 'Corpo di fabbrica', 0, null], ['1.1', 'Fondazioni', 1, '1'], ['1.2', 'Elevazioni', 1, '1'],
+    ['2', 'Copertura', 0, null], ['2.1', 'Tralicci', 1, '2']],
+  'FITT-04': [['1', 'Magazzino', 0, null], ['1.1', 'Struttura portante', 1, '1'], ['1.2', 'Pavimentazioni', 1, '1'],
+    ['2', 'Impianti', 0, null], ['2.1', 'Elettrico', 1, '2'], ['2.2', 'Antincendio', 1, '2'],
+    ['3', 'Esterni', 0, null], ['3.1', 'Piazzale', 1, '3']],
+};
+
+Object.assign(WBS, WBS_NEW);
+
 const TYPES = {
   'FITT-01': [{ code: 'MONT', name: 'Montaggio impianti', steps: [['PREL', 'Opere preliminari', 20], ['STRUT', 'Montaggio strutture', 40], ['CABL', 'Cablaggi', 25], ['COLL', 'Collaudo', 15]] },
     { code: 'CIV', name: 'Opere civili', steps: [['SCAVI', 'Scavi', 25], ['FOND', 'Fondazioni', 45], ['STRUTT', 'Strutture', 30]] }],
   'FITT-02': [{ code: 'PONTE', name: 'Opere da ponte', steps: [['PILE', 'Pile', 35], ['IMPALC', 'Impalcato', 45], ['FINIT', 'Finiture', 20]] }],
+  'FITT-03': [{ code: 'CIVNEW', name: 'Opere civili', steps: [['SCAVI', 'Scavi', 30], ['FOND', 'Fondazioni', 40], ['ELEV', 'Elevazioni', 30]] }],
+  'FITT-04': [{ code: 'MAG', name: 'Magazzino', steps: [['STRUTT', 'Struttura', 40], ['IMPIANTI', 'Impianti', 35], ['FINIT', 'Finitura', 25]] }],
 };
 
 const ITEMS = {
@@ -56,12 +84,25 @@ const ITEMS = {
     ['Getto pile 1-3', '1.1', 'Ponte', 'Area A', 60], ['Impalcato campata 1', '1.2', 'Ponte', 'Area B', 30],
     ['Impalcato campata 2', '1.2', 'Ponte', 'Area B', 10], ['Accesso lato nord', '2.1', 'Viabilità', 'Area C', 50],
     ['Accesso lato sud', '2.1', 'Viabilità', 'Area C', 20], ['Impermeabilizzazione', null, 'Ponte', 'Area B', 0]],
+  'FITT-03': [
+    ['Scavo di sbancamento', '1.1', 'Civile', 'Area C1', 60], ['Magrone di sottofondo', '1.1', 'Civile', 'Area C1', 25],
+    ['Armature plinti', '1.1', 'Civile', 'Area C2', 0], ['Getto plinti', '1.1', 'Civile', 'Area C2', 0],
+    ['Predisposizione impianti', '1.2', 'Impianti', 'Area C2', 0], ['Tralicci copertura', '2.1', 'Civile', 'Area C3', 0],
+    ['Approntamento cantiere', null, 'Logistica', 'Area C0', 100], ['Recinzione e accessi', null, 'Logistica', 'Area C0', 80]],
+  'FITT-04': [
+    ['Montaggio struttura portante', '1.1', 'Civile', 'Area D1', 100], ['Saldature secondarie', '1.1', 'Civile', 'Area D1', 100],
+    ['Pavimentazione industriale', '1.2', 'Civile', 'Area D2', 100], ['Quadri elettrici', '2.1', 'Impianti', 'Area D3', 100],
+    ['Impianto antincendio', '2.2', 'Impianti', 'Area D3', 95], ['Piazzale esterno', '3.1', 'Esterni', 'Area D4', 90],
+    ['Collaudo impianti', null, 'Impianti', 'Area D3', 80], ['Consegna documentazione', null, 'Civile', 'Area D1', 70]],
 };
 
 const EMPLOYEES = {
   'FITT-01': [['SIN-01', 'Ada', 'Rossi'], ['SIN-02', 'Bruno', 'Verdi'], ['SIN-03', 'Carla', 'Bianchi'], ['SIN-04', 'Dario', 'Neri'],
     ['SIN-05', 'Elena', 'Galli'], ['SIN-06', 'Fabio', 'Conti'], ['SIN-07', 'Gina', 'Ferri'], ['SIN-08', 'Ivan', 'Riva']],
   'FITT-02': [['SIN-11', 'Luca', 'Sala'], ['SIN-12', 'Mara', 'Tosi'], ['SIN-13', 'Nino', 'Villa'], ['SIN-14', 'Olga', 'Pini']],
+  'FITT-03': [['SIN-21', 'Pietro', 'Amato'], ['SIN-22', 'Rosa', 'Costa'], ['SIN-23', 'Sergio', 'Fabbri']],
+  'FITT-04': [['SIN-31', 'Teresa', 'Greco'], ['SIN-32', 'Umberto', 'Lombardi'], ['SIN-33', 'Vera', 'Marchetti'],
+    ['SIN-34', 'Walter', 'Ortolani'], ['SIN-35', 'Xenia', 'Pellegrini'], ['SIN-36', 'Zeno', 'Ricci']],
 };
 
 const DEVIATIONS = {
@@ -69,11 +110,15 @@ const DEVIATIONS = {
     ['in_progress', 'high'], ['in_progress', 'medium'], ['work_completed', 'medium'], ['work_completed', 'low'],
     ['closed', 'high'], ['closed', 'low'], ['rejected', 'low']],
   'FITT-02': [['open', 'medium'], ['in_progress', 'high'], ['closed', 'low'], ['rejected', 'low']],
+  'FITT-03': [['open', 'medium'], ['open', 'high'], ['approved', 'low']],
+  'FITT-04': [['closed', 'high'], ['closed', 'medium'], ['closed', 'low'], ['closed', 'high'], ['closed', 'low'], ['rejected', 'low']],
 };
 
 const IMPACTS = {
   'FITT-01': [['open', 12500.5, null, null], ['open', 4200, null, null], ['notification_sent', 9800, null, null], ['closed', 15000, 11250, 'settled']],
   'FITT-02': [['open', 6000, null, null], ['closed', 3500, 0, 'dropped']],
+  'FITT-03': [['open', 2400, null, null]],
+  'FITT-04': [['closed', 8000, 7200, 'settled'], ['closed', 1200, 0, 'dropped']],
 };
 
 const TASK_STATUSES = ['todo', 'todo', 'todo', 'todo', 'in_progress', 'in_progress', 'in_progress', 'to_verify', 'to_verify', 'to_verify', 'closed', 'closed', 'closed', 'closed', 'closed', 'blocked'];
@@ -83,7 +128,7 @@ export function plan() {
 }
 
 async function reset(db) {
-  const sites = await db.all(`SELECT id, code FROM sites WHERE code IN (?, ?)`, ...SITES);
+  const sites = await db.all(`SELECT id, code FROM sites WHERE code IN (${SITES.map(() => '?').join(', ')})`, ...SITES);
   let removed = 0;
   for (const site of sites) {
     for (const [table, column] of [['site_progress_item_steps', null], ['employee_certifications', 'site_id'], ['time_bookings', 'site_id'], ['cost_impact_deviations', null],
@@ -110,6 +155,10 @@ export async function apply(db) {
   const counts = {};
   const bump = key => { counts[key] = (counts[key] || 0) + 1; };
   for (const code of SITES) {
+    const meta = SITE_META[code];
+    await db.run(`INSERT INTO sites (id, code, name, location, start_date, end_date, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (code) DO NOTHING`,
+    id(`${code}:site`), code, meta.name, meta.location, meta.start, meta.end, at);
     const site = await db.get('SELECT id FROM sites WHERE code = ?', code);
     if (!site) throw new Error(`Missing synthetic site ${code}`);
     const siteId = site.id;
@@ -186,7 +235,7 @@ export async function apply(db) {
     }
 
     const workDays = [];
-    for (let week = 0; week < 3; week++) {
+    for (let week = 0; week < (SITE_META[code].weeks || 3); week++) {
       for (let day = 0; day < 5; day++) {
         const operationalDate = date(week * 7 + day);
         for (const [index, employeeId] of employeeIds.entries()) {
@@ -285,9 +334,10 @@ export async function apply(db) {
       'Aggiornamento cronoprogramma', 'Pulizia area di lavoro', 'Controllo serraggi', 'Rilievo quote', 'Riunione sicurezza',
       'Approvvigionamento cavi', 'Verifica quadri', 'Collaudo parziale', 'Documentazione fotografica', 'Segnalazione ostacolo',
       'Verifica accessi', 'Formazione squadra'];
-    for (let index = 0; index < TASK_STATUSES.length; index++) {
+    const taskStatuses = TASK_PROFILES[code] || TASK_STATUSES;
+    for (let index = 0; index < taskStatuses.length; index++) {
       const taskId = id(`${code}:task:${index + 1}`);
-      const status = TASK_STATUSES[index];
+      const status = taskStatuses[index];
       await db.run(`INSERT INTO tasks (id, site_id, title, area, company, executor, verifier, priority, due_date, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET status = excluded.status, title = excluded.title`,
       taskId, siteId, titles[index % titles.length], 'Area ' + (index % 6 + 1), 'Impresa sintetica', 'Squadra sintetica',
@@ -299,7 +349,7 @@ export async function apply(db) {
       }
     }
 
-    for (let index = 0; index < 12; index++) {
+    for (let index = 0; index < (SITE_META[code].diary || 12); index++) {
       const operationalDate = date(index + Math.floor(index / 5) * 2);
       const shift = index % 5 === 4 ? 'night' : 'day';
       await db.run(`INSERT INTO diary (id, site_id, operational_date, shift, plan, actual, impediments, next_step, created_at, time_zone, day_cutoff_time)
@@ -309,6 +359,21 @@ export async function apply(db) {
       'Piano sintetico della giornata: montaggi e verifiche.', 'Eseguito quanto previsto, con lievi ritardi.',
       index % 4 === 0 ? 'Materiale in ritardo dal fornitore.' : null, 'Proseguire secondo cronoprogramma.', at2);
       bump('diary');
+    }
+  }
+  // Membership: whoever owns the first synthetic site gets the same role on the others, so the
+  // extra sites are visible to the same account that already uses the demo.
+  const reference = await db.get('SELECT id FROM sites WHERE code = ?', SITES[0]);
+  if (reference) {
+    const members = await db.all('SELECT user_id, role FROM site_members WHERE site_id = ?', reference.id);
+    for (const code of SITES.slice(1)) {
+      const site = await db.get('SELECT id FROM sites WHERE code = ?', code);
+      if (!site) continue;
+      for (const member of members) {
+        await db.run('INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
+          site.id, member.user_id, member.role);
+        bump('members');
+      }
     }
   }
   return counts;
