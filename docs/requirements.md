@@ -1,50 +1,50 @@
-# SiteAssistant — prima versione
+# SiteAssistant — first version
 
-## Obiettivo
+## Goal
 
-Collegare pianificazione, lavoro eseguito, verifica e diario del cantiere in una sola esperienza utilizzabile da telefono e desktop. Interfaccia italiano/inglese; contenuti dell'utente nella lingua originale.
+Connect planning, work performed, verification and the site diary in a single experience usable from phone and desktop. Italian/English interface; user content in its original language.
 
-## Flussi implementati nella demo
+## Flows implemented in the demo
 
-| Area | Comportamento | Criterio verificabile |
+| Area | Behavior | Verifiable criterion |
 | --- | --- | --- |
-| Cantieri | Creazione con codice, nome, ubicazione e date | Codice unico, nome obbligatorio, fine non precedente all'inizio |
-| Contesto | Selezione cantiere e filtri attività | Dashboard, board, elenco e diario riferiti allo stesso cantiere |
-| Attività | Titolo, area/asset, impresa, esecutore, verificatore, priorità e scadenza | Esecutore e verificatore distinti; date e campi validati |
-| Stati | Da fare → in corso → da verificare → chiusa; blocco e riapertura | Verifica consentita solo alla persona designata, diversa da chi dichiara l'esecuzione; motivo richiesto per blocco, rifiuto e riapertura |
-| Evidenze | Nota testuale al completamento e alla verifica | Nessuna proposta di completamento o chiusura senza nota |
-| Storico | Autore, data e motivazione delle transizioni | Riapertura non cancella gli eventi precedenti |
-| Diario | Data operativa, turno diurno/notturno, attività opzionale, piano, consuntivo, impedimenti e prossimo passo | Un'intestazione per cantiere/giorno; contributi del turno notturno riferiti esplicitamente al giorno scelto |
-| Conteggi | Da eseguire, da verificare, chiuse e scadute | Una proposta di completamento non conta come chiusura; una card da verificare può essere scaduta |
-| Portabilità | CSV filtrato, stampa diario, backup e ripristino JSON | Formule CSV neutralizzate; ripristino con validazione e conferma; errori senza cancellare dati correnti |
-| Persistenza | API server + PostgreSQL (Neon); offline-first previsto (incremento 15) | Avviso se il salvataggio non riesce; testo dei form conservato dopo un errore |
+| Sites | Creation with code, name, location and dates | Unique code, required name, end not before start |
+| Context | Site selection and task filters | Dashboard, board, list and diary referring to the same site |
+| Tasks | Title, area/asset, company, executor, verifier, priority and due date | Distinct executor and verifier; validated dates and fields |
+| Statuses | To do → in progress → to verify → closed; blocking and reopening | Verification allowed only for the designated person, different from whoever declares execution; reason required for blocking, rejection and reopening |
+| Evidence | Text note on completion and verification | No completion proposal or closure without a note |
+| History | Author, date and reason for transitions | Reopening does not delete previous events |
+| Diary | Operational date, day/night shift, optional task, plan, actuals, impediments and next step | One header per site/day; night-shift contributions explicitly refer to the selected day |
+| Counts | To execute, to verify, closed and overdue | A completion proposal does not count as closure; a card to verify may be overdue |
+| Portability | Filtered CSV, diary printing, JSON backup and restore | CSV formulas neutralized; restore with validation and confirmation; errors without deleting current data |
+| Persistence | Server API + PostgreSQL (Neon); offline-first planned (increment 15) | Warning if saving fails; form text preserved after an error |
 
-## Interfaccia
+## Interface
 
-Quattro sezioni: panoramica, cantieri, attività e diario. Il dettaglio attività mostra criteri di accettazione e timeline; il diario collega turno, attività e risultato. Stato esplicitato con testo oltre al colore. Modali con etichette, focus iniziale e chiusura via tastiera. I filtri non modificano i dati e rimangono chiari anche in assenza di risultati.
+Four sections: overview, sites, tasks and diary. Task detail shows acceptance criteria and timeline; the diary connects shift, task and result. Status expressed through text as well as color. Modals with labels, initial focus and keyboard dismissal. Filters do not change data and remain clear even without results.
 
-## Confini
+## Boundaries
 
-Questa versione è una demo locale, non un sistema aziendale distribuito. Tutti gli esempi sono sintetici. Le identità selezionabili simulano i ruoli, senza offrire autenticazione. Le regole di transizione nel browser servono a discutere il processo, non proteggono dati da un utente che controlla il dispositivo.
+This version is a local demo, not a distributed enterprise system. All examples are synthetic. Selectable identities simulate roles, without providing authentication. Browser transition rules serve to discuss the process; they do not protect data from a user who controls the device.
 
-## Successiva versione operativa
+## Next operational version
 
-- Autenticazione, autorizzazioni server e isolamento per organizzazione/cantiere.
-- Database, migrazioni, concorrenza controllata, backup verificati e ripristino.
-- Foto e allegati privati con limiti e autorizzazioni.
-- Diario inviato/chiuso e rettifiche versionate, esportazione PDF server.
-- Import con anteprima, mapping, fonte/revisione e snapshot immutabili; nessuna ricostruzione dello storico dai soli stati correnti.
-- Fonti autorevoli delle milestone distinte dai tracker di avanzamento.
-- Offline e sincronizzazione solo dopo aver definito conflitti e protezione della cache.
+- Authentication, server authorization and organization/site isolation.
+- Database, migrations, controlled concurrency, verified backups and restore.
+- Private photos and attachments with limits and authorization.
+- Submitted/closed diary and versioned corrections, server PDF export.
+- Import with preview, mapping, source/revision and immutable snapshots; no reconstruction of history from current statuses alone.
+- Authoritative milestone sources distinct from progress trackers.
+- Offline and synchronization only after defining conflicts and cache protection.
 
-Prima del rilascio operativo vanno concordati ruoli, modello di diario, volumi, hosting, conservazione dei dati e necessità di integrazioni.
+Before operational release, agree on roles, diary model, volumes, hosting, data retention and integration needs.
 
-## Direzione della versione multiutente
+## Direction of the multi-user version
 
-Uso interno e complementare a un sistema sorgente: import di export, consultazione di file S3 autorizzati e arricchimenti locali. Snapshot e stati originali rimangono separati da note, consuntivi e verifiche interne. Nessuna sincronizzazione in scrittura con il sistema sorgente è prevista. Connettori API/MCP e profili reali sono da verificare; vedere [Import e archivio documenti](import-storage.md).
+Internal use complementary to a source system: importing exports, viewing authorized S3 files and local enrichment. Original snapshots and statuses remain separate from notes, actuals and internal verifications. No write synchronization with the source system is planned. API/MCP connectors and real profiles are to be verified; see [Import and document archive](import-storage.md).
 
-Prima fase: attività e coordinamento, qualità/deviazioni, pianificazione/avanzamento e diario; documenti, storico e dashboard come servizi condivisi. I moduli saranno abilitabili per cantiere, con logistica ed engineering nei successivi incrementi.
+First phase: tasks and coordination, quality/deviations, planning/progress and diary; documents, history and dashboards as shared services. Modules will be enabled per site, with logistics and engineering in later increments.
 
-L'area **Pianificazione, layout e mappe** riceverà pianificazioni Excel e documenti grafici PDF, immagini ad alta risoluzione e originali CAD. Gantt e altre viste condividono voci aggiornabili per percentuale, quantità installata o azione sì/no. Baseline, piano corrente, avanzamento dichiarato e verifica rimangono distinti. La visualizzazione/conversione CAD è soggetta a compatibilità e scelta del motore. Vedere [Specifica funzionale](planning-layouts.md); queste funzioni non sono ancora implementate.
+The **Planning, layouts and maps** area will receive Excel schedules and graphical documents: PDFs, high-resolution images and CAD originals. Gantt and other views share items updatable by percentage, installed quantity or yes/no action. Baseline, current plan, declared progress and verification remain distinct. CAD viewing/conversion is subject to compatibility and engine choice. See [Functional specification](planning-layouts.md); these features are not yet implemented.
 
-La proposta tecnica usa PostgreSQL relazionale e API server; **Neon** è il database gestito (`eu-central-1`) e l'app gira sul VPS Hostinger dietro Traefik. I file si integrano tramite S3 compatibile (iDrive e2, bucket `siteassistant`). L'autenticazione è locale (email+password). Stato reale e stack in [Architettura](architecture.md).
+The technical proposal uses relational PostgreSQL and server APIs; **Neon** is the managed database (`eu-central-1`) and the app runs on the Hostinger VPS behind Traefik. Files integrate through S3 compatibility (iDrive e2, `siteassistant` bucket). Authentication is local (email+password). Actual state and stack in [Architecture](architecture.md).

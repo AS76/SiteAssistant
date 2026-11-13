@@ -1,23 +1,23 @@
-# Ripresa dello sviluppo con Codex
+# Resuming development with Codex
 
-> ⚠️ **SUPERATO (2026-11-10).** Descrive lo stato iniziale (demo localStorage, nessun backend). Lo stato reale è in [architecture.md](architecture.md): backend `node:http` + `pg` + Neon, 6 moduli del nucleo, migrazioni 001–013, auth locale, allegati S3.
+> ⚠️ **SUPERSEDED (2026-11-10).** Describes the initial state (localStorage demo, no backend). The actual state is in [architecture.md](architecture.md): `node:http` + `pg` + Neon backend, 6 core modules, migrations 001–013, local auth, S3 attachments.
 
-## Stato del repository
+## Repository state
 
-È implementata una demo web locale IT/EN con cantieri, attività, flusso di verifica, diario, persistenza nel browser, backup JSON, CSV e stampa. Non esistono ancora un backend applicativo, login reale, importatore operativo, connessione S3 o deploy Railway.
+A local IT/EN web demo is implemented with sites, tasks, verification flow, diary, browser persistence, JSON backup, CSV and printing. There is not yet an application backend, real login, operational importer, S3 connection or Railway deployment.
 
-La direzione scelta è un'app interna complementare a un sistema sorgente. Railway ospiterà applicazione e PostgreSQL nello stesso progetto. I file saranno collegati tramite storage S3 compatibile; MCP è un canale opzionale, da verificare sul sistema che lo rende disponibile.
+The chosen direction is an internal app complementary to a source system. Railway will host the application and PostgreSQL in the same project. Files will be linked through S3-compatible storage; MCP is an optional channel, to be verified on the system that makes it available.
 
-## Ripartire dal codice
+## Starting from the code
 
-In una nuova macchina, clonare il repository; se il checkout esiste già, riutilizzarlo preservando modifiche locali:
+On a new machine, clone the repository; if the checkout already exists, reuse it while preserving local changes:
 
 ```sh
 git clone https://github.com/AS76/SiteAssistant.git
 cd SiteAssistant
 ```
 
-Usare Node.js 24 per gli strumenti di sviluppo e Python 3 per il server statico:
+Use Node.js 24 for development tools and Python 3 for the static server:
 
 ```sh
 npm ci
@@ -26,40 +26,40 @@ npm run test:schema
 python3 -m http.server 8000 --bind 127.0.0.1 --directory app
 ```
 
-Aprire la porta 8000 nel browser locale. La demo non condivide dati tra dispositivi. Il server statico rimane un processo in primo piano; i test vanno eseguiti prima o in un'altra console.
+Open port 8000 in the local browser. The demo does not share data between devices. The static server remains a foreground process; tests must be run beforehand or in another console.
 
-## Documenti da leggere
+## Documents to read
 
-1. [Requisiti e comportamento attuale](requirements.md).
-2. [Architettura e base dati](architecture.md).
-3. [Infografica tecnica e macroaree](architecture-overview.html).
-4. [Pianificazione, layout e mappe](planning-layouts.md).
-5. [Import e archivio documenti](import-storage.md).
-6. [Schema SQL e verifiche](../database/README.md).
-7. [Scelte di hosting e costi](cost-options.md).
+1. [Requirements and current behavior](requirements.md).
+2. [Architecture and database](architecture.md).
+3. [Technical infographic and main areas](architecture-overview.html).
+4. [Planning, layouts and maps](planning-layouts.md).
+5. [Import and document archive](import-storage.md).
+6. [SQL schema and checks](../database/README.md).
+7. [Hosting choices and costs](cost-options.md).
 
-## Dati e profili privati
+## Private data and profiles
 
-Il repository non contiene export reali, dossier analitici o mapping specifici di account e organizzazioni. L'accesso a tali materiali deve essere fornito dall'utente tramite un canale privato autorizzato; non si può ricostruire dal repository pubblico e non va cercato automaticamente nel sistema ospitante.
+The repository contains no real exports, analytical dossiers or account- and organization-specific mappings. Access to these materials must be provided by the user through an authorized private channel; it cannot be reconstructed from the public repository and must not be searched for automatically on the host system.
 
-Per proseguire l'importatore servono il profilo di mapping privato e i file selezionati, conservati fuori dal checkout. Il codice applicativo dovrà ricevere percorsi o riferimenti configurati privatamente e validare il profilo. Un profilo privato non va copiato nei test pubblici: creare fixture sintetiche con gli stessi vincoli tecnici e senza testi o identificativi reali.
+Continuing the importer requires the private mapping profile and the selected files, stored outside the checkout. The application code must receive privately configured paths or references and validate the profile. A private profile must not be copied into public tests: create synthetic fixtures with the same technical constraints and no real text or identifiers.
 
-Lo schema SQL pubblicato usa nomi canonici, inclusi nomi generici per i campi custom. Il mapping deve essere revisionato rispetto a questi nomi; un vecchio profilo può richiedere adattamento. Non applicare automaticamente un dossier privato o uno script di analisi come migrazione di produzione.
+The published SQL schema uses canonical names, including generic names for custom fields. The mapping must be reviewed against these names; an old profile may need adaptation. Do not automatically apply a private dossier or an analysis script as a production migration.
 
-## Prossimo incremento proposto
+## Proposed next increment
 
-1. Introdurre API Node.js/TypeScript e configurazione di sviluppo locale, con test automatici e dati sintetici.
-2. Integrare schema d'ingestione e modello applicativo in migrazioni versionate; definire identità, accessi e contesti.
-3. Implementare anteprima e mapping di una famiglia di export; mantenere raw, snapshot e aggiornamenti interni separati. Lavorare sui file reali solo nel contesto privato autorizzato.
-4. Sostituire progressivamente localStorage con API, mantenendo il comportamento della demo e gestendo conflitti di versione.
-5. Integrare autenticazione e lettura S3 per file selezionati; poi preparare il deploy Railway, verificando piano e configurazione.
+1. Introduce Node.js/TypeScript APIs and local development configuration, with automated tests and synthetic data.
+2. Integrate the ingestion schema and application model into versioned migrations; define identities, access and contexts.
+3. Implement preview and mapping for one export family; keep raw data, snapshots and internal updates separate. Work on real files only in the authorized private context.
+4. Gradually replace localStorage with APIs, preserving demo behavior and handling version conflicts.
+5. Integrate authentication and S3 reads for selected files; then prepare the Railway deployment, checking the plan and configuration.
 
-Non è necessario riscrivere subito il frontend. Pianificazione Gantt, progressi per percentuale/quantità/sì-no, PDF e immagini sono requisiti progettati; non funzionalità già disponibili. La compatibilità CAD richiede verifica e non è presunta dal solo caricamento del file.
+The frontend does not need to be rewritten immediately. Gantt planning, percentage/quantity/yes-no progress, PDF and images are designed requirements; not features already available. CAD compatibility requires verification and is not assumed from uploading the file alone.
 
-## Verifiche disponibili
+## Available checks
 
-- `npm test`: regole della demo e formati di esportazione.
-- `npm run test:schema`: schema PostgreSQL con dati sintetici, in memoria.
-- `node tests/browser.cjs`: flussi desktop/mobile; richiede Playwright e Chromium. Configurare `SITEASSISTANT_URL` se il server usa un'altra porta e `CHROMIUM_PATH` se necessario.
+- `npm test`: demo rules and export formats.
+- `npm run test:schema`: PostgreSQL schema with synthetic data, in memory.
+- `node tests/browser.cjs`: desktop/mobile flows; requires Playwright and Chromium. Configure `SITEASSISTANT_URL` if the server uses another port and `CHROMIUM_PATH` if necessary.
 
-Nel prompt di ripresa si può chiedere: «Leggi AGENTS.md e docs/development-handoff.md. Prosegui con il primo incremento backend usando dati sintetici, senza deploy e senza pubblicare materiali privati».
+The resumption prompt can ask: “Read AGENTS.md and docs/development-handoff.md. Continue with the first backend increment using synthetic data, without deployment and without publishing private materials”.

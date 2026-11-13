@@ -1,91 +1,91 @@
-# Import di pianificazione applicativo — incremento 18
+# Application planning import — increment 18
 
-Backend implementato, senza UI. Non attiva connettori, storage esterno o deploy.
-La migrazione **015**, per SQLite e PostgreSQL, aggiunge `planning_import_runs` e
-`planning_import_keys`; non modifica le migrazioni precedenti o gli schemi di ingestione.
-La sua presenza nel checkout non significa che sia stata applicata in produzione.
+Backend implemented, without UI. Does not activate connectors, external storage or deployment.
+Migration **015**, for SQLite and PostgreSQL, adds `planning_import_runs` and
+`planning_import_keys`; it does not change previous migrations or ingestion schemas.
+Its presence in the checkout does not mean it has been applied in production.
 
 ## API
 
-Solo `owner` ed `editor` del cantiere possono usare queste route autenticate:
+Only site `owner` and `editor` can use these authenticated routes:
 
-- `POST /api/import/preview`: JSON con `site_id`, `family`, `filename`, `data_base64`.
-- `POST /api/import/apply`: stesso JSON, più `preview_token` restituito dall'anteprima.
+- `POST /api/import/preview`: JSON with `site_id`, `family`, `filename`, `data_base64`.
+- `POST /api/import/apply`: same JSON, plus `preview_token` returned by the preview.
 
-`family` accetta `employees`, `work_days`, `time_schedule`,
-`site_progress_items`, `deviations`, `daily_log`. Si legge solo il primo foglio.
-Il file decodificato non può superare 20 MiB; il limite HTTP include l'espansione
-base64 e un margine limitato per i metadati. Il nome file è descrittivo, mai un percorso.
+`family` accepts `employees`, `work_days`, `time_schedule`,
+`site_progress_items`, `deviations`, `daily_log`. Only the first sheet is read.
+The decoded file cannot exceed 20 MiB; the HTTP limit includes base64
+expansion and a limited margin for metadata. The file name is descriptive, never a path.
 
-### Modello scaricabile — incremento 31
+### Downloadable template — increment 31
 
-`GET /api/import/template?family=<family>` restituisce un XLSX generico con le
-intestazioni canoniche e una sola riga di esempio sintetica. Richiede soltanto una
-sessione valida: anche viewer e verifier possono scaricarlo tramite API, senza
-`site_id`, appartenenza a un cantiere o controllo del modulo. Non legge dati di
-cantiere. Senza sessione risponde `401 AUTH_REQUIRED`; famiglia mancante o
-sconosciuta restituisce `400 UNKNOWN_FAMILY`.
+`GET /api/import/template?family=<family>` returns a generic XLSX with
+canonical headers and a single synthetic example row. It requires only a
+valid session: viewers and verifiers can also download it through the API, without
+`site_id`, site membership or a module check. It reads no site
+data. Without a session it returns `401 AUTH_REQUIRED`; a missing or
+unknown family returns `400 UNKNOWN_FAMILY`.
 
-Il tipo è `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, il
-nome è `SiteAssistant-<family>-modello.xlsx` e la cache è `private, no-store`.
-Nel dialogo di import, disponibile a owner/editor, «Scarica modello» usa la famiglia
-selezionata. Compilare le righe mantenendo le intestazioni; la riga di esempio è
-un record importabile e va sostituita o rimossa prima di caricare dati propri.
-Per le presenze, l'esempio `EMP-001` richiede un dipendente corrispondente nel
-cantiere, come ogni altro import di questa famiglia.
+The type is `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, the
+name is `SiteAssistant-<family>-modello.xlsx` and the cache is `private, no-store`.
+In the import dialog, available to owner/editor, “Scarica modello” uses the selected
+family. Fill in rows keeping the headers; the example row is
+an importable record and must be replaced or removed before uploading your own data.
+For attendance, the `EMP-001` example requires a matching employee in the
+site, like any other import of this family.
 
-`canonicalHeaders` ricava da `FAMILIES` il primo nome di ciascun campo destinazione,
-nell'ordine di definizione: per esempio `Progress`, `PLC-Area`, `Planned Hours`,
-`Deviation Status`, `Activities` e `Delays`. Gli alias personalizzati del cantiere
-non cambiano questo modello; restano accettati dall'import come prima. I valori
-di esempio sono associati ai campi destinazione, con identificativi come
-`EMP-001`, `DEV-001`, `AREA-001`, date ISO e testo «Lavorazione di esempio».
+`canonicalHeaders` derives from `FAMILIES` the first name of each destination field,
+in definition order: for example `Progress`, `PLC-Area`, `Planned Hours`,
+`Deviation Status`, `Activities` and `Delays`. Site-specific custom aliases
+do not change this template; they remain accepted by import as before. Example
+values are associated with destination fields, with identifiers such as
+`EMP-001`, `DEV-001`, `AREA-001`, ISO dates and the text “Lavorazione di esempio”.
 
-Lo scrittore `server/xlsx-write.mjs` genera cinque parti ZIP deflate con CRC32:
+The `server/xlsx-write.mjs` writer generates five deflated ZIP parts with CRC32:
 `[Content_Types].xml`, `_rels/.rels`, `xl/workbook.xml`,
-`xl/_rels/workbook.xml.rels` e `xl/worksheets/sheet1.xml`. Il singolo foglio
-`Sheet1` contiene esclusivamente stringhe inline, senza stili, formule o shared
-strings. I caratteri speciali XML sono escapati; TAB, LF e CR sono preservati nel
-testo. I caratteri vietati da XML 1.0, che non possono essere rappresentati neppure
-come riferimenti numerici, causano un errore esplicito anziché una perdita silenziosa
-di dati. Il lettore e le regole di import non cambiano.
+`xl/_rels/workbook.xml.rels` and `xl/worksheets/sheet1.xml`. The single sheet
+`Sheet1` contains only inline strings, without styles, formulas or shared
+strings. XML special characters are escaped; TAB, LF and CR are preserved in
+text. Characters forbidden by XML 1.0, which cannot be represented even
+as numeric references, cause an explicit error rather than silent data
+loss. The reader and import rules do not change.
 
-L'anteprima non scrive su database. Restituisce `counts` e `samples` per
-`added`, `updated`, `unchanged`, `removed`, `rejected`, al massimo 50 esempi per
-categoria, oltre a `unmapped_columns`. Gli scarti contengono numero di riga,
-`rejected` (codice) e `reason`. Le righe valide includono valori, chiave e warning.
-Le colonne non riconosciute sono esplicitamente elencate, non interpretate.
+Preview does not write to the database. It returns `counts` and `samples` for
+`added`, `updated`, `unchanged`, `removed`, `rejected`, at most 50 examples per
+category, plus `unmapped_columns`. Rejections contain the row number,
+`rejected` (code) and `reason`. Valid rows include values, key and warnings.
+Unrecognized columns are explicitly listed, not interpreted.
 
-Il token HMAC-SHA256 scade dopo 15 minuti e vincola byte del file, famiglia,
-cantiere, fuso e risultato della normalizzazione. Non è un'autorizzazione: il ruolo
-viene verificato nuovamente all'apply e nella transazione. Con più processi occorre
-configurare lo stesso segreto casuale `planning_IMPORT_TOKEN_SECRET` (almeno 32 byte di
-entropia). Senza configurazione si usa un segreto casuale di processo: un riavvio
-invalida le anteprime ancora aperte.
+The HMAC-SHA256 token expires after 15 minutes and binds file bytes, family,
+site, time zone and normalization result. It is not authorization: the role
+is checked again on apply and within the transaction. Multiple processes require
+configuring the same random secret `planning_IMPORT_TOKEN_SECRET` (at least 32 bytes of
+entropy). Without configuration, a random process secret is used: a restart
+invalidates previews still open.
 
-L'apply ricalcola il diff nella transazione, serializzata sul cantiere. Le righe
-rifiutate restano escluse, le altre vengono applicate. Restituisce `counts`,
-`applied_keys` (solo aggiunte/aggiornate) e `import_run_id`. Il conteggio applicato
-`removed` è sempre zero: nessuna riga viene cancellata. Un secondo apply dello
-stesso file produce zero modifiche ai record applicativi, con una nuova ricevuta
-per il tentativo. Le modifiche concorrenti avvenute dopo l'anteprima possono
-cambiare i conteggi finali.
+Apply recalculates the diff within the transaction, serialized on the site. Rejected
+rows remain excluded; the others are applied. It returns `counts`,
+`applied_keys` (only added/updated) and `import_run_id`. The applied
+`removed` count is always zero: no rows are deleted. A second apply of the
+same file produces zero changes to application records, with a new receipt
+for the attempt. Concurrent changes made after preview may
+change the final counts.
 
-Ogni apply conserva nella nuova tabella il file originale, hash, autore, esito e
-chiavi modificate. Il binding registra identità, ultimo run e timestamp. Le
-relazioni applicative esistenti vengono preservate; i record aggiornati mantengono
-ID e `created_at`. Le tabelle destinazione attuali non hanno `updated_at`:
-l'aggiornamento è tracciato nel binding e nel run. Questi dati restano nel database
-applicativo; non vengono inviati all'ingestione di snapshot.
+Each apply preserves the original file, hash, author, outcome and
+modified keys in the new table. The binding records identity, latest run and timestamp. Existing
+application relationships are preserved; updated records retain
+IDs and `created_at`. Current destination tables have no `updated_at`:
+the update is tracked in the binding and run. This data remains in the application
+database; it is not sent to snapshot ingestion.
 
-## Contratto delle colonne
+## Column contract
 
-I nomi sono esatti e distinguono maiuscole/minuscole. Il contratto implementato è
-esposto da `FAMILIES` in `server/planning-import.mjs`. Le intestazioni descrittive non
-elencate nella richiesta originale richiedono confronto con i soli header degli
-export prima dell'accettazione sull'host, soprattutto per Daily Log.
+Names are exact and case-sensitive. The implemented contract is
+exposed by `FAMILIES` in `server/planning-import.mjs`. Descriptive headers not
+listed in the original request require comparison with only the export headers
+before acceptance on the host, especially for Daily Log.
 
-| Famiglia | Colonne obbligatorie | Altre colonne riconosciute |
+| Family | Required columns | Other recognized columns |
 | --- | --- | --- |
 | Employees | Employee No | First Name, Last Name, Company, Qualification, Supervisor, Team, Hire Date, Expire Date |
 | Work Days | Date, Employee No | Start Time, Finish Time, Work Time, Open Hours, Booked Hours, Status |
@@ -94,52 +94,52 @@ export prima dell'accettazione sull'host, soprattutto per Daily Log.
 | Deviations | Deviation No, Status | Title, Problem Description, Priority, Author, Assigned To, PLC-Area, Creation Date, Due Date, Approved Date, Closed Date, Actual Cost, Claim Quantity, Labor Hours, Completed Tasks % |
 | Daily Log | Date | Plan, Actual, Impediments, Next Step |
 
-Le celle delle colonne obbligatorie devono essere compilate, salvo le dimensioni
-opzionali della chiave composita progressi: qui solo Description deve essere non
-vuota. Le altre dimensioni possono essere NULL, ma le intestazioni devono esserci.
-Una colonna opzionale assente non azzera il campo esistente; una cella vuota in una
-colonna presente produce NULL. Gli stati presenze mantengono il testo originale.
+Cells in required columns must be filled in, except for the optional dimensions
+of the progress composite key: here only Description must be
+non-empty. Other dimensions may be NULL, but headers must be present.
+An absent optional column does not clear the existing field; an empty cell in a
+present column produces NULL. Attendance statuses retain their original text.
 
-Date calendario (`hire_date`, `expire_date`, `operational_date`) e orari delle
-presenze restano DATE/TIME. I timestamp vengono convertiti in UTC dal fuso
-`Europe/Rome`, attuale default applicativo: `sites` non ha una colonna fuso.
-La funzione di parsing accetta anche un fuso esplicito. Orari DST ambigui o
-inesistenti vengono rifiutati; le frazioni di secondo sono preservate fino a sei
-cifre. Numeri decimali con virgola diventano Number; vuoto significa NULL.
+Calendar dates (`hire_date`, `expire_date`, `operational_date`) and attendance
+times remain DATE/TIME. Timestamps are converted to UTC from the
+`Europe/Rome` time zone, the current application default: `sites` has no time-zone column.
+The parsing function also accepts an explicit time zone. Ambiguous or
+nonexistent DST times are rejected; fractional seconds are preserved up to six
+digits. Decimal numbers with commas become Number; empty means NULL.
 
-Le chiavi progressi normalizzano Unicode NFKC, spazi, maiuscole e timestamp;
-l'occorrenza è 1-based. Le occorrenze successive hanno `identity_state=unresolved`
-nel binding e un warning «Da confermare», e vengono comunque importate. Nessuna
-chiave viene inventata in `ingest.entity_keys`. Il `source_row` applicativo è
-assegnato senza collisioni e resta stabile; il numero di riga del nuovo export è
-mostrato nell'anteprima e recuperabile dal file archiviato.
+Progress keys normalize Unicode NFKC, spaces, case and timestamps;
+the occurrence is 1-based. Subsequent occurrences have `identity_state=unresolved`
+in the binding and a “Da confermare” warning, and are still imported. No
+key is invented in `ingest.entity_keys`. The application `source_row` is
+assigned without collisions and remains stable; the row number in the new export is
+shown in preview and recoverable from the archived file.
 
-Time Schedule ricava padre e livello dal codice, ignora Level e importa come
-radici i figli senza padre nell'export. Una chiave ambigua già presente nel DB
-richiede riconciliazione (`AMBIGUOUS_KEY`); anche i figli di un padre ambiguo sono
-rifiutati. Work Days richiede un dipendente già presente nello stesso cantiere:
-questo endpoint importa una sola famiglia per volta, quindi Employees va applicato
-prima. Daily Log usa sempre il turno day e rifiuta date duplicate. Gli stati
-Deviation accettati sono solo 01, 03, 04, 05, 06 con le etichette previste; 02 resta
+Time Schedule derives parent and level from the code, ignores Level and imports
+children without a parent in the export as roots. An ambiguous key already in the DB
+requires reconciliation (`AMBIGUOUS_KEY`); children of an ambiguous parent are also
+rejected. Work Days requires an employee already present in the same site:
+this endpoint imports only one family at a time, so Employees must be applied
+first. Daily Log always uses the day shift and rejects duplicate dates. Accepted
+Deviation statuses are only 01, 03, 04, 05, 06 with the expected labels; 02 remains
 `UNKNOWN_STATUS`.
 
-## Verifica e limiti
+## Verification and limits
 
-Le fixture XLSX dei test sono costruite in memoria con dati sintetici. I test
-comprendono SQLite, PostgreSQL in memoria (PGlite), il driver pg quando configurato,
-listener HTTP e un test con socket reale. Un errore EPERM sul socket nella sandbox
-è un test fallito da ripetere sull'host, non un motivo per saltarlo.
+Test XLSX fixtures are built in memory with synthetic data. Tests
+include SQLite, in-memory PostgreSQL (PGlite), the pg driver when configured,
+HTTP listeners and a test with a real socket. A socket EPERM error in the sandbox
+is a failed test to rerun on the host, not a reason to skip it.
 
-Il lettore XLSX esistente rimane invariato e legge il workbook in memoria.
-Il parser sostituisce le righe lette con quelle normalizzate, senza creare una
-seconda collezione completa; il diff legge il DB a pagine di 500 e conserva solo
-chiavi, ID e hash, con esempi limitati. Non si tratta di streaming ZIP/XML completo:
-il limite di 20 MiB riguarda il file compresso e il lettore non impone un limite
-all'espansione ZIP. Anche prestazioni e memoria su export di grandi dimensioni
-vanno verificate sull'host. Gli apply archiviano il file nel DB e comportano
-scritture per riga; capacità e conservazione degli archivi richiedono valutazione
-operativa, senza introdurre cancellazioni automatiche.
+The existing XLSX reader remains unchanged and reads the workbook in memory.
+The parser replaces read rows with normalized ones, without creating a
+second complete collection; the diff reads the DB in pages of 500 and keeps only
+keys, IDs and hashes, with limited examples. This is not full ZIP/XML streaming:
+the 20 MiB limit concerns the compressed file and the reader imposes no limit
+on ZIP expansion. Performance and memory on large exports
+must also be verified on the host. Applies archive the file in the DB and involve
+per-row writes; archive capacity and retention require operational
+assessment, without introducing automatic deletions.
 
-L'accettazione richiede ancora il confronto con gli header e i campioni autorizzati
-sull'host, la suite completa e il test sul vero PostgreSQL. Nessun campione reale
-è incluso o cercato nel checkout.
+Acceptance still requires comparison with authorized headers and samples
+on the host, the full suite and the test on real PostgreSQL. No real sample
+is included or searched for in the checkout.

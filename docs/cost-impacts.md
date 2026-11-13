@@ -1,26 +1,26 @@
-# Cost impacts — incremento 14
+# Cost impacts — increment 14
 
-Modulo backend implementato, senza UI dedicata o servizi esterni attivati. Le
-migrazioni `013_cost_impacts.sql` per PostgreSQL e SQLite aggiungono claim interni
-scrivibili e i relativi collegamenti alle deviations. Non sono una famiglia di
-export e non modificano gli stati importati. Nessuna migrazione di produzione è
-stata applicata da questo incremento.
+Backend module implemented, without a dedicated UI or activated external services. The
+`013_cost_impacts.sql` migrations for PostgreSQL and SQLite add writable internal
+claims and their links to deviations. They are not an
+export family and do not change imported statuses. No production migration was
+applied by this increment.
 
-In PostgreSQL le tabelle usano lo schema scelto dalla connessione (`app` per
-impostazione predefinita), come le migrazioni precedenti.
+In PostgreSQL the tables use the schema selected by the connection (`app` by
+default), like previous migrations.
 
 ## API
 
-Tutti gli endpoint richiedono una sessione autenticata e membership nel cantiere.
+All endpoints require an authenticated session and site membership.
 
-| Endpoint | Ruoli | Comportamento |
+| Endpoint | Roles | Behavior |
 | --- | --- | --- |
-| `GET /api/cost-impacts?site_id=<uuid>&status=open` | Tutti i membri | `site_id` obbligatorio; `status` facoltativo; ordine per creazione e ID |
-| `GET /api/cost-impacts/:id` | Tutti i membri | Claim con array `deviations` dei record collegati |
-| `POST /api/cost-impacts` | Editor, verifier, owner | Crea un claim in `open`, risponde 201 |
-| `POST /api/cost-impacts/:id/transition` | Verifier, owner | Applica una transizione, risponde 200 |
+| `GET /api/cost-impacts?site_id=<uuid>&status=open` | All members | `site_id` required; `status` optional; ordered by creation and ID |
+| `GET /api/cost-impacts/:id` | All members | Claim with a `deviations` array of linked records |
+| `POST /api/cost-impacts` | Editor, verifier, owner | Creates a claim in `open`, returns 201 |
+| `POST /api/cost-impacts/:id/transition` | Verifier, owner | Applies a transition, returns 200 |
 
-Creazione con dati sintetici:
+Creation with synthetic data:
 
 ```json
 {
@@ -31,38 +31,38 @@ Creazione con dati sintetici:
 }
 ```
 
-Il titolo non può essere vuoto. Serve almeno una deviation esistente dello stesso
-cantiere; ID ripetuti identificano un solo collegamento. Creazione e collegamenti
-sono atomici. Autore e timestamp di creazione provengono dal server.
+The title cannot be empty. At least one existing deviation from the same
+site is required; repeated IDs identify a single link. Creation and links
+are atomic. Author and creation timestamp come from the server.
 
-Transizioni consentite: `open → notification_sent → submitted → closed` e
-`open → closed`. `closed` è terminale. La chiusura richiede un `result` tra
-`settled`, `dropped`, `rejected` e imposta `closed_at` sul server. Il risultato non
-è ammesso sulle altre transizioni. Esempio di chiusura:
+Allowed transitions: `open → notification_sent → submitted → closed` and
+`open → closed`. `closed` is terminal. Closure requires a `result` from
+`settled`, `dropped`, `rejected` and sets `closed_at` on the server. The result is not
+allowed on other transitions. Closure example:
 
 ```json
 { "to": "closed", "result": "settled", "settlement_amount": "1000.25" }
 ```
 
-`claim_amount` e `settlement_amount` sono facoltativi, sia alla creazione sia
-nelle transizioni. Una transizione conserva gli importi omessi; `null` li imposta
-a NULL. Sono accettati numeri finiti e stringhe decimali, senza conversioni di
-valuta, somme implicite o deduzioni di valuta. PostgreSQL conserva NUMERIC e
-restituisce gli importi come stringhe, evitando conversioni in Number nel modulo;
-SQLite usa la propria affinità NUMERIC e può arrotondare valori ad alta precisione.
+`claim_amount` and `settlement_amount` are optional, both on creation and
+in transitions. A transition preserves omitted amounts; `null` sets them
+to NULL. Finite numbers and decimal strings are accepted, without currency
+conversion, implicit sums or currency inference. PostgreSQL preserves NUMERIC and
+returns amounts as strings, avoiding conversion to Number in the module;
+SQLite uses its own NUMERIC affinity and may round high-precision values.
 
-Errori principali: 400 per input non valido o esito mancante, 401 senza sessione,
-403 per ruolo/membership insufficienti, 404 per record assenti, 409 per deviazioni
-di altro cantiere o transizioni non consentite/conflitti concorrenti. Le letture
-dirette del modulo sono interne; il livello HTTP applica l'autorizzazione alle
-letture, mentre le funzioni di scrittura controllano direttamente utente e ruolo.
+Main errors: 400 for invalid input or missing outcome, 401 without a session,
+403 for insufficient role/membership, 404 for absent records, 409 for deviations
+from another site or disallowed transitions/concurrent conflicts. Direct
+module reads are internal; the HTTP layer applies read authorization,
+while write functions check the user and role directly.
 
-## Verifiche
+## Checks
 
-`tests/cost-impacts.test.mjs`, incluso in `tests/index.js`, verifica creazione,
-filtri, dettagli, tutte le coppie di stati, esiti di chiusura, ruoli, membership,
-rollback, chiusure concorrenti, vincoli SQL e replay della migrazione. Esegue gli
-stessi casi su SQLite e PostgreSQL tramite PGlite; con `DB_DRIVER=pg` usa invece
-il database di test PostgreSQL configurato secondo le protezioni esistenti.
+`tests/cost-impacts.test.mjs`, included in `tests/index.js`, verifies creation,
+filters, details, all state pairs, closure outcomes, roles, membership,
+rollback, concurrent closures, SQL constraints and migration replay. It runs the
+same cases on SQLite and PostgreSQL through PGlite; with `DB_DRIVER=pg` it instead uses
+the PostgreSQL test database configured according to the existing safeguards.
 
-Comandi: `npm test` e `npm run test:schema`.
+Commands: `npm test` and `npm run test:schema`.

@@ -1,25 +1,25 @@
-# Incremento 8 — Allegati
+# Increment 8 — Attachments
 
-Implementati nel backend: allegati a `task`, `diary` e `site`, autorizzazione tramite sessione e membership, client S3 SigV4 senza dipendenze aggiuntive, readback SHA-256 e download in streaming attraverso l'API. L'interfaccia grafica per gli allegati non fa parte di questo incremento.
+Implemented in the backend: attachments to `task`, `diary` and `site`, authorization through session and membership, S3 SigV4 client with no additional dependencies, SHA-256 readback and streaming downloads through the API. The graphical interface for attachments is not part of this increment.
 
-La migrazione `007_attachments.sql` è disponibile per PostgreSQL e SQLite e viene scoperta dal runner esistente. Non è stata applicata a un database operativo. Nessun servizio, bucket, credenziale o deploy è stato configurato da questo incremento.
+Migration `007_attachments.sql` is available for PostgreSQL and SQLite and is discovered by the existing runner. It has not been applied to an operational database. No service, bucket, credential or deployment was configured by this increment.
 
-## Configurazione runtime
+## Runtime configuration
 
-Fornire nell'ambiente server `S3_ENDPOINT` (HTTPS), `S3_BUCKET`, `S3_ACCESS_KEY` e `S3_SECRET_KEY`. Nessun valore reale va salvato nel repository. Il client usa richieste path-style; la regione di firma predefinita è `us-east-1`, con override opzionale `S3_REGION` quando richiesto dall'endpoint. Senza configurazione, le operazioni sui file rispondono `503 STORAGE_NOT_CONFIGURED`; il resto dell'API continua a funzionare.
+Provide `S3_ENDPOINT` (HTTPS), `S3_BUCKET`, `S3_ACCESS_KEY` and `S3_SECRET_KEY` in the server environment. No real values must be saved in the repository. The client uses path-style requests; the default signing region is `us-east-1`, with an optional `S3_REGION` override when required by the endpoint. Without configuration, file operations return `503 STORAGE_NOT_CONFIGURED`; the rest of the API continues to work.
 
-Il bucket deve essere privato e avere SSE abilitata. Il client eredita la cifratura configurata sul bucket, senza cifratura client-side né modifiche alle policy. La configurazione SSE e il funzionamento sul provider reale richiedono verifica nell'ambiente operativo: i test non accedono a S3.
+The bucket must be private and have SSE enabled. The client inherits the encryption configured on the bucket, with no client-side encryption or policy changes. SSE configuration and operation on the real provider require verification in the operational environment: tests do not access S3.
 
 ## API
 
-| Metodo e percorso | Accesso | Risultato |
+| Method and path | Access | Result |
 | --- | --- | --- |
-| `POST /api/attachments` | Owner/editor dell'entità | `201`, metadati del nuovo allegato |
-| `GET /api/attachments?site_id=…&entity_type=…&entity_id=…` | Membro del cantiere | `200`, array di metadati |
-| `GET /api/attachments/:id` | Membro del cantiere | `200`, byte in streaming |
+| `POST /api/attachments` | Entity owner/editor | `201`, new attachment metadata |
+| `GET /api/attachments?site_id=…&entity_type=…&entity_id=…` | Site member | `200`, metadata array |
+| `GET /api/attachments/:id` | Site member | `200`, streaming bytes |
 | `DELETE /api/attachments/:id` | Owner/editor | `204` |
 
-POST accetta un oggetto JSON con `entity_type`, `entity_id`, `filename`, `content_type` e `data_base64`. Esempio interamente sintetico (sostituire l'UUID con un'entità di test esistente):
+POST accepts a JSON object with `entity_type`, `entity_id`, `filename`, `content_type` and `data_base64`. Entirely synthetic example (replace the UUID with an existing test entity):
 
 ```json
 {
@@ -31,24 +31,24 @@ POST accetta un oggetto JSON con `entity_type`, `entity_id`, `filename`, `conten
 }
 ```
 
-Il cantiere è ricavato dall'entità; un eventuale `site_id` esplicito deve corrispondere. Entità mancanti/ID malformati producono `400`; collegamenti tra cantieri o ruoli insufficienti producono `403`. In lista `site_id` è obbligatorio, `entity_type` è facoltativo; per filtrare `entity_id` occorre anche `entity_type`. I metadati restituiti comprendono dimensione, SHA-256 esadecimale, autore, timestamp e `manifest_version: "v1"`, senza locator di storage, endpoint o URL di accesso.
+The site is derived from the entity; any explicit `site_id` must match. Missing entities/malformed IDs produce `400`; cross-site links or insufficient roles produce `403`. For lists, `site_id` is required, `entity_type` is optional; filtering by `entity_id` also requires `entity_type`. Returned metadata includes size, hexadecimal SHA-256, author, timestamp and `manifest_version: "v1"`, without storage locators, endpoints or access URLs.
 
-Il massimo decodificato è 15 MiB (15 × 1024 × 1024 byte), con base64 canonico e non vuoto. Il limite JSON specifico consente l'espansione base64 più 64 KiB di overhead; le altre route conservano il limite di 64 KiB. Dimensione eccessiva: `413`; MIME diverso da `image/*` o `application/pdf`: `415`. Il controllo MIME riguarda il tipo dichiarato, non è un antivirus né un parser del formato. Il nome deve essere valido, entro 255 byte UTF-8 e senza percorsi o caratteri di controllo.
+The decoded maximum is 15 MiB (15 × 1024 × 1024 bytes), with canonical, non-empty base64. The dedicated JSON limit allows base64 expansion plus 64 KiB of overhead; other routes retain the 64 KiB limit. Excessive size: `413`; MIME other than `image/*` or `application/pdf`: `415`. The MIME check concerns the declared type; it is not an antivirus or a format parser. The name must be valid, within 255 UTF-8 bytes and without paths or control characters.
 
-I download sono forzati come allegato con nome UTF-8, `nosniff`, CSP sandbox e `Cache-Control: no-store`. Non vengono generati URL pubblici o firmati. La lettura è autenticata prima di contattare lo storage; un errore durante lo stream interrompe la risposta senza aggiungere JSON ai byte del file.
+Downloads are forced as attachments with a UTF-8 name, `nosniff`, CSP sandbox and `Cache-Control: no-store`. No public or signed URLs are generated. Reads are authenticated before contacting storage; an error during streaming terminates the response without adding JSON to the file bytes.
 
-## Integrità e gestione degli errori
+## Integrity and error handling
 
-Ogni upload crea una chiave casuale distinta, con `If-None-Match: *`; non esiste una route per sovrascrivere file. La versione del manifest è `v1`, indipendente dal versioning nativo del bucket.
+Each upload creates a distinct random key, with `If-None-Match: *`; there is no route to overwrite files. The manifest version is `v1`, independent of native bucket versioning.
 
-Sequenza: SHA-256 locale → PUT con checksum nei metadati → HEAD con confronto di checksum e dimensione → GET con ricalcolo SHA-256 sui byte → ricontrollo di entità/permessi e INSERT transazionale. Il GET aggiuntivo impedisce di considerare una semplice eco dei metadati come prova dell'integrità; ETag non viene interpretato come SHA-256. Un mismatch produce `502 ATTACHMENT_CHECKSUM_MISMATCH` senza inserire una riga.
+Sequence: local SHA-256 → PUT with checksum in metadata → HEAD comparing checksum and size → GET recalculating SHA-256 on the bytes → entity/permission recheck and transactional INSERT. The additional GET prevents a mere metadata echo from being considered proof of integrity; ETag is not interpreted as SHA-256. A mismatch produces `502 ATTACHMENT_CHECKSUM_MISMATCH` without inserting a row.
 
-Dopo un PUT confermato, errori di readback o INSERT causano un tentativo di DELETE compensativo. Se fallisce anche la pulizia, viene restituito `503 ATTACHMENT_CLEANUP_FAILED`. Per la cancellazione, un errore storage annulla la transazione SQL, mantenendo i metadati per riprovare; DELETE sullo storage è idempotente.
+After a confirmed PUT, readback or INSERT errors trigger a compensating DELETE attempt. If cleanup also fails, `503 ATTACHMENT_CLEANUP_FAILED` is returned. For deletion, a storage error rolls back the SQL transaction, keeping the metadata for a retry; DELETE on storage is idempotent.
 
-SQL e S3 non condividono una transazione distribuita. Un crash, un PUT con esito di rete incerto o un errore di commit dopo DELETE possono richiedere riconciliazione operativa tra chiavi e righe. La pulizia automatica degli orfani non è implementata; non eseguire reset del seed con allegati presenti. I test coprono gli errori compensabili, senza simulare una garanzia di atomicità tra i due servizi.
+SQL and S3 do not share a distributed transaction. A crash, a PUT with an uncertain network outcome or a commit error after DELETE may require operational reconciliation between keys and rows. Automatic orphan cleanup is not implemented; do not reset the seed with attachments present. Tests cover compensable errors, without simulating an atomicity guarantee between the two services.
 
-## Verifiche
+## Checks
 
-`npm test` include le suite `attachments`, `attachments-schema` e `s3` tramite `tests/index.js`. Lo storage in-memory implementa `put/get/head/delete`; il client reale è verificato con trasporto iniettato e vettori SigV4 sintetici calcolati indipendentemente. Nessuna nuova suite usa rete o credenziali reali. SQLite e PostgreSQL in memoria verificano upgrade dalla `006`, tipi fisici, vincoli, indice, replay e operazioni repository.
+`npm test` includes the `attachments`, `attachments-schema` and `s3` suites through `tests/index.js`. In-memory storage implements `put/get/head/delete`; the real client is verified with injected transport and independently calculated synthetic SigV4 vectors. No new suite uses a network or real credentials. SQLite and in-memory PostgreSQL verify upgrade from `006`, physical types, constraints, index, replay and repository operations.
 
-Riferimenti del protocollo: [firma SigV4 AWS](https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sig-v4-header-based-auth.html) e [API S3 compatibili del provider](https://www.idrive.com/s3-storage-e2/s3-compatible-api).
+Protocol references: [AWS SigV4 signing](https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sig-v4-header-based-auth.html) and [provider's S3-compatible APIs](https://www.idrive.com/s3-storage-e2/s3-compatible-api).

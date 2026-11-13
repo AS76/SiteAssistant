@@ -1,45 +1,45 @@
-# Demo multiutente — valutazione economica
+# Multi-user demo — cost assessment
 
-Stato: **SUPERATO (2026-11-10).** Railway accantonato: il DB operativo è **Neon** (`eu-central-1`), l'app gira sul VPS Hostinger. Questo documento resta solo come confronto economico storico. Vedi [architecture.md](architecture.md).
+Status: **SUPERSEDED (2026-11-10).** Railway set aside: the operational DB is **Neon** (`eu-central-1`), the app runs on the Hostinger VPS. This document remains only as a historical cost comparison. See [architecture.md](architecture.md).
 
-## Obiettivo
+## Goal
 
-Una demo con URL HTTPS, accesso controllato, dati persistenti condivisi e dati iniziali sintetici. Limitare costi ricorrenti e lavoro di riscrittura, mantenendo un percorso verso il pilota operativo.
+A demo with an HTTPS URL, controlled access, shared persistent data and synthetic initial data. Limit recurring costs and rewriting work, while maintaining a path towards the operational pilot.
 
-Vincolo aggiornato: la demo usa servizi separati; il riuso di server condivisi con altri carichi è escluso dal perimetro corrente.
+Updated constraint: the demo uses separate services; reuse of servers shared with other workloads is outside the current scope.
 
-## Alternative
+## Alternatives
 
-La scelta corrente privilegia un unico fornitore per applicazione e database, con integrazione GitHub. La minimizzazione assoluta del canone resta subordinata alla semplicità di gestione dell'ambiente di prova.
+The current choice favors a single provider for the application and database, with GitHub integration. Absolute minimization of recurring fees remains subordinate to ease of managing the test environment.
 
-L'archivio documentale si integra tramite S3 compatibile: valutare i costi di richieste, lettura/trasferimento, derivati e copie senza assumere duplicazione dei file su Railway. L'utilizzo interno complementare concentra lo sviluppo su import e viste, evitando di ricostruire i flussi ufficiali del sistema sorgente. I profili da implementare dipendono dai campioni effettivamente verificati.
+The document archive integrates through S3 compatibility: assess costs for requests, reads/transfers, derivatives and copies without assuming file duplication on Railway. Complementary internal use focuses development on imports and views, avoiding rebuilding the source system's official workflows. Profiles to implement depend on the samples actually verified.
 
-| Opzione | Costo incrementale dell'hosting | Lavoro operativo e condizioni |
+| Option | Incremental hosting cost | Operational work and conditions |
 | --- | --- | --- |
-| **Scelta: applicazione e PostgreSQL nello stesso progetto Railway** | Piano e consumi di app, database e storage da preventivare | Un'unica piattaforma per deploy, variabili, rete e servizi; backup e ripristino da verificare sul piano effettivo |
-| Frontend statico e backend gestito integrato con PostgreSQL, login e storage | Potenzialmente 0 euro/mese entro quote e condizioni dei piani gratuiti da verificare | Valutare, per esempio, Cloudflare Pages con Supabase; definire policy di accesso, operazioni server e transazioni |
-| App con backend Node.js dedicato e PostgreSQL gestito | Minimo e consumi da preventivare; gratuità non presunta | Valutare, per esempio, Railway con Neon; mantenere l'API applicativa e verificare quote, sospensione e recuperabilità |
-| Nuovo hosting e database su piani a pagamento | Canone/minimo e consumi da preventivare | Budget più esplicito, capacità e gestione dipendenti dal piano; serve un confronto dei listini ufficiali prima di scegliere |
+| **Choice: application and PostgreSQL in the same Railway project** | App, database and storage plan and usage to be estimated | A single platform for deployment, variables, network and services; backup and restore to be verified on the actual plan |
+| Static frontend and managed backend integrated with PostgreSQL, login and storage | Potentially 0 euros/month within free-plan quotas and conditions to be verified | Assess, for example, Cloudflare Pages with Supabase; define access policies, server operations and transactions |
+| App with a dedicated Node.js backend and managed PostgreSQL | Minimum and usage to be estimated; free use not assumed | Assess, for example, Railway with Neon; retain the application API and verify quotas, suspension and recoverability |
+| New hosting and database on paid plans | Recurring/minimum fee and usage to be estimated | More explicit budget, capacity and management dependent on the plan; official price lists must be compared before choosing |
 
-PostgreSQL non ha un canone di licenza. Il costo dipende da compute, memoria, disco, trasferimenti, backup, servizi accessori e manutenzione. Cambiare motore non garantisce un risparmio sul totale del progetto.
+PostgreSQL has no license fee. Cost depends on compute, memory, disk, transfers, backups, ancillary services and maintenance. Changing the engine does not guarantee savings on the project total.
 
-## Riduzione del costo di sviluppo
+## Reducing development cost
 
-- Mantenere inizialmente HTML/CSS e moduli JavaScript dell'interfaccia esistente. Il passaggio a React non è un prerequisito per pubblicare una demo con backend.
-- Eseguire una sola applicazione Node.js per frontend e API, con PostgreSQL separato nello stesso progetto Railway. Il frontend statico da solo non sostituisce logica server, autorizzazioni e transazioni.
-- Riutilizzare le regole di dominio dopo aver separato identità simulate, autorizzazioni server e persistenza. Il selettore di persona della demo non diventa un meccanismo di autenticazione.
-- Usare PostgreSQL fin dal primo backend condiviso, con migrazioni e test, confrontando il costo complessivo dei servizi che lo ospitano.
-- Partire con accessi su invito e un metodo di autenticazione mantenuto da una libreria o un provider appropriato, da scegliere in base a condizioni e costi; nessuna autenticazione progettata artigianalmente.
-- Conservare IT/EN, dati sintetici, backup e report essenziali. Aggiungere i moduli per incrementi; allegati, grandi import e offline hanno costi di sviluppo distinti.
+- Initially retain the existing interface's HTML/CSS and JavaScript modules. Moving to React is not a prerequisite for publishing a demo with a backend.
+- Run a single Node.js application for frontend and API, with separate PostgreSQL in the same Railway project. The static frontend alone does not replace server logic, authorization and transactions.
+- Reuse domain rules after separating simulated identities, server authorization and persistence. The demo's person selector does not become an authentication mechanism.
+- Use PostgreSQL from the first shared backend, with migrations and tests, comparing the overall cost of the services hosting it.
+- Start with invitation-only access and an authentication method maintained by an appropriate library or provider, to be chosen based on conditions and costs; no handcrafted authentication.
+- Retain IT/EN, synthetic data, backups and essential reports. Add modules incrementally; attachments, large imports and offline have separate development costs.
 
-## Decisione corrente
+## Current decision
 
-Procedere con il progetto tecnico per Railway, usando il suo servizio PostgreSQL nello stesso progetto dell'applicazione. Questo evita di introdurre un secondo fornitore per il database. Le alternative della tabella restano un confronto economico e non sono l'architettura selezionata.
+Proceed with the technical design for Railway, using its PostgreSQL service in the same project as the application. This avoids introducing a second provider for the database. The alternatives in the table remain a cost comparison and are not the selected architecture.
 
-Prima dell'attivazione verificare listino corrente, eventuale minimo del piano, uso compute/RAM, volumi, traffico e backup. Definire budget e notifiche di spesa dove disponibili. Per iniziare usare un solo ambiente cloud di prova con pochi utenti, limiti coerenti con la prova e dati sintetici. Gratuità, backup inclusi e assenza di consumo a riposo non sono presunti.
+Before activation, check current pricing, any plan minimum, compute/RAM usage, volumes, traffic and backups. Define a budget and spending notifications where available. To start, use a single cloud test environment with a few users, limits consistent with the trial and synthetic data. Free use, included backups and absence of idle consumption are not assumed.
 
-Prima della pubblicazione: verificare isolamento, login, accessi al database, storage persistente, esportabilità e un ripristino funzionante. Tutti i dati dimostrativi rimangono sintetici. Usare inizialmente il sottodominio del servizio se compatibile con il caso d'uso; un nuovo dominio ha un costo separato.
+Before publication: verify isolation, login, database access, persistent storage, exportability and a working restore. All demonstration data remains synthetic. Initially use the service's subdomain if compatible with the use case; a new domain has a separate cost.
 
-## Dati necessari per un preventivo
+## Data needed for an estimate
 
-Numero di utenti simultanei, volume file, necessità di disponibilità continua, dominio, budget massimo e costo/tempo della manutenzione. Per i servizi esterni: listino attuale, piano ammesso per il tipo di utilizzo, quote e politiche di superamento soglia.
+Number of concurrent users, file volume, need for continuous availability, domain, maximum budget and maintenance cost/time. For external services: current price list, plan permitted for the type of use, quotas and overage policies.

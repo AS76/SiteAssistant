@@ -1,40 +1,40 @@
-# Employees e Work Days
+# Employees and Work Days
 
-L'incremento 10 aggiunge due proiezioni applicative in sola lettura e le relative API. Gli employees sono record di cantiere, distinti dagli account `users`. Non sono previste modifiche manuali delle presenze né scritture verso la sorgente.
+Increment 10 adds two read-only application projections and their APIs. Employees are site records, distinct from `users` accounts. No manual attendance changes or writes to the source are planned.
 
-## Schema e configurazione
+## Schema and configuration
 
-`server/migrations/{pg,sqlite}/009_employees_workdays.sql` crea `employees`, `work_days`, l'indice `(site_id, employee_id, operational_date)` e `hr_import_sources`. Come le altre migrazioni, usa lo schema applicativo selezionato dalla connessione PostgreSQL e le tabelle principali in SQLite. Non modifica le migrazioni precedenti e non è stata applicata a un database operativo.
+`server/migrations/{pg,sqlite}/009_employees_workdays.sql` creates `employees`, `work_days`, the `(site_id, employee_id, operational_date)` index and `hr_import_sources`. Like the other migrations, it uses the application schema selected by the PostgreSQL connection and the main tables in SQLite. It does not change previous migrations and has not been applied to an operational database.
 
-La configurazione fidata `hr_import_sources(site_id, scope_id, run_id)` associa esplicitamente un cantiere al run da promuovere. È indipendente dalla configurazione WBS; non viene dedotta dai nomi né accettata dal corpo HTTP. L'ingestione e il provisioning di questa associazione restano prerequisiti esterni. PostgreSQL richiede gli schemi definiti da `database/import-schema.sql`; SQLite richiede database d'ingestione preparati e collegati come `ingest` e `source_snapshot` sulla stessa connessione, come per il WBS.
+Trusted configuration `hr_import_sources(site_id, scope_id, run_id)` explicitly associates a site with the run to promote. It is independent of WBS configuration; it is neither inferred from names nor accepted from the HTTP body. Ingestion and provisioning of this association remain external prerequisites. PostgreSQL requires the schemas defined by `database/import-schema.sql`; SQLite requires prepared ingestion databases attached as `ingest` and `source_snapshot` on the same connection, as for WBS.
 
-L'import accetta un run `ready` con `completeness_verified`, entrambi i batch `employees` e `work_days` in stato `typed`, scope coerenti e conteggi uguali a `expected_rows`. Identità mancanti, duplicate o non riconciliate bloccano l'intera promozione. Le tabelle raw e gli snapshot non vengono modificati.
+Import accepts a `ready` run with `completeness_verified`, both `employees` and `work_days` batches in `typed` status, consistent scopes and counts equal to `expected_rows`. Missing, duplicate or unreconciled identities block the entire promotion. Raw tables and snapshots are not changed.
 
-## Identità e valori sorgente
+## Identity and source values
 
-- `employee_no` è univoco per cantiere. L'ID applicativo dipende da cantiere e numero dipendente; `source_entity_key_id` mantiene il riferimento all'identità d'ingestione.
-- I work days hanno ID deterministici basati su cantiere, scope e `source_uuid`. `employee_no` viene risolto esclusivamente nello snapshot Employees selezionato. Un numero assente nello snapshot richiede riconciliazione; un numero sorgente null lascia `employee_id` null.
-- `operational_date`, `hire_date`, `expire_date`, `start_time` e `finish_time` conservano i valori di calendario sorgente. Le API restituiscono date e orari senza conversioni di fuso; gli orari mantengono secondi e frazioni disponibili. Una data operativa mancante impedisce l'import.
-- `shift` usa `shiftOf` con inizio giorno 06:00 e inizio notte 18:00, sul solo orario sorgente. L'ancoraggio tecnico UTC serve a classificare l'orario senza convertirlo e non determina la data operativa. Un `start_time` null produce `shift` null. Una coppia che attraversa mezzanotte resta invariata.
-- `work_time_source`, `open_hours_source` e `booked_hours_source` alimentano rispettivamente `work_time`, `open_hours` e `booked_hours`. Semantica TBD: nessun calcolo di durata, totale, normalizzazione o interpretazione aggiuntiva. Null, zero e stato sorgente restano distinti.
+- `employee_no` is unique per site. The application ID depends on the site and employee number; `source_entity_key_id` keeps the reference to the ingestion identity.
+- Work days have deterministic IDs based on site, scope and `source_uuid`. `employee_no` is resolved exclusively in the selected Employees snapshot. A number absent from the snapshot requires reconciliation; a null source number leaves `employee_id` null.
+- `operational_date`, `hire_date`, `expire_date`, `start_time` and `finish_time` preserve the source calendar values. APIs return dates and times without time-zone conversion; times retain available seconds and fractions. A missing operational date prevents import.
+- `shift` uses `shiftOf` with day start 06:00 and night start 18:00, on the source time alone. The technical UTC anchor serves to classify the time without converting it and does not determine the operational date. A null `start_time` produces a null `shift`. A pair crossing midnight remains unchanged.
+- `work_time_source`, `open_hours_source` and `booked_hours_source` feed `work_time`, `open_hours` and `booked_hours` respectively. Semantics TBD: no duration calculation, total, normalization or additional interpretation. Null, zero and source status remain distinct.
 
-La promozione è transazionale e serializzata per cantiere. Ripetere lo stesso run e gli stessi batch restituisce `unchanged: true` con conteggi zero, mantenendo ID e timestamp. Un nuovo run sostituisce la proiezione corrente, mantenendo ID e `created_at` delle identità ancora presenti. Lo storico rimane negli snapshot d'ingestione; i run completati sono trattati come immutabili e le correzioni richiedono un nuovo run.
+Promotion is transactional and serialized per site. Repeating the same run and batches returns `unchanged: true` with zero counts, retaining IDs and timestamps. A new run replaces the current projection, retaining IDs and `created_at` for identities still present. History remains in the ingestion snapshots; completed runs are treated as immutable and corrections require a new run.
 
 ## API
 
-| Route | Risultato | Accesso |
+| Route | Result | Access |
 | --- | --- | --- |
-| `GET /api/employees?site_id=…` | Array ordinato per `employee_no` | Membership del cantiere, incluso viewer |
-| `GET /api/employees/:id` | Dipendente con array `work_days` | Membership del cantiere del dipendente |
-| `GET /api/work-days?site_id=…&employee_id=…&from=…&to=…` | Array ordinato per data e ID; filtri opzionali, estremi inclusivi `YYYY-MM-DD` | Membership del cantiere |
-| `POST /api/employees/import` | Corpo `{ "site_id": "UUID sintetico del cantiere" }`; risultato `{ employees, work_days, unchanged, run_id }` | Owner del cantiere |
+| `GET /api/employees?site_id=…` | Array ordered by `employee_no` | Site membership, including viewer |
+| `GET /api/employees/:id` | Employee with `work_days` array | Membership of the employee's site |
+| `GET /api/work-days?site_id=…&employee_id=…&from=…&to=…` | Array ordered by date and ID; optional filters, inclusive `YYYY-MM-DD` bounds | Site membership |
+| `POST /api/employees/import` | Body `{ "site_id": "UUID sintetico del cantiere" }`; result `{ employees, work_days, unchanged, run_id }` | Site owner |
 
-Il ruolo amministrativo attuale è `owner`: non esiste un ruolo `admin` distinto. L'import verifica i permessi anche nel repository. Le letture interne del repository sono fidate; le route richiedono sessione e membership. Non sono esposti endpoint di editing.
+The current administrative role is `owner`: there is no distinct `admin` role. Import also checks permissions in the repository. Internal repository reads are trusted; routes require a session and membership. No editing endpoints are exposed.
 
-Errori di configurazione o sorgente restituiscono `409` con codice `HR_SOURCE_NOT_CONFIGURED`, `HR_SOURCE_UNAVAILABLE`, `HR_RUN_NOT_READY`, `HR_INCOMPLETE_SNAPSHOT` o `HR_RECONCILIATION_REQUIRED`, senza modificare la proiezione precedente. Filtri non validi restituiscono `400`.
+Configuration or source errors return `409` with code `HR_SOURCE_NOT_CONFIGURED`, `HR_SOURCE_UNAVAILABLE`, `HR_RUN_NOT_READY`, `HR_INCOMPLETE_SNAPSHOT` or `HR_RECONCILIATION_REQUIRED`, without changing the previous projection. Invalid filters return `400`.
 
-## Verifiche e attivazione
+## Checks and activation
 
-`tests/hr.test.mjs`, registrato in `tests/index.js`, verifica le migrazioni e la promozione su SQLite e PostgreSQL in memoria con fixture sintetiche, inclusi filtri, permessi tramite listener HTTP, rollback, nuovi run e idempotenza. `npm run test:schema` verifica separatamente il contratto d'ingestione. I test HTTP esistenti con socket restano nel runner e possono richiedere l'host fuori sandbox.
+`tests/hr.test.mjs`, registered in `tests/index.js`, verifies migrations and promotion on SQLite and in-memory PostgreSQL with synthetic fixtures, including filters, permissions through an HTTP listener, rollback, new runs and idempotency. `npm run test:schema` separately verifies the ingestion contract. Existing HTTP tests with sockets remain in the runner and may require the host outside the sandbox.
 
-Questo incremento non aggiunge UI, servizi remoti, deploy o import di file. Nessun servizio è stato attivato.
+This increment adds no UI, remote services, deployment or file import. No service was activated.

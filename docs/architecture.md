@@ -1,28 +1,28 @@
-# Architettura — SiteAssistant (stato attuale)
+# Architecture — SiteAssistant (current state)
 
-Stato: **nucleo site-manager implementato e in produzione** (migrazioni 001–013). Stack reale verificato; nessun framework, nessun ORM. Documento allineato al codice il 2026-11-10.
+Status: **site-manager core implemented and in production** (migrations 001–013). Actual stack verified; no framework, no ORM. Document aligned with the code on 2026-11-10.
 
-## Cos'è
+## What it is
 
-Webapp per il site manager: collega pianificazione, lavoro eseguito, verifica e diario di cantiere, usabile dal telefono in campo. Non un ERP: il livello tra il piano (SAP/P6/Excel) e la realtà quotidiana del cantiere.
+Webapp for the site manager: connects planning, work performed, verification and the site diary, usable from a phone in the field. Not an ERP: the layer between the plan (SAP/P6/Excel) and the site's daily reality.
 
-**Perimetro attuale (nucleo site-manager):** WBS, presenze, avanzamento, deviazioni, prenotazioni ore, impatti economici. **Logistica materiali e procurement = milestone successiva.**
+**Current scope (site-manager core):** WBS, attendance, progress, deviations, time bookings, cost impacts. **Materials logistics and procurement = next milestone.**
 
-## Stack reale
+## Actual stack
 
-| Livello | Tecnologia effettiva | Note |
+| Layer | Actual technology | Notes |
 | --- | --- | --- |
-| Frontend | SPA statica in `app/` (HTML/CSS/JS nativo, no framework) | viste: Panoramica, Cantieri, Attività (board/elenco), Struttura progetto (albero), Diario; IT/EN |
-| Backend | **Node.js 24 + `node:http`** (nessun framework) | `server/http.mjs`, `repository.mjs`, moduli per dominio |
-| Accesso dati | **`pg` puro** (unica dipendenza runtime, no ORM) + astrazione `Storage` (driver SQLite/pg) | query SQL esplicite, migrazioni versionate |
-| Database | **PostgreSQL (Neon, `eu-central-1`)** in produzione; **SQLite** in sviluppo/test | stesso contratto via `Storage` |
-| Identità | **Locale**: email+password (`scrypt`), sessioni cookie `HttpOnly`, ruoli per cantiere (owner/editor/verifier/viewer), signup self-service con approvazione | niente provider OIDC per ora |
-| File | **iDrive e2 S3**, bucket `siteassistant` | client SigV4 hand-rolled (`node:crypto`), readback SHA-256 |
-| Verifiche | Test dominio + integrazione (SQLite e pg) + parità | `npm test`, `npm run test:pg`, `npm run test:schema` |
+| Frontend | Static SPA in `app/` (native HTML/CSS/JS, no framework) | views: Overview, Sites, Tasks (board/list), Project structure (tree), Diary; IT/EN |
+| Backend | **Node.js 24 + `node:http`** (no framework) | `server/http.mjs`, `repository.mjs`, domain modules |
+| Data access | **Plain `pg`** (only runtime dependency, no ORM) + `Storage` abstraction (SQLite/pg drivers) | explicit SQL queries, versioned migrations |
+| Database | **PostgreSQL (Neon, `eu-central-1`)** in production; **SQLite** in development/tests | same contract via `Storage` |
+| Identity | **Local**: email+password (`scrypt`), `HttpOnly` cookie sessions, site roles (owner/editor/verifier/viewer), self-service signup with approval | no OIDC provider for now |
+| Files | **iDrive e2 S3**, `siteassistant` bucket | hand-rolled SigV4 client (`node:crypto`), SHA-256 readback |
+| Checks | Domain + integration tests (SQLite and pg) + parity | `npm test`, `npm run test:pg`, `npm run test:schema` |
 
-**Nessuna dipendenza runtime oltre `pg`.** Il backend è intenzionalmente senza framework/ORM.
+**No runtime dependency beyond `pg`.** The backend deliberately has no framework/ORM.
 
-## Flusso
+## Flow
 
 ```mermaid
 flowchart LR
@@ -35,77 +35,77 @@ flowchart LR
     A --> O[Object storage S3 iDrive e2]
 ```
 
-Il backend controlla identità, cantiere, ruolo e modulo prima di ogni operazione; credenziali DB e S3 restano solo sul server. La decisione vincolante avviene nel backend.
+The backend checks identity, site, role and module before every operation; DB and S3 credentials stay only on the server. The binding decision is made in the backend.
 
-**Offline-first (incremento 15, spec pronta):** senza rete il browser carica l'app dalla cache del Service Worker, legge i dati già aperti e accoda le scritture (attività, diario, foto) in IndexedDB; al ritorno della linea il Background Sync replaya la coda con idempotenza (`Idempotency-Key`) e last-write-wins; le transizioni restano server-side.
+**Offline-first (increment 15, spec ready):** without a network the browser loads the app from the Service Worker cache, reads previously opened data and queues writes (tasks, diary, photos) in IndexedDB; when connectivity returns Background Sync replays the queue with idempotency (`Idempotency-Key`) and last-write-wins; transitions remain server-side.
 
-## Moduli implementati (nucleo)
+## Implemented modules (core)
 
-| Modulo | Tabella app | Migrazione | Stato |
+| Module | App table | Migration | Status |
 | --- | --- | --- | --- |
-| Cantieri | `sites` | 001 | ✅ UI |
-| Attività (state machine) | `tasks`, `task_events` | 001, 004 | ✅ UI (board/elenco) |
-| Diario (giorno operativo) | `diary` | 001, 002 | ✅ UI |
-| Autenticazione | `users`, `sessions`, `site_members` | 005 | ✅ UI (login) |
-| Signup self-service | `signup_requests` | 006 | ✅ API |
-| Allegati | `attachments` | 007 | ✅ API |
-| WBS | `project_structure` | 008 | ✅ UI (albero) |
-| Presenze | `employees`, `work_days` | 009 | ✅ API |
-| Avanzamento | `site_progress_items` | 010 | ✅ UI (barre, step pesati, ore pianificate) |
-| Deviazioni | `deviations`, `deviation_links` | 011 | ✅ UI (bacheca, dettaglio, riconciliazione) |
-| Prenotazioni ore | `time_bookings` | 012 | ✅ UI (ore sorgente e app, scostamento) |
-| Impatti economici | `cost_impacts`, `cost_impact_deviations` | 013 | ✅ UI |
+| Sites | `sites` | 001 | ✅ UI |
+| Tasks (state machine) | `tasks`, `task_events` | 001, 004 | ✅ UI (board/list) |
+| Diary (operational day) | `diary` | 001, 002 | ✅ UI |
+| Authentication | `users`, `sessions`, `site_members` | 005 | ✅ UI (login) |
+| Self-service signup | `signup_requests` | 006 | ✅ API |
+| Attachments | `attachments` | 007 | ✅ API |
+| WBS | `project_structure` | 008 | ✅ UI (tree) |
+| Attendance | `employees`, `work_days` | 009 | ✅ API |
+| Progress | `site_progress_items` | 010 | ✅ UI (bars, weighted steps, planned hours) |
+| Deviations | `deviations`, `deviation_links` | 011 | ✅ UI (board, detail, reconciliation) |
+| Time bookings | `time_bookings` | 012 | ✅ UI (source and app hours, variance) |
+| Cost impacts | `cost_impacts`, `cost_impact_deviations` | 013 | ✅ UI |
 
-**UI attuale:** Panoramica (widget configurabili per utente), Cantieri, Attività (bacheca, elenco, vista leggera), Struttura progetto (WBS), Diario, Avanzamento, Deviazioni (con pannello di riconciliazione), Prenotazioni ore, Impatti economici, Attrezzature, Idoneità, HSE, Report stampabile. Il frontend espone anche il link al manuale e funziona offline su attività e diario, con coda di scritture sincronizzata al ritorno della rete.
+**Current UI:** Overview (widgets configurable per user), Sites, Tasks (board, list, lightweight view), Project structure (WBS), Diary, Progress, Deviations (with reconciliation panel), Time bookings, Cost impacts, Equipment, Fitness for work, HSE, Printable report. The frontend also exposes the manual link and works offline for tasks and diary, with a write queue synchronized when the network returns.
 
-## Regola del giorno operativo
+## Operational-day rule
 
-`operational_date` con taglio configurabile (default 06:00, fuso `Europe/Rome`): il giorno operativo D va dalle 06:00 di D alle 05:59 di D+1; il turno notturno appartiene al giorno in cui è iniziato. Funzione pura `operationalDate` (Node `Intl`) + test DST.
+`operational_date` with a configurable cutoff (default 06:00, `Europe/Rome` time zone): operational day D runs from 06:00 on D to 05:59 on D+1; the night shift belongs to the day on which it started. Pure `operationalDate` function (Node `Intl`) + DST tests.
 
 ## Ingest
 
-6 famiglie sorgente reali (dossier privato `sa-handoff/`, mai nel repo pubblico), mappate in `source_snapshot` e promosse a `app` in modo **idempotente** via binding espliciti (`wbs_import_sources`, `hr_import_sources`, …):
+6 actual source families (private `sa-handoff/` dossier, never in the public repo), mapped into `source_snapshot` and promoted to `app` **idempotently** via explicit bindings (`wbs_import_sources`, `hr_import_sources`, …):
 
-| Famiglia | Righe | → app |
+| Family | Rows | → app |
 | --- | --- | --- |
 | Employees | 1.249 | `employees` |
 | Time Schedule | 2.322 | `project_structure` (WBS) |
-| Site Progress Items | 2.320 | `site_progress_items` (identità unresolved) |
+| Site Progress Items | 2.320 | `site_progress_items` (unresolved identity) |
 | Daily Log | 291 | — |
 | Work Days | 48.398 | `work_days` |
 | Deviations | 19.747 | `deviations` |
 
-Identità: `source_uuid ↔ internal_id` via `ingest.entity_keys`; righe importate immutabili; annotazioni interne per identità persistente; reporting sull'ultimo bundle completo. **Nessun dato reale importato in produzione** (demo su dati sintetici).
+Identity: `source_uuid ↔ internal_id` via `ingest.entity_keys`; immutable imported rows; internal annotations tied to persistent identity; reporting on the latest complete bundle. **No real data imported into production** (demo on synthetic data).
 
-## Hosting e deployment
+## Hosting and deployment
 
-- **Backend**: systemd `siteassistant-api` sul VPS Hostinger, dietro Traefik (`api.siteassistant.asassi.cloud`). Riavvio = migrazioni applicate su Neon.
-- **Database**: **Neon** (`eu-central-1`), TLS; PostgreSQL 18 locale solo per i test (`test:pg`).
-- **Frontend**: nginx (container `siteassistant-demo`), `siteassistant.asassi.cloud` con basic auth.
-- **File**: iDrive e2 S3, bucket `siteassistant` (env `S3_*` dedicate, non il bucket di backup).
-- **Manuale**: `docs-site/` (Astro+Starlight) → GitHub Pages (`as76.github.io/SiteAssistant`), aggiornato automaticamente dal job docs.
+- **Backend**: systemd `siteassistant-api` on the Hostinger VPS, behind Traefik (`api.siteassistant.asassi.cloud`). Restart = migrations applied to Neon.
+- **Database**: **Neon** (`eu-central-1`), TLS; local PostgreSQL 18 only for tests (`test:pg`).
+- **Frontend**: nginx (`siteassistant-demo` container), `siteassistant.asassi.cloud` with basic auth.
+- **Files**: iDrive e2 S3, `siteassistant` bucket (dedicated `S3_*` env, not the backup bucket).
+- **Manual**: `docs-site/` (Astro+Starlight) → GitHub Pages (`as76.github.io/SiteAssistant`), updated automatically by the docs job.
 
-Sviluppo/staging/produzione hanno database, credenziali e bucket separati. Solo dati sintetici nel repo pubblico.
+Development/staging/production have separate databases, credentials and buckets. Only synthetic data in the public repo.
 
-## Limiti noti
+## Known limits
 
-- **Verifica di un'attività creata col solo nome.** Un'attività senza `executor_id`/`verifier_id`
-  può essere verificata **solo da un owner**: il nome digitato non è un'identità, quindi non può
-  autorizzare nessuno. L'interfaccia permette di scegliere i membri e evitare il caso; per i
-  subappaltatori senza account il nome resta l'unica opzione, e la verifica passa dall'owner.
-- **Deviazioni senza storico di stato.** Sono una proiezione dell'import: non esiste un percorso
-  interno di cambio stato, quindi la riconciliazione confronta solo le date ufficiali
+- **Verification of a task created with only a name.** A task without `executor_id`/`verifier_id`
+  can be verified **only by an owner**: the typed name is not an identity, so it cannot
+  authorize anyone. The interface allows members to be selected to avoid this case; for
+  subcontractors without an account the name remains the only option, and verification goes through the owner.
+- **Deviations without status history.** They are an import projection: there is no
+  internal status-change path, so reconciliation compares only the official dates
   (`closed_without_date`, `close_before_approval`).
-- **Ingest reale assente.** L'import avviene da export caricati a mano, non da un collegamento al
-  sistema di pianificazione.
+- **No real ingest.** Import uses manually uploaded exports, not a connection to the
+  planning system.
 
-## Prossimi passi
+## Next steps
 
-1. **Pilot** su un cantiere reale, condotto da Andrea: una persona, tre settimane.
-2. **Ingest reale** (#5) e, dopo, viste reporting (#6) e perimetro per area (#48).
-3. **Pannello «Storia»** dell'audit nell'interfaccia (#60).
-4. **UX review** dei flussi mobile/desktop (#7) dopo le prime settimane d'uso.
-5. Logistica/procurement (#30) = milestone successiva.
-6. Accesso aziendale: eventuale SSO OIDC/SAML, non un secondo provider OAuth (#1 chiusa).
+1. **Pilot** on a real site, led by Andrea: one person, three weeks.
+2. **Real ingest** (#5) and, afterwards, reporting views (#6) and area scope (#48).
+3. **Audit “History” panel** in the interface (#60).
+4. **UX review** of mobile/desktop flows (#7) after the first weeks of use.
+5. Logistics/procurement (#30) = next milestone.
+6. Corporate access: possible OIDC/SAML SSO, not a second OAuth provider (#1 closed).
 
-Le decisioni di perimetro restano documentate nel vault (blueprint/kanban), non qui.
+Scope decisions remain documented in the vault (blueprint/kanban), not here.

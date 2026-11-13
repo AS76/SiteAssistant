@@ -1,100 +1,100 @@
-# Import e archivio documenti — modalità complementare
+# Import and document archive — complementary mode
 
-Stato: **aggiornato (2026-11-10).** Storage S3 iDrive e2 attivo (bucket `siteassistant`); l'import reale (profili di mapping) non è ancora attivato in produzione.
+Status: **updated (2026-11-10).** iDrive e2 S3 storage active (`siteassistant` bucket); real import (mapping profiles) is not yet activated in production.
 
-## Perimetro
+## Scope
 
-Il prodotto è uno strumento interno che affianca un sistema sorgente. Importa export, collega documenti, prepara viste e annotazioni e registra lavoro interno. Il sistema sorgente mantiene i propri dati e flussi ufficiali. Non è previsto aggiornamento automatico del sistema esterno, invio di messaggi o chiusura di item in quel sistema.
+The product is an internal tool alongside a source system. It imports exports, links documents, prepares views and annotations and records internal work. The source system retains its own official data and workflows. No automatic updates to the external system, message sending or item closure in that system are planned.
 
-L'interfaccia mostra separatamente **stato importato**, **dato interno** e **data dell'ultimo export**. La chiusura o verifica interna non implica che il record sia stato chiuso o accettato nel sistema sorgente.
+The interface shows **imported status**, **internal data** and **date of the latest export** separately. Internal closure or verification does not imply that the record has been closed or accepted in the source system.
 
-## Ripartizione delle responsabilità
+## Division of responsibilities
 
-| Componente | Dati e responsabilità |
+| Component | Data and responsibilities |
 | --- | --- |
-| Sistema sorgente | Identificativi, campi e stati ufficiali inclusi negli export |
-| Archivio S3 compatibile | Originali e versioni dei file, allegati e derivati autorizzati |
-| PostgreSQL | Record normalizzati, provenienza, indici dei documenti, snapshot, relazioni, note e storico interno |
-| Applicazione (VPS + Neon) | Import guidato, controlli, Gantt e mappe, viste incrociate, accessi e operazioni interne |
-| Connettori di acquisizione | Lettura di file selezionati da sorgenti autorizzate; disponibilità e permessi da verificare per ogni canale |
+| Source system | Official identifiers, fields and statuses included in exports |
+| S3-compatible archive | File originals and versions, attachments and authorized derivatives |
+| PostgreSQL | Normalized records, provenance, document indexes, snapshots, relationships, notes and internal history |
+| Application (VPS + Neon) | Guided import, checks, Gantt and maps, cross-referenced views, access and internal operations |
+| Acquisition connectors | Reading selected files from authorized sources; availability and permissions to be verified for each channel |
 
-## Accesso ai file: API e MCP
+## File access: API and MCP
 
-### API S3 nel backend
+### S3 API in the backend
 
-Canale primario proposto per il funzionamento della web app: SDK S3 compatibile sul server. Endpoint, regione, bucket, prefissi ammessi e credenziali sono configurazione privata del deployment, non valori inclusi nel codice o nella documentazione pubblica.
+Proposed primary channel for web app operation: S3-compatible SDK on the server. Endpoint, region, bucket, allowed prefixes and credentials are private deployment configuration, not values included in the code or public documentation.
 
-- Consentire soltanto i bucket/prefissi assegnati all'applicazione e verificare l'autorizzazione per cantiere prima di elencare, leggere o consegnare un file.
-- Iniziare con lettura di oggetti selezionati; niente scansione indiscriminata dell'account, cancellazioni, cambi ACL o sovrascritture degli originali.
-- Conservare il riferimento all'oggetto e, se disponibile, il suo identificativo di versione. Calcolare un checksum di contenuto quando necessario: l'ETag non è sempre un hash del contenuto.
-- Gli URL firmati sono temporanei e non si salvano come indirizzi permanenti. Download tramite backend o link a breve scadenza dopo controllo accessi; cache del viewer compatibile con la scadenza.
-- Configurare CORS solo se serve realmente l'accesso diretto del browser. Le credenziali S3 non arrivano al frontend.
-- Eventuali scritture per upload, anteprime o report richiedono un'area di output separata e permessi espliciti. Nessun trasferimento di file tra ambienti avviene automaticamente.
-- Verificare sul servizio effettivo firma delle richieste, letture parziali per PDF, URL firmati, limiti e comportamento delle versioni. La compatibilità generica S3 non conferma tutte le capacità del provider.
+- Allow only the buckets/prefixes assigned to the application and verify site authorization before listing, reading or delivering a file.
+- Start with reads of selected objects; no indiscriminate account scanning, deletions, ACL changes or overwriting of originals.
+- Preserve the object reference and, if available, its version identifier. Calculate a content checksum when needed: the ETag is not always a content hash.
+- Signed URLs are temporary and are not saved as permanent addresses. Downloads through the backend or short-lived links after access checks; viewer cache compatible with expiry.
+- Configure CORS only if direct browser access is actually needed. S3 credentials do not reach the frontend.
+- Any writes for uploads, previews or reports require a separate output area and explicit permissions. No file transfers between environments happen automatically.
+- Verify request signing, partial reads for PDF, signed URLs, limits and version behavior on the actual service. Generic S3 compatibility does not confirm all provider capabilities.
 
-### MCP come canale aggiuntivo
+### MCP as an additional channel
 
-MCP può consentire operazioni assistite sui file se è disponibile un server con strumenti e permessi adeguati. Non è un requisito del browser e non sostituisce il modello documentale o la persistenza dell'applicazione.
+MCP may allow assisted file operations if a server with appropriate tools and permissions is available. It is not a browser requirement and does not replace the application's document model or persistence.
 
-Un eventuale adattatore MCP traduce solo strumenti realmente disponibili in operazioni applicative autorizzate. Mantiene provenienza, identificativo del file e risultato dell'operazione. I contenuti dei file e gli output del connettore sono dati, non istruzioni da eseguire. Disponibilità, autenticazione e capacità di download vanno provate prima di dichiarare operativa un'integrazione.
+Any MCP adapter translates only tools that are actually available into authorized application operations. It retains provenance, file identifier and operation result. File contents and connector outputs are data, not instructions to execute. Availability, authentication and download capabilities must be tested before declaring an integration operational.
 
-## Import degli export
+## Importing exports
 
-Il sistema prevede adattatori distinti per famiglie di export; la presenza e la struttura delle famiglie vanno confermate sui campioni. Possibili ambiti da verificare: pianificazione, avanzamento, attività/deviazioni e registri documentali.
+The system provides separate adapters for export families; the presence and structure of the families must be confirmed on samples. Possible areas to verify: planning, progress, tasks/deviations and document registers.
 
-1. **Selezione:** scegliere un file autorizzato, da caricamento, riferimento S3 o connettore disponibile.
-2. **Acquisizione:** leggere versione e metadati, calcolare checksum e registrare data di riferimento dell'export separatamente dalla data di acquisizione.
-3. **Riconoscimento:** proporre famiglia e versione del profilo; chiedere conferma per file non riconosciuti. Nessuna deduzione silenziosa dal solo nome.
-4. **Anteprima:** fogli e intestazioni, mapping, conteggi, formati, fusi e righe respinte con ragione.
-5. **Staging:** caricare i record in un lotto isolato; validare ID, gerarchie, riferimenti e mapping degli stati prima di renderli visibili nei report correnti.
-6. **Confronto:** mostrare aggiunte, modifiche e assenze rispetto allo snapshot precedente dello stesso ambito e popolazione. Una riga assente non equivale a un item cancellato o chiuso.
-7. **Conferma:** rendere disponibile uno snapshot immutabile e aggiornare le viste del dato importato tramite una transazione applicativa controllata.
-8. **Arricchimento interno:** collegare note, pianificazione di lavoro, consuntivi, verifiche interne e documenti senza modificare lo snapshot o scrivere nel sistema sorgente.
+1. **Selection:** choose an authorized file, from upload, S3 reference or an available connector.
+2. **Acquisition:** read version and metadata, calculate checksum and record the export's reference date separately from the acquisition date.
+3. **Recognition:** propose family and profile version; request confirmation for unrecognized files. No silent inference from the name alone.
+4. **Preview:** sheets and headers, mapping, counts, formats, time zones and rejected rows with reasons.
+5. **Staging:** load records into an isolated batch; validate IDs, hierarchies, references and status mapping before making them visible in current reports.
+6. **Comparison:** show additions, changes and absences against the previous snapshot of the same scope and population. An absent row does not equal a deleted or closed item.
+7. **Confirmation:** make an immutable snapshot available and update imported-data views through a controlled application transaction.
+8. **Internal enrichment:** link notes, work planning, actuals, internal verifications and documents without changing the snapshot or writing to the source system.
 
-### Identità, duplicati e stati
+### Identity, duplicates and statuses
 
-- Chiave del record esterno: sorgente + cantiere/ambito + famiglia + ID esterno stabile. Non usare titolo o numero di riga come identità.
-- Identità del lotto: checksum, sorgente, ambito e versione del profilo. Ritentare un'acquisizione non duplica dati o progressi. Riprocessare lo stesso file con un nuovo mapping è un'operazione esplicita con lineage.
-- Conservare stato/codice originale, stato normalizzato e versione della regola di mapping. Valori sconosciuti rimangono segnalati, non vengono trasformati automaticamente in “chiuso”.
-- Distinguere autore del record, assegnatario e impresa quando presenti. Il significato concreto delle colonne deve essere validato sul campione.
-- Il timestamp dell'export non basta a ricostruire tutti gli eventi precedenti. I trend usano snapshot confrontabili o eventi realmente disponibili; non inventano passaggi di stato.
-- Gli aggiornamenti interni sono associati al record stabile e possono risultare in conflitto con il nuovo export. Mostrare il conflitto e permettere riconciliazione esplicita; nessun sovrascrivere o propagare automaticamente.
+- External record key: source + site/scope + family + stable external ID. Do not use title or row number as identity.
+- Batch identity: checksum, source, scope and profile version. Retrying an acquisition does not duplicate data or progress. Reprocessing the same file with a new mapping is an explicit operation with lineage.
+- Preserve original status/code, normalized status and mapping-rule version. Unknown values remain flagged and are not automatically turned into “closed”.
+- Distinguish record author, assignee and company where present. The actual meaning of the columns must be validated on the sample.
+- The export timestamp is not enough to reconstruct all previous events. Trends use comparable snapshots or events that are actually available; they do not invent status transitions.
+- Internal updates are associated with the stable record and may conflict with a new export. Show the conflict and allow explicit reconciliation; no automatic overwriting or propagation.
 
-## Campi autorevoli e aggiornamenti interni
+## Authoritative fields and internal updates
 
-| Famiglia di dati | Regola proposta |
+| Data family | Proposed rule |
 | --- | --- |
-| Stato, date e assegnazioni ufficiali del record esterno | Conservati nello snapshot con data, fonte e versione |
-| Baseline importata | Revisione immutabile; scelta della baseline esplicita |
-| Piano corrente interno e progressi dichiarati/verificati | Dati applicativi separati, etichettati come interni; nessuna modifica del sistema esterno |
-| Note, collegamenti e annotazioni su mappe | Informazioni interne collegate al record e alla revisione del documento |
-| Report ed export prodotti dall'app | Artefatti derivati con data del dato e origine; eventuale invio esterno è un'azione distinta |
+| Official status, dates and assignments of the external record | Preserved in the snapshot with date, source and version |
+| Imported baseline | Immutable revision; explicit baseline selection |
+| Internal current plan and declared/verified progress | Separate application data, labeled as internal; no changes to the external system |
+| Notes, links and map annotations | Internal information linked to the record and document revision |
+| Reports and exports produced by the app | Derived artifacts with data date and origin; any external sending is a separate action |
 
-## Modello dati aggiuntivo
+## Additional data model
 
-| Entità proposta | Scopo |
+| Proposed entity | Purpose |
 | --- | --- |
-| source_connections | Metadati della sorgente e riferimento alla configurazione privata; nessuna chiave segreta in tabella |
-| import_profiles e import_profile_versions | Schemi attesi, mapping, campi e normalizzazione degli stati versionati |
-| import_batches e import_files | File, checksum, versione, popolazione, data del dato, data importazione, esito e contatori |
-| external_records | Identità stabile del record nel suo ambito |
-| external_record_snapshots | Valori originali e normalizzati per lotto; immutabilità e lineage |
-| internal_record_links | Foreign key tipizzate verso attività, deviazioni o voci di piano/avanzamento interne |
-| reconciliation_items | Differenze e conflitti da rivedere, esito e autore della decisione |
-| storage_objects e document_versions | Locator privato, versione, checksum, dimensione, formato e associazione al documento |
+| source_connections | Source metadata and reference to private configuration; no secret keys in the table |
+| import_profiles and import_profile_versions | Versioned expected schemas, mapping, fields and status normalization |
+| import_batches and import_files | Files, checksum, version, population, data date, import date, outcome and counters |
+| external_records | Stable record identity within its scope |
+| external_record_snapshots | Original and normalized values per batch; immutability and lineage |
+| internal_record_links | Typed foreign keys to internal tasks, deviations or plan/progress items |
+| reconciliation_items | Differences and conflicts to review, outcome and decision author |
+| storage_objects and document_versions | Private locator, version, checksum, size, format and document association |
 
-Il database conserva riferimenti ai segreti gestiti dal runtime, non i segreti stessi. Per record e collegamenti valgono isolamento per organizzazione/cantiere e autorizzazioni server.
+The database stores references to secrets managed by the runtime, not the secrets themselves. Organization/site isolation and server authorization apply to records and links.
 
-## Esempi reali e materiale pubblico
+## Real examples and public material
 
-I campioni privati vengono analizzati fuori dal checkout pubblico, limitando la lettura ai file selezionati. Nel repository possono entrare adattatori generici, mapping senza identificativi riservati e fixture sintetiche. Non entrano file reali, nomi di progetti o persone, indirizzi, ID di cartelle/bucket, endpoint di account, schermate reali, token o URL firmati.
+Private samples are analyzed outside the public checkout, limiting reads to selected files. Generic adapters, mappings without confidential identifiers and synthetic fixtures may enter the repository. Real files, project or person names, addresses, folder/bucket IDs, account endpoints, real screenshots, tokens or signed URLs must not enter it.
 
-Analisi, file e mapping specifici sono materiali privati, separati da questo repository. La loro disponibilità sul sistema di sviluppo deve essere verificata prima di usare un adattatore reale. Un tag a un'app non dimostra che i suoi strumenti siano disponibili alla sessione. Occorrono strumenti callable o file selezionati forniti tramite un canale accessibile; non vengono cercate credenziali nei documenti.
+Specific analyses, files and mappings are private materials, separate from this repository. Their availability on the development system must be verified before using a real adapter. Tagging an app does not demonstrate that its tools are available to the session. Callable tools or selected files provided through an accessible channel are required; credentials are not searched for in documents.
 
-## Primo incremento e verifiche
+## First increment and checks
 
-Il primo import concreto viene scelto dopo aver esaminato un export autorizzato. Preparare un profilo, una fixture sintetica equivalente, anteprima e mapping, caricamento idempotente e confronto di due snapshot. Poi collegare file S3 selezionati in sola lettura.
+The first concrete import is chosen after examining an authorized export. Prepare a profile, an equivalent synthetic fixture, preview and mapping, idempotent loading and comparison of two snapshots. Then link selected S3 files read-only.
 
-È disponibile uno [schema SQL generico con test sintetici](../database/README.md). Non contiene intestazioni o dati riservati e non costituisce un importatore operativo. I mapping privati devono essere revisionati rispetto ai nomi canonici e mantenuti fuori dal checkout.
+A [generic SQL schema with synthetic tests](../database/README.md) is available. It contains no confidential headers or data and does not constitute an operational importer. Private mappings must be reviewed against canonical names and kept outside the checkout.
 
-Verifiche: retry senza duplicati, mapping sconosciuto segnalato, nessuna perdita di note al reimport, data export distinta da data importazione, record assente non marcato chiuso, stato esterno separato da verifica interna, file non autorizzato inaccessibile, link scaduto gestito senza esporre segreti, nessuna scrittura sui sistemi sorgenti.
+Checks: retry without duplicates, unknown mapping flagged, no loss of notes on reimport, export date distinct from import date, absent record not marked closed, external status separate from internal verification, unauthorized file inaccessible, expired link handled without exposing secrets, no writes to source systems.
