@@ -39,7 +39,18 @@ To correct a row, press **Edit** on the row itself: the same window opens with t
 2. Check the name, code and contractor shown in the confirmation.
 3. Confirm with **Delete**.
 
-The tool disappears from the list, and later reads and edits on the same row return “not found”. The row itself is not erased: it stays in the audit register, which keeps a copy of the tool as it was plus a record of every creation, edit and deletion, with author and date. The trail is readable through the API only, by owners and verifiers: see [Audit register](../../riferimento/api/#audit-register). If the tool must stay readable in the interface, change its status to **Retired** instead of deleting it.
+The tool disappears from the list, and later reads and edits on the same row return “not found”. The row itself is not erased: it stays in the audit register, which keeps a copy of the tool as it was plus a record of every creation, edit and deletion, with author and date. The trail is readable from the **Latest changes** panel in the view and through the API, by owners and verifiers: see [Latest changes](#latest-changes) and [Audit register](../../riferimento/api/#audit-register). If the tool must stay readable in the interface, change its status to **Retired** instead of deleting it.
+
+## Latest changes
+
+At the bottom of the view, owners and verifiers have the collapsible **Latest changes** panel: the twenty most recent changes in the tool register, newest first. It is closed by default and the list loads when you open it. A viewer reads the register but does not see the panel.
+
+1. Each row gives the action — **Created**, **Updated** or **Deleted** —, who made it and when.
+2. Below it the tool name; if the row does not carry one, the first eight characters of the identifier.
+3. For an edit, up to four changed fields appear as **field: before → after**; when more fields changed, the row says how many others remain.
+4. When the list reaches twenty rows the panel warns that only the most recent changes are shown: to go further back use `GET /api/audit-events` with `limit` and `offset`.
+
+Values are the stored ones: for the status you see the code (`available`, `in_use`, `maintenance`, `retired`), not the translated label. The panel reloads every time you open it, so close and reopen it to see changes just made. Deleted tools stay readable here, with the data they had before deletion.
 
 ## Who can do what
 
@@ -47,6 +58,7 @@ The tool disappears from the list, and later reads and edits on the same row ret
 | :-- | :-- |
 | Read the register | Every member of the site |
 | Add, edit or delete a tool | owner, editor, verifier |
+| Read the latest changes | owner, verifier |
 
 :::caution[If something does not add up]
 - **I cannot see the buttons:** the `viewer` role only reads; writing is reserved to owners, editors and verifiers. See [Users and roles](../../amministrazione/utenti-e-ruoli/).

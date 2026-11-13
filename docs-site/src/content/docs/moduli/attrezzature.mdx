@@ -39,7 +39,18 @@ Per correggere una riga, premi **Modifica** sulla riga stessa: si apre la stessa
 2. Controlla nome, codice e appaltatore indicati nella conferma.
 3. Conferma con **Elimina**.
 
-L'attrezzatura sparisce dall'elenco e le letture e le modifiche successive sulla stessa riga rispondono «non trovata». La riga però non viene cancellata: resta nel registro di audit, che conserva una copia dell'attrezzatura com'era e la traccia di ogni inserimento, modifica ed eliminazione con autore e data. La traccia si legge solo via API, da owner e verificatori: vedi [Registro di audit](../../riferimento/api/#registro-di-audit). Se l'attrezzatura deve restare consultabile dall'interfaccia, cambia lo stato in **Dismessa** invece di eliminarla.
+L'attrezzatura sparisce dall'elenco e le letture e le modifiche successive sulla stessa riga rispondono «non trovata». La riga però non viene cancellata: resta nel registro di audit, che conserva una copia dell'attrezzatura com'era e la traccia di ogni inserimento, modifica ed eliminazione con autore e data. La traccia si legge dal pannello **Ultime modifiche** della vista e via API, da owner e verificatori: vedi [Ultime modifiche](#ultime-modifiche) e [Registro di audit](../../riferimento/api/#registro-di-audit). Se l'attrezzatura deve restare consultabile dall'interfaccia, cambia lo stato in **Dismessa** invece di eliminarla.
+
+## Ultime modifiche
+
+In fondo alla vista, owner e verificatori hanno il pannello richiudibile **Ultime modifiche**: le venti modifiche più recenti del registro delle attrezzature, dalla più nuova. È chiuso per impostazione predefinita e l'elenco si carica quando lo apri. Un viewer consulta il registro ma non vede il pannello.
+
+1. Ogni riga dice l'azione — **Creata**, **Modificata** o **Eliminata** —, chi l'ha eseguita e quando.
+2. Sotto compare il nome dell'attrezzatura; se la riga non lo riporta, i primi otto caratteri dell'identificativo.
+3. Per una modifica sono elencati fino a quattro campi cambiati nella forma **campo: prima → dopo**; se i campi sono più di quattro, la riga dice quanti altri ne restano.
+4. Quando l'elenco arriva a venti righe, il pannello avverte che sono mostrate solo le modifiche più recenti: per andare più indietro usa `GET /api/audit-events` con `limit` e `offset`.
+
+I valori sono quelli salvati: per lo stato compare il codice (`available`, `in_use`, `maintenance`, `retired`), non l'etichetta italiana. Il pannello si ricarica a ogni apertura, quindi chiudilo e riaprilo per vedere le modifiche appena fatte. Le attrezzature eliminate restano leggibili qui, con i dati che avevano prima dell'eliminazione.
 
 ## Chi può fare cosa
 
@@ -47,6 +58,7 @@ L'attrezzatura sparisce dall'elenco e le letture e le modifiche successive sulla
 | :-- | :-- |
 | Consultare il registro | Tutti i membri del cantiere |
 | Aggiungere, modificare o eliminare un'attrezzatura | owner, editor, verifier |
+| Consultare le ultime modifiche | owner, verifier |
 
 :::caution[Se qualcosa non torna]
 - **Non vedo i pulsanti:** il ruolo `viewer` consulta soltanto; la scrittura è riservata a owner, editor e verificatori. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/).

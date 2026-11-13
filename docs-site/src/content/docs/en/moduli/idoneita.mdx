@@ -52,7 +52,18 @@ The **expiry** date cannot precede the **issue** date: if the two dates are swap
 2. Check the name, employee and expiry shown in the confirmation.
 3. Confirm with **Delete**.
 
-The certificate disappears from the list and the counters, and later reads and edits on the same row return “not found”. The row itself is not erased: it stays in the audit register, which keeps a copy of the certificate as it was plus a record of every creation, edit and deletion, with author and date. The trail is readable through the API only, by owners and verifiers: see [Audit register](../../riferimento/api/#audit-register). If the certificate must stay readable in the interface, correct its data instead of deleting it.
+The certificate disappears from the list and the counters, and later reads and edits on the same row return “not found”. The row itself is not erased: it stays in the audit register, which keeps a copy of the certificate as it was plus a record of every creation, edit and deletion, with author and date. The trail is readable from the **Latest changes** panel in the view and through the API, by owners and verifiers: see [Latest changes](#latest-changes) and [Audit register](../../riferimento/api/#audit-register). If the certificate must stay readable in the interface, correct its data instead of deleting it.
+
+## Latest changes
+
+At the bottom of the view, owners and verifiers have the collapsible **Latest changes** panel: the twenty most recent changes to the site certificates, newest first. It is closed by default and the list loads when you open it.
+
+1. Each row gives the action — **Created**, **Updated** or **Deleted** —, who made it and when.
+2. Below it the certificate name; if the row does not carry one, the first eight characters of the identifier.
+3. For an edit, up to four changed fields appear as **field: before → after**; when more fields changed, the row says how many others remain.
+4. When the list reaches twenty rows the panel warns that only the most recent changes are shown: to go further back use `GET /api/audit-events` with `limit` and `offset`.
+
+Values are the stored ones: for the category you see the code, not the translated label, and dates stay in `YYYY-MM-DD` format. The panel reloads every time you open it, so close and reopen it to see changes just made. Deleted certificates stay readable here, with the data they had before deletion. Editors and viewers do not see the panel.
 
 ## Who can do what
 
@@ -60,6 +71,7 @@ The certificate disappears from the list and the counters, and later reads and e
 | :-- | :-- |
 | Read the certifications | owner, editor, verifier |
 | Add, edit or delete a certificate | owner, editor |
+| Read the latest changes | owner, verifier |
 
 Certifications are personal records: the `viewer` role does not read them. The view appears in the navigation, but for a viewer the server refuses to load the list.
 

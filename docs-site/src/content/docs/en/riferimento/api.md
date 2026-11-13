@@ -187,7 +187,9 @@ Every creation, edit and deletion of an HSE event, a certificate or a tool leave
 
 `site_id` is required; `entity_type` is `hse_event`, `certification` or `tool`, and `entity_id` is the identifier of the row to trace. Access follows the site role: owners and verifiers read, editors and viewers do not, even when they are the ones writing the traced rows. There are no write routes: the register is append-only and cannot be edited or deleted through the API.
 
-Each row carries `entity_type`, `entity_id`, `action` (`create`, `update`, `delete`), `at`, `actor` — the identifier of the user who wrote — and `changes`, a JSON object. On `create` it holds the filled fields of the created row; on `delete` the whole row as it was before; on `update` only the fields that changed, as `{ "field": { "from": …, "to": … } }`, without `id`, `site_id`, `created_at`, `updated_at` and `deleted_at`. An edit that changes no field is still recorded, with empty `changes`.
+Each row carries `entity_type`, `entity_id`, `action` (`create`, `update`, `delete`), `at`, `actor` — the identifier of the user who wrote —, `actor_name` — the user's name, taken from the users table and `null` when the user is no longer present — and `changes`, a JSON object. On `create` it holds the filled fields of the created row; on `delete` the whole row as it was before; on `update` only the fields that changed, as `{ "field": { "from": …, "to": … } }`, without `id`, `site_id`, `created_at`, `updated_at` and `deleted_at`. An edit that changes no field is still recorded, with empty `changes`.
+
+The interface uses the same endpoint in the **Latest changes** panel of the HSE, Fitness and Tools views, with `limit=20` and no `entity_id`; further pages are read with `offset`.
 
 Deletion is therefore **logical** for all three types: the row disappears from the lists, the counters and the details and later reads return the module's “not found” code, but it stays readable in the audit register. Dedicated codes of the register: `AUDIT_INVALID` (400) for a non-UUID identifier, an unknown `entity_type` or invalid filters.
 

@@ -78,7 +78,18 @@ The **event number** is an internal reference: you can leave it empty, but when 
 2. Check the date, type and any number shown in the confirmation.
 3. Confirm with **Delete**.
 
-The event disappears from the list and the counters, and later reads and edits on the same row return “not found”. The row itself is not erased: it stays in the audit register, which keeps a copy of the event as it was plus a record of every creation, edit and deletion, with author and date. The trail is readable through the API only, by owners and verifiers: see [Audit register](../../riferimento/api/#audit-register). If the event must stay readable in the interface, correct its data instead of deleting it.
+The event disappears from the list and the counters, and later reads and edits on the same row return “not found”. The row itself is not erased: it stays in the audit register, which keeps a copy of the event as it was plus a record of every creation, edit and deletion, with author and date. The trail is readable from the **Latest changes** panel in the view and through the API, by owners and verifiers: see [Latest changes](#latest-changes) and [Audit register](../../riferimento/api/#audit-register). If the event must stay readable in the interface, correct its data instead of deleting it.
+
+## Latest changes
+
+At the bottom of the view, owners and verifiers have the collapsible **Latest changes** panel: the twenty most recent changes in the HSE register, newest first. It is closed by default and the list loads when you open it.
+
+1. Each row gives the action — **Created**, **Updated** or **Deleted** —, who made it and when.
+2. Below it the **event number**; if the event has no number, the first eight characters of the identifier.
+3. For an edit, up to four changed fields appear as **field: before → after**; when more fields changed, the row says how many others remain.
+4. When the list reaches twenty rows the panel warns that only the most recent changes are shown: to go further back use `GET /api/audit-events` with `limit` and `offset`.
+
+Values are the stored ones: for type and severity you see the code (`near_miss`, `low`), not the translated label. The panel reloads every time you open it, so close and reopen it to see changes just made. Deleted events stay readable here, with the data they had before deletion. Editors and viewers do not see the panel.
 
 ## Who can do what
 
@@ -86,6 +97,7 @@ The event disappears from the list and the counters, and later reads and edits o
 | :-- | :-- |
 | Read the HSE register | owner, editor, verifier |
 | Add, edit or delete an event | owner, editor |
+| Read the latest changes | owner, verifier |
 
 The `viewer` role has no access to the register: the entry appears in the navigation, but the view shows **Restricted register**. The register is separate from the other modules and feeds neither the Overview nor the report.
 

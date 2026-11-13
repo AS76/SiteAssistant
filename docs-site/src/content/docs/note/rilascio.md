@@ -70,7 +70,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - L'assistente dati legge i dati del cantiere selezionato e non scrive nulla; richiede la connessione.
 - Il collegamento tra avanzamento e WBS avviene solo con una corrispondenza univoca di area PLC e sezione: senza corrispondenza la voce resta scollegata.
 - Gli stati delle deviazioni arrivano dal sistema di origine; uno stato non riconosciuto resta vuoto invece di essere interpretato.
-- L'eliminazione di attrezzature, certificazioni ed eventi HSE è **logica**: la riga sparisce dalle viste, dai contatori e dai dettagli, ma resta nel registro di audit con autore e data, leggibile via API da owner e verificatori. Le certificazioni restano riservate a owner, editor e verificatori: il ruolo `viewer` non le consulta. Le persone coinvolte negli eventi HSE sono **solo un numero**: il registro non contiene nomi né dati sanitari e non è collegato alla scheda del dipendente.
+- L'eliminazione di attrezzature, certificazioni ed eventi HSE è **logica**: la riga sparisce dalle viste, dai contatori e dai dettagli, ma resta nel registro di audit con autore e data, leggibile dal pannello **Ultime modifiche** delle tre viste e via API da owner e verificatori. Le certificazioni restano riservate a owner, editor e verificatori: il ruolo `viewer` non le consulta. Le persone coinvolte negli eventi HSE sono **solo un numero**: il registro non contiene nomi né dati sanitari e non è collegato alla scheda del dipendente.
 
 :::caution[Dati]
 La versione attuale è una demo operativa con dati di prova. Non inserire informazioni riservate, credenziali o dati contrattuali.

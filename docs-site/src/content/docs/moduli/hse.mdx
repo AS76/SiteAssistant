@@ -78,7 +78,18 @@ Il **numero evento** è un riferimento interno: puoi lasciarlo vuoto, ma se lo c
 2. Controlla data, tipo ed eventuale numero indicati nella conferma.
 3. Conferma con **Elimina**.
 
-L'evento sparisce dall'elenco e dai contatori, e le letture e le modifiche successive sulla stessa riga rispondono «non trovato». La riga però non viene cancellata: resta nel registro di audit, che conserva una copia dell'evento com'era e la traccia di ogni inserimento, modifica ed eliminazione con autore e data. La traccia si legge solo via API, da owner e verificatori: vedi [Registro di audit](../../riferimento/api/#registro-di-audit). Se l'evento deve restare consultabile dall'interfaccia, correggine i dati invece di eliminarlo.
+L'evento sparisce dall'elenco e dai contatori, e le letture e le modifiche successive sulla stessa riga rispondono «non trovato». La riga però non viene cancellata: resta nel registro di audit, che conserva una copia dell'evento com'era e la traccia di ogni inserimento, modifica ed eliminazione con autore e data. La traccia si legge dal pannello **Ultime modifiche** della vista e via API, da owner e verificatori: vedi [Ultime modifiche](#ultime-modifiche) e [Registro di audit](../../riferimento/api/#registro-di-audit). Se l'evento deve restare consultabile dall'interfaccia, correggine i dati invece di eliminarlo.
+
+## Ultime modifiche
+
+In fondo alla vista, owner e verificatori hanno il pannello richiudibile **Ultime modifiche**: le venti modifiche più recenti del registro HSE, dalla più nuova. È chiuso per impostazione predefinita e l'elenco si carica quando lo apri.
+
+1. Ogni riga dice l'azione — **Creata**, **Modificata** o **Eliminata** —, chi l'ha eseguita e quando.
+2. Sotto compare il **numero evento**; se l'evento non ha numero, i primi otto caratteri dell'identificativo.
+3. Per una modifica sono elencati fino a quattro campi cambiati nella forma **campo: prima → dopo**; se i campi sono più di quattro, la riga dice quanti altri ne restano.
+4. Quando l'elenco arriva a venti righe, il pannello avverte che sono mostrate solo le modifiche più recenti: per andare più indietro usa `GET /api/audit-events` con `limit` e `offset`.
+
+I valori sono quelli salvati: per tipo e gravità compare il codice (`near_miss`, `low`), non l'etichetta italiana. Il pannello si ricarica a ogni apertura, quindi chiudilo e riaprilo per vedere le modifiche appena fatte. Gli eventi eliminati restano leggibili qui, con i dati che avevano prima dell'eliminazione. Editor e viewer non vedono il pannello.
 
 ## Chi può fare cosa
 
@@ -86,6 +97,7 @@ L'evento sparisce dall'elenco e dai contatori, e le letture e le modifiche succe
 | :-- | :-- |
 | Consultare il registro HSE | owner, editor, verifier |
 | Aggiungere, modificare o eliminare un evento | owner, editor |
+| Consultare le ultime modifiche | owner, verifier |
 
 Il ruolo `viewer` non accede al registro: la voce compare nella navigazione, ma la vista mostra **Registro riservato**. Il registro è separato dagli altri moduli e non alimenta la Panoramica né il report.
 
