@@ -34,6 +34,14 @@ export async function appendAuditEvent(tx, { entityType, action, before, after, 
   at, actor, JSON.stringify(changes));
 }
 
+// Reads describe only the object accessed; no event or personnel snapshot is needed.
+export async function appendAttachmentRead(db, attachment, user) {
+  await db.run(`INSERT INTO audit_events (id, site_id, entity_type, entity_id, action, at, actor, changes)
+    VALUES (?, ?, 'hse_event', ?, 'read', ?, ?, ?)`, randomUUID(), attachment.site_id,
+  attachment.entity_id, new Date().toISOString(), user.id,
+  JSON.stringify({ attachment: { id: attachment.id, filename: attachment.filename } }));
+}
+
 async function filters(db, { siteId, entityType, entityId }, user) {
   if (!user?.id) throw new RepositoryError(401, 'Authentication required.', 'UNAUTHENTICATED');
   const site = validId(siteId, 'site_id');

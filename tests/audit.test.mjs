@@ -301,7 +301,7 @@ for (const driver of ['sqlite', 'pg']) test(`Audit migration upgrades populated 
   await db.run(`INSERT INTO tools (id, site_id, name, status, created_at, updated_at)
     VALUES (?, ?, 'Synthetic legacy tool', 'available', ?, ?)`, ids[2], site.id, at, at);
   const before = await Promise.all(modules.map(module => db.get(`SELECT * FROM ${module.table}`)));
-  t.assert.strictEqual(await migrate(db, { driver }), 1);
+  t.assert.strictEqual(await migrate(db, { driver }), 3);
   for (let index = 0; index < modules.length; index++) {
     t.assert.deepStrictEqual(plain(await db.get(`SELECT * FROM ${modules[index].table}`)), plain({ ...before[index], deleted_at: null }));
   }
@@ -314,4 +314,32 @@ for (const driver of ['sqlite', 'pg']) test(`Audit migration upgrades populated 
   }
   t.assert.strictEqual(await migrate(db, { driver }), 0);
   t.assert.strictEqual(await countAuditEvents(db, { siteId: site.id }, users.owner), 3);
+});
+
+for (const driver of ['sqlite', 'pg']) test(`026 changes only the audit action constraint and preserves populated history: ${driver}`, async t => {
+  const db = await database(t, driver, false);
+  const directory = new URL(`../server/migrations/${driver}/`, import.meta.url);
+  const files = (await readdir(directory)).filter(file => /^\d{3}_.*\.sql$/.test(file) && file < '026').sort();
+  for (const file of files) await db.transaction(tx => applyMigration(tx, file, { driver }));
+  const site = await createSite(db, { code: 'SYNTHETIC-026', name: 'Synthetic migration site' });
+  const actor = randomUUID(), entity = randomUUID(), at = '2026-11-01T00:00:00.000Z';
+  const insert = action => db.run(`INSERT INTO audit_events (id, site_id, entity_type, entity_id, action, at, actor, changes)
+    VALUES (?, ?, 'hse_event', ?, ?, ?, ?, ?)`, randomUUID(), site.id, entity, action, at, actor, '{}');
+  for (const action of ['create', 'update', 'delete']) await insert(action);
+  await t.assert.rejects(() => insert('read'), /check/i);
+  const before = await db.all('SELECT * FROM audit_events ORDER BY id');
+  const columns = () => driver === 'sqlite' ? db.all('PRAGMA table_info(audit_events)')
+    : db.all("SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = 'audit_events' ORDER BY ordinal_position");
+  const indexes = () => driver === 'sqlite' ? db.all("SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'audit_events' ORDER BY name")
+    : db.all("SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'audit_events' ORDER BY indexname");
+  const oldColumns = await columns(), oldIndexes = await indexes();
+  await db.transaction(tx => applyMigration(tx, '026_audit_reads.sql', { driver }));
+  t.assert.deepStrictEqual(await db.all('SELECT * FROM audit_events ORDER BY id'), before);
+  t.assert.deepStrictEqual(await columns(), oldColumns);
+  t.assert.deepStrictEqual(await indexes(), oldIndexes);
+  await insert('read');
+  t.assert.strictEqual((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'read'")).n, 1);
+  await t.assert.rejects(() => insert('invented'), /check/i);
+  await t.assert.rejects(() => db.run("UPDATE audit_events SET entity_type = 'invented'"), /check/i);
+  await t.assert.rejects(() => db.run('UPDATE audit_events SET site_id = ?', randomUUID()), /foreign key/i);
 });

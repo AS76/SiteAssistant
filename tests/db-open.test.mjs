@@ -77,17 +77,18 @@ for (const driver of ['sqlite', 'pg']) {
     const original = await database.create();
     const files = (await readdir(new URL(`../server/migrations/${driver}/`, import.meta.url)))
       .filter(file => /^\d{3}_.+\.sql$/.test(file)).sort();
-    // This regression exercises the table introduced by the last migration.
-    t.assert.strictEqual(files.at(-1), '025_audit_events.sql');
+    // Keep 025 pending to exercise creation of audit_events as well as its newer constraints.
+    t.assert.strictEqual(files.at(-1), '027_attachments_hse_event.sql');
+    const pending = files.filter(file => file >= '025');
     await original.exec('CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
-    for (const file of files.slice(0, -1)) {
+    for (const file of files.filter(file => file < '025')) {
       await original.transaction(async tx => {
         await applyMigration(tx, file, { driver });
         await tx.run('INSERT INTO schema_migrations VALUES (?, ?)', file.slice(0, 3), '2026-01-01T00:00:00.000Z');
       });
     }
     const before = await original.all('SELECT * FROM schema_migrations ORDER BY version');
-    t.assert.strictEqual(before.length, files.length - 1);
+    t.assert.strictEqual(before.length, files.length - pending.length);
     t.assert.strictEqual(await tableExists(original, driver, 'audit_events'), false);
     await closeDb(original);
 
@@ -100,13 +101,13 @@ for (const driver of ['sqlite', 'pg']) {
 
     const migrated = await database.open({ onMigrationsApplied });
     const after = await migrated.all('SELECT * FROM schema_migrations ORDER BY version');
-    t.assert.deepStrictEqual(after.slice(0, -1), before);
+    t.assert.deepStrictEqual(after.slice(0, -pending.length), before);
     t.assert.strictEqual(after.length, files.length);
-    t.assert.strictEqual(after.at(-1).version, '025');
+    t.assert.strictEqual(after.at(-1).version, '027');
     t.assert.strictEqual(await tableExists(migrated, driver, 'audit_events'), true);
     t.assert.deepStrictEqual(await migrated.all('SELECT * FROM audit_events'), []);
     t.assert.strictEqual(onMigrationsApplied.mock.callCount(), 1);
-    t.assert.deepStrictEqual(onMigrationsApplied.mock.calls[0].arguments, [1]);
+    t.assert.deepStrictEqual(onMigrationsApplied.mock.calls[0].arguments, [pending.length]);
     await closeDb(migrated);
 
     const reopened = await database.open({ migrate: true, onMigrationsApplied });

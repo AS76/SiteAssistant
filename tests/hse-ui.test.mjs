@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { corePermissions, navGroups, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from '../app/domain.mjs';
+import { corePermissions, navGroups, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts, hseAttachmentNeedsReview } from '../app/domain.mjs';
 import { HSE_TYPES as SERVER_TYPES, HSE_SEVERITIES as SERVER_SEVERITIES } from '../server/hse.mjs';
 import { createApi } from '../app/api.mjs';
 import { messages } from '../app/i18n.mjs';
@@ -96,6 +96,8 @@ async function hseUi(role = 'editor') {
     coreFilters: { hse: { type: '', severity: '', from: '', to: '' } },
     coreCache: new Map([['site-1', new Map([['hse', { data: [row] }]])]]),
     coreData: () => [row], permissions: () => corePermissions(role),
+    state: { attachments: [{ id: 'file-1', entity_type: 'hse_event', entity_id: row.id, filename: 'Synthetic diagram.pdf' }] },
+    syncBadge: () => '', hseAttachmentNeedsReview,
     t: key => messages.it[key] || key, esc: escaped,
     coreValue: value => escaped(value ?? '—'), coreNumber: value => value == null ? '—' : String(value),
     coreStatus: (value, label) => escaped(label), empty: key => `<p>${messages.it[key]}</p>`,
@@ -111,6 +113,7 @@ async function hseUi(role = 'editor') {
   runInContext(source.slice(source.indexOf('function coreSelect('), source.indexOf('const coreDetailButton')), context);
   runInContext(source.slice(source.indexOf('function field('), source.indexOf('function formError(')), context);
   runInContext(source.slice(source.indexOf('function renderHse('), source.indexOf('function renderImpacts(')), context);
+  runInContext(source.slice(source.indexOf('function attachmentSection('), source.indexOf('async function openAttachment(')), context);
   return { run: script => runInContext(script, context), context, calls, dialogs, notifications };
 }
 
@@ -130,6 +133,11 @@ test('HSE view and modal render factual fields, escape text and respect write ro
   assert.match(form, /name="personsInvolved"[^>]*min="0"[^>]*step="1"[^>]*value="0"/);
   assert.match(form, /name="occurredOn"[^>]*required/);
   assert.doesNotMatch(form, /name="employeeId"/);
+  assert.match(form, /data-command="new-attachment" data-entity-type="hse_event" data-id="event-1"/);
+  assert.match(form, /Synthetic diagram.pdf/);
+  assert.ok(form.includes(messages.it.hseAttachmentRule));
+  ui.run("hseEditingId = ''; showHseForm()");
+  assert.doesNotMatch(ui.dialogs.at(-1).html, /attachment-section/);
   ui.run("showHseDelete('event-1')");
   assert.match(ui.dialogs.at(-1).html, /hse-delete-form/);
   assert.match(ui.dialogs.at(-1).html, /SYN-001/);
@@ -141,6 +149,52 @@ test('HSE view and modal render factual fields, escape text and respect write ro
     restricted.run('showHseForm()');
     assert.equal(restricted.dialogs.length, 0);
     assert.deepEqual(restricted.notifications, [messages.it.forbidden]);
+  }
+});
+
+test('HSE attachment text hints cover Italian and English filenames and descriptions without inspecting images', () => {
+  for (const word of ['persona', 'persone', 'infortunio', 'infortuni', 'ferita', 'ferite', 'sangue', 'viso', 'volto',
+    'person', 'persons', 'people', 'injury', 'injuries', 'injured', 'wound', 'wounds', 'blood', 'face', 'faces']) {
+    assert.equal(hseAttachmentNeedsReview(`Synthetic_${word.toUpperCase()}-01.pdf`), true, word);
+    assert.equal(hseAttachmentNeedsReview('Synthetic diagram.pdf', `Synthetic ${word}`), true, word);
+  }
+  for (const filename of ['Synthetic condition.png', 'Synthetic diagram.pdf', 'Synthetic surface.jpg', 'Synthetic interface.pdf']) {
+    assert.equal(hseAttachmentNeedsReview(filename), false, filename);
+  }
+  assert.equal(hseAttachmentNeedsReview(), false);
+});
+
+test('HSE upload warning reacts to file and description changes in both languages and never blocks submission', async () => {
+  for (const language of ['it', 'en']) {
+    const ui = await hseUi();
+    ui.context.t = key => messages[language][key] || key;
+    const events = {}, warning = { hidden: true };
+    const form = { elements: {
+      file: { files: [{ name: 'Synthetic face.png' }], addEventListener: (type, fn) => { events[type] = fn; } },
+      description: { value: '', addEventListener: (type, fn) => { events[type] = fn; } },
+    }, querySelector: () => warning };
+    ui.context.$ = () => form;
+    ui.run("showAttachmentForm('hse_event', 'event-1')");
+    const html = ui.dialogs.at(-1).html;
+    assert.ok(html.includes(messages[language].hseAttachmentRule));
+    assert.ok(html.includes(messages[language].hseAttachmentAlternative));
+    assert.ok(html.includes(messages[language].hseAttachmentWarning));
+    assert.match(html, /data-hse-attachment-warning role="status" aria-live="polite" hidden/);
+    assert.doesNotMatch(html, /disabled/);
+    assert.equal(warning.hidden, true);
+    events.change(); assert.equal(warning.hidden, false);
+    form.elements.file.files = [{ name: 'Synthetic diagram.pdf' }];
+    events.change(); assert.equal(warning.hidden, true);
+    form.elements.description.value = 'Synthetic injury';
+    events.input(); assert.equal(warning.hidden, false);
+    form.elements.description.value = '';
+    events.input(); assert.equal(warning.hidden, true);
+    form.elements.file.files = [];
+    events.change(); assert.equal(warning.hidden, true);
+    for (const type of ['task', 'diary', 'site']) {
+      ui.run(`showAttachmentForm('${type}', 'record-1')`);
+      assert.doesNotMatch(ui.dialogs.at(-1).html, /data-hse-attachment-warning|name="description"/);
+    }
   }
 });
 

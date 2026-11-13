@@ -393,3 +393,7 @@ export function progressWithHours(items, bookings) {
 export function flattenWbs(nodes) {
   return nodes.flatMap(node => [node, ...flattenWbs(node.children || [])]);
 }
+// A text hint for human review, never detection of the contents of an image.
+export function hseAttachmentNeedsReview(filename = '', description = '') {
+  return /(?:^|[^\p{L}])(?:person(?:a|e|s)?|people|infortuni(?:o)?|ferit[aeoi]|sangue|vis[oi]|volt[oi]|injur(?:y|ies|ed)|wound(?:s|ed)?|blood(?:y)?|faces?)(?=$|[^\p{L}])/iu.test(`${filename} ${description}`);
+}

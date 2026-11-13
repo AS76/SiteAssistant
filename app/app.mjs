@@ -1,6 +1,7 @@
 import { initialView, todayActions, recentActions, defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
+import { hseAttachmentNeedsReview } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock } from './offline.mjs';
 
@@ -949,7 +950,7 @@ function renderAuditEvents(events) {
   if (!events.length) return `<p role="status">${t('auditEmpty')}</p>`;
   const rows = events.map(event => {
     const changes = typeof event.changes === 'string' ? JSON.parse(event.changes) : event.changes;
-    const name = ['name', 'event_no', 'title', 'deviation_no'].map(field => {
+    const name = event.action === 'read' ? changes.attachment?.filename : ['name', 'event_no', 'title', 'deviation_no'].map(field => {
       const value = changes[field];
       return event.action === 'update' && value && typeof value === 'object' ? value.to || value.from : value;
     }).find(value => value != null && value !== '');
@@ -957,7 +958,7 @@ function renderAuditEvents(events) {
     const summary = fields.length ? `<ul class="audit-changes">${fields.slice(0, 4).map(([field, change]) =>
       `<li>${esc(auditFieldLabel(event.entity_type, field))}: ${esc(auditValue(change.from))} → ${esc(auditValue(change.to))}</li>`).join('')}</ul>` : '';
     const more = fields.length > 4 ? `<p class="note">${esc(t('auditMore').replace('{count}', String(fields.length - 4)))}</p>` : '';
-    return `<li><div class="audit-event-heading"><strong>${esc(t({ create: 'auditCreated', update: 'auditUpdated', delete: 'auditDeleted' }[event.action]))}</strong><span>${esc(event.actor_name || t('auditUnknownUser'))}</span><time datetime="${esc(event.at)}">${esc(timeLabel(event.at))}</time></div><p class="audit-record">${esc(name ?? event.entity_id.slice(0, 8))}</p>${summary}${more}</li>`;
+    return `<li><div class="audit-event-heading"><strong>${esc(t({ create: 'auditCreated', update: 'auditUpdated', delete: 'auditDeleted', read: 'auditRead' }[event.action]))}</strong><span>${esc(event.actor_name || t('auditUnknownUser'))}</span><time datetime="${esc(event.at)}">${esc(timeLabel(event.at))}</time></div><p class="audit-record">${esc(name ?? event.entity_id.slice(0, 8))}</p>${summary}${more}</li>`;
   }).join('');
   return `<ol class="audit-events">${rows}</ol>${events.length === 20 ? `<p class="note">${t('auditRecentOnly')}</p>` : ''}`;
 }
@@ -1219,7 +1220,7 @@ function showHseForm() {
   const editing = hseEditingId ? coreData('hse').find(row => row.id === hseEditingId) : null;
   if (hseEditingId && !editing) return toast(t('hseNotFound'));
   const options = (values, prefix, selected) => values.map(value => `<option value="${value}" ${selected === value ? 'selected' : ''}>${t(`${prefix}_${value}`)}</option>`).join('');
-  showModal(t(editing ? 'hseEdit' : 'hseAdd'), `<form id="hse-form" data-id="${esc(editing?.id || '')}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('hsePrivacy')}</p><div class="form-grid">${field('hseOccurredOn', 'occurredOn', editing?.occurredOn || '', { type: 'date', required: true })}${field('hseEventNo', 'eventNo', editing?.eventNo || '', { max: 120 })}${field('hseType', 'type', editing?.type || 'near_miss', { required: true, options: options(HSE_TYPES, 'hseType', editing?.type || 'near_miss') })}${field('hseSeverity', 'severity', editing?.severity || 'low', { required: true, options: options(HSE_SEVERITIES, 'hseSeverity', editing?.severity || 'low') })}${field('hseLocation', 'location', editing?.location || '', { max: 200 })}<label class="field"><span>${t('hsePersons')} <small>(${t('optional')})</small></span><input type="number" name="personsInvolved" min="0" max="2147483647" step="1" value="${esc(editing?.personsInvolved ?? '')}"><small>${t('hsePersonsHint')}</small></label>${field('hseMeasures', 'measures', editing?.measures || '', { type: 'textarea', full: true, max: 2000 })}${field('hseNotes', 'notes', editing?.notes || '', { type: 'textarea', full: true, max: 2000 })}</div>${formActions()}</form>`);
+  showModal(t(editing ? 'hseEdit' : 'hseAdd'), `<form id="hse-form" data-id="${esc(editing?.id || '')}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('hsePrivacy')}</p><div class="form-grid">${field('hseOccurredOn', 'occurredOn', editing?.occurredOn || '', { type: 'date', required: true })}${field('hseEventNo', 'eventNo', editing?.eventNo || '', { max: 120 })}${field('hseType', 'type', editing?.type || 'near_miss', { required: true, options: options(HSE_TYPES, 'hseType', editing?.type || 'near_miss') })}${field('hseSeverity', 'severity', editing?.severity || 'low', { required: true, options: options(HSE_SEVERITIES, 'hseSeverity', editing?.severity || 'low') })}${field('hseLocation', 'location', editing?.location || '', { max: 200 })}<label class="field"><span>${t('hsePersons')} <small>(${t('optional')})</small></span><input type="number" name="personsInvolved" min="0" max="2147483647" step="1" value="${esc(editing?.personsInvolved ?? '')}"><small>${t('hsePersonsHint')}</small></label>${field('hseMeasures', 'measures', editing?.measures || '', { type: 'textarea', full: true, max: 2000 })}${field('hseNotes', 'notes', editing?.notes || '', { type: 'textarea', full: true, max: 2000 })}</div>${formActions()}</form>${editing ? attachmentSection('hse_event', editing.id) : ''}`);
 }
 function showHseDelete(id) {
   if (!permissions().hseWrite) return toast(t('forbidden'));
@@ -1818,10 +1819,20 @@ function wireDropzone() {
 
 function attachmentSection(entityType, entityId) {
   const files = (state.attachments || []).filter(file => file.entity_type === entityType && file.entity_id === entityId);
-  return `<section class="attachment-section"><h3>${t('attachments')}</h3>${files.map(file => `<p>${button('openAttachment', 'open-attachment', `data-id="${esc(file.id)}"`)} ${esc(file.filename)} ${syncBadge(file)}</p>`).join('')}${button('addAttachment', 'new-attachment', `data-entity-type="${entityType}" data-id="${esc(entityId)}"`)}</section>`;
+  return `<section class="attachment-section"><h3>${t('attachments')}</h3>${entityType === 'hse_event' ? `<p class="note">${t('hseAttachmentRule')}</p><p class="note">${t('hseAttachmentAlternative')}</p>` : ''}${files.map(file => `<p>${button('openAttachment', 'open-attachment', `data-id="${esc(file.id)}"`)} ${esc(file.filename)} ${syncBadge(file)}</p>`).join('')}${button('addAttachment', 'new-attachment', `data-entity-type="${entityType}" data-id="${esc(entityId)}"`)}</section>`;
 }
 function showAttachmentForm(entityType, entityId, { camera = false } = {}) {
-  showModal(t('addAttachment'), `<form id="attachment-form" data-entity-type="${entityType}" data-entity-id="${esc(entityId)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><label class="field">${t('attachmentFile')}<input type="file" name="file" accept="${camera ? 'image/*' : 'image/*,application/pdf'}" ${camera ? 'capture="environment"' : ''} required></label><p class="note">${t('attachmentHint')}</p>${formActions()}</form>`);
+  const hse = entityType === 'hse_event';
+  showModal(t('addAttachment'), `<form id="attachment-form" data-entity-type="${entityType}" data-entity-id="${esc(entityId)}"><div class="form-error" role="alert" tabindex="-1" hidden></div>${hse ? `<p class="note">${t('hseAttachmentRule')}</p><p class="note">${t('hseAttachmentAlternative')}</p>` : ''}<label class="field">${t('attachmentFile')}<input type="file" name="file" accept="${camera ? 'image/*' : 'image/*,application/pdf'}" ${camera ? 'capture="environment"' : ''} required></label><p class="note">${t('attachmentHint')}</p>${hse ? `<label class="field">${t('hseAttachmentDescription')}<textarea name="description" maxlength="200"></textarea></label><p class="note" data-hse-attachment-warning role="status" aria-live="polite" hidden>${t('hseAttachmentWarning')} ${t('hseAttachmentRule')}</p>` : ''}${formActions()}</form>`);
+  if (hse) {
+    const form = $('#attachment-form');
+    const update = () => {
+      form.querySelector('[data-hse-attachment-warning]').hidden = !hseAttachmentNeedsReview(
+        form.elements.file.files?.[0]?.name, form.elements.description.value);
+    };
+    form.elements.file.addEventListener('change', update);
+    form.elements.description.addEventListener('input', update);
+  }
 }
 async function openAttachment(id) {
   const file = state.attachments.find(item => item.id === id);

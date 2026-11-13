@@ -376,7 +376,9 @@ export async function createDiary(db, input) {
 
 export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
 const ATTACHMENT_ROLES = ['owner', 'editor'];
-const attachmentTables = { task: 'tasks', diary: 'diary', site: 'sites' };
+const attachmentTables = { task: 'tasks', diary: 'diary', site: 'sites', hse_event: 'hse_events' };
+const attachmentModules = { task: 'tasks', diary: 'diary', site: 'sites', hse_event: 'hse' };
+const HSE_ATTACHMENT_READ_ROLES = ['owner', 'editor', 'verifier'];
 
 function attachmentUser(user) {
   if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
@@ -392,10 +394,13 @@ async function attachmentEntity(db, input, user, roles) {
   if (typeof input.entity_type !== 'string' || !Object.hasOwn(attachmentTables, input.entity_type)) fail(400, 'Invalid entity_type.', 'VALIDATION_ERROR');
   const entityId = attachmentId(input.entity_id, 'entity_id');
   const entity = await db.get(`SELECT * FROM ${attachmentTables[input.entity_type]} WHERE id = ?`, entityId);
+  if (input.entity_type === 'hse_event' && (!entity || entity.deleted_at !== null)) {
+    fail(404, 'HSE event not found.', 'HSE_NOT_FOUND');
+  }
   if (!entity) fail(400, 'Attachment entity does not exist.', 'VALIDATION_ERROR');
   const siteId = input.entity_type === 'site' ? entity.id : entity.site_id;
-  await requireRole(db, siteId, user, roles);
-  await requireModule(db, siteId, user, { task: 'tasks', diary: 'diary', site: 'sites' }[input.entity_type]);
+  await requireRole(db, siteId, user, roles ?? (input.entity_type === 'hse_event' ? HSE_ATTACHMENT_READ_ROLES : undefined));
+  await requireModule(db, siteId, user, attachmentModules[input.entity_type]);
   // The POST contract derives site_id; an optional explicit scope must agree.
   if (input.site_id !== undefined && attachmentId(input.site_id, 'site_id') !== siteId) {
     fail(403, 'Attachment entity belongs to another site.', 'FORBIDDEN');
@@ -432,8 +437,12 @@ async function attachmentRecord(db, id, user, roles) {
   attachmentUser(user);
   const row = await idLookup(() => db.get('SELECT * FROM attachments WHERE id = ?', id));
   if (!row) fail(404, 'Attachment not found.', 'ATTACHMENT_NOT_FOUND');
+  if (row.entity_type === 'hse_event') {
+    await attachmentEntity(db, row, user, roles);
+    return row;
+  }
   await requireRole(db, row.site_id, user, roles);
-  await requireModule(db, row.site_id, user, { task: 'tasks', diary: 'diary', site: 'sites' }[row.entity_type]);
+  await requireModule(db, row.site_id, user, attachmentModules[row.entity_type]);
   return row;
 }
 
@@ -485,20 +494,30 @@ export async function listAttachments(db, input, user) {
   object(input);
   attachmentUser(user);
   const siteId = attachmentId(input.site_id, 'site_id');
-  await requireRole(db, siteId, user);
+  const role = await requireRole(db, siteId, user);
   const clauses = ['site_id = ?'], values = [siteId];
   if (input.entity_type !== undefined) {
     if (typeof input.entity_type !== 'string' || !Object.hasOwn(attachmentTables, input.entity_type)) fail(400, 'Invalid entity_type.', 'VALIDATION_ERROR');
-    await requireModule(db, siteId, user, { task: 'tasks', diary: 'diary', site: 'sites' }[input.entity_type]);
+    if (input.entity_type === 'hse_event') await requireRole(db, siteId, user, HSE_ATTACHMENT_READ_ROLES);
+    await requireModule(db, siteId, user, attachmentModules[input.entity_type]);
     clauses.push('entity_type = ?'); values.push(input.entity_type);
   }
   if (input.entity_id !== undefined) {
-    await attachmentEntity(db, input, user);
+    try { await attachmentEntity(db, input, user); }
+    catch (error) {
+      if (error.code === 'HSE_NOT_FOUND') return [];
+      throw error;
+    }
     clauses.push('entity_id = ?'); values.push(attachmentId(input.entity_id, 'entity_id'));
   }
+  clauses.push(`(entity_type <> 'hse_event' OR EXISTS (SELECT 1 FROM hse_events
+    WHERE hse_events.id = attachments.entity_id AND hse_events.site_id = attachments.site_id AND hse_events.deleted_at IS NULL))`);
   const rows = await db.all(`SELECT * FROM attachments WHERE ${clauses.join(' AND ')} ORDER BY created_at, id`, ...values);
   const visible = [];
-  for (const row of rows) if (await moduleAllowed(db, siteId, user, { task: 'tasks', diary: 'diary', site: 'sites' }[row.entity_type])) visible.push(publicAttachment(row));
+  for (const row of rows) {
+    if (row.entity_type === 'hse_event' && !HSE_ATTACHMENT_READ_ROLES.includes(role)) continue;
+    if (await moduleAllowed(db, siteId, user, attachmentModules[row.entity_type])) visible.push(publicAttachment(row));
+  }
   return visible;
 }
 

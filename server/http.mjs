@@ -12,7 +12,7 @@ import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changeP
 import { createTaskResponse } from './idempotency.mjs';
 import { createRateLimiter } from './limits.mjs';
 import { readPagination } from './pagination.mjs';
-import { listAuditEvents, countAuditEvents } from './audit.mjs';
+import { listAuditEvents, countAuditEvents, appendAttachmentRead } from './audit.mjs';
 import { listWbs, getWbs, importWbs } from './wbs.mjs';
 import { listSiteProgress, countSiteProgress, getSiteProgressItem, importSiteProgress, updateSiteProgressItem } from './site-progress.mjs';
 import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.mjs';
@@ -538,6 +538,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (attachment && method === 'GET') {
         const file = await getAttachment(db, attachment[1], user, storage);
         if (response.destroyed) { file.stream.destroy(); return; }
+        if (file.entity_type === 'hse_event') {
+          try { await appendAttachmentRead(db, file, user); }
+          catch { console.error('HSE attachment read audit failed.'); }
+        }
         response.writeHead(200, {
           'Content-Type': file.mime, 'Content-Length': String(file.size),
           'Content-Disposition': `attachment; filename="download"; filename*=UTF-8''${encodeS3Component(file.filename)}`,

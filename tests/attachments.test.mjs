@@ -7,6 +7,8 @@ import { MemoryObjectStorage } from './helpers/object-storage.mjs';
 import { ObjectStorageError, S3Storage } from '../server/s3.mjs';
 import { createServer } from '../server/http.mjs';
 import { tokenHash } from '../server/auth.mjs';
+import { createHseEvent, deleteHseEvent } from '../server/hse.mjs';
+import { saveModuleAccess } from '../server/module-access.mjs';
 import {
   createSite, createTask, createDiary, createAttachment, listAttachments, getAttachment,
   deleteAttachment, MAX_ATTACHMENT_BYTES,
@@ -278,4 +280,119 @@ test('download stream failure terminates the binary response without appending J
   t.assert.strictEqual(response.status, 200);
   t.assert.strictEqual(response.complete, false);
   t.assert.strictEqual(response.raw.toString(), 'partial');
+});
+
+async function hseFixture(t) {
+  const f = await fixture(t);
+  const event = await createHseEvent(f.db, { siteId: f.site.id, type: 'observation', severity: 'low', occurredOn: '2026-11-01' }, f.users.editor);
+  const input = { ...f.input, entity_type: 'hse_event', entity_id: event.id };
+  return { ...f, event, input, upload: (extra = {}, user = f.users.editor) => createAttachment(f.db, { ...input, ...extra }, user, f.storage) };
+}
+
+test('HSE attachment HTTP role matrix, minimal read audit and mixed-site listing', async t => {
+  const { db, site, task, event, input, users, cookies, storage } = await hseFixture(t);
+  const server = createServer(db, { storage });
+  const scoped = `/api/attachments?site_id=${site.id}&entity_type=hse_event&entity_id=${event.id}`;
+  const files = [];
+  for (const role of ['owner', 'editor', 'verifier', 'viewer', 'outsider']) {
+    const created = await invoke(server, '/api/attachments', { method: 'POST', body: input, cookie: cookies[role] });
+    t.assert.strictEqual(created.status, ['owner', 'editor'].includes(role) ? 201 : 403, role);
+    if (created.status === 201) files.push(created.body);
+  }
+  t.assert.strictEqual(storage.objects.size, 2);
+  const taskFile = await createAttachment(db, { ...input, entity_type: 'task', entity_id: task.id }, users.editor, storage);
+  const file = files[0], path = `/api/attachments/${file.id}`;
+  t.assert.strictEqual((await invoke(server, path)).status, 401);
+  for (const role of ['owner', 'editor', 'verifier', 'viewer', 'outsider']) {
+    const allowed = ['owner', 'editor', 'verifier'].includes(role);
+    const list = await invoke(server, scoped, { cookie: cookies[role] });
+    t.assert.strictEqual(list.status, allowed ? 200 : 403, role);
+    // Both uploads can share the same created_at, so the server orders by created_at then id:
+    // compare by id, not by insertion order.
+    if (allowed) t.assert.deepStrictEqual([...list.body].sort((a, b) => a.id.localeCompare(b.id)), [...files].sort((a, b) => a.id.localeCompare(b.id)));
+    const response = await invoke(server, path, { cookie: cookies[role] });
+    t.assert.strictEqual(response.status, allowed ? 200 : 403, role);
+    if (allowed) t.assert.deepStrictEqual(response.raw, data);
+  }
+  const audit = await invoke(server, `/api/audit-events?site_id=${site.id}&entity_type=hse_event&entity_id=${event.id}`, { cookie: cookies.verifier });
+  t.assert.strictEqual(audit.status, 200);
+  const reads = audit.body.filter(row => row.action === 'read');
+  t.assert.strictEqual(reads.length, 3);
+  t.assert.deepStrictEqual(reads.map(row => row.actor).sort(), ['owner', 'editor', 'verifier'].map(role => users[role].id).sort());
+  for (const row of reads) {
+    t.assert.strictEqual(row.entity_type, 'hse_event');
+    t.assert.strictEqual(row.entity_id, event.id);
+    t.assert.strictEqual(row.site_id, site.id);
+    t.assert.strictEqual(new Date(row.at).toISOString(), row.at);
+    t.assert.deepStrictEqual(JSON.parse(row.changes), { attachment: { id: file.id, filename: file.filename } });
+  }
+  t.assert.deepStrictEqual((await invoke(server, `/api/attachments?site_id=${site.id}`, { cookie: cookies.viewer })).body, [taskFile]);
+  const taskRead = await invoke(server, `/api/attachments/${taskFile.id}`, { cookie: cookies.viewer });
+  t.assert.strictEqual(taskRead.status, 200);
+  t.assert.deepStrictEqual(taskRead.raw, data);
+  await saveModuleAccess(db, { siteId: site.id, memberId: users.verifier.id, module: 'hse', allowed: false }, users.owner);
+  t.assert.strictEqual((await invoke(server, path, { cookie: cookies.verifier })).status, 403);
+  t.assert.strictEqual((await invoke(server, scoped, { cookie: cookies.verifier })).status, 403);
+  t.assert.deepStrictEqual((await invoke(server, `/api/attachments?site_id=${site.id}`, { cookie: cookies.verifier })).body, [taskFile]);
+  t.assert.strictEqual((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'read'")).n, 3);
+  for (const role of ['verifier', 'viewer']) {
+    t.assert.strictEqual((await invoke(server, path, { method: 'DELETE', cookie: cookies[role] })).status, 403);
+  }
+  t.assert.strictEqual((await invoke(server, path, { method: 'DELETE', cookie: cookies.editor })).status, 204);
+});
+
+test('soft-deleted HSE events hide attachments from every list and download while preserving originals', async t => {
+  const { db, site, event, users, cookies, storage, input, upload } = await hseFixture(t);
+  const file = await upload();
+  await deleteHseEvent(db, event.id, users.owner);
+  const calls = storage.calls.length;
+  const server = createServer(db, { storage });
+  for (const role of ['owner', 'editor', 'verifier']) {
+    for (const suffix of ['', '&entity_type=hse_event', `&entity_type=hse_event&entity_id=${event.id}`]) {
+      const response = await invoke(server, `/api/attachments?site_id=${site.id}${suffix}`, { cookie: cookies[role] });
+      t.assert.strictEqual(response.status, 200);
+      t.assert.deepStrictEqual(response.body, []);
+    }
+    t.assert.strictEqual((await invoke(server, `/api/attachments/${file.id}`, { cookie: cookies[role] })).status, 404);
+  }
+  t.assert.strictEqual((await invoke(server, '/api/attachments', { method: 'POST', body: input, cookie: cookies.editor })).status, 404);
+  t.assert.strictEqual(storage.calls.length, calls);
+  t.assert.strictEqual(storage.objects.size, 1);
+  t.assert.ok(await db.get('SELECT id FROM attachments WHERE id = ?', file.id));
+  t.assert.strictEqual((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'read'")).n, 0);
+});
+
+test('HSE download remains complete with HTTP 200 and an explicit log when audit writing fails', async t => {
+  const { db, cookies, storage, upload } = await hseFixture(t);
+  const file = await upload();
+  const failing = {
+    get: db.get.bind(db), all: db.all.bind(db),
+    run: (sql, ...values) => {
+      if (/^INSERT INTO audit_events/.test(sql)) throw new Error('Synthetic audit write failure');
+      return db.run(sql, ...values);
+    },
+  };
+  const logs = [];
+  t.mock.method(console, 'error', (...args) => logs.push(args));
+  const response = await invoke(createServer(failing, { storage }), `/api/attachments/${file.id}`, { cookie: cookies.verifier });
+  t.assert.strictEqual(response.status, 200);
+  t.assert.strictEqual(response.complete, true);
+  t.assert.deepStrictEqual(response.raw, data);
+  t.assert.deepStrictEqual(logs, [['HSE attachment read audit failed.']]);
+  t.assert.strictEqual((await db.get("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'read'")).n, 0);
+});
+
+test('HSE attachments keep size/type validation and recheck deletion after the storage round trip', async t => {
+  const { db, event, users, storage, upload } = await hseFixture(t);
+  await t.assert.rejects(() => upload({ content_type: 'text/html' }), { status: 415 });
+  await t.assert.rejects(() => upload({ data_base64: Buffer.alloc(MAX_ATTACHMENT_BYTES + 1).toString('base64') }), { status: 413 });
+  t.assert.strictEqual(storage.calls.length, 0);
+  const head = storage.head.bind(storage);
+  storage.head = async key => {
+    await deleteHseEvent(db, event.id, users.owner);
+    return head(key);
+  };
+  await t.assert.rejects(() => upload(), { status: 404 });
+  t.assert.deepStrictEqual(await db.all('SELECT * FROM attachments'), []);
+  t.assert.strictEqual(storage.objects.size, 0);
 });

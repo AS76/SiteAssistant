@@ -88,6 +88,16 @@ test('audit vocabulary and field labels render in both languages', () => {
   }
 });
 
+test('audit read actions display the translated label and escaped attachment filename', () => {
+  for (const language of ['it', 'en']) {
+    const ui = auditUi(); ui.context.language = language;
+    const html = ui.renderEvents([event('read', { attachment: { id: 'file-1', filename: '<Synthetic diagram>.pdf' } }, { entity_type: 'hse_event' })]);
+    assert.ok(html.includes(`<strong>${messages[language].auditRead}</strong>`));
+    assert.match(html, /&lt;Synthetic diagram&gt;.pdf/);
+    assert.doesNotMatch(html, /<Synthetic diagram>/);
+  }
+});
+
 test('all three core views show a closed audit panel only to owners and verifiers and never fetch on render', async () => {
   for (const [view, entityType] of [['hse', 'hse_event'], ['certifications', 'certification'], ['tools', 'tool']]) {
     for (const role of ['owner', 'verifier', 'editor', 'viewer', undefined]) {
