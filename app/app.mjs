@@ -201,10 +201,14 @@ function renderChrome() {
   const navItems = visibleModules(compact ? MOBILE_PRIMARY : NAV_ITEMS, currentModules());
   const more = compact && !MOBILE_PRIMARY.includes(view);
   const navLabel = key => t(compact && key === 'bookings' ? 'bookingsShort' : key);
-  const navLink = key => `<a href="#${key}" ${view === key ? 'class="active" aria-current="page"' : ''}>${icon(key)}<span>${navLabel(key)}</span></a>`;
+  const navLink = key => {
+    const css = [!compact && key === 'today' ? 'nav-today' : '', view === key ? 'active' : ''].filter(Boolean).join(' ');
+    return `<a href="#${key}" ${css ? `class="${css}" ` : ''}${view === key ? 'aria-current="page"' : ''}>${icon(key)}<span>${navLabel(key)}</span></a>`;
+  };
   $('#navigation').innerHTML = (compact
     ? navItems.map(navLink).join('') + `<button type="button" class="nav-more${more ? ' active' : ''}" data-command="more-nav">${icon('more')}${t('more')}</button>`
-    : navGroups(currentModules()).map(group => `<div class="nav-group"><span class="nav-section">${t(group.label)}</span>${group.items.map(navLink).join('')}</div>`).join(''));
+    : desktopNavigation(navLink));
+  if (!compact) bindDesktopNavigation();
   $('#skip').textContent = t('skip'); $('#site-label').textContent = t('site'); $('#actor-label').textContent = t('actor'); $('#manual-link').textContent = t('manual');
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
   $('#actor-input').value = actor;
@@ -783,6 +787,43 @@ const moduleResources = { deviations: ['deviations', 'reconciliation'], progress
 const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse'];
 const MOBILE_PRIMARY = ['today', 'tasks', 'deviations', 'bookings'];
 const compactNavigation = () => window.matchMedia('(width < 800px)').matches;
+const NAV_OPEN_KEY = 'sa-nav-open';
+const navGroupId = group => group.label.slice(3).toLowerCase();
+let navOpen = null, navRoute;
+function saveNavOpen() {
+  try { localStorage.setItem(NAV_OPEN_KEY, JSON.stringify(navOpen)); } catch { /* storage unavailable */ }
+}
+function desktopNavigation(navLink) {
+  if (!navOpen) {
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(NAV_OPEN_KEY) || '{}'); } catch { /* storage unavailable */ }
+    navOpen = Object.fromEntries(navGroups().map(group => {
+      const id = navGroupId(group);
+      return [id, typeof saved?.[id] === 'boolean' ? saved[id] : window.innerHeight >= 800 || group.items.includes(view)];
+    }));
+  }
+  const groups = navGroups(currentModules());
+  if (navRoute !== view) {
+    const active = groups.find(group => group.items.includes(view));
+    if (active && !navOpen[navGroupId(active)]) {
+      navOpen[navGroupId(active)] = true;
+      saveNavOpen();
+    }
+    navRoute = view;
+  }
+  return navLink('today')
+    + groups.map(group => `<details class="nav-group" data-group="${navGroupId(group)}"${navOpen[navGroupId(group)] ? ' open' : ''}><summary class="nav-section">${t(group.label)}</summary><div class="nav-group-items">${group.items.map(navLink).join('')}</div></details>`).join('');
+}
+function bindDesktopNavigation() {
+  for (const section of $('#navigation').querySelectorAll('details[data-group]')) {
+    section.addEventListener('toggle', () => {
+      // Ignore initial toggle notifications and events from a replaced navigation tree.
+      if (!section.isConnected || navOpen[section.dataset.group] === section.open) return;
+      navOpen[section.dataset.group] = section.open;
+      saveNavOpen();
+    });
+  }
+}
 const coreCache = new Map();
 let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' }, hse: { type: '', severity: '', from: '', to: '' } };
 let reconciliationFilter = '', reconciliationOpen = true;

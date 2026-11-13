@@ -248,10 +248,10 @@ test('every Today label and metadata key is translated in Italian and English', 
 });
 
 
-test('mobile navigation starts with Today, respects denials and leaves desktop groups unchanged', () => {
+test('mobile navigation starts with Today and desktop keeps every group plus Today while respecting denials', () => {
   for (const width of [390, 800, 1280]) {
     const { context, nodes } = todayUi({ modules: { tasks: false } });
-    const node = () => ({ innerHTML: '', classList: { add() {} }, setAttribute() {}, insertAdjacentHTML() {} });
+    const node = () => ({ innerHTML: '', classList: { add() {} }, setAttribute() {}, insertAdjacentHTML() {}, querySelectorAll: () => [] });
     context.$ = selector => nodes[selector] ??= node();
     context.window = { matchMedia: () => ({ matches: width < 800 }) };
     context.document = { documentElement: {} }; context.sessionStorage = { getItem: () => null };
@@ -261,7 +261,12 @@ test('mobile navigation starts with Today, respects denials and leaves desktop g
     const html = nodes['#navigation'].innerHTML;
     assert.doesNotMatch(html, /href="#tasks"/);
     if (width < 800) assert.match(html, /^<a href="#today"/);
-    else { assert.match(html, /href="#overview"/); assert.doesNotMatch(html, /href="#today"/); }
+    else {
+      assert.match(html, /href="#overview"/);
+      assert.match(html, /^<a href="#today" class="nav-today/);
+      assert.equal((html.match(/<details class="nav-group"/g) || []).length, 3);
+      assert.equal((html.match(/<a href=/g) || []).length, 12);
+    }
   }
 });
 

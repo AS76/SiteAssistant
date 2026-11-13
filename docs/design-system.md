@@ -9,7 +9,7 @@ Stable reference for UI, UX and handoff. Source of the values: `app/styles.css` 
 | Token | Value | Use | Contrast note |
 |---|---|---|---|
 | `--ink` | `#182c32` | Primary text, headings, values | 13.48:1 on `--paper`; 14.0:1 on white |
-| `--muted` | `#64757b` | Secondary text, labels, captions | 4.80:1 on white; **4.46:1 on `--paper`**: just below AA for normal text, do not use it on paper for informational text |
+| `--muted` | `#5b6c72` | Secondary text, labels, captions | 5.48:1 on white; 5.08:1 on `--paper`: AA for normal text |
 | `--line` | `#dce4e5` | Borders, separators, tables | Graphic element only |
 | `--paper` | `#f4f7f6` | Page background | — |
 | `--green` | `#126c57` | Primary action, accents, completed state | 6.35:1 on white; white on green 6.35:1 |
@@ -23,9 +23,9 @@ Stable reference for UI, UX and handoff. Source of the values: `app/styles.css` 
 
 ### Known gaps
 
-- The focus ring `#d89a44` on white has 2.43:1 (below the 3:1 required for non-text indicators). It must not be removed: fix the token or add a second signal (thickness/offset) until a better value is approved.
+- **Closed (2026-11-13): focus contrast.** A 3px `--green` (`#126c57`) outline with a white separation ring provides 6.35:1 at the green/white edge, above the 3:1 required for non-text indicators.
 - Badges at 10px are below the comfort threshold for long text: use them for short labels, not for sentences.
-- `--muted` on `--paper` is just below AA for normal text: on panels use `--muted` on white, or `--ink`.
+- **Closed (2026-11-13): secondary text contrast.** `--muted` is `#5b6c72`: 5.08:1 on `--paper`, 5.48:1 on white, both above AA for normal text.
 
 ## 2. Typography
 
@@ -51,7 +51,7 @@ Do not introduce new weights or scales. For secondary hierarchy use `--muted`, n
 - Card/panel: padding **20-21px**; grid gap **16px**; overview **23px**.
 - KPI grid: 4 columns, 16px gap. Overview: `1.7fr + 1fr`.
 - Touch target: minimum **44×44px** on pointer coarse; standard buttons `padding: 10px 15px`.
-- Focus: `outline: 3px solid #d89a44; outline-offset: 3px` on every interactive element. Never `outline: none` without a replacement.
+- Focus: `outline: 3px solid var(--green); outline-offset: 3px; box-shadow: 0 0 0 3px #fff` on every interactive element, including `summary`. The white separation ring keeps the green/white edge at 6.35:1, including in the dark sidebar. Summaries inside clipped panels use `outline-offset: -6px` and `box-shadow: inset 0 0 0 3px #fff` to keep both rings visible. Never `outline: none` without a replacement.
 
 ## 4. Components
 

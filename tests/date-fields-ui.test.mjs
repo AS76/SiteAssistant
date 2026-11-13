@@ -152,7 +152,7 @@ test('phone dates use 16px text and HSE period labels stack at full width', () =
   assert.match(css, /\.hse-period-filters\s*\{\s*display:\s*contents;\s*\}/);
 });
 
-test('service worker cache version includes the date field UI update', async () => {
+test('service worker cache version includes the desktop navigation and contrast update', async () => {
   const worker = await readFile(new URL('../app/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const VERSION = 'siteassistant-v15-14';/);
+  assert.match(worker, /const VERSION = 'siteassistant-v15-15';/);
 });
