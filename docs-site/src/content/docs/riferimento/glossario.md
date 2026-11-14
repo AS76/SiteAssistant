@@ -34,7 +34,7 @@ description: Terminologia italiana e inglese usata in SiteAssistant.
 | Identità di riga | Row identity | Campi che riconoscono una riga tra un import e il successivo |
 | Import di pianificazione | Planning import | Caricamento di un export xlsx con anteprima e conferma, senza cancellazioni |
 | Assistente dati | Data assistant | Pannello di domande sui dati del cantiere, in sola lettura |
-| Impostazioni | Settings | Valuta, decimali e separatori degli importi, salvati nel browser |
+| Impostazioni | Settings | Valuta e separatori di importi e numeri, salvati nel browser |
 | Deviazione | Deviation | Scostamento importato, con stato, priorità e date |
 | Prenotazione ore | Time booking | Ore di una presenza attribuite a una voce di avanzamento |
 | Impatto economico | Cost impact | Richiesta interna collegata a una o più deviazioni, con importo e esito |

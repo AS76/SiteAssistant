@@ -32,7 +32,7 @@ description: Italian and English terminology used in SiteAssistant.
 | Identità di riga | Row identity | Fields that identify a row between one import and the next |
 | Import planning | planning import | Upload of an xlsx export with preview and confirmation, with no deletions |
 | Assistente dati | Data assistant | Question panel over the site data, read-only |
-| Impostazioni | Settings | Currency, decimals and separators for amounts, stored in the browser |
+| Impostazioni | Settings | Currency and separators for amounts and numbers, stored in the browser |
 | Deviazione | Deviation | Imported deviation, with status, priority and dates |
 | Prenotazione ore | Time booking | Hours of an attendance day assigned to a progress item |
 | Impatto economico | Cost impact | Internal claim linked to one or more deviations, with amount and result |

@@ -20,7 +20,7 @@ L'intestazione contiene, da sinistra a destra:
 
 - il **selettore del cantiere**, che elenca solo i cantieri in cui hai un ruolo;
 - la **navigazione** tra le viste: su desktop la voce **Oggi** in cima e poi tre gruppi richiudibili, **Operazioni** (Panoramica, Attività, Deviazioni, Diario), **Cantiere** (Avanzamento, Prenotazioni ore, Struttura progetto, Impatti economici) e **Gestione** (Cantieri, [Attrezzature](../../moduli/attrezzature/), [Idoneità](../../moduli/idoneita/), [HSE](../../moduli/hse/));
-- l'ingranaggio delle [Impostazioni](../impostazioni/) (valuta, decimali, separatori);
+- l'ingranaggio delle [Impostazioni](../impostazioni/) (valuta e separatori);
 - il collegamento al manuale;
 - il **selettore di lingua** (IT / EN);
 - il nome dell'utente e il pulsante **Esci**.
@@ -47,6 +47,8 @@ A cosa serve: capire in pochi secondi cosa è fermo, cosa aspetta una verifica e
 4. Leggi i quattro contatori delle attività: **Da eseguire**, **Da verificare**, **Chiuse**, **Scadute**.
 5. Scorri i tre grafici: **Deviazioni per stato**, **Avanzamento per sezione**, **Ore per settimana**, e il pannello **Earned value**.
 6. Chiudi con **Da tenere d'occhio** e **Il punto del cantiere**: sono le attività ordinate per urgenza e il riepilogo delle chiusure verificate.
+
+Nei pannelli **Il punto del cantiere** e **Il diario di oggi** anche lo stato vuoto dice qualcosa. Quando non ci sono blocchi né attività in attesa di verifica, al posto dei due riepiloghi compare una riga sola che lo dichiara, e la regola «Eseguito non significa verificato» resta visibile solo finché c'è almeno una verifica aperta. Se il diario del giorno è ancora vuoto, il pannello mostra **Bozza** e apre il **Diario** su oggi; il collegamento **Apri il diario** compare quando un contributo c'è.
 
 <Shot
   src="/images/2026-11/overview-desktop.png"
@@ -138,7 +140,7 @@ Il selettore IT/EN traduce subito le etichette dell'interfaccia. I contenuti che
 
 ## Accessibilità e dispositivi
 
-L'interfaccia è responsive e navigabile da tastiera. I moduli di inserimento sono finestre con gestione del focus; gli errori di compilazione vengono annunciati nell'area di messaggio del modulo. Ogni campo data porta con sé un suggerimento, «Data: giorno/mese/anno», collegato al campo con `aria-describedby`: lo legge anche il lettore di schermo, e resta visibile nei filtri come nei moduli.
+L'interfaccia è responsive e navigabile da tastiera. I moduli di inserimento sono finestre con gestione del focus; gli errori di compilazione vengono annunciati nell'area di messaggio del modulo. I campi data usano il controllo data del browser: il valore salvato resta in formato ISO (`YYYY-MM-DD`), mentre il campo ne mostra la lettura nella lingua del browser, senza un suggerimento ripetuto sotto il campo.
 
 Le intestazioni dei gruppi della navigazione si aprono anche da tastiera: porta il focus sull'intestazione con Tab e premi **Invio** o **Spazio**. L'anello di focus di pulsanti, collegamenti, campi e intestazioni è verde, con un alone bianco che lo stacca dallo sfondo; i testi secondari — sottotitoli, note, intestazioni di tabella — hanno un contrasto più alto sul fondo chiaro.
 

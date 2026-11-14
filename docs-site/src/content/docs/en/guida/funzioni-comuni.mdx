@@ -20,7 +20,7 @@ The header contains, from left to right:
 
 - the **site selector**, which lists only the sites where you have a role;
 - the **navigation** between views: on desktop the **Today** entry at the top, then three collapsible sections, **Operations** (Overview, Tasks, Deviations, Diary), **Site** (Site progress, Time bookings, Project structure, Cost impacts) and **Management** (Sites, [Tools](../../moduli/attrezzature/), [Fitness](../../moduli/idoneita/), [HSE](../../moduli/hse/));
-- the gear for [Settings](../impostazioni/) (currency, decimals, separators);
+- the gear for [Settings](../impostazioni/) (currency and separators);
 - the link to the manual;
 - the **language selector** (IT / EN);
 - your name and the **Sign out** button.
@@ -47,6 +47,8 @@ What it is for: seeing in seconds what is stuck, what is waiting for a review an
 4. Read the four task counters: **To execute**, **To verify**, **Closed**, **Overdue**.
 5. Scroll the three charts: **Deviations by status**, **Progress by section**, **Hours per week**, and the **Earned value** panel.
 6. Finish with **Keep an eye on** and **The site at a glance**: tasks ordered by urgency and the summary of verified closures.
+
+In the **The site at a glance** and **Today's diary** panels even the empty state says something. When there are no blockers and no tasks awaiting verification, a single line replaces the two summaries, and the rule “Done does not mean verified” stays visible only while at least one review is open. If today's diary is still empty, the panel shows **Draft** and opens the **Diary** on today; the **Open diary** link appears once a contribution exists.
 
 <Shot
   src="/images/2026-11/en/overview-desktop.png"
@@ -138,7 +140,7 @@ The IT/EN selector translates the interface labels immediately. The content you 
 
 ## Accessibility and devices
 
-The interface is responsive and keyboard-navigable. The input forms are modal windows with focus management; validation errors are announced in the form's message area. Every date field carries the hint “Date: day/month/year”, tied to the field with `aria-describedby`: screen readers announce it too, and it stays visible in filters as well as in forms.
+The interface is responsive and keyboard-navigable. The input forms are modal windows with focus management; validation errors are announced in the form's message area. Date fields use the browser's date control: the saved value stays in ISO format (`YYYY-MM-DD`), while the field shows it the way the browser language reads it, with no repeated hint under the field.
 
 The navigation group headings also open from the keyboard: move focus to the heading with Tab and press **Enter** or **Space**. The focus ring on buttons, links, fields and headings is green, with a white halo that sets it off from the background; secondary text — subtitles, notes, table headings — has a higher contrast on the light background.
 

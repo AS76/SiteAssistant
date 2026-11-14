@@ -1,11 +1,11 @@
 ---
 title: Settings
-description: Currency, decimals and separators for amounts.
+description: Currency and separators for amounts and numbers.
 ---
 
 import Shot from '../../../../components/Shot.astro';
 
-The gear at the top right opens **Settings**. Preferences apply to this browser and only affect how amounts are formatted.
+The gear at the top right opens **Settings**. Preferences apply to this browser and only affect how amounts and numbers are written.
 
 ## Setting currency and format
 
@@ -13,25 +13,34 @@ What it is for: reading amounts with the currency and separators you use.
 
 1. Press the **gear** at the top right.
 2. Choose the **Currency**: EUR, USD, GBP or CHF.
-3. Choose **Decimals**: 0 or 2.
-4. Choose **Separators**: `1.234,56` (IT) or `1,234.56` (EN).
-5. Press **Save** and wait for the **Settings saved** confirmation at the bottom.
+3. Choose **Separators**: `1.234,56` (IT) or `1,234.56` (EN).
+4. Press **Save** and wait for the **Settings saved** confirmation at the bottom.
 
 <Shot
   src="/images/2026-11/en/impacts-desktop.png"
-  alt="Cost impacts view with Total claimed 41.500,50 € and Total settled 11.250,00 €, formatted with the euro currency, two decimals and Italian separators"
-  caption="The effect of the settings: cost impact amounts with EUR, two decimals and IT separators. Totals follow the active filters."
+  alt="Cost impacts view with Total claimed 41.500,50 € and Total settled 11.250,00 €, formatted with the euro currency and Italian separators"
+  caption="The effect of the settings: cost impact amounts with EUR and IT separators. Totals follow the active filters."
 />
 
-## The three choices
+## The two choices
 
 | Setting | Values |
 | :-- | :-- |
 | Currency | EUR, USD, GBP, CHF |
-| Decimals | 0 or 2 |
 | Separators | 1.234,56 (IT) or 1,234.56 (EN) |
 
-The defaults are **EUR**, **2 decimals** and **IT** separators.
+The defaults are **EUR** and **IT** separators.
+
+## How numbers are written
+
+Precision is not a choice: it depends on the kind of number and stays the same across every view.
+
+- **amounts** always have **two decimals**;
+- **hours** have **one decimal**;
+- **counts** — tasks, deviations, people, days — are whole numbers, without decimals;
+- **percentages** show up to four decimals, without trailing zeros.
+
+The separators you choose apply to all these numbers, not only to amounts: with IT separators thousands are separated by a dot and decimals by a comma, with EN separators it is the other way round.
 
 ## Where they apply
 
@@ -40,13 +49,13 @@ The settings apply to amounts:
 - the **Open claims** and **Settled** counters in the Overview;
 - the totals and details of **Cost impacts**.
 
-They do not change hours, percentages, dates or quantities.
+The **separators** also apply to hours, percentages and counts: **Earned value** and the **site report**, **Site progress**, **Time bookings**, **Deviations** and the tables of the other views. The choice does not change values, dates or calculations.
 
 ## The currency does not convert
 
 Changing the currency changes the symbol and the format, not the value. An amount of 1,000 euros shown in USD stays 1,000: no exchange rate is applied.
 
-Example: with EUR, 2 decimals and IT separators, the amount 1234.5 appears as `€1.234,50`; with EN separators it appears as `€1,234.50`.
+Example: with EUR and IT separators, the amount 1234.5 appears as `€1.234,50`; with EN separators it appears as `€1,234.50`.
 
 ## Where they are stored
 
