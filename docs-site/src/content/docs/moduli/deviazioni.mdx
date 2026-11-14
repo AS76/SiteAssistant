@@ -13,17 +13,28 @@ A cosa serve: sapere quali deviazioni sono aperte, chi le segue e cosa è già s
 
 1. Apri **Deviazioni** dalla navigazione.
 2. Filtra per **Stato** e **Priorità**. I menu includono tutti i valori presenti nei dati, più le voci «Tutti gli stati» e «Tutte le priorità».
-3. Scegli la rappresentazione: **Board** per le colonne per stato, **Elenco** per la tabella.
+3. Scegli la rappresentazione: **Board** per i gruppi per stato, **Elenco** per la tabella.
 4. Apri una scheda o una riga per il dettaglio.
 5. Nel dettaglio usa le schede **Dati** e **Riferimenti**: la prima raccoglie stato, priorità, descrizione e importi, la seconda i collegamenti.
 
 <Shot
   src="/images/2026-11/deviations-desktop.png"
-  alt="Vista Deviazioni a bacheca con i filtri Stato e Priorità, le colonne Aperto 3, Approvato 2, In corso 2 e Lavoro completato 2, e schede con codice, titolo, stato, priorità e squadra"
-  caption="La bacheca delle deviazioni: una colonna per stato con il conteggio, una scheda per deviazione. Il selettore Board/Elenco passa alla tabella."
+  alt="Vista Deviazioni a bacheca con i filtri Stato e Priorità e le schede delle deviazioni con codice, titolo, stato, priorità e squadra"
+  caption="La bacheca delle deviazioni con i filtri Stato e Priorità: una scheda per deviazione. Il selettore Board/Elenco passa alla tabella."
 />
 
-Nella **board** ogni colonna mostra il numero di deviazioni; una colonna vuota riporta «Nessuna deviazione». Le deviazioni con uno stato non riconosciuto finiscono in una sezione separata, **Stato non mappato**.
+La **board** raggruppa le deviazioni in quattro gruppi per stato:
+
+- **Aperte** — stato `open` o `approved`;
+- **In corso** — stato `in_progress`;
+- **Da chiudere** — lavoro completato, stato `work_completed`;
+- **Chiuse** — stato `closed` o `rejected`.
+
+Il raggruppamento è solo di presentazione: ogni scheda continua a mostrare il proprio stato ufficiale esatto, per esempio **Approvato** dentro **Aperte** o **Respinto** dentro **Chiuse**. Ogni gruppo riporta il numero di deviazioni che contiene; un gruppo vuoto dice «Nessuna deviazione».
+
+Le deviazioni con uno stato non riconosciuto restano fuori dai quattro gruppi e compaiono a parte, sotto **Stato non mappato**. Se la board è più larga della finestra, sotto compare il suggerimento **scorri ↔** e il bordo sfuma dal lato in cui c'è altro contenuto; il suggerimento sparisce quando tutti i gruppi sono visibili. Su telefono i gruppi sono una fisarmonica, uno aperto alla volta.
+
+Anche la **priorità** compare con l'etichetta tradotta nella lingua dell'interfaccia — **Bassa**, **Media**, **Normale**, **Alta**, **Urgente** — sulle schede, nell'elenco, nel dettaglio e nel filtro **Priorità**; un valore non previsto resta com'è nel dato importato. Passando a EN cambiano insieme le schede e i menu.
 
 Nell'**elenco** le colonne sono riferimento, titolo, stato, priorità, assegnatario, creazione e chiusura; le intestazioni ordinano la tabella.
 

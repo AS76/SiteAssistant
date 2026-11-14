@@ -13,17 +13,28 @@ What it is for: knowing which deviations are open, who follows them and what has
 
 1. Open **Deviations** from the navigation.
 2. Filter by **Status** and **Priority**. The menus include every value present in the data, plus “All statuses” and “All priorities”.
-3. Choose the representation: **Board** for the columns by status, **List** for the table.
+3. Choose the representation: **Board** for the groups by status, **List** for the table.
 4. Open a card or a row for the detail.
 5. In the detail use the **Data** and **References** tabs: the first gathers status, priority, description and amounts, the second the links.
 
 <Shot
   src="/images/2026-11/en/deviations-desktop.png"
-  alt="Deviations board with the Status and Priority filters, the columns Open 3, Approved 2, In progress 2 and Work completed 2, and cards with code, title, status, priority and team"
-  caption="The deviation board: one column per status with its count, one card per deviation. The Board/List selector switches to the table."
+  alt="Deviations board with the Status and Priority filters and deviation cards with code, title, status, priority and team"
+  caption="The deviation board with the Status and Priority filters: one card per deviation. The Board/List selector switches to the table."
 />
 
-In the **board** each column shows the number of deviations; an empty column says “No deviations”. Deviations with an unrecognised status end up in a separate **Unmapped status** section.
+The **board** groups deviations into four status groups:
+
+- **Open** — status `open` or `approved`;
+- **In progress** — status `in_progress`;
+- **To close** — work completed, status `work_completed`;
+- **Closed** — status `closed` or `rejected`.
+
+The grouping is presentational only: every card still shows its exact official status, for example **Approved** inside **Open** or **Rejected** inside **Closed**. Each group shows how many deviations it holds; an empty group says “No deviations”.
+
+Deviations with an unrecognised status stay outside the four groups and appear separately, under **Unmapped status**. When the board is wider than the window, the hint **scroll ↔** appears below it and the edge fades on the side where more content is available; the hint disappears once every group is visible. On a phone the groups are an accordion, one open at a time.
+
+**Priority** also appears with its translated label in the interface language — **Low**, **Medium**, **Normal**, **High**, **Urgent** — on cards, in the list, in the detail and in the **Priority** filter; a value not in the list stays as it is in the imported data. Switching to IT changes the cards and menus together.
 
 In the **list** the columns are reference, title, status, priority, assignee, created and closed; headers sort the table.
 

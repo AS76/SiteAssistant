@@ -5,6 +5,12 @@ description: Le modifiche a SiteAssistant che cambiano il prodotto o il modo di 
 
 Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è un changelog tecnico: per quello vale la cronologia dei commit nel repository.
 
+## 14 novembre 2026
+
+- **La bacheca delle deviazioni in quattro gruppi.** Le colonne per singolo stato diventano quattro gruppi: **Aperte** (`open` e `approved`), **In corso**, **Da chiudere** (lavoro completato) e **Chiuse** (`closed` e `rejected`). Ogni scheda continua a mostrare il proprio stato ufficiale esatto, e i gruppi con uno stato non riconosciuto restano a parte in **Stato non mappato**. Quando la board è più larga della finestra compare il suggerimento **scorri ↔** con il bordo sfumato dal lato in cui c'è altro contenuto. Vedi [Deviazioni](../../moduli/deviazioni/#consultare-le-deviazioni).
+- **Priorità nella lingua dell'interfaccia.** Le priorità importate dalle deviazioni — `low`, `medium`, `normal`, `high`, `urgent` — compaiono ora come **Bassa**, **Media**, **Normale**, **Alta**, **Urgente** sulle schede, nell'elenco, nel dettaglio e nel filtro **Priorità**, e passano a Low, Medium, Normal, High, Urgent con il selettore **EN**. Un valore non previsto resta com'è nel dato importato. Vedi [Deviazioni](../../moduli/deviazioni/#consultare-le-deviazioni).
+- **Attività leggere a card sul telefono.** Sotto gli 800 px di larghezza la tabella di **Attività leggere** diventa una card per attività, con l'etichetta accanto a ogni campo e il comando **Chiudi** o **Riapri** a tutta larghezza, alto almeno 44 px. Dati, ordine e regole di verifica non cambiano. Vedi [Attività e verifiche](../../moduli/attivita/#attività-leggere) e [Guida rapida mobile](../../guida/mobile/#le-card-al-posto-delle-tabelle).
+
 ## 13 novembre 2026
 
 - **Allegati agli eventi HSE, con la traccia delle letture.** Un evento salvato accetta foto o PDF fino a 15 MiB dalla sezione **Allegati** della finestra di modifica. Vale la regola «fotografa la condizione, non le persone»: nessun volto identificabile e nessun dato sanitario, con uno schema o un pittogramma come alternativa alla foto; l'applicazione avvisa quando il nome del file o la descrizione suggeriscono una persona o un infortunio, ma non analizza l'immagine e non blocca il caricamento. Ogni apertura di un allegato HSE scrive una voce **Letta** in **Ultime modifiche**, con il nome del file; eliminando l'evento i suoi allegati non vengono più serviti. Vedi [HSE](../../moduli/hse/#allegati-a-un-evento) e [API REST](../../riferimento/api/#allegati).

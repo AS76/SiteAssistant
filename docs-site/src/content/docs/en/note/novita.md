@@ -5,6 +5,12 @@ description: Changes to SiteAssistant that change the product or how you use it.
 
 This page collects the changes visible to those who use the application. It is not a technical changelog: for that, see the commit history in the repository.
 
+## 14 November 2026
+
+- **The deviations board in four groups.** The columns per single status become four groups: **Open** (`open` and `approved`), **In progress**, **To close** (work completed) and **Closed** (`closed` and `rejected`). Every card still shows its exact official status, and groups with an unrecognised status stay apart under **Unmapped status**. When the board is wider than the window the hint **scroll ↔** appears, with the edge faded on the side where more content is available. See [Deviations](../../moduli/deviazioni/#consulting-deviations).
+- **Priorities in the interface language.** The priorities imported with deviations — `low`, `medium`, `normal`, `high`, `urgent` — now appear as **Low**, **Medium**, **Normal**, **High**, **Urgent** on cards, in the list, in the detail and in the **Priority** filter, and switch to Bassa, Media, Normale, Alta, Urgente with the **IT** selector. A value not in the list stays as it is in the imported data. See [Deviations](../../moduli/deviazioni/#consulting-deviations).
+- **Light tasks as cards on a phone.** Below 800 px wide the **Light tasks** table becomes one card per task, with the label beside every field and the **Close** or **Reopen** command at full width, at least 44 px tall. Data, order and review rules do not change. See [Tasks and reviews](../../moduli/attivita/#light-tasks) and [Mobile quick guide](../../guida/mobile/#cards-instead-of-tables).
+
 ## 13 November 2026
 
 - **Attachments on HSE events, with a read trail.** A saved event accepts photos or PDFs up to 15 MiB from the **Attachments** section of the edit window. The rule is “photograph the condition, not the people”: no identifiable faces and no health data, with a diagram or pictogram as an alternative to a photo; the application warns when the file name or description suggests a person or an injury, but it does not analyse the image and does not block the upload. Every opening of an HSE attachment writes a **Read** row in **Latest changes**, with the file name; deleting the event stops serving its attachments. See [HSE](../../moduli/hse/#attachments-on-an-event) and [REST API](../../riferimento/api/#attachments).
