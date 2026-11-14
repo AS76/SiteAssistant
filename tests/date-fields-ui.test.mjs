@@ -57,16 +57,13 @@ function assertDates(html, expected, language) {
     assert.match(input, /min="0001-01-01"/);
     assert.match(input, /max="9999-12-31"/);
     assert.equal(/\brequired\b/.test(input), required);
-    const describedBy = input.match(/aria-describedby="([^"]+)"/);
-    assert.ok(describedBy, `Missing hint association: ${selector}`);
-    const hint = `<small class="field-hint" id="${describedBy[1]}">${messages[language].dateFormatHint}</small>`;
-    assert.ok(html.includes(hint), `Missing visible hint: ${selector}`);
-    assert.equal(ids.filter(id => id === describedBy[1]).length, 1);
+    assert.doesNotMatch(input, /aria-describedby/, `No format hint association: ${selector}`);
+    assert.doesNotMatch(html, /date-hint|day\/month\/year|giorno\/mese\/anno/);
   });
 }
 
 for (const language of ['it', 'en']) {
-  test(`diary date has its existing label and a visible associated hint (${language})`, () => {
+  test(`diary date keeps its label without a conflicting format hint (${language})`, () => {
     const ui = dateUi(language);
     ui.run('renderDiary()');
     assertDates(ui.main.innerHTML, [{ selector: 'id="report-date"', value: '2026-11-10' }], language);
@@ -90,7 +87,7 @@ for (const language of ['it', 'en']) {
     }
   });
 
-  test(`HSE required event date and period hints coexist without duplicate IDs (${language})`, () => {
+  test(`HSE required event date and period coexist without format hints or duplicate IDs (${language})`, () => {
     const ui = dateUi(language), register = ui.run('renderHse()');
     ui.run('showHseForm()');
     const form = ui.dialogs.at(-1);
@@ -102,7 +99,7 @@ for (const language of ['it', 'en']) {
     ], language);
   });
 
-  test(`new site start and end dates both receive the common hint (${language})`, () => {
+  test(`new site start and end dates omit format hints (${language})`, () => {
     const ui = dateUi(language);
     ui.run('showSiteForm()');
     assertDates(ui.dialogs.at(-1), [
@@ -111,16 +108,22 @@ for (const language of ['it', 'en']) {
     ], language);
   });
 
-  test(`new task due date receives the common hint (${language})`, async () => {
+  test(`new task due date omits format hints (${language})`, async () => {
     const ui = dateUi(language);
     await ui.run('showTaskForm()');
     assertDates(ui.dialogs.at(-1), [{ selector: 'name="due"', value: '2026-11-10' }], language);
   });
 }
 
-test('date hint translations specify the unchanged calendar value format', () => {
-  assert.equal(messages.it.dateFormatHint, 'Data: giorno/mese/anno');
-  assert.equal(messages.en.dateFormatHint, 'Date: day/month/year');
+test('date format hints are removed while semantic descriptions remain associated', () => {
+  for (const language of ['it', 'en']) {
+    assert.equal(Object.hasOwn(messages[language], 'dateFormatHint'), false);
+    const ui = dateUi(language);
+    const html = ui.run(`field('hseOccurredOn', 'exampleDate', '2026-11-10', { type: 'date', hint: 'hseSummaryHint' })`);
+    assert.match(html, /aria-describedby="field-hint-exampleDate"/);
+    assert.ok(html.includes(`<small id="field-hint-exampleDate">${messages[language].hseSummaryHint}</small>`));
+    assert.doesNotMatch(html, /date-hint|day\/month\/year|giorno\/mese\/anno/);
+  }
 });
 
 function mediaBlock(condition) {

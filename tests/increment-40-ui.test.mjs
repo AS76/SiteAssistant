@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
-import { DEVIATION_STATUSES, groupDeviationRows, filterSortRecords } from '../app/domain.mjs';
+import { formatDisplayNumber, DEVIATION_STATUSES, groupDeviationRows, filterSortRecords } from '../app/domain.mjs';
 import { messages } from '../app/i18n.mjs';
 
 const source = await readFile(new URL('../app/app.mjs', import.meta.url), 'utf8');
@@ -45,7 +45,7 @@ test('unknown deviation statuses add only one conditional fifth group without lo
 // Execute actual renderers with synthetic records, without browser processes or sockets.
 function deviationUi({ language = 'it', width = 1440, rows = knownRows(), layout = 'board' } = {}) {
   const context = createContext({
-    language, DEVIATION_STATUSES, groupDeviationRows, filterSortRecords,
+    window: { matchMedia: () => ({ matches: width <= 520 }) }, formatDisplayNumber, language, DEVIATION_STATUSES, groupDeviationRows, filterSortRecords,
     t: key => messages[language][key] ?? key,
     coreData: () => rows, coreFilters: { deviations: { status: '', priority: '' } },
     deviationView: layout, compactNavigation: () => width < 800,

@@ -1,7 +1,7 @@
 import { createApi } from './api.mjs';
 import { getMirror, replayOps, SYNC_TAG } from './offline.mjs';
 
-const VERSION = 'siteassistant-v15-18';
+const VERSION = 'siteassistant-v15-19';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data-`;
 const shellUrls = ['./', './index.html', './styles.css', './fonts.css', './app.mjs', './api.mjs', './domain.mjs', './dashboard-layout.mjs', './i18n.mjs', './offline.mjs', './manifest.webmanifest', './assets/logo.svg'].map(path => new URL(path, self.registration.scope).href);

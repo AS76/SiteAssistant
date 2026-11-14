@@ -1,3 +1,14 @@
+// Display precision only: imported values and calculations retain their original precision.
+export function formatDisplayNumber(value, { kind = 'number', language = 'it', currency = 'EUR', signed = false } = {}) {
+  if (value == null || value === '') return '—';
+  const digits = { money: 2, hours: 1, count: 0 }[kind];
+  const options = digits == null ? { minimumFractionDigits: 0, maximumFractionDigits: 4 }
+    : { minimumFractionDigits: digits, maximumFractionDigits: digits };
+  if (kind === 'money') Object.assign(options, { style: 'currency', currency });
+  if (signed) options.signDisplay = 'always';
+  return new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { ...options, useGrouping: 'always' }).format(Number(value));
+}
+
 export const STATUSES = ['todo', 'in_progress', 'to_verify', 'closed', 'blocked'];
 export const PRIORITIES = ['normal', 'high', 'urgent'];
 export const TASK_KINDS = Object.freeze(['ordinary', 'corrective']);

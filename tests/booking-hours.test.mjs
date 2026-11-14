@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { groupBookings, weeklyBookingHours, filterSortRecords } from '../app/domain.mjs';
+import { formatDisplayNumber, groupBookings, weeklyBookingHours, filterSortRecords } from '../app/domain.mjs';
 import { messages } from '../app/i18n.mjs';
 import { DASHBOARD_WIDGETS } from '../app/dashboard-layout.mjs';
 
@@ -140,7 +140,7 @@ async function ui({ days = [day], bookings = [booking], language = 'it', canBook
     coreData: name => ({ workDays: days, bookings, employees, progress: [{ id: 'item-a', description: '<b>Synthetic item</b>' }] })[name],
     coreFilters: { bookings: { date: '' } }, permissions: () => ({ book: canBook }),
     dateLabel: date => date, empty: key => messages[language][key],
-    groupBookings, weeklyBookingHours, filterSortRecords, DASHBOARD_WIDGETS,
+    formatDisplayNumber, groupBookings, weeklyBookingHours, filterSortRecords, DASHBOARD_WIDGETS,
     localOverviewWidgets: () => ({}), money: value => String(value), earnedValueSummary: () => '',
     donut: () => '', sectionBars: () => '',
   };

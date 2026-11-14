@@ -1,4 +1,4 @@
-import { initialView, todayActions, recentActions, defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, groupDeviationRows, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
+import { formatDisplayNumber, initialView, todayActions, recentActions, defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, groupDeviationRows, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
@@ -10,18 +10,16 @@ const freshApi = createApi({ baseUrl: api.baseUrl, fresh: true, onUnauthorized: 
 // Display preferences live in this browser: currency and number formatting for money fields.
 const PREF_KEY = 'siteassistant-prefs';
 let prefs = (() => {
-  try { return { currency: 'EUR', decimals: 2, separators: 'it', ...(JSON.parse(localStorage.getItem(PREF_KEY) || '{}')) }; }
-  catch { return { currency: 'EUR', decimals: 2, separators: 'it' }; }
+  try { return { currency: 'EUR', separators: 'it', ...(JSON.parse(localStorage.getItem(PREF_KEY) || '{}')) }; }
+  catch { return { currency: 'EUR', separators: 'it' }; }
 })();
 const savePrefs = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch { /* private mode */ } };
 const money = value => {
   if (value == null || value === '') return t('coreUnknown');
-  const locale = prefs.separators === 'en' ? 'en-GB' : 'it-IT';
-  try {
-    return new Intl.NumberFormat(locale, { style: 'currency', currency: prefs.currency,
-      minimumFractionDigits: prefs.decimals, maximumFractionDigits: prefs.decimals, useGrouping: 'always' }).format(Number(value));
-  } catch { return String(value); }
+  try { return esc(formatDisplayNumber(value, { kind: 'money', language: prefs.separators, currency: prefs.currency })); }
+  catch { return esc(value); }
 };
+
 let offlineScope, pendingOps = [], offline = !navigator.onLine, storageReady = false, storageError = false, swUnavailable = false, swRegistration, syncRun;
 const accountChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('siteassistant-session') : null;
 const accountLock = run => navigator.locks ? withSyncLock(run) : run();
@@ -182,7 +180,7 @@ function renderOffline() {
 }
 function rememberTask(task) { state.tasks = state.tasks.map(item => item.id === task.id ? task : item); }
 function heading(title, subtitle, actions = '') {
-  return `<div class="page-heading"><div><div class="eyebrow">${esc(currentSite()?.code || '')} · ${esc(currentSite()?.name || '')}</div><h1>${t(title)}</h1><p>${t(subtitle)}</p></div><div class="heading-actions">${actions}</div></div>`;
+  return `<div class="page-heading"><div><div class="eyebrow">${esc(currentSite()?.code || '')}<span class="eyebrow-site-name"> · ${esc(currentSite()?.name || '')}</span></div><h1>${t(title)}</h1><p>${t(subtitle)}</p></div><div class="heading-actions">${actions}</div></div>`;
 }
 function empty(title, subtitle, action = '') { return `<div class="empty"><strong>${t(title)}</strong>${t(subtitle)}${action ? `<div style="margin-top:16px">${action}</div>` : ''}</div>`; }
 function renderChrome() {
@@ -201,7 +199,7 @@ function renderChrome() {
   const compact = compactNavigation();
   const navItems = visibleModules(compact ? MOBILE_PRIMARY : NAV_ITEMS, currentModules());
   const more = compact && !MOBILE_PRIMARY.includes(view);
-  const navLabel = key => t(compact && key === 'bookings' ? 'bookingsShort' : key);
+  const navLabel = key => t(key === 'bookings' ? 'bookingsShort' : key);
   const navLink = key => {
     const css = [!compact && key === 'today' ? 'nav-today' : '', view === key ? 'active' : ''].filter(Boolean).join(' ');
     return `<a href="#${key}" ${css ? `class="${css}" ` : ''}${view === key ? 'aria-current="page"' : ''}>${icon(key)}<span>${navLabel(key)}</span></a>`;
@@ -212,8 +210,8 @@ function renderChrome() {
   if (!compact) bindDesktopNavigation();
   $('#skip').textContent = t('skip'); $('#site-label').textContent = t('site'); $('#actor-label').textContent = t('actor'); $('#manual-link').textContent = t('manual');
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
-  $('#actor-input').value = actor;
-  $('#actor-input').readOnly = true;
+  $('#site-select').title = state.sites.find(site => site.id === siteId)?.name || '';
+  $('#actor-name').textContent = actor;
   $('#navigation').hidden = !session;
   let logoutButton = $('#logout');
   if (!logoutButton) {
@@ -229,7 +227,6 @@ function renderChrome() {
   passwordBanner.hidden = !session?.password_change_required || bannerDismissed;
   passwordBanner.innerHTML = `<strong>${t('passwordChangeNotice')}</strong> ${button('changePassword', 'change-password')} <button type="button" class="text-button" data-command="dismiss-password-banner" aria-label="${t('close')}">×</button>`;
   logoutButton.hidden = !session; logoutButton.textContent = t('logout');
-  $('#actor-input').placeholder = t('actorPlaceholder');
   $('#site-select').disabled = loading || !state.sites.length;
   $('#language').textContent = language === 'it' ? 'EN' : 'IT';
   $('#language').setAttribute('aria-label', language === 'it' ? 'Switch to English' : 'Passa all’italiano');
@@ -344,8 +341,8 @@ function localOverviewWidgets() {
   const lastEntry = state.diary.filter(item => item.siteId === siteId && item.date === today()).at(-1);
   return {
     priority_work: `<section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section>`,
-    daily_pulse: `<section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack"><div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div><div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div></div></div></section>`,
-    journal_today: `<section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2><span class="badge">${t('draft')}</span></div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}<a class="subtitle" href="#diary">${t('openDiary')} →</a></div></section>`,
+    daily_pulse: `<section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack">${!count.blocked && !count.review ? `<p class="note">${t('pulseClear')}</p>` : `<div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div>`}${count.review ? `<div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div>` : ''}</div></div></section>`,
+    journal_today: `<section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2>${!lastEntry ? button('draft', 'go-diary') : ''}</div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}${lastEntry ? `<a class="subtitle" href="#diary">${t('openDiary')} →</a>` : ''}</div></section>`,
   };
 }
 
@@ -362,7 +359,7 @@ async function loadReport(target) {
   try {
     const data = await freshApi.report(selected);
     if (!current()) return;
-    const percent = value => value == null ? esc(t('coreUnknown')) : `<span>${coreNumber(value)}%</span>
+    const percent = value => value == null ? esc(t('coreUnknown')) : `<span>${coreNumber(value, 'percent')}%</span>
       <span class="report-bar" aria-hidden="true"><span style="width:${Math.min(100, Math.max(0, Number(value)))}%"></span></span>`;
     const table = (caption, columns, rows) => `<div class="report-table-wrap"><table class="report-table"><caption>${t(caption)}</caption>
       <thead><tr>${columns.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead>
@@ -375,11 +372,11 @@ async function loadReport(target) {
     target.innerHTML = `<header class="report-header"><h2>${esc(data.site.code)} · ${esc(data.site.name)}</h2>
       <p>${t('reportGenerated')}: <time datetime="${esc(data.generated_at)}">${esc(generated)} UTC</time></p></header>`
       + '<section>' + table('reportCockpit', ['reportArea', 'reportItems', 'reportActual', 'reportPlanned', 'reportSource'],
-        data.progress.map(row => [esc(row.area), coreNumber(row.items), percent(row.actual), percent(row.planned), esc(t(`reportSource_${row.source}`))]))
+        data.progress.map(row => [esc(row.area), coreNumber(row.items, 'count'), percent(row.actual), percent(row.planned), esc(t(`reportSource_${row.source}`))]))
       + `<h3>${t('earnedValueTitle')}</h3>` + earnedValueSummary(data.earnedValue) + '</section>'
       + table('deviations', ['reportArea', 'reportTotal', 'reportOpen', 'reportClosed', 'reportByStatus'],
-        data.deviations.map(row => [esc(row.area), coreNumber(row.total), coreNumber(row.open), coreNumber(row.closed),
-          row.by_status.map(entry => `<span class="report-status">${esc(entry.status == null ? t('coreUnknown') : t(entry.status))}: ${coreNumber(entry.count)}</span>`).join(' ')]))
+        data.deviations.map(row => [esc(row.area), coreNumber(row.total, 'count'), coreNumber(row.open, 'count'), coreNumber(row.closed, 'count'),
+          row.by_status.map(entry => `<span class="report-status">${esc(entry.status == null ? t('coreUnknown') : t(entry.status))}: ${coreNumber(entry.count, 'count')}</span>`).join(' ')]))
       + reconciliationReport(data.reconciliation);
     target.setAttribute('aria-busy', 'false');
     lastReport = data;
@@ -407,11 +404,11 @@ async function loadReport(target) {
 const overviewCache = new Map();
 function earnedValueSummary(value) {
   if (!value?.available) return `<p class="note">${t('earnedValueNoHours')}</p>`;
-  return `<dl class="detail-grid core-details">${[
-    ['earnedValueEV', value.ev_hours], ['earnedValuePV', value.pv_hours], ['earnedValueAC', value.ac_hours],
+  return `<p class="note">${t('earnedValueHoursCaption')}</p><dl class="detail-grid core-details">${[
+    ['earnedValueEV', value.ev_hours, 'hours'], ['earnedValuePV', value.pv_hours, 'hours'], ['earnedValueAC', value.ac_hours, 'hours'],
     ['earnedValueCPI', value.cpi], ['earnedValueSPI', value.spi],
-  ].map(([label, number]) => `<div><dt>${t(label)}</dt><dd>${coreNumber(number)}</dd></div>`).join('')}</dl>`
-    + (value.items_without_hours ? `<p class="note">${t('earnedValueMissingHours')}: ${coreNumber(value.items_without_hours)}</p>` : '');
+  ].map(([label, number, kind]) => `<div><dt>${t(label)}</dt><dd>${coreNumber(number, kind)}</dd></div>`).join('')}</dl>`
+    + (value.items_without_hours ? `<p class="note">${t('earnedValueMissingHours')}: ${coreNumber(value.items_without_hours, 'count')}</p>` : '');
 }
 const STATUS_COLORS = { open: '#b96027', approved: '#3b69a0', in_progress: '#126c57',
   work_completed: '#6b8f86', closed: '#377348', rejected: '#a73c37' };
@@ -428,7 +425,7 @@ function donut(data, total) {
 }
 function sectionBars(rows) {
   const max = Math.max(1, ...rows.map(row => Math.max(row.actual ?? 0, row.planned ?? 0)));
-  return `<ul class="mini-bars">${rows.map(row => `<li><span class="bar-label">${esc(row.section)}</span><span class="bar-track"><span class="bar-actual" style="width:${((row.actual ?? 0) / max * 100).toFixed(1)}%"></span>${row.planned == null ? '' : `<span class="bar-planned" style="left:${(row.planned / max * 100).toFixed(1)}%"></span>`}</span><span class="bar-value">${row.actual == null ? '—' : `${row.actual}%`}</span></li>`).join('')}</ul>`;
+  return `<ul class="mini-bars">${rows.map(row => `<li><span class="bar-label">${esc(row.section)}</span><span class="bar-track"><span class="bar-actual" style="width:${((row.actual ?? 0) / max * 100).toFixed(1)}%"></span>${row.planned == null ? '' : `<span class="bar-planned" style="left:${(row.planned / max * 100).toFixed(1)}%"></span>`}</span><span class="bar-value">${row.actual == null ? '—' : `${formatDisplayNumber(row.actual, { kind: 'percent', language })}%`}</span></li>`).join('')}</ul>`;
 }
 function renderOverviewWidgets(target, widgets, data, failed = false) {
   const content = localOverviewWidgets();
@@ -438,7 +435,7 @@ function renderOverviewWidgets(target, widgets, data, failed = false) {
   if (data) {
     const total = data.deviations.reduce((sum, row) => sum + row.count, 0);
     kpis.kpi_open_deviations = data.deviations.filter(row => !['closed', 'rejected'].includes(row.status)).reduce((sum, row) => sum + row.count, 0);
-    const number = value => new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 1 }).format(value);
+    const number = value => formatDisplayNumber(value, { kind: 'hours', language });
     const weeks = weeklyBookingHours(data.hours, data.workDays || []);
     kpis.kpi_booked_hours = number(weeks.reduce((sum, row) => sum + row.appBookedHours, 0));
     kpis.kpi_open_claims = money(data.claims.open);
@@ -718,7 +715,7 @@ function renderDiary() {
   const entries = state.diary.filter(item => item.siteId === siteId && item.date === reportDate);
   const canWrite = ['owner', 'editor', 'verifier'].includes(role());
   $('#main').innerHTML = heading('diaryTitle', 'diarySub', button('print', 'print') + (canWrite ? button('newEntry', 'new-entry', '', 'primary') : '')) +
-    `<div class="diary-toolbar"><label for="report-date">${t('reportDate')}</label><input id="report-date" aria-describedby="date-hint-report-date" type="date" min="0001-01-01" max="9999-12-31" value="${reportDate}">${dateHint('date-hint-report-date')}<span class="badge">${t('draft')}</span><span class="subtitle">${entries.length} ${t('entries')}</span></div><div class="diary-grid"><section class="panel">${entries.length ? entries.map(entry => {
+    `<div class="diary-toolbar"><label for="report-date">${t('reportDate')}</label><input id="report-date" type="date" min="0001-01-01" max="9999-12-31" value="${reportDate}"><span class="badge">${t('draft')}</span><span class="subtitle">${entries.length} ${t('entries')}</span></div><div class="diary-grid"><section class="panel">${entries.length ? entries.map(entry => {
       return `<article class="diary-entry"><div class="entry-heading"><strong>${t(entry.shift)} ${syncBadge(entry)}</strong><span>${t('recordedAt')} ${timeLabel(entry.createdAt)}</span></div><div class="entry-grid">${['plan', 'actual', 'blockers', 'next'].map(key => `<section class="entry-section ${key === 'blockers' && entry[key] ? 'entry-blocker' : ''}"><h3>${t(key)}</h3><p>${esc(entry[key] || '—')}</p></section>`).join('')}</div>${attachmentSection('diary', entry.id)}</article>`;
     }).join('') : empty('diaryEmpty', 'diaryEmptyHint', canWrite ? button('newEntry', 'new-entry', '', 'primary') : '')}</section><details class="panel diary-aside" open><summary>${t('dayRule')}</summary><div class="panel-body"><p>${t('dayRuleNote')}</p><div class="blank-message">${t('diaryLimit')}</div></div></details></div><p class="note">${t('forDate')} ${dateLabel(reportDate)} · ${t('draft')} · ${t('diaryLimit')}</p>`;
 }
@@ -884,7 +881,7 @@ const coreValue = value => esc(value ?? t('coreUnknown'));
 const coreStatus = (value, label = t(value || 'coreUnknown')) => `<span class="badge core-status core-status-${esc(value || 'unknown')}">${esc(label)}</span>`;
 // Impact statuses have their own vocabulary: the tasks labels would say «Chiuse» for a claim.
 const impactLabel = status => t({ open: 'impactOpen', notification_sent: 'impactNotification', submitted: 'impactSubmitted', closed: 'impactClosed' }[status] || status || 'coreUnknown');
-const coreNumber = value => value == null ? t('coreUnknown') : `<span class="mono">${new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 4 }).format(Number(value))}</span>`;
+const coreNumber = (value, kind = 'number') => value == null ? t('coreUnknown') : `<span class="mono">${esc(formatDisplayNumber(value, { kind, language }))}</span>`;
 const employeeLabel = employee => employee ? [employee.employeeNo, employee.firstName, employee.lastName].filter(Boolean).join(' · ') || employee.id : t('coreUnknown');
 const progressLabel = item => item?.description || item?.id || t('coreUnknown');
 function coreSelect(key, label, options, value, allLabel) {
@@ -896,7 +893,7 @@ function coreTable(columns, rows, rowAttributes = []) {
 const coreDetailButton = (module, row, label = row.title || row.description || row.id) => `<button type="button" data-command="core-detail" data-module="${module}" data-id="${esc(row.id)}">${esc(label)}</button>`;
 function progressBar(value) {
   if (value == null) return t('coreUnknown');
-  return `<div class="core-progress"><span>${coreNumber(value)}%</span><progress max="100" value="${Math.min(100, Math.max(0, Number(value)))}" aria-label="${t('coreProgressPct')}"></progress></div>`;
+  return `<div class="core-progress"><span>${coreNumber(value, 'percent')}%</span><progress max="100" value="${Math.min(100, Math.max(0, Number(value)))}" aria-label="${t('coreProgressPct')}"></progress></div>`;
 }
 function renderCore() {
   $('#main').innerHTML = heading(view, `${view}Sub`,
@@ -1056,7 +1053,7 @@ const reconciliationColumns = ['coreReference', 'title', 'reconciliationOfficial
 function reconciliationCells(row, interactive = false) {
   return [coreValue(row.deviation_no), interactive
     ? coreDetailButton('deviations', row, row.title || row.deviation_no || row.id) : coreValue(row.title),
-  coreStatus(row.official_status), coreNumber(row.disagreement_days),
+  coreStatus(row.official_status), coreNumber(row.disagreement_days, 'count'),
   esc(t(`reconciliation_${row.kind}`))];
 }
 function reconciliationNotes() {
@@ -1072,14 +1069,14 @@ function renderReconciliation() {
   return `<details id="deviation-reconciliation" class="panel reconciliation-panel" ${reconciliationOpen ? 'open' : ''}>
     <summary>${t('reconciliationTitle')}</summary><div class="panel-body">${reconciliationNotes()}
     <div class="toolbar reconciliation-counts">${RECONCILIATION_KINDS.map(kind => `<button type="button" data-command="reconciliation-filter"
-      data-kind="${kind}" aria-pressed="${reconciliationFilter === kind}">
-      ${t(`reconciliation_${kind}`)}: <strong>${coreNumber(data.counts[kind])}</strong></button>`).join('')}</div>
-    ${body}</div></details>`;
+      data-kind="${kind}" aria-controls="reconciliation-results" aria-pressed="${reconciliationFilter === kind}">
+      ${t(`reconciliation_${kind}`)}: <strong>${coreNumber(data.counts[kind], 'count')}</strong></button>`).join('')}</div>
+    <div id="reconciliation-results" aria-live="polite">${body}</div></div></details>`;
 }
 function reconciliationReport(data) {
   const first = data.items.slice(0, 10);
   return `<section class="reconciliation-report"><h3>${t('reconciliationReportTitle')}</h3>${reconciliationNotes()}
-    ${data.items.length ? `<p>${RECONCILIATION_KINDS.map(kind => `${t(`reconciliation_${kind}`)}: ${coreNumber(data.counts[kind])}`).join(' · ')}</p>
+    ${data.items.length ? `<p>${RECONCILIATION_KINDS.map(kind => `${t(`reconciliation_${kind}`)}: ${coreNumber(data.counts[kind], 'count')}`).join(' · ')}</p>
       <div class="report-table-wrap"><table class="report-table"><thead><tr>${reconciliationColumns.map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead>
       <tbody>${first.map(row => `<tr>${reconciliationCells(row).map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
       <p class="note">${t('reconciliationFirstRows')}: ${first.length} / ${data.items.length}</p>`
@@ -1097,7 +1094,7 @@ function renderDeviations() {
   const all = coreData('deviations'), filter = coreFilters.deviations;
   const rows = filterSortRecords(all, filter, [{ key: 'creationDate', descending: true }, { key: 'deviationNo' }]);
   const priorities = [...new Set(all.map(row => row.priority).filter(value => value != null))].sort();
-  let html = renderReconciliation() + `<div class="toolbar core-toolbar">${coreSelect('status', 'status', [...DEVIATION_STATUSES.map(value => [value, t(value)]), ['__unknown', t('coreUnknown')]], filter.status, 'allStatuses')}${coreSelect('priority', 'priority', priorities.map(value => [value, t(value)]), filter.priority, 'allPriorities')}<div class="view-toggle">${['board', 'list'].map(value => button(value, 'deviation-view', `data-value="${value}" aria-pressed="${deviationView === value}"`, deviationView === value ? 'selected' : '')).join('')}</div></div>`;
+  let html = `<div class="toolbar core-toolbar">${coreSelect('status', 'status', [...DEVIATION_STATUSES.map(value => [value, t(value)]), ['__unknown', t('coreUnknown')]], filter.status, 'allStatuses')}${coreSelect('priority', 'priority', priorities.map(value => [value, t(value)]), filter.priority, 'allPriorities')}<div class="view-toggle">${['board', 'list'].map(value => button(value, 'deviation-view', `data-value="${value}" aria-pressed="${deviationView === value}"`, deviationView === value ? 'selected' : '')).join('')}</div></div>`;
   const visible = filter.status === '__unknown' ? filterSortRecords(all, { ...filter, status: null }, [{ key: 'creationDate', descending: true }, { key: 'deviationNo' }]) : rows;
   const card = row => `<button type="button" class="task-card" data-command="core-detail" data-module="deviations" data-id="${esc(row.id)}"><span class="card-code">${coreValue(row.deviationNo)}</span><h2>${esc(row.title || row.id)}</h2>${coreStatus(row.status)}<p>${t('priority')}: ${coreValue(row.priority == null ? null : t(row.priority))}</p><p>${coreValue(row.assignedTo)}</p></button>`;
   if (deviationView === 'board') {
@@ -1108,13 +1105,13 @@ function renderDeviations() {
           ${column.length ? column.map(card).join('') : `<p class="mini-empty">${t('coreEmptyColumn')}</p>`}</details>`).join('')}</div>`
       : `<div class="deviation-board-frame"><div id="deviation-board" class="core-board" tabindex="0" role="region" aria-label="${t('coreDeviationBoard')}" aria-describedby="deviation-board-scroll-hint">${columns.map(({ label, rows: column }) => `<section class="core-column"><div class="column-heading"><span>${t(label)}</span><span>${column.length}</span></div>${column.length ? column.map(card).join('') : `<p class="mini-empty">${t('coreEmptyColumn')}</p>`}</section>`).join('')}</div></div><p id="deviation-board-scroll-hint" class="board-scroll-hint" hidden>${t('deviationsScroll')} ↔</p>`;
   } else html += visible.length ? coreTable(['coreReference', 'title', 'status', 'priority', 'coreAssignedTo', 'coreCreated', 'coreClosed'], visible.map(row => [coreValue(row.deviationNo), coreDetailButton('deviations', row), coreStatus(row.status), coreValue(row.priority == null ? null : t(row.priority)), coreValue(row.assignedTo), coreValue(row.creationDate), coreValue(row.closedDate)])) : empty('noResults', 'noResultsHint');
-  return html;
+  return window.matchMedia('(max-width: 520px)').matches ? html + renderReconciliation() : renderReconciliation() + html;
 }
 function renderProgress() {
   const rows = filterSortRecords(coreData('progress'), coreFilters.progress, [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
   return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbs', coreData('wbs').map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), coreFilters.progress.wbsId, 'coreAllWbs')}</div>` +
     (rows.length ? coreTable(['wbsDescription', 'coreSection', 'area', 'coreProgressPct', 'coreBookedHours'], rows.map(row => [coreDetailButton('progress', row), coreValue(row.section), coreValue(row.plcArea),
-      progressBar(row.progressPct) + (row.progressPctSource === 'computed' ? ` <span class="badge">${t('coreComputed')}</span>` : ''), coreNumber(row.bookedHours)])) : empty('noResults', 'noResultsHint'));
+      progressBar(row.progressPct) + (row.progressPctSource === 'computed' ? ` <span class="badge">${t('coreComputed')}</span>` : ''), coreNumber(row.bookedHours, 'hours')])) : empty('noResults', 'noResultsHint'));
 }
 function renderBookings() {
   const days = coreData('workDays'), employees = coreData('employees'), items = coreData('progress');
@@ -1128,9 +1125,9 @@ function renderBookings() {
   html += `<p class="note booking-legend">${t('coreHoursLegendSource')}<br>${t('coreHoursLegendApp')}</p>`;
   html += groups.length ? groups.map(group => `<section class="core-day"><h2>${group.date ? dateLabel(group.date) : t('coreUnknown')} · ${esc(employeeLabel(group.employee))}</h2>`
     + '<div class="booking-summary">' + coreTable(['coreSourceWorkTime', 'coreSourceBookedHours', 'coreAppBookedHours', 'coreSourceOpenHours', 'coreVariance'], [[
-      coreNumber(group.sourceWorkTime), coreNumber(group.sourceBookedHours), coreNumber(group.appBookedHours), coreNumber(group.sourceOpenHours), bookingVariance(group.variance),
+      coreNumber(group.sourceWorkTime, 'hours'), coreNumber(group.sourceBookedHours, 'hours'), coreNumber(group.appBookedHours, 'hours'), coreNumber(group.sourceOpenHours, 'hours'), bookingVariance(group.variance),
     ]]) + '</div>'
-    + (group.rows.length ? coreTable(['coreEmployee', 'coreProgressItem', 'coreAppBookedHours', ...(permissions().book ? ['coreActions'] : [])], group.rows.map(row => [esc(employeeLabel(row.employee)), esc(row.item ? progressLabel(row.item) : row.siteProgressItemId), coreNumber(row.hours), ...(permissions().book ? [button('coreDelete', 'booking-delete', `data-id="${esc(row.id)}"`, 'danger small')] : [])])) : '')
+    + (group.rows.length ? coreTable(['coreEmployee', 'coreProgressItem', 'coreAppBookedHours', ...(permissions().book ? ['coreActions'] : [])], group.rows.map(row => [esc(employeeLabel(row.employee)), esc(row.item ? progressLabel(row.item) : row.siteProgressItemId), coreNumber(row.hours, 'hours'), ...(permissions().book ? [button('coreDelete', 'booking-delete', `data-id="${esc(row.id)}"`, 'danger small')] : [])])) : '')
     + '</section>').join('') : empty('noResults', 'noResultsHint');
   return html;
 }
@@ -1138,7 +1135,7 @@ function bookingVariance(value) {
   if (value == null) return `<strong class="booking-variance">${t('coreNotCalculable')}</strong>`;
   const direction = value > 0 ? 'positive' : value < 0 ? 'negative' : 'zero';
   const label = value > 0 ? 'coreVariancePositive' : value < 0 ? 'coreVarianceNegative' : 'coreVarianceBalanced';
-  const formatted = new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { maximumFractionDigits: 4, signDisplay: 'always' }).format(value);
+  const formatted = formatDisplayNumber(value, { kind: 'hours', language, signed: true });
   return `<strong class="booking-variance booking-variance-${direction}"><span class="mono">${esc(formatted)}</span><small>${t(label)}</small></strong>`;
 }
 function renderTools() {
@@ -1214,14 +1211,14 @@ function renderHse() {
   const all = coreData('hse'), filter = coreFilters.hse, canWrite = permissions().hseWrite;
   const rows = filterHseEvents(all, filter), counts = hseCounts(all);
   const kpis = [...HSE_TYPES, 'total'].map(type => `<div class="panel panel-body"><span>${t(type === 'total' ? 'hseTotal' : `hseType_${type}`)}</span><strong class="cert-count">${counts[type]}</strong></div>`).join('');
-  const period = [['from', 'hseFrom'], ['to', 'hseTo']].map(([key, label]) => `<label class="field core-filter"><span>${t(label)}</span><input type="date" min="0001-01-01" max="9999-12-31" data-core-filter="${key}" value="${esc(filter[key])}" aria-describedby="date-hint-hse-${key}">${dateHint(`date-hint-hse-${key}`)}</label>`).join('');
+  const period = [['from', 'hseFrom'], ['to', 'hseTo']].map(([key, label]) => `<label class="field core-filter"><span>${t(label)}</span><input type="date" min="0001-01-01" max="9999-12-31" data-core-filter="${key}" value="${esc(filter[key])}"></label>`).join('');
   let html = `<p class="note">${t('hsePrivacy')}</p><div class="core-kpis" role="status">${kpis}</div><p class="note">${t('hseSummaryHint')}</p>`;
   html += `<div class="toolbar core-toolbar">${coreSelect('type', 'hseType', HSE_TYPES.map(type => [type, t(`hseType_${type}`)]), filter.type, 'hseAllTypes')}${coreSelect('severity', 'hseSeverity', HSE_SEVERITIES.map(severity => [severity, t(`hseSeverity_${severity}`)]), filter.severity, 'hseAllSeverities')}<div class="hse-period-filters">${period}</div></div>`;
   if (filter.from && filter.to && filter.from > filter.to) return html + `<p role="alert">${t('hsePeriodInvalid')}</p>`;
   html += rows.length ? coreTable(['hseOccurredOn', 'hseEventNo', 'hseType', 'hseSeverity', 'hseLocation', 'hsePersons', 'hseMeasures', ...(canWrite ? ['coreActions'] : [])], rows.map(row => [
     coreValue(row.occurredOn), coreValue(row.eventNo), t(`hseType_${row.type}`), coreStatus(row.severity, t(`hseSeverity_${row.severity}`)),
-    coreValue(row.location), coreNumber(row.personsInvolved), coreValue(row.measures),
-    ...(canWrite ? [`<div class="tool-actions">${button('edit', 'hse-edit', `data-id="${esc(row.id)}"`, 'small')}${button('coreDelete', 'hse-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`] : []),
+    coreValue(row.location), row.personsInvolved == null ? '—' : coreNumber(row.personsInvolved, 'count'), coreValue(row.measures),
+    ...(canWrite ? [`<div class="tool-actions hse-actions">${button('edit', 'hse-edit', `data-id="${esc(row.id)}"`, 'small')}<span aria-hidden="true">·</span>${button('coreDelete', 'hse-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`] : []),
   ])) : empty('hseEmpty', 'hseEmptyHint');
   return html;
 }
@@ -1270,12 +1267,12 @@ function progressStepsSection(row) {
   const type = types.find(candidate => candidate.id === row.progressTypeId);
   const steps = row.steps || [], rights = permissions();
   let html = rights.steps ? `<form id="progress-hours-form" data-id="${esc(row.id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><label class="field">${t('corePlannedHours')}<input name="planned_hours" type="number" min="0" max="1000000" step="any" value="${row.plannedHours == null ? '' : esc(row.plannedHours)}"></label><p class="note">${t('corePlannedHoursHint')}</p><div class="form-actions"><button type="submit" class="primary">${t('save')}</button></div></form>`
-    : `<p>${t('corePlannedHours')}: ${coreNumber(row.plannedHours)}</p>`;
+    : `<p>${t('corePlannedHours')}: ${coreNumber(row.plannedHours, 'hours')}</p>`;
   html += `<h3>${t('coreProgressType')}</h3>`;
   html += type ? `<p><strong>${esc(type.name)}</strong> <span class="badge">${esc(type.code)}</span></p>` : `<p>${t('coreNoProgressType')}</p>`;
   if (steps.length) html += coreTable(['coreStep', 'coreDescription', 'coreWeight', 'coreStepPercent'],
     steps.map(step => [esc(step.code), coreValue(step.description), coreNumber(step.weight),
-      step.percent == null ? t('coreUnknown') : `${coreNumber(step.percent)}%`]));
+      step.percent == null ? t('coreUnknown') : `${coreNumber(step.percent, 'percent')}%`]));
   if (rights.steps && steps.length) html += `<form id="progress-steps-form" data-id="${esc(row.id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><h3>${t('coreRecordSteps')}</h3><div class="core-entry-grid">${steps.map(step => `<label class="field">${esc(step.code)}<input name="percent-${esc(step.id)}" type="number" min="0" max="100" step="1" value="${step.percent == null ? '' : esc(step.percent)}" placeholder="0"></label>`).join('')}</div><div class="form-actions"><button type="submit" class="primary">${t('coreSaveSteps')}</button></div></form>`;
   if (rights.assign) html += `<form id="progress-type-form" data-id="${esc(row.id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><label class="field">${t('coreAssignType')}<select name="progress_type_id"><option value="">${t('coreNoProgressType')}</option>${types.map(candidate => `<option value="${esc(candidate.id)}" ${candidate.id === row.progressTypeId ? 'selected' : ''}>${esc(`${candidate.code} · ${candidate.name}`)}</option>`).join('')}</select></label><div class="form-actions"><button type="submit" class="primary">${t('coreSaveType')}</button></div></form>`;
   return html;
@@ -1346,7 +1343,6 @@ const fileToBase64 = file => new Promise((resolve, reject) => {
 function showSettingsForm() {
   showModal(t('settingsTitle'), `<form id="settings-form"><p class="note">${t('settingsHint')}</p><div class="form-grid">
     <label class="field">${t('settingsCurrency')}<select name="currency">${['EUR', 'USD', 'GBP', 'CHF'].map(code => `<option value="${code}" ${prefs.currency === code ? 'selected' : ''}>${code}</option>`).join('')}</select></label>
-    <label class="field">${t('settingsDecimals')}<select name="decimals">${[0, 2].map(value => `<option value="${value}" ${prefs.decimals === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
     <label class="field">${t('settingsSeparators')}<select name="separators"><option value="it" ${prefs.separators === 'it' ? 'selected' : ''}>1.234,56 (IT)</option><option value="en" ${prefs.separators === 'en' ? 'selected' : ''}>1,234.56 (EN)</option></select></label>
     </div>${formActions()}</form>`);
 }
@@ -1540,7 +1536,7 @@ function showBookingDelete(id) {
   if (!permissions().book) return toast(t('forbidden'));
   const row = coreData('bookings').find(booking => booking.id === id);
   if (!row) return;
-  showModal(t('coreDeleteBooking'), `<form id="booking-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('coreDeleteConfirm')}</p><p>${coreNumber(row.hours)} ${t('coreAppBookedHours')} · ${esc(progressLabel(coreData('progress').find(item => item.id === row.siteProgressItemId)))}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
+  showModal(t('coreDeleteBooking'), `<form id="booking-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('coreDeleteConfirm')}</p><p>${coreNumber(row.hours, 'hours')} ${t('coreAppBookedHours')} · ${esc(progressLabel(coreData('progress').find(item => item.id === row.siteProgressItemId)))}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
 }
 function showToolForm() {
   if (!permissions().tools) return toast(t('forbidden'));
@@ -1648,12 +1644,9 @@ function showModal(title, content) {
 }
 function closeModal() { modalVersion++; $('#modal').close(); }
 function field(label, name, value = '', { type = 'text', required = false, full = false, max = 4000, hint = '', options = null } = {}) {
-  const attrs = `name="${name}" id="field-${name}" ${required ? 'required' : ''}${type === 'date' ? ` aria-describedby="date-hint-${name}"` : ''}`;
+  const attrs = `name="${name}" id="field-${name}" ${required ? 'required' : ''}${hint ? ` aria-describedby="field-hint-${name}"` : ''}`;
   const control = options !== null ? `<select ${attrs}>${options}</select>` : type === 'textarea' ? `<textarea ${attrs} maxlength="${max}">${esc(value)}</textarea>` : `<input ${attrs} type="${type}" value="${esc(value)}" ${type === 'date' ? 'min="0001-01-01" max="9999-12-31"' : `maxlength="${max}"`}>`;
-  return `<label class="field ${full ? 'full' : ''}" for="field-${name}"><span>${t(label)} ${required ? '*' : `<small>(${t('optional')})</small>`}</span>${control}${type === 'date' ? dateHint(`date-hint-${name}`) : ''}${hint ? `<small>${t(hint)}</small>` : ''}</label>`;
-}
-function dateHint(id) {
-  return `<small class="field-hint" id="${esc(id)}">${t('dateFormatHint')}</small>`;
+  return `<label class="field ${full ? 'full' : ''}" for="field-${name}"><span>${t(label)} ${required ? '*' : `<small>(${t('optional')})</small>`}</span>${control}${hint ? `<small id="field-hint-${name}">${t(hint)}</small>` : ''}</label>`;
 }
 const formActions = () => `<div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="primary">${t('save')}</button></div>`;
 function formError(form, error) {
@@ -1885,6 +1878,7 @@ document.addEventListener('click', event => {
   const target = event.target.closest('[data-command]'); if (!target) return;
   const command = target.dataset.command, id = target.dataset.id;
   const commands = {
+    'go-diary': () => { reportDate = today(); go('diary'); },
     'today-open': () => openTodayAction(target),
     'today-quick': () => runTodayQuick(target.dataset.action),
     'today-photo-target': () => openTodayPhoto(target.dataset.entityType, id),
@@ -1989,7 +1983,7 @@ document.addEventListener('submit', async event => {
     }
     if (form.id === 'settings-form') {
       const data2 = Object.fromEntries(new FormData(form));
-      prefs = { currency: String(data2.currency || 'EUR'), decimals: Number(data2.decimals) === 0 ? 0 : 2, separators: data2.separators === 'en' ? 'en' : 'it' };
+      prefs = { currency: String(data2.currency || 'EUR'), separators: data2.separators === 'en' ? 'en' : 'it' };
       savePrefs(); closeModal(); render(); toast(t('settingsSaved')); return;
     }
     if (form.id === 'import-form') { await handleImport(form); return; }
@@ -2117,6 +2111,7 @@ document.addEventListener('input', event => {
   if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
 $('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
 window.addEventListener('resize', updateDeviationBoardScroll);
+window.matchMedia('(max-width: 520px)').addEventListener('change', () => { if (view === 'deviations') render(); });
 window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = initialView({ width: window.innerWidth, hash: next ? `#${next}` : '#overview' }); if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
 window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view] || view === 'today') { closeModal(); render(); } });
 window.matchMedia('(width < 800px)').addEventListener('change', () => renderChrome());
