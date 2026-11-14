@@ -154,5 +154,8 @@ test('phone dates use 16px text and HSE period labels stack at full width', () =
 
 test('service worker cache version includes the desktop navigation and contrast update', async () => {
   const worker = await readFile(new URL('../app/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const VERSION = 'siteassistant-v15-17';/);
+  // A version bump must not fail this suite; a regression to an older cache must.
+  const version = /const VERSION = 'siteassistant-v15-(\d+)'/.exec(worker);
+  assert.ok(version, 'il service worker deve dichiarare una versione');
+  assert.ok(Number(version[1]) >= 17, `versione del service worker troppo vecchia: ${version[0]}`);
 });
