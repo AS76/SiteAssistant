@@ -59,6 +59,12 @@ dialog{border:1px solid var(--line);border-radius:15px;padding:0;max-width:760px
 .core-filter select { min-width: 0; max-width: 100%; }
 .core-board { display: flex; gap: 14px; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding: 4px 3px 16px; }
 .core-column { flex: 0 0 260px; min-width: 0; scroll-snap-align: start; background: #eaf0ed; border-radius: 10px; padding: 0 12px 12px; }
+.deviation-board-frame { position: relative; min-width: 0; }
+.deviation-board-frame::before, .deviation-board-frame::after { content: ''; position: absolute; top: 0; bottom: 0; width: 28px; z-index: 1; pointer-events: none; opacity: 0; }
+.deviation-board-frame::before { left: 0; background: linear-gradient(to right, var(--paper), transparent); }
+.deviation-board-frame::after { right: 0; background: linear-gradient(to left, var(--paper), transparent); }
+.deviation-board-frame.scroll-left::before, .deviation-board-frame.scroll-right::after { opacity: 1; }
+.board-scroll-hint { margin: 0 0 12px; text-align: right; font-size: 12px; font-weight: 600; color: var(--muted); }
 .core-unknown { margin-top: 24px; }
 .core-table-wrap { border: 1px solid var(--line); border-radius: 10px; background: white; overflow: hidden; }
 .core-table { table-layout: fixed; white-space: normal; }
@@ -168,15 +174,20 @@ footer{font-size:11px}
 
 /* Phones: tables become cards. The data-label attribute is already on every cell. */
 @media(max-width:800px){
-  .core-table-wrap{border:0;background:transparent;overflow:visible}
-  .core-table{display:block;white-space:normal}
-  .core-table thead{display:none}
-  .core-table tbody{display:block}
-  .core-table tr{display:block;border:1px solid var(--line);border-radius:10px;background:#fff;margin-bottom:10px;padding:10px 12px}
-  .core-table td{display:flex;justify-content:space-between;align-items:baseline;gap:14px;border:0;padding:6px 0;white-space:normal;text-align:right}
-  .core-table td::before{content:attr(data-label);color:var(--muted);font-size:11px;letter-spacing:.4px;text-transform:uppercase;text-align:left;flex:0 0 auto}
+  .core-table-wrap,.mobile-card-wrap{border:0;background:transparent;overflow:visible}
+  .core-table,.mobile-card-table{display:block;white-space:normal}
+  .core-table thead,.mobile-card-table thead{display:none}
+  .core-table tbody,.mobile-card-table tbody{display:block}
+  .core-table tr,.mobile-card-table tr{display:block;border:1px solid var(--line);border-radius:10px;background:#fff;margin-bottom:10px;padding:10px 12px}
+  .core-table td,.mobile-card-table td{display:flex;justify-content:space-between;align-items:baseline;gap:14px;border:0;padding:6px 0;white-space:normal;text-align:right}
+  .core-table td::before,.mobile-card-table td::before{content:attr(data-label);color:var(--muted);font-size:11px;letter-spacing:.4px;text-transform:uppercase;text-align:left;flex:0 0 auto}
   .core-table td:first-child{font-weight:600;text-align:left}
   .core-table td:first-child::before{content:''}
+  .mobile-card-table,.mobile-card-table tbody,.mobile-card-table tr,.mobile-card-table td{width:100%}
+  .mobile-card-table td{overflow-wrap:anywhere;min-width:0;max-width:none}
+  .mobile-card-table td>*{min-width:0}
+  .mobile-card-table td.mobile-card-actions{flex-direction:column;align-items:stretch;gap:6px}
+  .mobile-card-table .mobile-card-action{width:100%;min-height:44px;padding:10px 15px;border:1px solid var(--line);text-align:center}
   .core-progress{min-width:140px}
 }
 

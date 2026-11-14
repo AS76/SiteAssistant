@@ -272,6 +272,25 @@ test('light renderer shows six columns and ordinary rows while keeping shared fi
   }
 });
 
+test('light renderer labels every phone card field and gives its final action the full width class', async () => {
+  const { context, nodes } = await lightUi([
+    { id: 'synthetic-a', siteId: 'site-a', kind: 'ordinary', status: 'to_verify', title: 'Example task' },
+    { id: 'synthetic-b', siteId: 'site-a', kind: 'ordinary', status: 'todo', title: 'Example pending task' },
+  ]);
+  context.renderTaskResults();
+  const html = nodes['#task-results'].innerHTML;
+  assert.match(html, /class="table-scroll mobile-card-wrap"><table class="mobile-card-table"/);
+  const rows = [...html.matchAll(/<tbody>([\s\S]*?)<\/tbody>/g)][0][1].match(/<tr>[\s\S]*?<\/tr>/g);
+  assert.equal(rows.length, 2);
+  for (const row of rows) {
+    assert.deepEqual([...row.matchAll(/<td data-label="([^"]+)"/g)].map(match => match[1]),
+      ['title', 'area', 'assignee', 'due', 'status', 'lightAction'].map(key => messages.it[key]));
+    assert.match(row, /<td[^>]*class="mobile-card-actions"><button[^>]*class="mobile-card-action"[^>]*data-command="light-transition"[^>]*>[\s\S]*?<\/button><\/td><\/tr>$/);
+  }
+  assert.doesNotMatch(rows.find(row => row.includes('data-id="synthetic-a"')), /disabled/);
+  assert.match(rows.find(row => row.includes('data-id="synthetic-b"')), /disabled/);
+});
+
 test('light close command opens the existing dialog with a required note and sends no write', async () => {
   const { context, dialogs, writes } = await lightUi([{ id: 'ordinary', kind: 'ordinary', status: 'to_verify' }]);
   await context.runLightTransition('ordinary');

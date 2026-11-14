@@ -1,4 +1,4 @@
-import { initialView, todayActions, recentActions, defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
+import { initialView, todayActions, recentActions, defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, groupDeviationRows, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { messages } from './i18n.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
@@ -667,7 +667,7 @@ function canRunLightTransition(task) {
 function lightTaskButton(task) {
   if (!canWriteTask()) return '—';
   const key = task.status === 'closed' ? 'lightReopen' : 'lightClose';
-  return button(key, 'light-transition', `data-id="${esc(task.id)}" ${canRunLightTransition(task) ? '' : `disabled title="${esc(t('noTransitions'))}"`}`);
+  return button(key, 'light-transition', `data-id="${esc(task.id)}" ${canRunLightTransition(task) ? '' : `disabled title="${esc(t('noTransitions'))}"`}`, 'mobile-card-action');
 }
 async function runLightTransition(taskId) {
   const task = state.tasks.find(item => item.id === taskId);
@@ -702,7 +702,7 @@ function renderTaskResults() {
       : `<div class="board">${columns.map(({ status, column }) => `<section class="board-column" aria-label="${t(status)}"><div class="column-heading"><span>${t(status)}</span><span>${column.length}</span></div>${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</section>`).join('')}</div>`;
   }
   else if (taskView === 'light') {
-    html += `<div class="table-scroll"><table><thead><tr>${['title', 'area', 'assignee', 'due', 'status', 'lightAction'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${tasks.map(task => `<tr><td><button type="button" data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></td><td>${esc(task.area || '—')}</td><td>${personName(task.assignee)}</td><td>${dueMarkup(task)}</td><td>${badge(task.status)} ${syncBadge(task)}</td><td>${lightTaskButton(task)}</td></tr>`).join('')}</tbody></table></div>`;
+    html += `<div class="table-scroll mobile-card-wrap"><table class="mobile-card-table"><thead><tr>${['title', 'area', 'assignee', 'due', 'status', 'lightAction'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${tasks.map(task => `<tr><td data-label="${t('title')}"><button type="button" data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></td><td data-label="${t('area')}">${esc(task.area || '—')}</td><td data-label="${t('assignee')}">${personName(task.assignee)}</td><td data-label="${t('due')}">${dueMarkup(task)}</td><td data-label="${t('status')}"><span>${badge(task.status)} ${syncBadge(task)}</span></td><td data-label="${t('lightAction')}" class="mobile-card-actions">${lightTaskButton(task)}</td></tr>`).join('')}</tbody></table></div>`;
   }
   else {
     const sorted = filterSortRecords(tasks, {}, [{ key: taskSort.key, descending: taskSort.direction === 'desc' }]);
@@ -922,6 +922,10 @@ function renderCore() {
   const reconciliationPanel = $('#deviation-reconciliation');
   if (reconciliationPanel) reconciliationPanel.addEventListener('toggle', () => { reconciliationOpen = reconciliationPanel.open; });
   enhanceCoreTables();
+  if (view === 'deviations') {
+    updateDeviationBoardScroll();
+    $('#deviation-board')?.addEventListener('scroll', updateDeviationBoardScroll, { passive: true });
+  }
   bindAuditPanel();
 }
 
@@ -1081,6 +1085,14 @@ function reconciliationReport(data) {
       <p class="note">${t('reconciliationFirstRows')}: ${first.length} / ${data.items.length}</p>`
       : `<p>${t('reconciliationAligned')}</p>`}</section>`;
 }
+function updateDeviationBoardScroll() {
+  const board = $('#deviation-board');
+  if (!board) return;
+  const overflow = board.scrollWidth > board.clientWidth + 1;
+  $('#deviation-board-scroll-hint').hidden = !overflow;
+  board.parentElement.classList.toggle('scroll-left', overflow && board.scrollLeft > 1);
+  board.parentElement.classList.toggle('scroll-right', overflow && board.scrollLeft + board.clientWidth < board.scrollWidth - 1);
+}
 function renderDeviations() {
   const all = coreData('deviations'), filter = coreFilters.deviations;
   const rows = filterSortRecords(all, filter, [{ key: 'creationDate', descending: true }, { key: 'deviationNo' }]);
@@ -1089,14 +1101,12 @@ function renderDeviations() {
   const visible = filter.status === '__unknown' ? filterSortRecords(all, { ...filter, status: null }, [{ key: 'creationDate', descending: true }, { key: 'deviationNo' }]) : rows;
   const card = row => `<button type="button" class="task-card" data-command="core-detail" data-module="deviations" data-id="${esc(row.id)}"><span class="card-code">${coreValue(row.deviationNo)}</span><h2>${esc(row.title || row.id)}</h2>${coreStatus(row.status)}<p>${t('priority')}: ${coreValue(row.priority == null ? null : t(row.priority))}</p><p>${coreValue(row.assignedTo)}</p></button>`;
   if (deviationView === 'board') {
-    const columns = DEVIATION_STATUSES.map(status => ({ status, column: visible.filter(row => row.status === status) }));
+    const columns = groupDeviationRows(visible);
     html += compactNavigation()
-      ? `<div class="board-accordion core-board-accordion">${columns.map(({ status, column }, index) => `<details class="board-status" ${index === 0 ? 'open' : ''}>
-          <summary><span>${t(status)}</span><span class="count">${column.length}</span></summary>
+      ? `<div class="board-accordion core-board-accordion">${columns.map(({ label, rows: column }, index) => `<details class="board-status" ${index === 0 ? 'open' : ''}>
+          <summary><span>${t(label)}</span><span class="count">${column.length}</span></summary>
           ${column.length ? column.map(card).join('') : `<p class="mini-empty">${t('coreEmptyColumn')}</p>`}</details>`).join('')}</div>`
-      : `<div class="core-board" tabindex="0" role="region" aria-label="${t('coreDeviationBoard')}">${columns.map(({ status, column }) => `<section class="core-column"><div class="column-heading"><span>${t(status)}</span><span>${column.length}</span></div>${column.length ? column.map(card).join('') : `<p class="mini-empty">${t('coreEmptyColumn')}</p>`}</section>`).join('')}</div>`;
-    const unknown = visible.filter(row => !DEVIATION_STATUSES.includes(row.status));
-    if (unknown.length) html += `<section class="core-unknown"><h2>${t('coreUnmappedStatus')}</h2>${unknown.map(card).join('')}</section>`;
+      : `<div class="deviation-board-frame"><div id="deviation-board" class="core-board" tabindex="0" role="region" aria-label="${t('coreDeviationBoard')}" aria-describedby="deviation-board-scroll-hint">${columns.map(({ label, rows: column }) => `<section class="core-column"><div class="column-heading"><span>${t(label)}</span><span>${column.length}</span></div>${column.length ? column.map(card).join('') : `<p class="mini-empty">${t('coreEmptyColumn')}</p>`}</section>`).join('')}</div></div><p id="deviation-board-scroll-hint" class="board-scroll-hint" hidden>${t('deviationsScroll')} ↔</p>`;
   } else html += visible.length ? coreTable(['coreReference', 'title', 'status', 'priority', 'coreAssignedTo', 'coreCreated', 'coreClosed'], visible.map(row => [coreValue(row.deviationNo), coreDetailButton('deviations', row), coreStatus(row.status), coreValue(row.priority == null ? null : t(row.priority)), coreValue(row.assignedTo), coreValue(row.creationDate), coreValue(row.closedDate)])) : empty('noResults', 'noResultsHint');
   return html;
 }
@@ -2106,6 +2116,7 @@ document.addEventListener('input', event => {
   }
   if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
 $('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
+window.addEventListener('resize', updateDeviationBoardScroll);
 window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = initialView({ width: window.innerWidth, hash: next ? `#${next}` : '#overview' }); if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
 window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view] || view === 'today') { closeModal(); render(); } });
 window.matchMedia('(width < 800px)').addEventListener('change', () => renderChrome());

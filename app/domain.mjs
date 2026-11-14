@@ -210,6 +210,18 @@ export function csvCell(value) {
 }
 
 export const DEVIATION_STATUSES = ['open', 'approved', 'in_progress', 'work_completed', 'closed', 'rejected'];
+// Presentation groups preserve each record and its precise official status.
+export function groupDeviationRows(records = []) {
+  const groups = [
+    { label: 'deviationsGroupOpen', statuses: ['open', 'approved'] },
+    { label: 'deviationsGroupInProgress', statuses: ['in_progress'] },
+    { label: 'deviationsGroupToClose', statuses: ['work_completed'] },
+    { label: 'deviationsGroupClosed', statuses: ['closed', 'rejected'] },
+  ].map(group => ({ ...group, rows: records.filter(row => group.statuses.includes(row.status)) }));
+  const unknown = records.filter(row => !DEVIATION_STATUSES.includes(row.status));
+  if (unknown.length) groups.push({ label: 'coreUnmappedStatus', statuses: [], rows: unknown });
+  return groups;
+}
 export const IMPACT_STATUSES = ['open', 'notification_sent', 'submitted', 'closed'];
 export const IMPACT_RESULTS = ['settled', 'dropped', 'rejected'];
 export const TOOL_STATUSES = Object.freeze(['available', 'in_use', 'maintenance', 'retired']);
