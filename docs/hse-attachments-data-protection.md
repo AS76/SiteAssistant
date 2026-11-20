@@ -3,6 +3,11 @@
 Status: design note, written **before** the code. It states what the product enforces, what the
 customer decides, and where the line is. It is not legal advice.
 
+> **Historical design note — not a record of implemented compliance controls.** This document includes
+> proposed safeguards and must be read alongside the current product documentation and tested
+> implementation. An item described as a design requirement is not a deployed capability unless
+> confirmed in code and tests.
+
 ## 1. Why a separate note
 
 The health and safety register deliberately holds no health data: it records facts, places, measures
@@ -22,9 +27,13 @@ References are listed at the end.
 
 - The **customer** (the company running the site) is the controller: it decides purpose, retention and
   who may look.
-- The **supplier** of SiteAssistant is a processor for the data the customer puts in, and a controller
-  only for its own account data. The processor acts on documented instructions; the product must make
-  those instructions technically possible, not decide them.
+
+**Roles depend on the actual deployment and processing.** An organisation that decides the purposes and
+essential means of processing through its SiteAssistant installation will normally be a controller for
+those purposes, subject to its arrangements with other organisations. Distributing open-source code
+alone does not make its author a processor of personal data in independently operated installations. A
+hosting or support provider can become a processor when it processes data on behalf of a controller,
+subject to applicable agreements. The separately operated public demo must be assessed on its own facts.
 
 Consequence for the product: anything that would require a legal judgement — how long to keep a photo,
 whether a face may be visible — is **configuration the customer decides**, with a default that is safe
@@ -43,6 +52,10 @@ a condition — a missing guard rail, an unmarked edge, a load that swung. The p
 needs to show a person, that is an explicit, logged choice with a written justification, not a
 side effect.
 
+*Status: proposed, not implemented.* No technical control currently records or justifies a person in
+a photograph; the deploying organisation must handle review and any justification outside the
+application.
+
 **3.3 No health data, by design.** The product must not offer fields for diagnosis, injury type,
 body part or days of absence. A photograph that shows an injury must be discouraged in the interface
 and, if uploaded anyway, flagged as special-category content.
@@ -54,6 +67,9 @@ the size per event, and rejects files above the configured limit instead of sile
 its attachments stop being served immediately; hard deletion removes the object from storage. The
 customer configures the retention period; the default is the shortest useful one.
 
+*Status: proposed, not implemented.* There is no per-site retention setting in the current version;
+retention must be managed by the organisation outside the application until the control exists.
+
 **3.6 Access.** Attachments on an HSE event are visible to the same roles that can read the register
 (owner, verifier) plus the roles that can write it (owner, editor). Reads and downloads are written to
 the audit register — who looked at what, and when.
@@ -62,6 +78,9 @@ the audit register — who looked at what, and when.
 outlives the session, no public bucket path.
 
 ## 4. What the product enforces, and what it cannot
+
+The «enforced technically» column records the design intent and the state verified on 20 November 2026
+against commit `9085a5d`. «Type validation» means the declared media type, not content inspection.
 
 | Rule | Enforced technically | Left to the customer |
 | --- | --- | --- |
@@ -94,6 +113,8 @@ systematically photographs accident scenes with people in them, across many site
 The product should therefore ask, once per customer, a short screening questionnaire and record the
 answer next to the retention setting.
 
+*Status: proposed, not implemented.* No DPIA screening questionnaire exists in the interface.
+
 ## 6. Technical checklist for the implementation
 
 1. `attachments.entity_type` accepts `hse_event`, with the same checksum and size rules as the rest.
@@ -101,7 +122,9 @@ answer next to the retention setting.
 3. A deleted event hides its attachments in the same transaction that hides the event.
 4. Every read of an attachment writes an audit event (`hse_attachment_read`).
 5. Upload response carries a warning code when the description mentions a person or an injury.
+   *Proposed: the current warning is client-side only; the API does not return a warning code.*
 6. Retention settings stored per site, with a safe default and a documented maximum.
+   *Proposed: not implemented.*
 7. Tests: role matrix, soft-delete propagation, audit trail, refusal above the size limit, refusal of
    forbidden mime types.
 
