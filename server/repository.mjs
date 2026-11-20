@@ -1,0 +1,674 @@
+import { moduleAllowed, requireModule } from './module-access.mjs';
+import { createHash, randomUUID } from 'node:crypto';
+import { operationalDate } from './operational-day.mjs';
+import { ObjectStorageError, S3Storage } from './s3.mjs';
+import { appendAuditEvent } from './audit.mjs';
+
+export class RepositoryError extends Error {
+  constructor(status, message, code) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+const fail = (status, message, code) => {
+  throw new RepositoryError(status, message, code);
+};
+
+export const STATUSES = ['todo', 'in_progress', 'to_verify', 'closed', 'blocked'];
+export const TASK_KINDS = ['ordinary', 'corrective'];
+const transitions = {
+  todo: { in_progress: 'start', blocked: 'block' },
+  in_progress: { to_verify: 'submit', blocked: 'block' },
+  to_verify: { closed: 'verify', blocked: 'block', in_progress: 'reject' },
+  closed: { in_progress: 'reopen' },
+};
+
+function transitionAction(task, to) {
+  if (task.status === 'blocked') {
+    return ['todo', 'in_progress', 'to_verify'].includes(task.blocked_from)
+      && to === task.blocked_from ? 'resume' : undefined;
+  }
+  return transitions[task.status]?.[to];
+}
+
+// Invalid UUID lookup parameters used to be simple misses with TEXT columns.
+async function idLookup(read, missing) {
+  try { return await read(); }
+  catch (error) {
+    if (error.code === '22P02') return missing;
+    throw error;
+  }
+}
+
+function object(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    fail(400, 'Expected a JSON object.', 'VALIDATION_ERROR');
+  }
+}
+
+function text(value, field, required = false) {
+  if (value === undefined || value === null) value = '';
+  if (typeof value !== 'string' || value.length > 10000) {
+    fail(400, `${field} must be a string of at most 10000 characters.`, 'VALIDATION_ERROR');
+  }
+  const result = value.trim();
+  if (required && !result) fail(400, `${field} is required.`, 'VALIDATION_ERROR');
+  return result;
+}
+
+function date(value, field, required = false) {
+  const result = text(value, field, required);
+  if (!result) return null;
+  const parsed = new Date(`${result}T00:00:00.000Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(result) ||
+      !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== result) {
+    fail(400, `${field} must be a valid YYYY-MM-DD date.`, 'VALIDATION_ERROR');
+  }
+  return result;
+}
+
+async function uniqueWrite(db, write, message, code) {
+  try {
+    return await write();
+  } catch (error) {
+    if (db.isUniqueViolation(error)) fail(409, message, code);
+    throw error;
+  }
+}
+
+export async function listSites(db, user) {
+  return await db.all(`SELECT * FROM sites ${user ? 'WHERE id IN (SELECT site_id FROM site_members WHERE user_id = ?)' : ''}
+    ORDER BY created_at, id`, ...(user ? [user.id] : []));
+}
+
+export const WRITE_ROLES = ['owner', 'editor', 'verifier'];
+export const ROLES = [...WRITE_ROLES, 'viewer'];
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function requireRole(db, siteId, user, roles = ROLES) {
+  await getSite(db, siteId);
+  const member = await db.get('SELECT role FROM site_members WHERE site_id = ? AND user_id = ?', siteId, user.id);
+  if (!member || !roles.includes(member.role)) fail(403, 'Insufficient site role.', 'FORBIDDEN');
+  return member.role;
+}
+
+export async function listMembers(db, siteId, user) {
+  await requireRole(db, siteId, user, ['owner']);
+  return await db.all(`SELECT u.id, u.email, u.name, m.role FROM site_members m
+    JOIN users u ON u.id = m.user_id WHERE m.site_id = ? ORDER BY u.id`, siteId);
+}
+
+export async function listAssignable(db, siteId, user, { forDeviation = false } = {}) {
+  await requireRole(db, siteId, user, forDeviation ? ['owner', 'editor'] : WRITE_ROLES);
+  if (forDeviation) await requireModule(db, siteId, user, 'deviations');
+  return await db.all(`SELECT u.id AS user_id, u.name, m.role FROM site_members m
+    JOIN users u ON u.id = m.user_id
+    WHERE m.site_id = ? AND u.disabled_at IS NULL ${forDeviation ? '' : "AND m.role IN ('owner', 'editor', 'verifier')"}
+    ORDER BY lower(u.name), u.name, u.id`, siteId);
+}
+
+export async function setMember(db, siteId, input, user) {
+  object(input);
+  return await db.transaction(async tx => {
+    await requireRole(tx, siteId, user, ['owner']);
+    await tx.run('UPDATE sites SET id = id WHERE id = ?', siteId);
+    await requireRole(tx, siteId, user, ['owner']);
+    if (typeof input.user_id !== 'string' || !uuid.test(input.user_id) || (input.role !== null && !ROLES.includes(input.role))) {
+      fail(400, 'A user UUID and valid role (or null for removal) are required.', 'VALIDATION_ERROR');
+    }
+    const userId = input.user_id.toLowerCase();
+    if (!await tx.get('SELECT id FROM users WHERE id = ?', userId)) fail(404, 'User not found.', 'USER_NOT_FOUND');
+    // Prevent accidental self-removal by an administrator.
+    if (userId === user.id && input.role !== 'owner') fail(400, 'An owner cannot downgrade themselves.', 'VALIDATION_ERROR');
+    if (input.role === null) await tx.run('DELETE FROM site_members WHERE site_id = ? AND user_id = ?', siteId, userId);
+    else await tx.run(`INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, ?)
+      ON CONFLICT (site_id, user_id) DO UPDATE SET role = excluded.role`, siteId, userId, input.role);
+    return { site_id: siteId, user_id: userId, role: input.role };
+  });
+}
+
+export async function getSite(db, id) {
+  const site = await idLookup(() => db.get('SELECT * FROM sites WHERE id = ?', id));
+  if (!site) fail(404, 'Site not found.', 'SITE_NOT_FOUND');
+  return site;
+}
+
+function siteJurisdiction(value) {
+  if (!['IT', 'UK'].includes(value)) fail(400, 'jurisdiction must be IT or UK.', 'VALIDATION_ERROR');
+  return value;
+}
+
+export async function createSite(db, input) {
+  object(input);
+  const jurisdiction = siteJurisdiction(input.jurisdiction === undefined ? 'IT' : input.jurisdiction);
+  const code = text(input.code, 'code', true);
+  const name = text(input.name, 'name', true);
+  const location = text(input.location, 'location');
+  const start = date(input.start_date, 'start_date');
+  const end = date(input.end_date, 'end_date');
+  if (start && end && end < start) {
+    fail(400, 'end_date must not precede start_date.', 'VALIDATION_ERROR');
+  }
+  const id = randomUUID();
+  await uniqueWrite(db, () => db.run(`
+    INSERT INTO sites (id, code, name, location, start_date, end_date, created_at, jurisdiction)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `, id, code, name, location, start, end, new Date().toISOString(), jurisdiction),
+  'Site code already exists.', 'DUPLICATE_SITE_CODE');
+  return await getSite(db, id);
+}
+
+export async function updateSite(db, id, input, user) {
+  object(input);
+  return await db.transaction(async tx => {
+    await requireRole(tx, id, user, ['owner']);
+    // Share the site lock with membership changes and serialize audit snapshots.
+    await tx.run('UPDATE sites SET id = id WHERE id = ?', id);
+    await requireRole(tx, id, user, ['owner']);
+    if (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'jurisdiction')) {
+      fail(400, 'Only jurisdiction may be updated.', 'VALIDATION_ERROR');
+    }
+    const jurisdiction = siteJurisdiction(input.jurisdiction);
+    const before = await getSite(tx, id);
+    await tx.run('UPDATE sites SET jurisdiction = ? WHERE id = ?', jurisdiction, id);
+    const after = await getSite(tx, id);
+    await appendAuditEvent(tx, {
+      entityType: 'site', action: 'update', before, after, actor: user.id,
+    });
+    return after;
+  });
+}
+
+// Rows created before the classification existed read as ordinary work.
+const publicTask = task => ({ ...task, kind: task.kind ?? 'ordinary' });
+async function taskWithWbs(db, task) {
+  if (!task.wbs_id) return publicTask(task);
+  const node = await db.get(`SELECT w.wbs_code,
+    CASE WHEN o.description_set THEN o.description ELSE w.description END AS description
+    FROM project_structure w LEFT JOIN wbs_node_overrides o ON o.wbs_id = w.id
+    WHERE w.id = ? AND w.site_id = ?`, task.wbs_id, task.site_id);
+  return { ...publicTask(task), wbs_code: node?.wbs_code ?? null, wbs_description: node?.description ?? null };
+}
+async function validateTaskWbs(db, site, value) {
+  if (value === null || value === '') return null;
+  if (typeof value !== 'string' || !uuid.test(value)) fail(400, 'Invalid WBS reference.', 'VALIDATION_ERROR');
+  const id = value.toLowerCase();
+  if (!await db.get('SELECT id FROM project_structure WHERE id = ? AND site_id = ?', id, site)) fail(400, 'WBS must belong to this site.', 'WBS_WRONG_SITE');
+  return id;
+}
+export async function updateTaskWbs(db, id, input, user) {
+  object(input);
+  if (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'wbsId')) fail(400, 'Only wbsId may be updated.', 'VALIDATION_ERROR');
+  return db.transaction(async tx => {
+    const task = await getTask(tx, id);
+    await requireRole(tx, task.site_id, user, ['owner', 'editor']);
+    await requireModule(tx, task.site_id, user, 'tasks');
+    const wbsId = await validateTaskWbs(tx, task.site_id, input.wbsId);
+    await tx.run('UPDATE tasks SET wbs_id = ? WHERE id = ?', wbsId, id);
+    return getTask(tx, id);
+  });
+}
+
+const currentWaiver = `COALESCE((SELECT waiver FROM task_events
+  WHERE task_id = tasks.id AND to_status = 'closed' AND from_status <> 'closed'
+  ORDER BY at DESC, id DESC LIMIT 1), FALSE)`;
+const taskHistoryProjection = `(SELECT COUNT(*) FROM task_events
+  WHERE task_id = tasks.id AND from_status = 'closed' AND to_status <> 'closed') AS reopen_count,
+  CASE WHEN status = 'closed' THEN ${currentWaiver} ELSE FALSE END AS closed_with_waiver`;
+const lastBlockNote = `(SELECT NULLIF(TRIM(COALESCE(NULLIF(TRIM(note), ''), '')
+  || CASE WHEN NULLIF(TRIM(note), '') IS NOT NULL AND NULLIF(TRIM(reason), '') IS NOT NULL THEN ' · ' ELSE '' END
+  || COALESCE(NULLIF(TRIM(reason), ''), '')), '')
+  FROM task_events WHERE task_id = tasks.id AND action = 'block'
+  ORDER BY at DESC, id DESC LIMIT 1) AS last_block_note`;
+
+function taskFilters({ siteId, status, kind, closedWithWaiver }, user) {
+  const site = text(siteId, 'siteId');
+  const state = text(status, 'status');
+  const type = text(kind, 'kind');
+  if (state && !STATUSES.includes(state)) fail(400, 'Unknown task status.', 'VALIDATION_ERROR');
+  if (type && !TASK_KINDS.includes(type)) fail(400, 'Unknown task kind.', 'VALIDATION_ERROR');
+  const clauses = [];
+  const values = [];
+  if (user) { clauses.push('site_id IN (SELECT site_id FROM site_members WHERE user_id = ?)'); values.push(user.id); }
+  if (site) { clauses.push('site_id = ?'); values.push(site); }
+  if (state) { clauses.push('status = ?'); values.push(state); }
+  if (type) { clauses.push("COALESCE(kind, 'ordinary') = ?"); values.push(type); }
+  if (closedWithWaiver) clauses.push(`status = 'closed' AND ${currentWaiver} = TRUE`);
+  if (user) {
+    clauses.push(`site_id IN (SELECT m.site_id FROM site_members m WHERE m.user_id = ?
+      AND (m.role = 'owner' OR NOT EXISTS (SELECT 1 FROM member_module_access a
+        WHERE a.site_id = m.site_id AND a.user_id = m.user_id AND a.module = 'tasks' AND a.allowed = FALSE)))`);
+    values.push(user.id);
+  }
+  return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', values };
+}
+
+export async function listTasks(db, { limit = 50, offset = 0, ...filters } = {}, user) {
+  const { where, values } = taskFilters(filters, user);
+  return Promise.all((await idLookup(() => db.all(`SELECT tasks.*, ${taskHistoryProjection}, ${lastBlockNote} FROM tasks ${where}
+    ORDER BY created_at, id LIMIT ? OFFSET ?`, ...values, limit, offset), [])).map(task => taskWithWbs(db, { ...task, reopen_count: Number(task.reopen_count), closed_with_waiver: Boolean(task.closed_with_waiver) })));
+}
+
+export async function countTasks(db, filters = {}, user) {
+  const { where, values } = taskFilters(filters, user);
+  const row = await idLookup(() => db.get(`SELECT COUNT(*) AS total FROM tasks ${where}`, ...values), { total: 0 });
+  return Number(row.total);
+}
+
+export async function getTask(db, id) {
+  const task = await idLookup(() => db.get(`SELECT tasks.*, ${lastBlockNote} FROM tasks WHERE id = ?`, id));
+  if (!task) fail(404, 'Task not found.', 'TASK_NOT_FOUND');
+  const events = await db.all('SELECT * FROM task_events WHERE task_id = ? ORDER BY at, id', id);
+  const history = events.map(event => Object.hasOwn(event, 'waiver') ? { ...event, waiver: Boolean(event.waiver) } : event);
+  return { ...await taskWithWbs(db, task), events: history,
+    reopen_count: history.filter(event => event.from_status === 'closed' && event.to_status !== 'closed').length,
+    closed_with_waiver: task.status === 'closed' && Boolean(history.findLast(event =>
+      event.to_status === 'closed' && event.from_status !== 'closed')?.waiver) };
+}
+
+export async function createTask(db, input) {
+  object(input);
+  const siteId = text(input.siteId, 'siteId', true);
+  const title = text(input.title, 'title', true);
+  const executor = text(input.executor, 'executor', true);
+  const verifier = text(input.verifier, 'verifier', true);
+  if (executor === verifier) {
+    fail(400, 'executor and verifier must differ.', 'SEPARATE_PEOPLE_REQUIRED');
+  }
+  const area = text(input.area, 'area');
+  const company = text(input.company, 'company');
+  const priority = text(input.priority, 'priority') || 'normal';
+  const kind = text(input.kind, 'kind');
+  if (kind && !TASK_KINDS.includes(kind)) fail(400, 'kind must be ordinary or corrective.', 'VALIDATION_ERROR');
+  // Ordinary work keeps the column empty: only the exception is stored.
+  const storedKind = kind === 'corrective' ? 'corrective' : null;
+  const due = date(input.due_date, 'due_date');
+  const actor = text(input.actor, 'actor') || executor;
+  let executorId = input.executor_id ?? null;
+  let verifierId = input.verifier_id ?? null;
+  // IDs bind account assignments; names remain readable snapshots. Null IDs retain legacy
+  // name checks for internal calls; session-based review still requires the designated ID or owner role.
+  for (const value of [executorId, verifierId]) {
+    if (value !== null && (typeof value !== 'string' || !uuid.test(value))) fail(400, 'Invalid user UUID.', 'VALIDATION_ERROR');
+  }
+  executorId = executorId?.toLowerCase() ?? null;
+  verifierId = verifierId?.toLowerCase() ?? null;
+  if (executorId && executorId === verifierId) fail(400, 'executor and verifier must differ.', 'SEPARATE_PEOPLE_REQUIRED');
+  const id = randomUUID();
+  const at = new Date().toISOString();
+  const write = async tx => {
+    await getSite(tx, siteId);
+    for (const [userId, roles] of [[executorId, WRITE_ROLES], [verifierId, ['owner', 'verifier']]]) {
+      if (userId) {
+        const member = await tx.get(`SELECT m.role FROM site_members m JOIN users u ON u.id = m.user_id
+          WHERE m.site_id = ? AND m.user_id = ? AND u.disabled_at IS NULL`, siteId, userId);
+        if (!member || !roles.includes(member.role)) fail(400, 'Invalid task assignment for this site.', 'VALIDATION_ERROR');
+      }
+    }
+    const wbsId = Object.hasOwn(input, 'wbsId') ? await validateTaskWbs(tx, siteId, input.wbsId) : null;
+    const row = [id, siteId, title, area, company, executor, verifier, priority];
+    // The classification column is only written for corrective work, so ordinary inserts keep
+    // working on a schema that predates it (upgrade tests and old snapshots).
+    if (storedKind) {
+      await tx.run(`INSERT INTO tasks (id, site_id, title, area, company, executor, verifier, priority, kind,
+        due_date, status, created_at, executor_id, verifier_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?, ?)`,
+        ...row, storedKind, due, at, executorId, verifierId);
+    } else {
+      await tx.run(`INSERT INTO tasks (id, site_id, title, area, company, executor, verifier, priority,
+        due_date, status, created_at, executor_id, verifier_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?, ?)`,
+        ...row, due, at, executorId, verifierId);
+    }
+    if (wbsId) await tx.run('UPDATE tasks SET wbs_id = ? WHERE id = ?', wbsId, id);
+    await tx.run(`INSERT INTO task_events
+      (task_id, at, actor, from_status, to_status, note, reason, action)
+      VALUES (?, ?, ?, 'todo', 'todo', '', '', 'create')`, id, at, actor);
+    return await getTask(tx, id);
+  };
+  // Idempotent POST and seed already supply a transaction executor.
+  return await (db.transaction ? db.transaction(write) : write(db));
+}
+
+export async function transitionTask(db, id, input, user) {
+  object(input);
+  return await db.transaction(async tx => {
+    const task = await getTask(tx, id);
+    const to = text(input.to, 'to', true);
+    const actor = user ? user.name : text(input.actor, 'actor', true);
+    const role = user ? await requireRole(tx, task.site_id, user, WRITE_ROLES) : null;
+    if (user) await requireModule(tx, task.site_id, user, 'tasks');
+    const note = text(input.note, 'note');
+    const reason = text(input.reason, 'reason');
+    if (!STATUSES.includes(to)) fail(400, 'Unknown task status.', 'VALIDATION_ERROR');
+    const action = transitionAction(task, to);
+    if (!action) {
+      fail(409, `Transition from ${task.status} to ${to} is not allowed.`, 'INVALID_TRANSITION');
+    }
+    // Session reviews use ID plus site role (owner override); null IDs permit only owners.
+    // Legacy calls without a session use names below; submitter checks also fall back to names.
+    if (user && ['verify', 'reject', 'reopen'].includes(action) && role !== 'owner' && user.id !== task.verifier_id) {
+      fail(403, 'Only the designated verifier or a site owner can perform this transition.', 'FORBIDDEN');
+    }
+    if (['submit', 'reject'].includes(action) && !note) {
+      fail(400, 'A non-empty note is required.', 'NOTE_REQUIRED');
+    }
+    if ((to === 'blocked' || task.status === 'closed') && !reason) {
+      fail(400, 'A non-empty reason is required.', 'REASON_REQUIRED');
+    }
+    if (!user && to === 'closed' && actor !== task.verifier) {
+      fail(409, 'Only the designated verifier can close this task.', 'VERIFIER_REQUIRED');
+    }
+    if (user && ['verify', 'reject'].includes(action) && !task.submitted_by_id && !task.submitted_by) {
+      fail(400, 'The submission has no recorded submitter.', 'SUBMITTER_REQUIRED');
+    }
+    const selfReview = user && task.submitted_by_id ? user.id === task.submitted_by_id : actor === task.submitted_by;
+    if ((action === 'reject' || (user && action === 'verify')) && selfReview) {
+      fail(409, 'The submitter cannot review their own submission.', 'INVALID_TRANSITION');
+    }
+    // Preserve the legacy internal-call contract; HTTP always supplies a session user.
+    if (!user && action === 'reopen' && actor !== task.verifier && actor !== 'owner') {
+      fail(409, 'Only the designated verifier or owner can reopen this task.', 'INVALID_TRANSITION');
+    }
+
+    const at = new Date().toISOString();
+    let waiver = false, evidenceId = null;
+    if (action === 'verify') {
+      // Evidence deletion and formal acceptance take the same task lock.
+      const lock = await tx.run('UPDATE tasks SET id = id WHERE id = ? AND status = ?', id, task.status);
+      if (!lock.rowCount) fail(409, 'Task status changed.', 'INVALID_TRANSITION');
+      const evidence = await tx.get(`SELECT id FROM attachments
+        WHERE entity_type = 'task' AND entity_id = ? AND site_id = ? ORDER BY created_at, id LIMIT 1`, id, task.site_id);
+      waiver = input.waiver === true;
+      if (waiver ? reason.length < 15 : !evidence) {
+        fail(422, 'Closure requires a task attachment or a waiver reason of at least 15 characters.', 'TASK_CLOSURE_EVIDENCE_REQUIRED');
+      }
+      if (!waiver) evidenceId = evidence.id;
+      if (!waiver && !note) fail(400, 'A non-empty note is required.', 'NOTE_REQUIRED');
+    }
+    const eventAction = waiver ? 'close' : action;
+    const { rowCount } = await tx.run(
+      `UPDATE tasks SET status = ?, blocked_from = ?, submitted_by = ?, submitted_by_id = ?,
+        declared_at = CASE WHEN ? IN ('reopen', 'reject') THEN NULL ELSE COALESCE(?, declared_at) END,
+        verified_at = CASE WHEN ? = 'start' OR ? = 'reopen' OR ? = 'close' THEN NULL ELSE COALESCE(?, verified_at) END,
+        acceptance_state = CASE WHEN ? = 'submit' AND acceptance_state = 'none' THEN 'declared' ELSE acceptance_state END
+        WHERE id = ? AND status = ?`,
+      to, action === 'block' ? task.status : null,
+      action === 'submit' ? actor : task.submitted_by,
+      action === 'submit' ? user?.id ?? null : task.submitted_by_id,
+      action, action === 'submit' ? at : null, eventAction, eventAction, eventAction,
+      eventAction === 'verify' ? at : null, action, id, task.status,
+    );
+    if (rowCount === 0) {
+      const current = await getTask(tx, id);
+      fail(409, `Transition from ${current.status} to ${to} is not allowed.`, 'INVALID_TRANSITION');
+    }
+    await tx.run(`
+      INSERT INTO task_events (task_id, at, actor, from_status, to_status, note, reason, action, waiver, evidence_attachment_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, CASE ? WHEN 'true' THEN TRUE ELSE FALSE END, ?)
+    `, id, at, actor, task.status, to, note, reason, eventAction, String(waiver), evidenceId);
+    return await getTask(tx, id);
+  });
+}
+
+export async function acceptTask(db, id, input, user) {
+  if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
+  return db.transaction(async tx => {
+    const task = await getTask(tx, id);
+    const role = await requireRole(tx, task.site_id, user, ['owner', 'verifier']);
+    await requireModule(tx, task.site_id, user, 'tasks');
+    if (role !== 'owner' && task.verifier_id !== user.id) fail(403, 'Only the designated verifier or an owner may accept this task.', 'FORBIDDEN');
+    const invalid = () => fail(422, 'Formal acceptance requires a task attachment and a valid date.', 'TASK_ACCEPTANCE_EVIDENCE_REQUIRED');
+    const document = input?.documentId, day = input?.date;
+    const parsed = typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(day + 'T00:00:00Z') : null;
+    if (input?.acceptanceState !== 'accepted' || typeof document !== 'string' || !uuid.test(document)
+        || !parsed || !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== day) invalid();
+    const documentId = document.toLowerCase();
+    await tx.run('UPDATE tasks SET id = id WHERE id = ?', id);
+    const before = await tx.get('SELECT * FROM tasks WHERE id = ?', id);
+    if (!await tx.get("SELECT id FROM attachments WHERE id = ? AND entity_type = 'task' AND entity_id = ? AND site_id = ?",
+      documentId, id, task.site_id)) invalid();
+    if (before.acceptance_state === 'accepted' && before.acceptance_document_id === documentId && before.acceptance_date === day) {
+      return getTask(tx, id);
+    }
+    await tx.run("UPDATE tasks SET acceptance_state = 'accepted', acceptance_document_id = ?, acceptance_date = ? WHERE id = ?",
+      documentId, day, id);
+    const after = await tx.get('SELECT * FROM tasks WHERE id = ?', id);
+    await appendAuditEvent(tx, { entityType: 'task', action: 'update', before, after, actor: user.id });
+    return getTask(tx, id);
+  });
+}
+
+function diaryFilters({ siteId }, user) {
+  const site = text(siteId, 'siteId');
+  const clauses = [], values = [];
+  if (site) { clauses.push('site_id = ?'); values.push(site); }
+  if (user) { clauses.push('site_id IN (SELECT site_id FROM site_members WHERE user_id = ?)'); values.push(user.id); }
+  if (user) {
+    clauses.push(`site_id IN (SELECT m.site_id FROM site_members m WHERE m.user_id = ?
+      AND (m.role = 'owner' OR NOT EXISTS (SELECT 1 FROM member_module_access a
+        WHERE a.site_id = m.site_id AND a.user_id = m.user_id AND a.module = 'diary' AND a.allowed = FALSE)))`);
+    values.push(user.id);
+  }
+  return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', values };
+}
+
+export async function listDiary(db, { limit = 50, offset = 0, ...filters } = {}, user) {
+  const { where, values } = diaryFilters(filters, user);
+  return await idLookup(() => db.all(`SELECT * FROM diary ${where}
+    ORDER BY operational_date, shift, created_at, id LIMIT ? OFFSET ?`, ...values, limit, offset), []);
+}
+
+export async function countDiary(db, filters = {}, user) {
+  const { where, values } = diaryFilters(filters, user);
+  const row = await idLookup(() => db.get(`SELECT COUNT(*) AS total FROM diary ${where}`, ...values), { total: 0 });
+  return Number(row.total);
+}
+
+export async function createDiary(db, input) {
+  object(input);
+  const siteId = text(input.siteId, 'siteId', true);
+  const createdAt = new Date().toISOString();
+  const timeZone = input.time_zone === undefined ? 'Europe/Rome' : text(input.time_zone, 'time_zone', true);
+  const cutoff = input.day_cutoff_time === undefined ? '06:00' : text(input.day_cutoff_time, 'day_cutoff_time', true);
+  let derivedDate;
+  try { derivedDate = operationalDate(createdAt, { timeZone, cutoff }); }
+  catch (error) {
+    if (error instanceof RangeError) fail(400, error.message, 'VALIDATION_ERROR');
+    throw error;
+  }
+  const entryDate = input.operational_date === undefined
+    ? derivedDate : date(input.operational_date, 'operational_date', true);
+  const shift = text(input.shift, 'shift', true);
+  if (!['day', 'night'].includes(shift)) fail(400, 'shift must be day or night.', 'VALIDATION_ERROR');
+  const plan = text(input.plan, 'plan');
+  const actual = text(input.actual, 'actual');
+  const impediments = text(input.impediments, 'impediments');
+  const nextStep = text(input.next_step, 'next_step');
+  await getSite(db, siteId);
+  const id = randomUUID();
+  await uniqueWrite(db, () => db.run(`
+    INSERT INTO diary (id, site_id, operational_date, shift, plan, actual,
+      impediments, next_step, created_at, time_zone, day_cutoff_time)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, id, siteId, entryDate, shift, plan, actual, impediments, nextStep, createdAt, timeZone, cutoff),
+  'A diary entry already exists for this site, date and shift.', 'DUPLICATE_DIARY');
+  return await db.get('SELECT * FROM diary WHERE id = ?', id);
+}
+
+export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+const ATTACHMENT_ROLES = ['owner', 'editor'];
+const attachmentTables = { task: 'tasks', diary: 'diary', site: 'sites', hse_event: 'hse_events', hse_inspection: 'hse_inspections', deviation: 'deviations' };
+const attachmentModules = { task: 'tasks', diary: 'diary', site: 'sites', hse_event: 'hse', hse_inspection: 'hse', deviation: 'deviations' };
+const HSE_ATTACHMENT_READ_ROLES = ['owner', 'editor', 'verifier'];
+
+function attachmentUser(user) {
+  if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
+}
+
+function attachmentId(value, field) {
+  if (typeof value !== 'string' || !uuid.test(value)) fail(400, `${field} must be a UUID.`, 'VALIDATION_ERROR');
+  return value.toLowerCase();
+}
+
+async function attachmentEntity(db, input, user, roles) {
+  attachmentUser(user);
+  if (typeof input.entity_type !== 'string' || !Object.hasOwn(attachmentTables, input.entity_type)) fail(400, 'Invalid entity_type.', 'VALIDATION_ERROR');
+  const entityId = attachmentId(input.entity_id, 'entity_id');
+  const entity = await db.get(`SELECT * FROM ${attachmentTables[input.entity_type]} WHERE id = ?`, entityId);
+  if (input.entity_type === 'hse_event' && (!entity || entity.deleted_at !== null)) {
+    fail(404, 'HSE event not found.', 'HSE_NOT_FOUND');
+  }
+  if (!entity) fail(400, 'Attachment entity does not exist.', 'VALIDATION_ERROR');
+  const siteId = input.entity_type === 'site' ? entity.id : entity.site_id;
+  await requireRole(db, siteId, user, roles ?? (input.entity_type === 'hse_event' ? HSE_ATTACHMENT_READ_ROLES : undefined));
+  await requireModule(db, siteId, user, attachmentModules[input.entity_type]);
+  // The POST contract derives site_id; an optional explicit scope must agree.
+  if (input.site_id !== undefined && attachmentId(input.site_id, 'site_id') !== siteId) {
+    fail(403, 'Attachment entity belongs to another site.', 'FORBIDDEN');
+  }
+  return { siteId, entityId };
+}
+
+function attachmentData(input) {
+  const filename = text(input.filename, 'filename', true);
+  if (!filename.isWellFormed() || Buffer.byteLength(filename) > 255 || /[\x00-\x1f\x7f/\\]/.test(filename) || ['.', '..'].includes(filename)) {
+    fail(400, 'Invalid attachment filename.', 'VALIDATION_ERROR');
+  }
+  const mime = text(input.content_type, 'content_type', true).toLowerCase();
+  if (mime !== 'application/pdf' && !/^image\/[a-z0-9][a-z0-9.+-]*$/.test(mime)) {
+    fail(415, 'Only images and PDF are supported.', 'UNSUPPORTED_MEDIA_TYPE');
+  }
+  const encoded = input.data_base64;
+  if (typeof encoded !== 'string' || !encoded.length) fail(400, 'data_base64 is required.', 'VALIDATION_ERROR');
+  if (encoded.length > 4 * Math.ceil(MAX_ATTACHMENT_BYTES / 3)) fail(413, 'Attachment exceeds 15 MiB.', 'ATTACHMENT_TOO_LARGE');
+  // A flat character check avoids recursion on multi-megabyte base64 input.
+  if (encoded.length % 4 || /[^A-Za-z0-9+/=]/.test(encoded)) fail(400, 'Invalid base64.', 'VALIDATION_ERROR');
+  const data = Buffer.from(encoded, 'base64');
+  if (data.toString('base64') !== encoded) fail(400, 'Invalid base64.', 'VALIDATION_ERROR');
+  if (data.length > MAX_ATTACHMENT_BYTES) fail(413, 'Attachment exceeds 15 MiB.', 'ATTACHMENT_TOO_LARGE');
+  return { filename, mime, data };
+}
+
+function publicAttachment(row) {
+  const { storage_locator, ...metadata } = row;
+  return metadata;
+}
+
+async function attachmentRecord(db, id, user, roles) {
+  attachmentUser(user);
+  const row = await idLookup(() => db.get('SELECT * FROM attachments WHERE id = ?', id));
+  if (!row) fail(404, 'Attachment not found.', 'ATTACHMENT_NOT_FOUND');
+  if (['hse_event', 'hse_inspection', 'deviation'].includes(row.entity_type)) {
+    await attachmentEntity(db, row, user, roles);
+    return row;
+  }
+  await requireRole(db, row.site_id, user, roles);
+  await requireModule(db, row.site_id, user, attachmentModules[row.entity_type]);
+  return row;
+}
+
+export async function createAttachment(db, input, user, storage = new S3Storage()) {
+  object(input);
+  const { siteId, entityId } = await attachmentEntity(db, input, user, ATTACHMENT_ROLES);
+  const { filename, mime, data } = attachmentData(input);
+  const id = randomUUID();
+  const sha256 = createHash('sha256').update(data).digest('hex');
+  const locator = `attachments/${siteId}/${id}/v1`;
+  // Unique keys and conditional PUT prevent replacement of an existing object.
+  await storage.put(locator, data, { mime, sha256 });
+  try {
+    const head = await storage.head(locator);
+    if (head.sha256 !== sha256 || head.size !== data.length) {
+      fail(502, 'Attachment readback checksum mismatch.', 'ATTACHMENT_CHECKSUM_MISMATCH');
+    }
+    // Metadata can echo a supplied checksum even if bytes are corrupted.
+    // Verify actual stored bytes as well; never treat an ETag as SHA-256.
+    const readback = await storage.get(locator);
+    const digest = createHash('sha256');
+    let size = 0;
+    for await (const chunk of readback) {
+      size += chunk.length;
+      if (size > data.length) fail(502, 'Attachment readback size mismatch.', 'ATTACHMENT_CHECKSUM_MISMATCH');
+      digest.update(chunk);
+    }
+    if (size !== data.length || digest.digest('hex') !== sha256) {
+      fail(502, 'Attachment readback checksum mismatch.', 'ATTACHMENT_CHECKSUM_MISMATCH');
+    }
+    return await db.transaction(async tx => {
+      // Recheck scope and membership after the storage round trip.
+      const current = await attachmentEntity(tx, input, user, ATTACHMENT_ROLES);
+      if (current.siteId !== siteId) fail(403, 'Attachment entity changed site.', 'FORBIDDEN');
+      await tx.run(`INSERT INTO attachments (id, site_id, entity_type, entity_id, filename, mime, size,
+        content_sha256, storage_locator, manifest_version, uploaded_by, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'v1', ?, ?)`,
+      id, siteId, input.entity_type, entityId, filename, mime, data.length, sha256, locator, user.id, new Date().toISOString());
+      return publicAttachment(await tx.get('SELECT * FROM attachments WHERE id = ?', id));
+    });
+  } catch (error) {
+    try { await storage.delete(locator); }
+    catch { throw new ObjectStorageError('ATTACHMENT_CLEANUP_FAILED'); }
+    throw error;
+  }
+}
+
+export async function listAttachments(db, input, user) {
+  object(input);
+  attachmentUser(user);
+  const siteId = attachmentId(input.site_id, 'site_id');
+  const role = await requireRole(db, siteId, user);
+  const clauses = ['site_id = ?'], values = [siteId];
+  if (input.entity_type !== undefined) {
+    if (typeof input.entity_type !== 'string' || !Object.hasOwn(attachmentTables, input.entity_type)) fail(400, 'Invalid entity_type.', 'VALIDATION_ERROR');
+    if (input.entity_type === 'hse_event') await requireRole(db, siteId, user, HSE_ATTACHMENT_READ_ROLES);
+    await requireModule(db, siteId, user, attachmentModules[input.entity_type]);
+    clauses.push('entity_type = ?'); values.push(input.entity_type);
+  }
+  if (input.entity_id !== undefined) {
+    try { await attachmentEntity(db, input, user); }
+    catch (error) {
+      if (error.code === 'HSE_NOT_FOUND') return [];
+      throw error;
+    }
+    clauses.push('entity_id = ?'); values.push(attachmentId(input.entity_id, 'entity_id'));
+  }
+  clauses.push(`(entity_type <> 'hse_event' OR EXISTS (SELECT 1 FROM hse_events
+    WHERE hse_events.id = attachments.entity_id AND hse_events.site_id = attachments.site_id AND hse_events.deleted_at IS NULL))`);
+  clauses.push(`(entity_type <> 'hse_inspection' OR EXISTS (SELECT 1 FROM hse_inspections
+    WHERE hse_inspections.id = attachments.entity_id AND hse_inspections.site_id = attachments.site_id))`);
+  clauses.push(`(entity_type <> 'deviation' OR EXISTS (SELECT 1 FROM deviations
+    WHERE deviations.id = attachments.entity_id AND deviations.site_id = attachments.site_id))`);
+  const rows = await db.all(`SELECT * FROM attachments WHERE ${clauses.join(' AND ')} ORDER BY created_at, id`, ...values);
+  const visible = [];
+  for (const row of rows) {
+    if (row.entity_type === 'hse_event' && !HSE_ATTACHMENT_READ_ROLES.includes(role)) continue;
+    if (await moduleAllowed(db, siteId, user, attachmentModules[row.entity_type])) visible.push(publicAttachment(row));
+  }
+  return visible;
+}
+
+export async function getAttachment(db, id, user, storage = new S3Storage()) {
+  const row = await attachmentRecord(db, id, user);
+  return { ...publicAttachment(row), stream: await storage.get(row.storage_locator) };
+}
+
+export async function deleteAttachment(db, id, user, storage = new S3Storage()) {
+  await db.transaction(async tx => {
+    let row = await attachmentRecord(tx, id, user, ATTACHMENT_ROLES);
+    if (row.entity_type === 'task') {
+      await tx.run('UPDATE tasks SET id = id WHERE id = ?', row.entity_id);
+      row = await attachmentRecord(tx, id, user, ATTACHMENT_ROLES);
+      if (await tx.get('SELECT id FROM tasks WHERE acceptance_document_id = ?', row.id)) {
+        fail(409, 'This attachment is referenced by a formal acceptance.', 'TASK_ACCEPTANCE_DOCUMENT_IN_USE');
+      }
+      if (await tx.get('SELECT id FROM task_events WHERE evidence_attachment_id = ? LIMIT 1', row.id)) {
+        fail(409, 'This attachment is referenced by a task verification.', 'TASK_VERIFICATION_DOCUMENT_IN_USE');
+      }
+    }
+    await tx.run('DELETE FROM attachments WHERE id = ?', row.id);
+    // A storage failure rolls SQL back, preserving metadata for a retry.
+    await storage.delete(row.storage_locator);
+  });
+}

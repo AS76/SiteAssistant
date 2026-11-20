@@ -1,0 +1,157 @@
+---
+title: Import a planning export
+description: Upload an xlsx file, preview what would change and confirm the import.
+---
+
+import Shot from '../../../../components/Shot.astro';
+
+The import loads data from a workbook into SiteAssistant. It always starts with a **preview**: until you confirm, the application writes nothing.
+
+## Who can import
+
+The import is reserved to site **owners** and **editors**. The **Import planning export** button appears in the **Overview**, next to **New task**.
+
+## The file
+
+- **xlsx** format with the canonical headers or configured aliases.
+- Maximum size **20 MiB**.
+- One data family per file.
+
+## The six families
+
+| Export type | What it updates |
+| :-- | :-- |
+| Employees | Personnel records: number, name, company, qualification, team, dates |
+| Work days | Worked days, times, hours and source status |
+| Time schedule | Work structure items, with code, dates and planned progress |
+| Site progress | Progress items, with section, area code, percentages and planned hours |
+| Deviations | Deviations with status, priority, dates and amounts |
+| Daily log | Diary entries |
+
+## Preparing the sheet
+
+You do not have to guess the headers: the application gives them to you.
+
+1. Open the **Import planning export** dialog and choose the **Export type**.
+2. Press **Download template**: you get an xlsx file with the accepted headers for that family and **one example row**.
+3. Fill in one row per record and **delete the example row**: it shows the formats, but if you leave it there it is imported as real data.
+4. Do not rename the columns and do not add new ones. Unrecognised columns are listed in the preview and ignored, never interpreted.
+5. Save as **xlsx** with a single sheet.
+
+### Canonical headers
+
+| Family | Required headers | Optional headers |
+| :-- | :-- | :-- |
+| `employees` | `employee_id` | `given_name`, `family_name`, `organisation`, `role`, `supervisor_id`, `team`, `start_date`, `end_date` |
+| `work_days` | `work_date`, `employee_id` | `start_time`, `end_time`, `hours_worked`, `hours_open`, `hours_booked`, `attendance_status` |
+| `time_schedule` | `item_id` | `title`, `area_code`, `section`, `assignee`, `planned_start`, `planned_finish`, `actual_start`, `actual_finish`, `progress_percent`, `order_index`, `is_summary`, `planned_hours` |
+| `site_progress_items` | `title`, `planned_start`, `planned_finish`, `area_code`, `section` | `assignee`, `actual_start`, `progress_percent`, `planned_progress_percent`, `progress_delta`, `expected_delay_days`, `has_files`, `has_notes`, `has_deviations`, `planned_hours` |
+| `deviations` | `deviation_id`, `status` | `title`, `description`, `priority`, `author`, `assignee`, `area_code`, `created_at`, `due_at`, `approved_at`, `closed_at`, `actual_cost`, `claim_quantity`, `labour_hours`, `completed_percent` |
+| `daily_log` | `log_date` | `plan`, `actual`, `impediments`, `next_step` |
+
+The required headers must be present. For site progress, only `title` requires
+a value. The other components of the key can be empty.
+
+Use `YYYY-MM-DD` for dates and `HH:MM` or `HH:MM:SS` for attendance times.
+Timestamps require an explicit offset, for example `2026-11-01T08:00:00+01:00`.
+Decimals accept a point or comma. Flags accept `true`/`false`, `yes`/`no`, or
+`1`/`0` regardless of case. Text is trimmed. An empty optional cell sets
+the field to null, while an absent optional column leaves its value unchanged.
+
+Deviation status accepts `open`, `in_progress`, `completed`, `closed`, or
+`rejected` after trimming and lowercasing. Other values produce `UNKNOWN_STATUS`.
+
+If your sheet uses different column names, do not rewrite it by hand: open **Column mapping** in the import dialog and say which column matches which field.
+
+## Importing a file
+
+What it is for: refreshing site data from an export without deleting what the file does not contain.
+
+1. Open the site **Overview** and press **Import planning export**.
+2. Pick the **Export type** and the **xlsx file**.
+3. If the export uses headers other than the canonical ones, open **Column mapping** and configure the aliases (see below). Save the mapping before continuing.
+4. Press **Preview** and wait for the **What would change** summary.
+5. Check the five counts and the list of rejected rows.
+6. If the numbers look right, press **Confirm import**. The button label changes after the preview.
+
+<Shot
+  src="/images/2026-11/en/overview-desktop.png"
+  alt="Site overview with the header, site selector, indicators, charts and the Import planning export and New task buttons at the top right"
+  caption="The starting point is the Overview: for owners and editors the Import planning export and New task buttons are at the top right. In this capture the account is an owner."
+/>
+
+The preview shows five counts:
+
+| Item | Meaning |
+| :-- | :-- |
+| new | Rows not present in the site: they will be created |
+| updated | Existing rows with different values: they will be overwritten |
+| unchanged | Rows identical to the existing ones: no write |
+| missing (untouched) | Rows present in the site but not in the file: **they are not deleted** |
+| rejected | Rows that cannot be imported, listed with source row and reason |
+
+Example: a work-day row with an employee number that does not exist in the site ends up among the **rejected** rows; an item already present with the same values ends up among the **unchanged** rows.
+
+:::caution[If the import does not start or looks wrong]
+- **The button is missing:** your role is not owner or editor, or you are looking at another site.
+- **“The file exceeds 20 MiB”:** reduce the export or split it by family.
+- **Preview expired:** it is valid for **15 minutes**. Repeat the preview before confirming.
+- **Preview no longer valid:** if you change the file or the mapping after the preview, the preview lapses and the button returns to **Preview**; request a new preview.
+- **Mapping not saved:** save the mapping or restore the defaults before requesting the preview.
+- **Rejected rows:** fix the export and repeat the import; rejected rows are not applied.
+- **Unexpected numbers:** missing rows are not deleted, so the applied removed count stays zero. Check the matching keys before confirming.
+:::
+
+## How rows are matched
+
+Each family uses a stable key from the export. The defaults are:
+
+- employees: employee number;
+- work days: date and employee number;
+- time schedule: WBS code;
+- site progress: description, planned dates, area code and section;
+- deviations: deviation number;
+- daily log: date.
+
+A row with the same key and different values is updated. An identical row stays unchanged.
+
+## Column mapping
+
+What it is for: importing an export that uses headers other than the canonical ones, without renaming columns in the file.
+
+Aliases are configured at runtime for each **site** and **data family**. The default alias list is empty. In the import, open the **Column mapping** section: for each field of the family you find the **aliases** and the **Row identity** checkbox.
+
+- **Aliases:** enter the alternative headers separated by commas. For an alias containing a comma write `\,`; for a backslash write `\\`.
+- **Canonical headers:** they always stay valid, even when you add aliases.
+- **Row identity:** choose one or more fields; the order in which you select them is the key order. To change it, deselect and reselect the fields; the order appears below the box.
+- **Save mapping:** applies aliases and identity to the selected family. **Restore defaults** removes the saved mapping and returns to the default values.
+
+Aliases must be unique, non-empty and at most **80 characters** long; at least one identity field is required, without duplicates. If an alias and a canonical column map to the same field with different values, the import rejects the file as ambiguous instead of choosing a value.
+
+The preview is bound to the file, the rows and the mapping: if you change the file or the mapping, the previous preview is no longer valid and must be repeated. The saved mapping is also used by the preview and apply API calls.
+
+## Rejected rows
+
+A row is rejected, and not applied, when:
+
+- an employee on a work day does not exist in the site's personnel records;
+- the identity of a progress item is ambiguous;
+- a deviation status is not recognised;
+- a required cell or a row-identity column is missing;
+- an alias and a canonical column for the same field hold different values.
+
+Rejected rows stay listed in the preview. Fix the export and repeat the import.
+
+## After confirmation
+
+The application reloads the site data and refreshes the views. The Overview recalculates its counters and charts.
+
+## What it does not do
+
+- **It does not delete rows.** Missing rows stay in the site, and the applied removed count is always zero.
+- **It does not undo an import** from the interface.
+- **It does not import attachments**: files stay outside the export.
+- **It does not create employees**: a work day with an unknown employee number is rejected.
+- **It does not create new fields**: aliases point to the fields the family already has, they do not add columns to the model.
+
+For the data format and endpoints see [REST API](../../riferimento/api/). For roles see [Users and roles](../utenti-e-ruoli/).

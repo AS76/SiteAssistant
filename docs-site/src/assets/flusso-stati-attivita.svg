@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" role="img" aria-label="Flusso degli stati di un'attività">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#6b7280"/>
+    </marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#dc2626"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    .lbl { font-size: 13px; fill: #6b7280; }
+    .lblRed { font-size: 13px; fill: #dc2626; }
+    .code { font-size: 15px; font-weight: 700; fill: #1f2937; }
+    .meaning { font-size: 11px; fill: #6b7280; }
+  </style>
+  <rect x="0" y="0" width="900" height="360" rx="14" fill="#ffffff" stroke="#e5e7eb"/>
+
+  <!-- State: todo -->
+  <g>
+    <rect x="20" y="66" width="168" height="64" rx="10" fill="#f3f4f6" stroke="#9ca3af" stroke-width="2"/>
+    <text class="code" x="104" y="94" text-anchor="middle">todo</text>
+    <text class="meaning" x="104" y="114" text-anchor="middle">Da fare · To do</text>
+  </g>
+  <!-- State: in_progress -->
+  <g>
+    <rect x="256" y="66" width="168" height="64" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+    <text class="code" x="340" y="94" text-anchor="middle">in_progress</text>
+    <text class="meaning" x="340" y="114" text-anchor="middle">In corso · In progress</text>
+  </g>
+  <!-- State: to_verify -->
+  <g>
+    <rect x="492" y="66" width="168" height="64" rx="10" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
+    <text class="code" x="576" y="94" text-anchor="middle">to_verify</text>
+    <text class="meaning" x="576" y="114" text-anchor="middle">Da verificare · To verify</text>
+  </g>
+  <!-- State: closed -->
+  <g>
+    <rect x="712" y="66" width="168" height="64" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text class="code" x="796" y="94" text-anchor="middle">closed</text>
+    <text class="meaning" x="796" y="114" text-anchor="middle">Chiusa · Closed</text>
+  </g>
+
+  <!-- start: todo -> in_progress -->
+  <line x1="188" y1="98" x2="250" y2="98" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+  <text class="lbl" x="219" y="88" text-anchor="middle">start</text>
+
+  <!-- submit: in_progress -> to_verify -->
+  <line x1="424" y1="98" x2="486" y2="98" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+  <text class="lbl" x="455" y="88" text-anchor="middle">submit</text>
+
+  <!-- verify: to_verify -> closed -->
+  <line x1="660" y1="98" x2="706" y2="98" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+  <text class="lbl" x="683" y="88" text-anchor="middle">verify</text>
+
+  <!-- State: blocked -->
+  <g>
+    <rect x="492" y="248" width="168" height="64" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+    <text class="code" x="576" y="276" text-anchor="middle">blocked</text>
+    <text class="meaning" x="576" y="296" text-anchor="middle">Bloccata · Blocked</text>
+  </g>
+
+  <!-- block: todo -> blocked -->
+  <path d="M104 130 L104 240 Q104 252 116 252 L486 252" fill="none" stroke="#dc2626" stroke-width="2" marker-end="url(#arrRed)"/>
+  <text class="lblRed" x="150" y="196" text-anchor="middle">block</text>
+  <!-- block: in_progress -> blocked -->
+  <path d="M340 130 L340 252" fill="none" stroke="#dc2626" stroke-width="2" marker-end="url(#arrRed)"/>
+  <text class="lblRed" x="356" y="196" text-anchor="start">block</text>
+  <!-- block: to_verify -> blocked -->
+  <line x1="576" y1="130" x2="576" y2="242" stroke="#dc2626" stroke-width="2" marker-end="url(#arrRed)"/>
+  <text class="lblRed" x="592" y="190" text-anchor="start">block</text>
+
+  <!-- reopen: closed -> in_progress (curve over the top) -->
+  <path d="M796 66 L796 30 Q796 20 786 20 L350 20 Q340 20 340 30 L340 60" fill="none" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+  <text class="lbl" x="560" y="16" text-anchor="middle">reopen</text>
+
+  <text x="450" y="340" text-anchor="middle" font-size="12" fill="#9ca3af">Il flusso nell'interfaccia · The flow as shown in the app</text>
+</svg>

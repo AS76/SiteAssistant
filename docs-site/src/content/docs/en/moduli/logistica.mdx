@@ -1,0 +1,209 @@
+---
+title: Procurement
+description: Manage the site purchase orders, with lines, quantities, statuses, packages and shipments.
+---
+
+The **Procurement** view collects the purchase orders of the selected site: what was ordered from a supplier, on which lines, how far execution has gone and how much material was ordered. Orders do not come from an import: they are created and edited in the application.
+
+The view has three lists, chosen with the **Orders** / **Packages** / **Shipments** selector below the title: the **orders**; the **packages**, the shipping units that group the ordered lines and record how much of each was packed; and the **shipments**, which group several packages and follow their journey, with the receipts of what arrives. The choice lasts for the browser session.
+
+The `logistics` module is off by default: unlike the other modules, a member does not see it until an owner grants it in the **Module access** table of the **Sites** view, column **Procurement**, or through the API. Without the grant the entry does not appear in the navigation and a direct link shows **Module unavailable**. Site owners always see it. See [Users and roles](../../amministrazione/utenti-e-ruoli/#module-access).
+
+## Reading the orders
+
+What it is for: knowing what was ordered, from whom and how far it has got.
+
+1. Open **Procurement** from the navigation, in the **Management** group, with the selector on **Orders**.
+2. Read the table: **PO number**, **Supplier**, **Order date**, **Status**, **Lines**, **Total quantity**.
+3. Narrow the list with the **Status** menu and the **Supplier** field, which matches part of the name regardless of case.
+4. Click the order number to open the detail.
+
+The list starts from the most recent order date and, on the same date, from the lowest number. The **Order date** column, like the other dates in the view, is read as a day in the interface language — for example `15 Nov 2026` — while the saved value stays in ISO format (`YYYY-MM-DD`). **Lines** and **Total quantity** are read from each order's detail: while the detail is loading the cell says “Loading”; if it does not load, “Totals unavailable” appears in its place with a command to retry. The total **sums the quantities of the lines without converting units**: sixty metres and twelve pieces make seventy-two, not a measurement.
+
+The statuses are **Open**, **Template generated**, **In execution**, **Completed** and **Not relevant**. A completed or not relevant order is final and no longer changes status.
+
+In the demo data every site has two orders, with lines in the four line statuses. These are test data: do not enter confidential information.
+
+## Opening an order
+
+1. Click the **PO number** in the list.
+2. At the top read supplier, order date, status, notes and, for a closed order, the closing date.
+3. Below, the **Order items** table: **Line number**, **Material number**, **Description**, **Unit**, **Quantity**, **WBS**, **Status**, **Execution started on**, **Completed on**.
+4. **Back to orders** returns to the list with the filters and order you left.
+
+The **WBS** column shows the code of the linked item. If the **Project structure** is not available to your access, “WBS unavailable” appears in its place and the saved link stays as it is.
+
+## Creating or editing an order
+
+Owners and editors see **New order**.
+
+1. Press **New order**.
+2. Fill in **PO number** — required, up to 80 characters and unique within the site —, **Supplier** — required, up to 200 characters —, **Order date** and, if needed, **Notes**.
+3. Press **Save**. The window closes, the new order's detail opens and “Order updated.” appears.
+
+The order number does not change after creation: when editing, the window shows it and only supplier, date and notes change. A number already used in the site is refused.
+
+## Adding or editing an item
+
+1. In the detail press **Add item**.
+2. Fill in **Line number** — proposed as the last number plus one —, **Material number**, **Description**, required up to 500 characters, **Unit** and **Quantity**.
+3. Choose an item in **WBS** if needed; **No WBS link** leaves the line unlinked.
+4. Press **Save**.
+
+The quantity is positive, up to **999999999.999**, with at most three decimals. The line number is a positive integer and unique within the order: a number already used is refused. To correct a line press **Edit** on the row itself: the same window opens with the current values.
+
+The **WBS** menu lists the items of the site's project structure, with code and description. If the module is not available, or the linked item no longer exists, the window says so and the existing link is preserved.
+
+## Changing status
+
+Owners and editors have **Change status** on the order detail and on every line.
+
+1. Press **Change status**.
+2. Choose the **New status** among the allowed ones.
+3. Confirm. **Completed** and **Not relevant** are final statuses: there is no way back.
+
+Lines move from **Open** to **In execution** or to **Not relevant**; from **In execution** to **Completed** or to **Not relevant**. The dates of the steps are written by themselves: **Execution started on** at the start, **Completed on** at closure.
+
+The order moves to **Template generated** only from **Open**, to **Completed** when every line is final and to **Not relevant** when every line is not relevant. **In execution** is not chosen by hand: the order status follows its lines and moves into execution as soon as one line starts.
+
+If someone else changed the status or the lines in the meantime, the change is refused with the message “Status change refused” and the detail reloads: choose the status again.
+
+## Packages
+
+A **package** groups the lines of one order and records how much of each was packed: it is the step between the order and the shipment, and matches the API package. The tab opens from the **Orders** / **Packages** / **Shipments** selector below the view title, and the choice lasts for the browser session.
+
+### Reading the packages
+
+What it is for: knowing what has already been packed for an order.
+
+1. Open **Procurement** and choose **Packages**.
+2. Read the table: **Package number**, **Order**, **Status**, **Lines**, **Packed quantity**, **Created at**.
+3. Narrow the list with the **Status** menu — **Open** or **Closed** — and with the **Order** menu, which starts from **All orders**.
+4. Click the package number to open the detail.
+
+The list starts from the most recent package. **Lines** and **Packed quantity** are read from each package's detail: while it is loading the cell says “Loading”; if it does not load, “Totals unavailable.” appears with a command to retry. Here too the total **sums quantities without converting units**. When no package matches the filters the table gives way to **No packages**, with the hint to change the filters or create one.
+
+### Opening a package
+
+1. Click the **Package number** in the list.
+2. At the top read **Order**, **Status**, **Notes** and the closing date, when there is one.
+3. Below, the **Package items** table: **Line number**, **Description**, **Packed quantity**, **Unit**.
+4. **Back to packages** returns to the list.
+
+The line number comes from the order detail: if it does not load, “Order unavailable: line numbers could not be loaded.” appears in its place with a command to retry.
+
+### Creating a package
+
+Owners and editors see **New package** in the **Packages** tab and **Create package** on an order detail; the second opens the same window with the order already chosen.
+
+1. Choose the **Order** — required —; its lines appear below.
+2. Fill in **Package number**, optional and up to 80 characters: left blank, the service assigns the first free number as `PKG-001`, `PKG-002` and so on. The number is unique within the order.
+3. Add **Notes** if needed.
+4. Enter the **Packed quantity** of the lines that go into the package; lines left blank stay out.
+5. Press **Create package**.
+
+Next to each line you read the **Ordered quantity** and the **Already packed** one, which includes closed packages too. The quantity is positive, up to **999999999.999**, with at most three decimals, and its sum with the already packed quantity cannot exceed the ordered quantity: if it does, saving stops with “The new packed quantity plus the already packed quantity exceeds the ordered quantity for an item. Update the quantities and try again.”. At least one line with a quantity greater than zero is required.
+
+The first package that packs a still open line moves it to **In execution** with the day's date, and the order status follows its lines. Once the package is saved the window closes and “Package saved.” appears.
+
+### Closing a package
+
+Owners and editors have **Close package** on the detail of an open package.
+
+1. Open the package and press **Close package**.
+2. Read the confirmation — no further changes are available after closing — and confirm.
+
+The package moves to **Closed** and gets its closing date; from then on it no longer changes. A package someone else already closed is refused with “The package is already closed. Refresh the detail.”.
+
+A package is neither edited nor deleted, in the interface or through the API: quantities are recorded at creation and closing is the last step.
+
+## Shipments
+
+A **shipment** groups one or more packages and follows their journey: carrier, departure and arrival dates, four statuses and the receipts of what arrives. It is the same object as the `/api/shipments` API. The tab opens from the **Orders** / **Packages** / **Shipments** selector, and the choice lasts for the browser session.
+
+### Reading the shipments
+
+What it is for: knowing what is on its way to the site and what has already arrived.
+
+1. Open **Procurement** and choose **Shipments**.
+2. Read the table: **Shipment**, **Carrier**, **Departure**, **Expected arrival**, **Actual arrival**, **Status**, **Packages**.
+3. Narrow the list with the **Status** menu, which starts from **All statuses**.
+4. Click the shipment number to open the detail.
+
+The list follows the creation order of the shipments. The **Packages** column is read from each shipment's detail: while it is loading the cell says “Loading”; if it does not load, “Totals unavailable.” appears with a command to retry. When no shipment matches the filter the table gives way to **No shipments**, with the hint to change the filter or create one. In the demo data every site has one shipment, with different statuses across the sites. These are test data: do not enter confidential information.
+
+### Opening a shipment
+
+1. Click the **shipment number** in the list.
+2. At the top read **Carrier**, **Departure**, **Expected arrival**, **Actual arrival**, **Status** and **Notes**.
+3. Below, the shipment's **Packages** table: **Package number**, **Order**, **Status**, **Packed quantity**; here the total **sums quantities without converting units**.
+4. Further down, **Receipts**: **Order line**, **Quantity received**, **Note**, **Created at**; with no receipts the section says “No receipts recorded.”.
+5. **Back to shipments** returns to the list with the filter as you left it.
+
+In the **Order line** column of the receipts you read order number, line number and description: if the order does not load, the line identifier stays in its place, with a command to retry.
+
+### Creating a shipment
+
+Owners and editors see **New shipment** in the **Shipments** tab.
+
+1. Press **New shipment**.
+2. Fill in **Shipment** — required, up to 80 characters and unique within the site —, **Carrier** — up to 200 characters —, **Departure**, **Expected arrival** and, if needed, **Notes**.
+3. Under **Available packages** tick at least one package; the list holds only the site's packages not yet assigned to a shipment.
+4. Press **Save**.
+
+The shipment starts **Planned**. A package can be in **one** shipment only: those already assigned do not appear in the list. If no package is available the window says so and invites you to create one that is not yet assigned. Once the shipment is saved the window closes and “Shipment saved.” appears.
+
+### Advancing the status
+
+Owners and editors have **Advance status** on the shipment detail.
+
+1. Press **Advance status**.
+2. Read the confirmation with the current and the next status, and confirm.
+
+The statuses are **Planned**, **In transit**, **Arrived** and **Received**, and they advance **one step at a time**: no status is skipped and there is no way back. The step to **Arrived** writes the actual arrival date. **Received** requires at least one receipt already recorded: while it is missing, the command does not appear and the detail warns “Record at least one receipt before advancing to received.”. The confirmation accepts an optional **Note**, which ends up in the audit trail.
+
+If someone else changed the status in the meantime, or the receipt is missing, the change is refused with “The status transition is not allowed or requires a receipt. Refresh the detail.”.
+
+### Recording a receipt
+
+1. On the detail press **Record receipt**.
+2. Choose the **Order line** among the lines **actually contained in the shipment's packages**: the menu lists only the packed lines, not every line of the orders involved. An ordered line that is in none of the shipment's packages does not appear.
+3. Enter the **Quantity received** and, if needed, a **Note**.
+4. Confirm.
+
+The quantity is **non-negative** — zero is allowed — up to **999999999.999**, with at most three decimals. A receipt **does not change the ordered line's status**: it stays a shipment record and is read in the receipts list. A shipment is not deleted and a receipt is not cancelled.
+
+A shipment already **Received** accepts no further receipts and no longer shows **Advance status** or **Record receipt** on its detail. If you open the window from a detail that is not up to date, the form is replaced by “The status transition is not allowed or requires a receipt. Refresh the detail.”: go back to the list and reopen the shipment.
+
+## Who can do what
+
+| Action | Role |
+| :-- | :-- |
+| Read orders and lines | Every site member with the `logistics` module granted, `viewer` included |
+| Create and edit orders and lines, change status | owner, editor |
+| Read packages and the packed lines | Every site member with the `logistics` module granted, `viewer` included |
+| Create and close packages | owner, editor |
+| Read shipments and receipts | Every site member with the `logistics` module granted, `viewer` included |
+| Create shipments, advance the status and record receipts | owner, editor |
+| Grant the module | owner |
+
+:::caution[If something does not add up]
+- **I cannot see Procurement:** the module is off by default; ask an owner to grant it in **Sites** → **Module access**.
+- **“Module unavailable”:** your access to the module was removed, or the order does not belong to the selected site.
+- **Online only:** the view requires a connection, like the other core module views; without a network you can neither read nor change orders.
+- **“Totals unavailable”:** an order's detail did not load; use the retry command, or reopen the list.
+- **“PO number already exists in this site”:** the number is unique within the site; choose another one.
+- **“Line number already exists in this order”:** a line with that number already exists; choose the next one.
+- **“Package number already exists in this order”:** the number is unique within the order; choose another one, or leave the field blank to get the first free number.
+- **“Enter at least one quantity greater than zero”:** every line of the package was blank or zero; enter at least one quantity.
+- **“The new packed quantity… exceeds the ordered quantity”:** the sum with what is already packed, closed packages included, goes beyond the order; lower the quantities and try again.
+- **“The package is already closed”** or **“Package not found”:** someone else closed or changed the package; go back to the list and reopen the detail.
+- **“Shipment number already exists in this site”:** the number is unique within the site; choose another one.
+- **“Select at least one package”** or **“No packages available”:** a shipment is born from at least one site package not yet assigned, and a package can be in one shipment only; create a new package, because packages are chosen only when the shipment is created.
+- **“Record at least one receipt…”** or **“The status transition is not allowed or requires a receipt”:** moving to **Received** needs a receipt first; record it and try again. The same message appears when the shipment has already been received: in that case there is nothing to record, go back to the list.
+- **“Shipment not found”** or **“Line not found in the shipment orders”:** someone else changed the data; go back to the list and reopen the detail or the form.
+- **I cannot find deletion:** orders, lines, packages, shipments and receipts are not deleted, neither in the interface nor through the API.
+- **Latest changes:** the view has no panel; order trails are read through the API, by owners and verifiers (see [Audit register](../../riferimento/api/#audit-register)).
+:::
+
+The same rows are available through the API, with the `/api/purchase-orders` endpoints; packages have the `/api/packages` endpoints and shipments `/api/shipments`: see [REST API](../../riferimento/api/#purchase-orders).

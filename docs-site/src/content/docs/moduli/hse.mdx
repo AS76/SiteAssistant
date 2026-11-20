@@ -1,0 +1,292 @@
+---
+title: HSE
+description: Registro di near miss, infortuni e osservazioni di cantiere, senza dati sanitari.
+---
+
+import Shot from '../../../components/Shot.astro';
+
+La vista **HSE** è il registro degli eventi di salute e sicurezza del cantiere selezionato: near miss, infortuni e osservazioni. Ogni riga registra un fatto — data, tipo, gravità, luogo, numero di persone coinvolte e misure adottate — non le persone.
+
+La vista ha due schermate: il **Registro** degli eventi, descritto qui sotto, e le **Ispezioni**, l'elenco dei soggetti da ispezionare con l'ultima ispezione, la prossima scadenza e lo stato. Dall'elenco si apre la **scheda di un soggetto**, con lo stato, lo storico delle ispezioni e i singoli controlli, e da lì owner ed editor registrano una nuova ispezione. Vedi [La vista Ispezioni](#la-vista-ispezioni), [Aprire un soggetto](#aprire-un-soggetto-stato-storico-e-controlli) e [Registrare un'ispezione](#registrare-unispezione).
+
+Il registro non arriva da un import: le righe si inseriscono, modificano ed eliminano dall'applicazione. Non contiene dati sanitari e non è collegato alla scheda del dipendente: le persone coinvolte sono **solo un numero**, mai un nome. A un evento salvato puoi allegare foto o PDF, con una regola esplicita: **fotografa la condizione, non le persone**. Vedi [Allegati a un evento](#allegati-a-un-evento).
+
+<Shot
+  src="/images/2026-11/hse-desktop.png"
+  alt="Vista HSE con i contatori per tipo — Near miss, Infortuni, Osservazioni, Ispezioni e Visite esterne — e il Totale, i filtri Tipo, Gravità, Dal e Al, e le righe con data, tipo, gravità, luogo, persone coinvolte e misure"
+  caption="Il registro HSE: i contatori per tipo e il totale, i filtri per tipo, gravità e periodo, e una riga per evento con i fatti e le misure adottate."
+/>
+
+## Consultare il registro
+
+A cosa serve: sapere quanti eventi sono stati registrati, di che tipo e con quale gravità, e leggere le misure adottate.
+
+1. Apri **HSE** dalla navigazione, nel gruppo **Gestione**.
+2. Leggi i contatori in alto: uno per ogni tipo — **Near miss**, **Infortuni**, **Osservazioni**, **Ispezioni** e **Visite esterne** — e il **Totale**.
+3. Restringi l'elenco con i menu **Tipo** e **Gravità** e con il periodo **Dal** / **Al**. **Tipo** offre tutti e cinque i tipi, compresi **Ispezioni** e **Visite esterne**: sono le righe che nascono dalle ispezioni delle attrezzature.
+4. Leggi la tabella: **Data evento**, **Numero evento**, **Tipo**, **Gravità**, **Luogo**, **Persone coinvolte** e **Misure**.
+5. Svuota i filtri per tornare all'elenco completo.
+
+Le righe nate da un'ispezione portano nella cella **Tipo** il comando **Apri l'ispezione**: apre la scheda del soggetto nella vista **Ispezioni**, con i controlli di quell'ispezione già aperti, senza dover ritrovare il soggetto nell'elenco. Il comando c'è solo sulle righe di tipo **Ispezioni** e **Visite esterne** che hanno un'ispezione dietro, e non sulle righe inserite a mano: near miss, infortuni e osservazioni non hanno controlli da aprire. Premendolo la scelta **Registro** / **Ispezioni** passa a **Ispezioni** per la sessione di quel browser, come se avessi usato il selettore.
+
+La vista apre sul **Registro**; il selettore **Registro** / **Ispezioni** in alto cambia schermata.
+
+L'elenco parte dalla data dell'evento più recente. I contatori contano **tutti** gli eventi del cantiere, non solo quelli che passano dai filtri. Se la data **Dal** segue la data **Al**, la vista mostra un messaggio e non l'elenco: correggi il periodo.
+
+I campi data usano il controllo data del browser: il valore salvato resta in formato ISO (`YYYY-MM-DD`) e il campo lo mostra secondo la lingua del browser. Su telefono i campi **Dal** e **Al** vanno uno sotto l'altro a tutta larghezza, ognuno con la propria etichetta, invece di dividersi la riga; i comandi **Modifica** ed **Elimina** di ogni riga restano sulla stessa linea.
+
+## Tipi e gravità
+
+| Tipo | Significato |
+| :-- | :-- |
+| Near miss | Un mancato incidente: l'evento non ha prodotto conseguenze, ma poteva farlo |
+| Infortuni | Un evento con conseguenze su una o più persone |
+| Osservazioni | Un comportamento, una condizione o un'attrezzatura da segnalare |
+| Ispezioni | Un controllo interno su un soggetto del cantiere: nasce dall'ispezione, non si inserisce a mano |
+| Visite esterne | Un controllo esterno sullo stesso soggetto, con le stesse regole |
+
+| Gravità | Significato |
+| :-- | :-- |
+| Bassa | Nessuna conseguenza o conseguenza trascurabile |
+| Media | Conseguenza da gestire, senza fermo del cantiere |
+| Alta | Conseguenza rilevante o rischio immediato |
+
+Tipo e gravità sono scelte obbligatorie. All'inserimento l'applicazione propone **Near miss** e gravità **Bassa**.
+
+Nel registro compaiono anche le righe che nascono dalle **ispezioni HSE** delle attrezzature: tipo `inspection` per un controllo interno, `external_visit` per uno esterno, con gravità **Alta** quando l'esito è non superato, **Media** per superata con note, **Bassa** per superata. Queste righe si creano registrando un'ispezione dalla scheda del soggetto o via API e compaiono nell'elenco, nel contatore **Totale** e nel filtro **Tipo**, che offre tutti e cinque i tipi.
+
+Il modulo **Nuovo evento HSE** invece resta sui tre tipi manuali — near miss, infortuni e osservazioni — e lo stesso vale per la modifica: un'ispezione scritta a mano sarebbe una riga senza i controlli dietro, quindi l'applicazione rifiuta `inspection` ed `external_visit` in inserimento e in modifica, dall'interfaccia come via API. Vedi [Attrezzature e modelli di ispezione](#attrezzature-e-modelli-di-ispezione).
+
+## Aggiungere o modificare un evento
+
+Owner ed editor vedono il pulsante **Nuovo evento HSE**.
+
+1. Premi **Nuovo evento HSE**.
+2. Scegli la **Data evento**, obbligatoria.
+3. Scegli **Tipo** e **Gravità**.
+4. Aggiungi, se servono, **Numero evento**, **Luogo** e **Misure**.
+5. In **Persone coinvolte** scrivi soltanto un numero: se il conteggio non è noto, lascia il campo vuoto.
+6. Usa **Note sui fatti** per la descrizione dell'accaduto, senza nomi né informazioni sanitarie.
+7. Premi **Salva evento HSE**. La finestra si chiude, i contatori e l'elenco si aggiornano e compare il messaggio «Evento HSE salvato».
+
+Per correggere una riga, premi **Modifica** sulla riga stessa: si apre la stessa finestra con i valori attuali e il pulsante diventa **Salva modifiche**.
+
+| Campo | Obbligatorio | Limiti |
+| :-- | :-- | :-- |
+| Data evento | Sì | Data `YYYY-MM-DD` |
+| Numero evento | No | Fino a 120 caratteri; univoco nel cantiere |
+| Tipo | Sì | Near miss, Infortuni, Osservazioni |
+| Gravità | Sì | Bassa, Media, Alta |
+| Luogo | No | Fino a 200 caratteri |
+| Persone coinvolte | No | Numero intero da 0 in su; nessun nome |
+| Misure | No | Fino a 2000 caratteri |
+| Note sui fatti | No | Fino a 2000 caratteri |
+
+Un **numero evento** già usato resta riservato anche dopo la cancellazione: l'eliminazione è logica, la riga esce dall'elenco e dai contatori ma resta nel registro di audit, e il numero non può passare a un altro evento. Se sbagli numero, correggi la riga invece di crearne una nuova con lo stesso numero.
+
+Il **numero evento** è un riferimento interno: puoi lasciarlo vuoto, ma se lo compili deve essere univoco nel cantiere. Due eventi non possono avere lo stesso numero, e l'applicazione rifiuta il salvataggio indicando di controllare il numero.
+
+## Allegati a un evento
+
+Un evento salvato può avere allegati: immagini o PDF fino a **15 MiB** per file. L'allegato documenta una condizione — un parapetto mancante, un bordo non segnalato, un carico che ha oscillato — non le persone.
+
+1. Premi **Modifica** sull'evento: la sezione **Allegati** compare in fondo alla finestra, sotto i pulsanti.
+2. Premi **Aggiungi foto o PDF** e scegli il file.
+3. Se vuoi, scrivi una **Descrizione** fino a 200 caratteri. Serve solo al controllo prima del caricamento e **non viene salvata**.
+4. Controlla l'avviso, se compare, poi premi **Salva**: la finestra si chiude e compare il messaggio «Allegato registrato». Riapri **Modifica** per vedere il file nella sezione e aprirlo con **Apri allegato**.
+
+La regola è scritta nella finestra e nel modulo di caricamento: **fotografa la condizione, non le persone**. Nessun volto identificabile, nessun dato sanitario; se la foto non è necessaria, puoi allegare uno **schema o un pittogramma**. L'avviso compare quando il nome del file o la descrizione contengono parole che suggeriscono una persona o un infortunio: è un promemoria per il controllo umano, non un esame del contenuto dell'immagine, e non blocca il caricamento. L'applicazione non riconosce volti né diagnosi.
+
+Il caricamento è riservato a **owner** ed **editor**. La rimozione non è disponibile dall'interfaccia: si elimina solo via API, da owner ed editor. Se l'evento viene eliminato, i suoi allegati smettono di essere serviti: l'elenco non li mostra e il download risponde «non trovato».
+
+Ogni apertura di un allegato di un evento scrive una voce **Letta** nel registro di audit, con il nome del file. La voce compare in **Ultime modifiche** a owner e verificatori e si legge via API; se la scrittura della traccia fallisce, il download riesce comunque. Anche le aperture degli allegati delle ispezioni scrivono una voce, che si legge via API e non compare nel pannello: vedi [Allegati a un'ispezione](#allegati-a-unispezione). Gli allegati di attività e diario non producono voci di lettura.
+
+## Eliminare un evento
+
+1. Premi **Elimina** sulla riga.
+2. Controlla data, tipo ed eventuale numero indicati nella conferma.
+3. Conferma con **Elimina**.
+
+L'evento sparisce dall'elenco e dai contatori, le letture e le modifiche successive sulla stessa riga rispondono «non trovato» e i suoi allegati non vengono più serviti. La riga però non viene cancellata: resta nel registro di audit, che conserva una copia dell'evento com'era e la traccia di ogni inserimento, modifica ed eliminazione con autore e data. La traccia si legge dal pannello **Ultime modifiche** della vista e via API, da owner e verificatori: vedi [Ultime modifiche](#ultime-modifiche) e [Registro di audit](../../riferimento/api/#registro-di-audit). Se l'evento deve restare consultabile dall'interfaccia, correggine i dati invece di eliminarlo.
+
+## Ultime modifiche
+
+In fondo alla vista, owner e verificatori hanno il pannello richiudibile **Ultime modifiche**: le venti voci più recenti del registro HSE, dalla più nuova. È chiuso per impostazione predefinita e l'elenco si carica quando lo apri.
+
+1. Ogni riga dice l'azione — **Creata**, **Modificata**, **Eliminata** o **Letta** —, chi l'ha eseguita e quando.
+2. Per una lettura compare il nome del file allegato; per le altre azioni il **numero evento**, oppure i primi otto caratteri dell'identificativo quando manca.
+3. Per una modifica sono elencati fino a quattro campi cambiati nella forma **campo: prima → dopo**; se i campi sono più di quattro, la riga dice quanti altri ne restano. Una lettura non ha campi cambiati: dice solo quale allegato è stato aperto.
+4. Quando l'elenco arriva a venti righe, il pannello avverte che sono mostrate solo le modifiche più recenti: per andare più indietro usa `GET /api/audit-events` con `limit` e `offset`.
+
+I valori sono quelli salvati: per tipo e gravità compare il codice (`near_miss`, `low`), non l'etichetta italiana. Il pannello si ricarica a ogni apertura, quindi chiudilo e riaprilo per vedere le modifiche appena fatte. Gli eventi eliminati restano leggibili qui, con i dati che avevano prima dell'eliminazione. Editor e viewer non vedono il pannello.
+
+## La vista Ispezioni
+
+A cosa serve: sapere quali soggetti del cantiere richiedono attenzione senza aprire una per una le ispezioni.
+
+1. Apri **HSE** e premi **Ispezioni** nel selettore in alto: il **Registro** resta nell'altra posizione.
+2. Restringi l'elenco con **Categoria** e **Stato** e scegli l'**Ordine**.
+3. Leggi la riga di conteggio: dice quanti **soggetti** elenca e, per gli stati che hanno un numero, quanti sono scaduti, in scadenza, non conformi o mai ispezionati.
+4. Leggi la tabella: **Soggetto** — con il codice sotto il nome, quando c'è, e il badge **Inattivo** quando il soggetto è disattivato —, **Famiglia**, **Ultima ispezione**, **Prossima scadenza** e **Stato**. Owner ed editor hanno anche una colonna con il comando **Modifica**.
+5. Premi il **nome** del soggetto per aprirne la scheda: stato, storico delle ispezioni e singoli controlli. Vedi [Aprire un soggetto](#aprire-un-soggetto-stato-storico-e-controlli).
+
+<Shot
+  src="/images/2026-11/hse-inspections-desktop.png"
+  alt="Vista Ispezioni con i filtri Categoria, Stato e Ordine, la riga di conteggio e la tabella dei soggetti con nome, codice, famiglia, ultima ispezione, prossima scadenza e stato: scaduto, non conforme, in regola e mai ispezionato"
+  caption="La vista Ispezioni: una riga per soggetto con l'ultima ispezione, la prossima scadenza e lo stato ricavato dai controlli. I filtri e l'ordine restringono l'elenco; il nome apre la scheda."
+/>
+
+La scelta **Registro** / **Ispezioni** resta per la sessione di quel browser: riaprendo la vista ritrovi l'ultima schermata, e alla riapertura del browser si riparte dal **Registro**. Il pulsante **Aggiorna dati** ricarica l'elenco, come nel registro.
+
+| Stato | Significato |
+| :-- | :-- |
+| In regola | L'ultima ispezione è superata e la prossima scadenza non è vicina |
+| In scadenza | La prossima scadenza cade entro 30 giorni, oggi compreso |
+| Scaduto | La prossima scadenza è passata |
+| Non conforme | L'ultimo esito è non superato |
+| Mai ispezionato | Il soggetto non ha ancora nessuna ispezione |
+
+Lo stato si calcola in quest'ordine — mai ispezionato, non conforme, scaduto, in scadenza, in regola — e vince il primo che vale: un soggetto non conforme risulta **Non conforme** anche se la scadenza è passata, e un esito positivo senza scadenza resta **In regola**. Ogni stato ha un'icona accanto al testo.
+
+**Ordine** parte da **Prossima scadenza crescente**, con le righe senza scadenza in fondo; **Nome crescente** ordina alfabeticamente; **Ultima ispezione decrescente** mette in cima le ispezioni più recenti.
+
+I due elenchi vuoti dicono cose diverse: se il cantiere non ha ancora soggetti, la vista lo dice; se i soggetti ci sono ma **Categoria** e **Stato** li escludono tutti, la vista lo dice e offre **Azzera filtri**.
+
+L'elenco non ha **Nuovo evento HSE** e non mostra il pannello **Ultime modifiche**, che restano nel **Registro**. Al loro posto, owner ed editor hanno **Nuovo soggetto** e il comando **Modifica** su ogni riga; verificatori e viewer vedono la sola tabella, ma anche per loro il nome apre la scheda del soggetto. I soggetti sono le attrezzature HSE del cantiere: si creano da questa vista o via API. Vedi [Aggiungere o modificare un soggetto](#aggiungere-o-modificare-un-soggetto) e [Attrezzature e modelli di ispezione](#attrezzature-e-modelli-di-ispezione).
+
+## Aprire un soggetto: stato, storico e controlli
+
+A cosa serve: passare da «di cosa devo occuparmi» a «cosa è successo a questo soggetto».
+
+1. Nella vista **Ispezioni** premi il **nome** del soggetto. L'elenco lascia il posto alla scheda e il pulsante in alto diventa **Torna alle ispezioni**. Ci si arriva anche dal **Registro**, con **Apri l'ispezione** sulla riga di un'ispezione: la scheda si apre con i controlli di quell'ispezione già aperti.
+2. In cima leggi il nome, il **codice** quando c'è, la **famiglia** del modello con il suo riferimento e il numero di **controlli** che la famiglia porta con sé. Seguono lo **stato** con la stessa icona dell'elenco, l'**ultima ispezione** e la **prossima scadenza**.
+3. Se la famiglia è ancora in bozza, la scheda lo dice: «La checklist deve ancora essere revisionata».
+4. Owner ed editor hanno in cima anche **Nuova ispezione**, che apre il modulo per registrare un'ispezione sul soggetto. Vedi [Registrare un'ispezione](#registrare-unispezione).
+5. Sotto, **Storico delle ispezioni** elenca le ispezioni del soggetto dalla più recente: data, chi l'ha eseguita, **ruolo**, **modalità** — **Interna** o **Visita esterna** —, **esito** — **Conforme**, **Conforme con note**, **Non conforme** — e prossima scadenza. Le note dell'ispezione, quando ci sono, stanno sotto la riga.
+6. Premi la **data** di un'ispezione per aprire i suoi controlli: compaiono nell'ordine del modello, ognuno con il risultato scritto — **Conforme**, **Non conforme**, **Non applicabile** — e la nota del controllo, quando c'è. Sotto i controlli c'è la sezione **Allegati** dell'ispezione. Premi di nuovo la data per richiuderli.
+7. **Torna alle ispezioni** riporta all'elenco con **filtri** e **ordine** come li avevi lasciati.
+
+Accanto all'esito, la scheda riporta il conteggio dei controlli dell'ispezione: **Conforme: 8 · Non conforme: 1 · Non applicabile: 1**. Il conteggio viene dai controlli salvati con l'ispezione, quindi non cambia se il modello viene modificato dopo. Per le ispezioni non ancora aperte il conteggio non compare subito: arriva quando apri la riga, e resta visibile anche richiudendola.
+
+Il risultato di un controllo è sempre scritto a parole: il badge colorato accompagna il testo, non lo sostituisce. I comandi di scrittura della scheda sono **Nuova ispezione** e, per owner ed editor, l'aggiunta di allegati all'ispezione aperta, perché le ispezioni non si modificano e non si eliminano: una correzione è una nuova ispezione, mentre per correggere il soggetto si torna all'elenco e si usa **Modifica**. La scheda la vede chi vede la vista **Ispezioni**: owner, editor, verificatori e viewer.
+
+Se lo storico non si carica, al suo posto compare l'errore ma **Torna alle ispezioni** resta disponibile. Un soggetto mai ispezionato dice «Questo soggetto non è mai stato ispezionato»; un soggetto che non esiste più — per esempio eliminato via API da un altro utente — dice «Soggetto non trovato».
+
+## Allegati a un'ispezione
+
+A cosa serve: conservare la prova visiva di una condizione trovata durante il controllo.
+
+Apri un'ispezione nella scheda del soggetto: sotto i controlli compare la sezione **Allegati** con i file di quell'ispezione. Le immagini si vedono come miniature con il nome del file e premendo la miniatura l'immagine si apre intera in una finestra. Gli altri file, e le foto ancora in coda sul dispositivo, restano una riga con **Apri allegato** e il badge di sincronizzazione.
+
+1. Apri l'ispezione nella scheda del soggetto.
+2. Premi **Aggiungi foto** e scegli il file: sono ammesse immagini o PDF fino a **15 MiB**.
+3. Se vuoi, scrivi una **Descrizione** fino a 200 caratteri. Serve solo al controllo prima del caricamento e **non viene salvata**.
+4. Controlla l'avviso, se compare, poi premi **Salva**: la finestra si chiude e l'allegato compare nella sezione.
+
+Valgono le stesse regole degli allegati agli eventi: **fotografa la condizione, non le persone**, nessun volto identificabile e nessun dato sanitario, con uno **schema o un pittogramma** come alternativa alla foto. L'avviso sul nome del file o sulla descrizione è un promemoria per il controllo umano, non un esame dell'immagine, e non blocca il caricamento. Il comando **Aggiungi foto** compare solo a **owner** ed **editor**; verificatori e viewer vedono gli allegati ma non li caricano, e la rimozione non è disponibile dall'interfaccia: si elimina solo via API. Un allegato si vede solo dall'ispezione dello stesso cantiere.
+
+Ogni apertura di un allegato di un'ispezione scrive una voce **Letta** nel registro di audit, con il nome del file, come per gli allegati agli eventi. La voce non compare nel pannello **Ultime modifiche**, che elenca gli eventi del registro: si legge via API con `entity_type` `hse_inspection`, da owner e verificatori. Vedi [API REST](../../riferimento/api/#allegati).
+
+## Registrare un'ispezione
+
+A cosa serve: registrare il controllo di un soggetto senza passare dall'API, compilando la checklist della sua famiglia.
+
+1. Apri la scheda del soggetto e premi **Nuova ispezione**: il pulsante compare solo a owner ed editor, e richiede la connessione. Offline l'applicazione avvisa e non apre il modulo: le ispezioni non entrano nella coda delle scritture offline.
+2. La finestra carica la checklist della famiglia del soggetto. Se la famiglia non ha controlli da compilare, al posto del modulo compare l'avviso «La checklist di questa famiglia non è disponibile» con il pulsante **Riprova**.
+3. Controlla la **Data**, che propone oggi, e **Eseguita da**, che propone il tuo nome. Aggiungi, se serve, il **Ruolo** — la finestra suggerisce *site manager* e *tecnico abilitato* — e scegli la **Modalità**: **Interna** o **Visita esterna**. Con **Visita esterna** la finestra ricorda che lì si registrano l'esaminatore e il verbale.
+4. Scegli l'**Esito** tra **Conforme**, **Conforme con note** e **Non conforme**. La finestra propone **Conforme** e passa da sola a **Conforme con note** appena segni un controllo non conforme; se scegli tu l'esito, l'applicazione non lo cambia più.
+5. Rispondi a ogni controllo della checklist con **Conforme**, **Non conforme** o **Non applicabile**: un solo risultato per controllo, e il risultato scelto resta premuto. Su un controllo non conforme compare il campo per la **Nota sul controllo**, fino a 2000 caratteri.
+6. La riga di avanzamento dice quanti controlli sono compilati sul totale e accanto ai pulsanti compare quanti ne mancano; finché ne manca uno il pulsante di salvataggio resta spento.
+7. Aggiungi, se servono, le **Note generali**, fino a 2000 caratteri, e premi **Salva**.
+
+La finestra si chiude, la scheda e l'elenco si aggiornano e il messaggio dice la prossima scadenza, calcolata dall'intervallo del modello: «Ispezione salvata. Prossima scadenza: …». Se l'intervallo del modello non produce una scadenza, il messaggio dice che non c'è. L'ispezione compare subito nello **Storico delle ispezioni** con i controlli appena salvati.
+
+| Campo | Obbligatorio | Limiti |
+| :-- | :-- | :-- |
+| Data | Sì | Data `YYYY-MM-DD`; proposta oggi |
+| Eseguita da | Sì | Fino a 200 caratteri; proposto il tuo nome |
+| Ruolo | No | Fino a 120 caratteri; in visita esterna è l'esaminatore |
+| Modalità | Sì | Interna (proposta) o Visita esterna |
+| Esito | Sì | Conforme (proposto), Conforme con note, Non conforme |
+| Controlli | Sì | Ogni controllo della famiglia, una risposta per controllo |
+| Nota sul controllo | No | Solo sui controlli non conformi; fino a 2000 caratteri |
+| Note generali | No | Fino a 2000 caratteri |
+
+L'ispezione salvata non si modifica e non si elimina: per correggere un errore se ne registra una nuova con la data e l'esito corretti. Registrarla scrive anche una riga nel **registro HSE**, con tipo **Ispezioni** o **Visite esterne** e gravità legata all'esito, come per le ispezioni registrate via API: vedi [Tipi e gravità](#tipi-e-gravità).
+
+## Aggiungere o modificare un soggetto
+
+Owner ed editor creano e modificano i soggetti dalla vista **Ispezioni**, senza passare dall'API.
+
+1. Apri **HSE**, scegli **Ispezioni** e premi **Nuovo soggetto**: il pulsante è in alto e compare anche quando l'elenco è vuoto.
+2. Scrivi il **Nome**, obbligatorio e univoco nel cantiere.
+3. Aggiungi, se servono, il **Codice** e le **Note**.
+4. Scegli la **Famiglia** tra i modelli della giurisdizione del cantiere, che la finestra carica all'apertura.
+5. Premi **Salva soggetto**. La finestra si chiude, la tabella si aggiorna e compare il messaggio «Soggetto salvato».
+
+Per correggere un soggetto, premi **Modifica** sulla riga: si apre la stessa finestra con i valori attuali e il pulsante diventa **Salva modifiche**. Solo in modifica compare la casella **Attivo**: togli la spunta per disattivare il soggetto, che resta nell'elenco con il badge **Inattivo** invece di sparire. L'applicazione invia solo i campi cambiati.
+
+| Campo | Obbligatorio | Limiti |
+| :-- | :-- | :-- |
+| Nome | Sì | Fino a 200 caratteri; univoco nel cantiere |
+| Codice | No | Fino a 60 caratteri |
+| Famiglia | Sì | Un modello della giurisdizione del cantiere; da qui derivano tipo e categoria del soggetto |
+| Note | No | Fino a 2000 caratteri |
+| Attivo | No | Solo in modifica; spento, il soggetto resta in elenco con il badge **Inattivo** |
+
+Un nome già usato nel cantiere viene rifiutato con un messaggio sotto il campo **Nome**; un modello dell'altra giurisdizione o un campo fuori misura compare come errore della finestra. Creazione e modifica richiedono la connessione: offline l'applicazione avvisa e non apre la finestra. L'eliminazione di un soggetto non è disponibile dall'interfaccia: si fa solo via API, da owner ed editor. Vedi [API REST](../../riferimento/api/#attrezzature-hse-e-catalogo-delle-ispezioni).
+
+## Attrezzature e modelli di ispezione
+
+A cosa serve: sapere quali attrezzature del cantiere vanno ispezionate e con quali controlli.
+
+Il registro degli eventi è separato dal **censimento delle attrezzature HSE** — strumenti, opere di cantiere e dispositivi di protezione individuale — che nasce da un **modello di ispezione** della giurisdizione del cantiere, con i controlli visivi e l'intervallo previsti. Il censimento si gestisce dalla vista **Ispezioni** (vedi [Aggiungere o modificare un soggetto](#aggiungere-o-modificare-un-soggetto)); il catalogo dei modelli non ha ancora una schermata, si legge via API, e i modelli sono ancora in bozza. Vedi [API REST](../../riferimento/api/#attrezzature-hse-e-catalogo-delle-ispezioni).
+
+Sulle attrezzature censite si registrano le **ispezioni**: ogni ispezione dice la data, chi l'ha eseguita, se il controllo è stato interno o esterno, l'esito — superata, superata con note, non superata — e la risposta a ogni controllo del modello, con la scadenza successiva calcolata dall'intervallo del modello. L'ispezione conserva i controlli com'erano nel modello quel giorno, quindi cambiare il modello non riscrive le ispezioni passate. Non si modifica e non si elimina: una correzione è una nuova ispezione. A differenza del censimento, le ispezioni si registrano dalla scheda del soggetto, da owner ed editor (vedi [Registrare un'ispezione](#registrare-unispezione)), e via API; si leggono anche dalla scheda del soggetto (vedi [Aprire un soggetto](#aprire-un-soggetto-stato-storico-e-controlli)); via API leggono tutti i ruoli del cantiere. Vedi [API REST](../../riferimento/api/#ispezioni-hse).
+
+Registrare un'ispezione scrive anche una riga nel **registro HSE**: il tipo distingue il controllo interno (`inspection`) da quello esterno (`external_visit`), la gravità segue l'esito e il luogo riporta il codice dell'attrezzatura, o il suo nome quando il codice manca. Vedi [Tipi e gravità](#tipi-e-gravità).
+
+L'elenco delle attrezzature via API dice anche a che punto è l'ispezione: per ogni riga restituisce la data dell'ultima ispezione, il suo esito, la prossima scadenza e uno stato — `never` se l'attrezzatura non è mai stata ispezionata, `failed` se l'ultimo esito è non superato, `overdue` se la scadenza è passata, `due_soon` se scade entro 30 giorni e `ok` negli altri casi. Il dettaglio della singola attrezzatura non porta questi campi.
+
+## Chi può fare cosa
+
+| Azione | Ruolo |
+| :-- | :-- |
+| Consultare il registro HSE | owner, editor, verifier |
+| Aprire la vista **Ispezioni** | owner, editor, verifier |
+| Aggiungere, modificare o eliminare un evento | owner, editor |
+| Aprire gli allegati di un evento HSE | owner, editor, verifier |
+| Aggiungere o rimuovere allegati a un evento HSE | owner, editor |
+| Aprire gli allegati di un'ispezione HSE | owner, editor, verifier, viewer |
+| Aggiungere o rimuovere allegati a un'ispezione HSE | owner, editor |
+| Consultare le attrezzature HSE e il catalogo dei modelli | owner, editor, verifier, viewer |
+| Aggiungere o modificare un'attrezzatura HSE dalla vista **Ispezioni** | owner, editor |
+| Eliminare un'attrezzatura HSE — solo API | owner, editor |
+| Consultare le ispezioni HSE | owner, editor, verifier, viewer |
+| Registrare un'ispezione HSE dalla scheda del soggetto o via API | owner, editor |
+| Consultare le ultime modifiche | owner, verifier |
+
+La sezione **Allegati** di un evento è nella finestra di modifica, che vedono solo owner ed editor; i verificatori leggono gli allegati via API. Gli allegati di un'ispezione stanno invece nella scheda del soggetto, sotto i controlli dell'ispezione aperta. La rimozione di un allegato è solo via API.
+
+Il ruolo `viewer` non accede al registro: la voce compare nella navigazione, ma la vista mostra **Registro riservato**. Il registro è separato dagli altri moduli e non alimenta la Panoramica né il report.
+
+:::caution[Se qualcosa non torna]
+- **«Registro riservato» o nessun dato:** il tuo ruolo sul cantiere è `viewer`; la lettura è riservata a owner, editor e verificatori. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/).
+- **Non vedo i pulsanti:** solo owner ed editor scrivono; i verificatori consultano soltanto.
+- **Non vedo Aggiungi foto:** il comando sugli allegati dell'ispezione è riservato a owner ed editor; verificatori e viewer vedono gli allegati ma non li caricano.
+- **Non vedo Apri l'ispezione:** il comando compare solo sulle righe nate da un'ispezione, cioè **Ispezioni** e **Visite esterne**; una riga inserita a mano non ha un'ispezione da aprire.
+- **La sezione Allegati non compare:** compare aprendo la data di un'ispezione con i controlli caricati; se il dettaglio dell'ispezione non si carica, la sezione non c'è.
+- **Numero evento rifiutato:** è già usato da un altro evento dello stesso cantiere. Lascialo vuoto o cambialo.
+- **Persone coinvolte rifiutate:** il campo accetta solo un numero intero, non testo e non nomi.
+- **Allegato rifiutato:** deve essere un'immagine o un PDF non vuoto, fino a 15 MiB.
+- **Non trovo la sezione Allegati:** compare solo modificando un evento già salvato, e solo per owner ed editor.
+- **La scheda del soggetto non ha storico:** o il soggetto non è mai stato ispezionato, e la scheda lo dice, oppure il caricamento è fallito e al posto delle ispezioni compare un errore; **Torna alle ispezioni** resta attivo.
+- **Non vedo Nuova ispezione:** il pulsante è riservato a owner ed editor e richiede la connessione; verificatori e viewer leggono la scheda soltanto.
+- **Salva spento nella nuova ispezione:** manca almeno un controllo della checklist; la riga sotto il modulo dice quanti ne restano.
+- **«La checklist di questa famiglia non è disponibile»:** la famiglia del soggetto non ha controlli da compilare; riprova, e se l'avviso resta segnalalo come problema dei modelli di ispezione.
+- **Periodo rifiutato:** la data **Dal** non può seguire la data **Al**.
+- **Offline:** la vista richiede la connessione, come le altre viste dei moduli; senza rete non si consulta né si modifica il registro.
+- **Elenco vuoto:** il cantiere non ha ancora eventi, oppure tipo, gravità e periodo si sommano; azzera i filtri.
+:::
+
+Le stesse righe sono disponibili via API, con gli endpoint `/api/hse-events`: vedi [API REST](../../riferimento/api/#hse).

@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 250" role="img" aria-label="Mappa dei moduli di SiteAssistant">
+  <style>
+    text { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    .title { font-size: 16px; font-weight: 700; fill: #1f2937; }
+    .sub { font-size: 12px; fill: #6b7280; }
+    .card-label { font-size: 14px; font-weight: 700; fill: #1f2937; }
+  </style>
+  <rect x="0" y="0" width="900" height="250" rx="14" fill="#ffffff" stroke="#e5e7eb"/>
+  <text class="title" x="28" y="34">SiteAssistant</text>
+  <text class="sub" x="28" y="52">Un unico cantiere selezionato · tutte le viste condividono lo stesso contesto</text>
+
+  <!-- Panoramica -->
+  <g>
+    <rect x="24" y="72" width="160" height="156" rx="12" fill="#f0fdf4" stroke="#126c57"/>
+    <rect x="44" y="94" width="52" height="52" rx="10" fill="#126c57"/>
+    <g fill="#ffffff">
+      <rect x="54" y="104" width="14" height="14" rx="2"/>
+      <rect x="72" y="104" width="14" height="14" rx="2"/>
+      <rect x="54" y="122" width="14" height="14" rx="2"/>
+      <rect x="72" y="122" width="14" height="14" rx="2"/>
+    </g>
+    <text class="card-label" x="104" y="176" text-anchor="middle">Panoramica</text>
+    <text class="sub" x="104" y="196" text-anchor="middle">Il colpo d'occhio</text>
+  </g>
+
+  <!-- Cantieri -->
+  <g>
+    <rect x="196" y="72" width="160" height="156" rx="12" fill="#ffffff" stroke="#126c57"/>
+    <rect x="216" y="94" width="52" height="52" rx="10" fill="#d1e7c0"/>
+    <path d="M232 136 h24 M230 124 v24 h20 v-24 z M242 124 l-3-10 h-6 l-3 10" fill="none" stroke="#126c57" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text class="card-label" x="276" y="176" text-anchor="middle">Cantieri</text>
+    <text class="sub" x="276" y="196" text-anchor="middle">Il contesto di lavoro</text>
+  </g>
+
+  <!-- Attività -->
+  <g>
+    <rect x="368" y="72" width="160" height="156" rx="12" fill="#ffffff" stroke="#126c57"/>
+    <rect x="388" y="94" width="52" height="52" rx="10" fill="#d1e7c0"/>
+    <g stroke="#126c57" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="398" y="104" width="32" height="32" rx="6"/>
+      <path d="M404 120 l5 5 l9 -9"/>
+    </g>
+    <text class="card-label" x="448" y="176" text-anchor="middle">Attività</text>
+    <text class="sub" x="448" y="196" text-anchor="middle">Stati e verifiche</text>
+  </g>
+
+  <!-- Struttura progetto -->
+  <g>
+    <rect x="540" y="72" width="160" height="156" rx="12" fill="#ffffff" stroke="#126c57"/>
+    <rect x="560" y="94" width="52" height="52" rx="10" fill="#d1e7c0"/>
+    <g stroke="#126c57" stroke-width="2" fill="none" stroke-linecap="round">
+      <circle cx="586" cy="108" r="4"/>
+      <path d="M586 112 v10 M578 124 h16 M578 134 h6 M590 134 h6"/>
+    </g>
+    <text class="card-label" x="620" y="176" text-anchor="middle">Struttura progetto</text>
+    <text class="sub" x="620" y="196" text-anchor="middle">WBS · sola lettura</text>
+  </g>
+
+  <!-- Diario -->
+  <g>
+    <rect x="712" y="72" width="160" height="156" rx="12" fill="#ffffff" stroke="#126c57"/>
+    <rect x="732" y="94" width="52" height="52" rx="10" fill="#d1e7c0"/>
+    <g stroke="#126c57" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M736 102 h44 v40 h-44 z"/>
+      <path d="M742 112 h22 M742 120 h22 M742 128 h14"/>
+    </g>
+    <text class="card-label" x="792" y="176" text-anchor="middle">Diario</text>
+    <text class="sub" x="792" y="196" text-anchor="middle">Piano e consuntivo</text>
+  </g>
+</svg>

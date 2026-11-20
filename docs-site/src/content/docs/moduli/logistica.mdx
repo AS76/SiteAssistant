@@ -1,0 +1,209 @@
+---
+title: Logistica
+description: Gestire gli ordini di acquisto del cantiere, con righe, quantità, stati, pacchi e spedizioni.
+---
+
+La vista **Logistica** raccoglie gli ordini di acquisto del cantiere selezionato: che cosa è stato ordinato a un fornitore, in quali righe, a che punto è l'esecuzione e quanto materiale è stato ordinato. Gli ordini non arrivano da un import: si inseriscono e si modificano dall'applicazione.
+
+La vista ha tre elenchi, scelti con il selettore **Ordini** / **Pacchi** / **Spedizioni** sotto il titolo: gli **ordini**; i **pacchi**, cioè i colli che raggruppano le righe ordinate e registrano quanto è stato imballato di ciascuna; e le **spedizioni**, che raggruppano più pacchi e ne seguono il viaggio, con le ricezioni di quanto arriva. La scelta resta per la sessione del browser.
+
+Il modulo `logistics` è spento per impostazione predefinita: a differenza degli altri moduli, un membro non lo vede finché un owner non glielo concede dalla tabella **Accessi per modulo** della vista **Cantieri**, colonna **Logistica**, oppure via API. Senza la concessione la voce non compare nella navigazione e un collegamento diretto mostra **Modulo non disponibile**. Gli owner del cantiere lo vedono sempre. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/#accessi-per-modulo).
+
+## Consultare gli ordini
+
+A cosa serve: sapere che cosa è stato ordinato, a chi e a che punto è.
+
+1. Apri **Logistica** dalla navigazione, nel gruppo **Gestione**, con il selettore su **Ordini**.
+2. Leggi la tabella: **Numero PO**, **Fornitore**, **Data ordine**, **Stato**, **Righe**, **Quantità totale**.
+3. Restringi l'elenco con il menu **Stato** e con il campo **Fornitore**, che cerca una parte del nome senza distinguere maiuscole e minuscole.
+4. Clicca il numero d'ordine per aprire il dettaglio.
+
+L'elenco parte dall'ordine con la data più recente e, a parità di data, dal numero minore. La colonna **Data ordine**, come le altre date della vista, si legge come giorno nella lingua dell'interfaccia — per esempio `15 nov 2026` — mentre il valore salvato resta in formato ISO (`YYYY-MM-DD`). **Righe** e **Quantità totale** si leggono dal dettaglio di ogni ordine: finché il dettaglio non è caricato la cella dice «Caricamento»; se non si carica, al suo posto compare «Totali non disponibili» con un comando per riprovare. Il totale **somma le quantità delle righe senza convertire le unità**: sessanta metri e dodici pezzi fanno settantadue, non una misura.
+
+Gli stati sono **Aperto**, **Modello generato**, **In esecuzione**, **Completato** e **Non pertinente**. Un ordine completato o non pertinente è finale e non cambia più stato.
+
+Nei dati dimostrativi ogni cantiere ha due ordini, con righe nei quattro stati delle righe. Sono dati di prova: non inserire informazioni riservate.
+
+## Aprire un ordine
+
+1. Clicca il **Numero PO** nell'elenco.
+2. In alto leggi fornitore, data ordine, stato, note e, per un ordine chiuso, la data di chiusura.
+3. Sotto, la tabella **Righe ordine**: **Numero riga**, **Codice materiale**, **Descrizione**, **Unità**, **Quantità**, **WBS**, **Stato**, **Inizio esecuzione**, **Completato il**.
+4. **Torna agli ordini** riporta all'elenco con filtri e ordine come li avevi lasciati.
+
+La colonna **WBS** mostra il codice della voce collegata. Se la **Struttura progetto** non è disponibile per il tuo accesso, al suo posto compare «WBS non disponibile» e il collegamento salvato resta com'è.
+
+## Creare o modificare un ordine
+
+Owner ed editor vedono **Nuovo ordine**.
+
+1. Premi **Nuovo ordine**.
+2. Compila **Numero PO** — obbligatorio, fino a 80 caratteri e univoco nel cantiere —, **Fornitore** — obbligatorio, fino a 200 caratteri —, **Data ordine** e, se servono, **Note**.
+3. Premi **Salva**. La finestra si chiude, si apre il dettaglio del nuovo ordine e compare «Ordine aggiornato».
+
+Il numero d'ordine non si modifica dopo la creazione: in modifica la finestra lo mostra e si cambiano solo fornitore, data e note. Un numero già usato nel cantiere viene rifiutato.
+
+## Aggiungere o modificare una riga
+
+1. Nel dettaglio premi **Aggiungi riga**.
+2. Compila **Numero riga** — proposto come ultimo numero più uno —, **Codice materiale**, **Descrizione**, obbligatoria fino a 500 caratteri, **Unità** e **Quantità**.
+3. Scegli, se serve, una voce in **WBS**; **Nessun collegamento WBS** lascia la riga scollegata.
+4. Premi **Salva**.
+
+La quantità è positiva, fino a **999999999,999** e con al massimo tre decimali. Il numero di riga è un intero positivo e univoco nell'ordine: un numero già usato viene rifiutato. Per correggere una riga premi **Modifica** sulla riga stessa: si apre la stessa finestra con i valori attuali.
+
+Il menu **WBS** elenca le voci della struttura progetto del cantiere, con codice e descrizione. Se il modulo non è disponibile, o la voce collegata non esiste più, la finestra lo dice e il collegamento esistente viene conservato.
+
+## Cambiare stato
+
+Owner ed editor hanno **Cambia stato** sul dettaglio dell'ordine e su ogni riga.
+
+1. Premi **Cambia stato**.
+2. Scegli il **Nuovo stato** tra quelli ammessi.
+3. Conferma. **Completato** e **Non pertinente** sono stati finali: da lì non si torna indietro.
+
+Le righe passano da **Aperto** a **In esecuzione** oppure a **Non pertinente**; da **In esecuzione** a **Completato** oppure a **Non pertinente**. Le date dei passaggi si scrivono da sole: **Inizio esecuzione** alla partenza, **Completato il** alla chiusura.
+
+L'ordine passa a **Modello generato** solo da **Aperto**, a **Completato** quando tutte le righe sono finali e a **Non pertinente** quando tutte sono non pertinenti. **In esecuzione** non si sceglie a mano: lo stato dell'ordine segue le righe e passa in esecuzione appena una riga parte.
+
+Se nel frattempo qualcun altro ha cambiato lo stato o le righe, il cambio viene rifiutato con il messaggio «Cambio di stato rifiutato» e il dettaglio si ricarica: scegli di nuovo lo stato.
+
+## I pacchi
+
+Un **pacco** raggruppa le righe di un ordine e dice quanto è stato imballato di ciascuna: è il passaggio tra l'ordine e la spedizione, e corrisponde al collo dell'API. La scheda si apre dal selettore **Ordini** / **Pacchi** / **Spedizioni** sotto il titolo della vista, e la scelta resta per la sessione del browser.
+
+### Consultare i pacchi
+
+A cosa serve: sapere che cosa è già stato imballato per un ordine.
+
+1. Apri **Logistica** e scegli **Pacchi**.
+2. Leggi la tabella: **Numero pacchetto**, **Ordine**, **Stato**, **Righe**, **Quantità impacchettata**, **Data creazione**.
+3. Restringi l'elenco con il menu **Stato** — **Aperto** o **Chiuso** — e con il menu **Ordine**, che parte da **Tutti gli ordini**.
+4. Clicca il numero del pacco per aprire il dettaglio.
+
+L'elenco parte dal pacco più recente. **Righe** e **Quantità impacchettata** si leggono dal dettaglio di ogni pacco: finché non è caricato la cella dice «Caricamento»; se non si carica compare «Totali non disponibili.» con un comando per riprovare. Anche qui il totale **somma le quantità senza convertire le unità**. Quando nessun pacco corrisponde ai filtri la tabella lascia il posto a **Nessun pacco**, con il suggerimento di cambiare i filtri o crearne uno.
+
+### Aprire un pacco
+
+1. Clicca il **Numero pacchetto** nell'elenco.
+2. In alto leggi **Ordine**, **Stato**, **Note** e l'eventuale data di chiusura.
+3. Sotto, la tabella **Righe pacchetto**: **Numero riga**, **Descrizione**, **Quantità impacchettata**, **Unità**.
+4. **Torna ai pacchi** riporta all'elenco.
+
+Il numero di riga arriva dal dettaglio dell'ordine: se non si carica, al suo posto compare «Ordine non disponibile: impossibile caricare i numeri riga.» con un comando per riprovare.
+
+### Creare un pacco
+
+Owner ed editor vedono **Nuovo pacchetto** nella scheda **Pacchi** e **Crea pacchetto** nel dettaglio di un ordine; il secondo apre la stessa finestra con l'ordine già scelto.
+
+1. Scegli l'**Ordine** — obbligatorio —; sotto compaiono le righe dell'ordine.
+2. Compila **Numero pacchetto**, facoltativo e fino a 80 caratteri: lasciato vuoto, il servizio assegna il primo numero libero nella forma `PKG-001`, `PKG-002` e così via. Il numero è univoco nell'ordine.
+3. Aggiungi, se servono, **Note**.
+4. Indica la **Quantità impacchettata** delle righe che entrano nel pacco; le righe lasciate vuote restano fuori.
+5. Premi **Crea pacchetto**.
+
+Accanto a ogni riga leggi la **Quantità ordinata** e la **Già impacchettata**, che comprende anche i pacchi chiusi. La quantità è positiva, fino a **999999999,999** e con al massimo tre decimali, e la somma con quella già impacchettata non può superare la quantità ordinata: se la supera, il salvataggio si ferma con «La quantità da impacchettare, sommata a quella già impacchettata, supera la quantità ordinata per una riga. Aggiorna le quantità e riprova.». Serve almeno una riga con una quantità maggiore di zero.
+
+Il primo pacco che imballa una riga ancora aperta la porta **In esecuzione** con la data del giorno, e lo stato dell'ordine segue le righe. A pacco salvato la finestra si chiude e compare «Pacchetto salvato.».
+
+### Chiudere un pacco
+
+Owner ed editor hanno **Chiudi pacchetto** nel dettaglio di un pacco aperto.
+
+1. Apri il pacco e premi **Chiudi pacchetto**.
+2. Leggi la conferma — dopo la chiusura non sono disponibili altre modifiche — e conferma.
+
+Il pacco passa a **Chiuso** e riceve la data di chiusura; da lì non si modifica più. Un pacco già chiuso da qualcun altro viene rifiutato con «Il pacchetto è già chiuso. Aggiorna il dettaglio.».
+
+Un pacco non si modifica e non si elimina, né dall'interfaccia né via API: le quantità si registrano alla creazione e la chiusura è l'ultimo passaggio.
+
+## Le spedizioni
+
+Una **spedizione** raggruppa uno o più pacchi e ne segue il viaggio: vettore, date di partenza e di arrivo, quattro stati e le ricezioni di quanto arriva. È lo stesso oggetto dell'API `/api/shipments`. La scheda si apre dal selettore **Ordini** / **Pacchi** / **Spedizioni**, e la scelta resta per la sessione del browser.
+
+### Consultare le spedizioni
+
+A cosa serve: sapere che cosa è in viaggio verso il cantiere e che cosa è già arrivato.
+
+1. Apri **Logistica** e scegli **Spedizioni**.
+2. Leggi la tabella: **Spedizione**, **Vettore**, **Partenza**, **Arrivo previsto**, **Arrivo effettivo**, **Stato**, **Pacchi**.
+3. Restringi l'elenco con il menu **Stato**, che parte da **Tutti gli stati**.
+4. Clicca il numero della spedizione per aprire il dettaglio.
+
+L'elenco segue l'ordine di creazione delle spedizioni. La colonna **Pacchi** si legge dal dettaglio di ogni spedizione: finché non è caricato la cella dice «Caricamento»; se non si carica compare «Totali non disponibili.» con un comando per riprovare. Quando nessuna spedizione corrisponde al filtro la tabella lascia il posto a **Nessuna spedizione**, con il suggerimento di cambiare il filtro o crearne una. Nei dati dimostrativi ogni cantiere ha una spedizione, con stati diversi tra i cantieri. Sono dati di prova: non inserire informazioni riservate.
+
+### Aprire una spedizione
+
+1. Clicca il **numero della spedizione** nell'elenco.
+2. In alto leggi **Vettore**, **Partenza**, **Arrivo previsto**, **Arrivo effettivo**, **Stato** e **Note**.
+3. Sotto, la tabella dei **Pacchi** della spedizione: **Numero pacchetto**, **Ordine**, **Stato**, **Quantità impacchettata**; qui il totale **somma le quantità senza convertire le unità**.
+4. Più sotto, **Ricezioni**: **Riga ordine**, **Quantità ricevuta**, **Nota**, **Data creazione**; senza ricezioni la sezione dice «Nessuna ricezione registrata.».
+5. **Torna alle spedizioni** riporta all'elenco con il filtro come lo avevi lasciato.
+
+Nella colonna **Riga ordine** delle ricezioni leggi numero d'ordine, numero di riga e descrizione: se l'ordine non si carica, al suo posto resta l'identificativo della riga, con un comando per riprovare.
+
+### Creare una spedizione
+
+Owner ed editor vedono **Nuova spedizione** nella scheda **Spedizioni**.
+
+1. Premi **Nuova spedizione**.
+2. Compila **Numero spedizione** — obbligatorio, fino a 80 caratteri e univoco nel cantiere —, **Vettore** — fino a 200 caratteri —, **Partenza**, **Arrivo previsto** e, se servono, **Note**.
+3. In **Pacchi disponibili** spunta almeno un pacco; l'elenco contiene solo i pacchi del cantiere non ancora assegnati a una spedizione.
+4. Premi **Salva**.
+
+La spedizione nasce **Pianificata**. Un pacco può stare in **una sola** spedizione: quelli già assegnati non compaiono nell'elenco. Se non resta nessun pacco disponibile la finestra lo dice e invita a crearne uno non ancora assegnato. A spedizione salvata la finestra si chiude e compare «Spedizione salvata.».
+
+### Avanzare lo stato
+
+Owner ed editor hanno **Avanza stato** nel dettaglio della spedizione.
+
+1. Premi **Avanza stato**.
+2. Leggi la conferma con lo stato attuale e il successivo, e conferma.
+
+Gli stati sono **Pianificata**, **In transito**, **Arrivata** e **Ricevuta**, e avanzano **un passo alla volta**: non si salta uno stato e non si torna indietro. Il passaggio ad **Arrivata** scrive la data di arrivo effettivo. **Ricevuta** richiede almeno una ricezione già registrata: finché manca, il comando non compare e il dettaglio avverte «Registra almeno una ricezione prima di avanzare allo stato ricevuta.». La conferma accetta una **Nota** facoltativa, che finisce nella traccia di audit.
+
+Se nel frattempo qualcun altro ha cambiato lo stato, o manca la ricezione, il cambio viene rifiutato con «Il passaggio di stato non è consentito o richiede una ricezione. Aggiorna il dettaglio.».
+
+### Registrare una ricezione
+
+1. Nel dettaglio premi **Registra ricezione**.
+2. Scegli la **Riga ordine** tra le righe **effettivamente contenute nei pacchi della spedizione**: il menu elenca solo le righe imballate, non tutte le righe degli ordini coinvolti. Una riga ordinata che non è in nessun pacco della spedizione non compare.
+3. Indica la **Quantità ricevuta** e, se serve, una **Nota**.
+4. Conferma.
+
+La quantità è **non negativa** — lo zero è ammesso — fino a **999999999,999** e con al massimo tre decimali. Una ricezione **non cambia lo stato della riga ordinata**: resta un dato della spedizione e si legge nell'elenco delle ricezioni. Una spedizione non si elimina e una ricezione non si annulla.
+
+Una spedizione già **Ricevuta** non accetta altre ricezioni e non mostra più **Avanza stato** né **Registra ricezione** sul dettaglio. Se apri la finestra da un dettaglio non aggiornato, al posto del modulo compare «Il passaggio di stato non è consentito o richiede una ricezione. Aggiorna il dettaglio.»: torna all'elenco e riapri la spedizione.
+
+## Chi può fare cosa
+
+| Azione | Ruolo |
+| :-- | :-- |
+| Consultare ordini e righe | Tutti i membri del cantiere con il modulo `logistics` concesso, `viewer` compreso |
+| Creare e modificare ordini e righe, cambiare stato | owner, editor |
+| Consultare i pacchi e le righe imballate | Tutti i membri del cantiere con il modulo `logistics` concesso, `viewer` compreso |
+| Creare e chiudere pacchi | owner, editor |
+| Consultare spedizioni e ricezioni | Tutti i membri del cantiere con il modulo `logistics` concesso, `viewer` compreso |
+| Creare spedizioni, avanzare lo stato e registrare ricezioni | owner, editor |
+| Concedere il modulo | owner |
+
+:::caution[Se qualcosa non torna]
+- **Non vedo Logistica:** il modulo è spento per impostazione predefinita; chiedi a un owner di concederlo in **Cantieri** → **Accessi per modulo**.
+- **«Modulo non disponibile»:** il tuo accesso al modulo è stato tolto, oppure l'ordine non appartiene al cantiere selezionato.
+- **Solo online:** la vista richiede la connessione, come le altre viste dei moduli core; senza rete non si consultano né si modificano gli ordini.
+- **«Totali non disponibili»:** il dettaglio di un ordine non si è caricato; usa il comando per riprovare, oppure riapri l'elenco.
+- **«Numero PO già presente in questo cantiere»:** il numero è univoco nel cantiere; scegline un altro.
+- **«Numero riga già presente in questo ordine»:** esiste già una riga con quel numero; scegli il successivo.
+- **«Numero pacchetto già presente in questo ordine»:** il numero è univoco nell'ordine; scegline un altro, oppure lascia il campo vuoto per avere il primo numero libero.
+- **«Inserisci almeno una quantità maggiore di zero»:** tutte le righe del pacco erano vuote o a zero; indica almeno una quantità.
+- **«La quantità da impacchettare… supera la quantità ordinata»:** la somma con quanto è già impacchettato, pacchi chiusi compresi, eccede l'ordine; riduci le quantità e riprova.
+- **«Il pacchetto è già chiuso»** oppure **«Pacchetto non trovato»:** qualcun altro ha chiuso o cambiato il pacco; torna all'elenco e riapri il dettaglio.
+- **«Numero spedizione già presente in questo cantiere»:** il numero è univoco nel cantiere; scegline un altro.
+- **«Seleziona almeno un pacco»** oppure **«Nessun pacco disponibile»:** la spedizione nasce da almeno un pacco del cantiere non ancora assegnato, e un pacco può stare in una sola spedizione; crea un pacco nuovo, perché i pacchi si scelgono solo alla creazione della spedizione.
+- **«Registra almeno una ricezione…»** oppure **«Il passaggio di stato non è consentito o richiede una ricezione»:** per passare a **Ricevuta** serve prima una ricezione; registrala e riprova. Lo stesso messaggio compare se la spedizione è già stata ricevuta: in quel caso non c'è nulla da registrare, torna all'elenco.
+- **«Spedizione non trovata»** oppure **«Riga non trovata negli ordini della spedizione»:** qualcun altro ha cambiato i dati; torna all'elenco e riapri il dettaglio o il modulo.
+- **Non trovo l'eliminazione:** ordini, righe, pacchi, spedizioni e ricezioni non si eliminano, né dall'interfaccia né via API.
+- **Ultime modifiche:** la vista non ha il pannello; le tracce degli ordini si leggono via API, da owner e verificatori (vedi [Registro di audit](../../riferimento/api/#registro-di-audit)).
+:::
+
+Le stesse righe sono disponibili via API, con gli endpoint `/api/purchase-orders`; i pacchi hanno gli endpoint `/api/packages` e le spedizioni `/api/shipments`: vedi [API REST](../../riferimento/api/#ordini-di-acquisto).

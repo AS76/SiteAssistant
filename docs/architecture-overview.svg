@@ -1,0 +1,74 @@
+<svg id="architecture-overview" viewBox="0 0 1120 700" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="diagram-title diagram-desc"><style>text{font-family:system-ui,-apple-system,Segoe UI,sans-serif}.label{font-size:10px;letter-spacing:1.1px;font-weight:700;fill:#647971}.title{font-size:18px;font-weight:650;fill:#17332f}.body{font-size:12px;fill:#647971}.tag{font-size:10px;font-weight:650;fill:#16684e}.linklabel{font-size:10px;fill:#526b5e}</style>
+<title id="diagram-title">SiteAssistant: architettura attuale (overview)</title><desc id="diagram-desc">Il browser (desktop/mobile) parla con l'API node:http su VPS Hostinger, che usa PostgreSQL Neon e S3 iDrive e2. In campo, senza rete, il Service Worker carica l'app e IndexedDB accoda le scritture, poi Background Sync le replaya. Gli export del sistema sorgente entrano per ingest idempotente.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="#347b60"></path></marker></defs>
+
+<!-- Browser + offline -->
+<rect x="25" y="40" width="230" height="240" rx="11" fill="white" stroke="#d3ddd7"></rect>
+<text x="45" y="70" class="label">BROWSER · DESKTOP E MOBILE</text>
+<text x="45" y="97" class="title">Interfaccia</text>
+<text x="45" y="119" class="body">SPA statica · IT / EN</text>
+<text x="45" y="141" class="body">Panoramica · Cantieri · Attività</text>
+<text x="45" y="163" class="body">WBS · Diario</text>
+<rect x="45" y="182" width="190" height="40" rx="8" fill="#edf4eb" stroke="#b3cbb9"></rect>
+<text x="58" y="207" class="tag">Service Worker</text>
+<rect x="45" y="230" width="190" height="40" rx="8" fill="#edf4eb" stroke="#b3cbb9"></rect>
+<text x="58" y="255" class="tag">IndexedDB · coda offline</text>
+
+<!-- API -->
+<rect x="355" y="70" width="340" height="210" rx="12" fill="white" stroke="#b7cfba"></rect>
+<text x="376" y="98" class="label">API · VPS HOSTINGER</text>
+<rect x="376" y="112" width="298" height="72" rx="8" fill="#173b30"></rect>
+<text x="393" y="140" style="font-size:17px;font-weight:650;fill:white">API node:http + pg</text>
+<text x="393" y="163" style="font-size:11px;fill:#c0d8c6">Nessun framework · nessun ORM</text>
+<rect x="376" y="196" width="298" height="66" rx="8" fill="#f6f8f3"></rect>
+<text x="393" y="219" class="body">Auth (scrypt) · ruoli cantiere</text>
+<text x="393" y="241" class="body">State machine · giorno operativo</text>
+
+<!-- DB -->
+<rect x="800" y="70" width="290" height="105" rx="11" fill="white" stroke="#b7cfba"></rect>
+<text x="820" y="98" class="label">DATABASE</text>
+<text x="820" y="130" class="title">PostgreSQL · Neon</text>
+<text x="820" y="156" class="body">eu-central-1 · TLS · migrazioni 001–013</text>
+
+<!-- S3 -->
+<rect x="800" y="195" width="290" height="85" rx="11" fill="white" stroke="#b7cfba"></rect>
+<text x="820" y="223" class="label">FILE · ALLEGATI</text>
+<text x="820" y="254" class="title" style="font-size:16px">S3 iDrive e2</text>
+<text x="820" y="276" class="body">bucket siteassistant · readback SHA-256</text>
+
+<!-- Ingest -->
+<rect x="25" y="330" width="270" height="110" rx="11" fill="white" stroke="#d3ddd7"></rect>
+<text x="45" y="360" class="label">INPUT ESTERNO · INGEST</text>
+<text x="45" y="389" class="title" style="font-size:14px">Export del sistema sorgente</text>
+<text x="45" y="414" class="body">6 famiglie: Employees, Time Schedule,</text>
+<text x="45" y="436" class="body">SPI, Daily Log, Work Days, Deviations</text>
+
+<!-- Manuale -->
+<rect x="355" y="330" width="340" height="110" rx="11" fill="white" stroke="#d3ddd7"></rect>
+<text x="376" y="360" class="label">MANUALE UTENTE</text>
+<text x="376" y="389" class="title" style="font-size:14px">docs-site (Astro + Starlight)</text>
+<text x="376" y="414" class="body">GitHub Pages · IT radice · EN /en/</text>
+<text x="376" y="436" class="body">Job docs: aggiornamento automatico</text>
+
+<!-- Moduli -->
+<rect x="800" y="330" width="290" height="150" rx="11" fill="white" stroke="#d3ddd7"></rect>
+<text x="820" y="360" class="label">NUCLEO SITE-MANAGER</text>
+<text x="820" y="386" class="body">sites · tasks · diary</text>
+<text x="820" y="408" class="body">attachments · project_structure (WBS)</text>
+<text x="820" y="430" class="body">employees · work_days</text>
+<text x="820" y="452" class="body">site_progress_items · deviations</text>
+<text x="820" y="474" class="body">time_bookings · cost_impacts</text>
+
+<!-- arrows -->
+<path d="M255 160H355" stroke="#347b60" stroke-width="2" fill="none" marker-end="url(#arrow)"></path>
+<text x="270" y="148" class="linklabel">HTTPS</text>
+<path d="M255 245H355" stroke="#347b60" stroke-width="2" fill="none" stroke-dasharray="5 5" marker-end="url(#arrow)"></path>
+<text x="270" y="233" class="linklabel">Background Sync</text>
+<path d="M695 150H800" stroke="#347b60" stroke-width="2" fill="none" marker-end="url(#arrow)"></path>
+<text x="710" y="138" class="linklabel">pg · SQL</text>
+<path d="M695 235H800" stroke="#347b60" stroke-width="2" fill="none" marker-end="url(#arrow)"></path>
+<text x="710" y="223" class="linklabel">SigV4</text>
+<path d="M160 330V296" stroke="#347b60" stroke-width="2" fill="none" stroke-dasharray="5 5" marker-end="url(#arrow)"></path>
+<text x="172" y="318" class="linklabel">import idempotente</text>
+<path d="M25 480H25" stroke="none"></path>
+</svg>

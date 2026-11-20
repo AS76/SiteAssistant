@@ -1,0 +1,155 @@
+---
+title: Avanzamento di cantiere
+description: Consultare le voci di avanzamento importate, assegnare un tipo e registrare il completamento degli step.
+---
+
+import Shot from '../../../components/Shot.astro';
+
+La vista **Avanzamento** mostra le voci di avanzamento del cantiere selezionato. I dati di base arrivano dall'export di pianificazione; il completamento degli step si registra nell'applicazione.
+
+## Consultare le voci
+
+A cosa serve: capire quanto è avanti ogni elemento e quante ore ha assorbito.
+
+1. Apri **Avanzamento** dalla navigazione.
+2. Filtra con il menu **Struttura progetto** per vedere solo le voci collegate a un nodo WBS.
+3. Leggi per ogni riga descrizione, sezione, area PLC, percentuale e ore prenotate.
+4. Apri una riga per il dettaglio: piano, scostamento, date e contrassegni.
+
+<Shot
+  src="/images/2026-11/progress-desktop.png"
+  alt="Vista Avanzamento con l'elenco delle voci, le colonne Descrizione, Sezione, Area asset, Avanzamento con barra e Ore prenotate, e il filtro Tutti i nodi WBS"
+  caption="L'elenco dell'avanzamento: la barra mostra la percentuale, il badge «calcolato» indica i valori ricalcolati dagli step registrati."
+/>
+
+Il filtro in alto limita l'elenco alle voci collegate a un nodo della struttura progetto: non cambia i dati, cambia solo cosa vedi.
+
+:::caution[Se una voce non c'è]
+- Il filtro **Struttura progetto** può escludere la voce: riportalo su **Tutti i nodi WBS**.
+- Le voci arrivano dall'import di pianificazione: se manca un elemento, va corretto l'export e ripetuto l'import, non creato a mano.
+- Questa vista richiede la connessione: offline mostra un messaggio al posto dell'elenco.
+:::
+
+## Il dettaglio
+
+Il dettaglio mostra:
+
+- descrizione, sezione e area PLC;
+- la voce WBS collegata, se esiste, con codice e descrizione del nodo;
+- l'assegnatario;
+- l'avanzamento e l'avanzamento pianificato;
+- lo scostamento calcolato dalla sorgente;
+- le ore pianificate, se presenti;
+- le ore prenotate;
+- inizio e fine pianificati, inizio effettivo e ritardo previsto;
+- i contrassegni **File presenti**, **Note presenti** e **Deviazioni presenti**.
+
+I campi importati sono in sola lettura, tranne le **ore pianificate**, che owner ed editor possono impostare. Il completamento degli step resta l'altro dato che scrivi.
+
+## Tipi di avanzamento e pesi
+
+Un **tipo di avanzamento** descrive come si misura il lavoro di una voce: un elenco di step, ognuno con un peso. I pesi sono percentuali della voce e devono sommare **100**.
+
+Esempio: quattro step con pesi 30, 30, 20 e 20. Se la somma è 99 o 101, il tipo viene rifiutato.
+
+Un tipo si crea via API ed è riservato agli owner. Nell'interfaccia un owner può assegnare o togliere il tipo a una voce; un owner o un editor può registrare il completamento degli step.
+
+## Registrare il completamento
+
+A cosa serve: aggiornare l'avanzamento di una voce senza toccare i dati importati.
+
+1. Apri il dettaglio della voce.
+2. Controlla che ci sia un **tipo di avanzamento** assegnato e leggi l'elenco degli step con i pesi.
+3. In **Registra completamento step**, inserisci per ogni step una percentuale da 0 a 100.
+4. Premi **Salva step**.
+5. Riapri il dettaglio per vedere l'avanzamento ricalcolato e la nuova registrazione nello storico.
+
+L'avanzamento della voce viene ricalcolato come media pesata degli step. Se una voce ha un tipo assegnato ma nessuno step registrato, l'avanzamento calcolato è **0**: il valore importato non viene usato.
+
+Ogni salvataggio aggiunge una registrazione allo **storico**. Lo storico non viene riscritto e le curve di avanzamento si calcolano da lì, non dagli import.
+
+:::caution[Se non puoi salvare gli step]
+- **Nessun tipo assegnato:** il modulo degli step non compare. Un owner deve assegnare un tipo dal dettaglio.
+- **Nessuno step disponibile:** il tipo assegnato non ha step; va corretto il tipo, non la voce.
+- **Percentuale rifiutata:** usa valori tra 0 e 100. I campi vuoti vengono letti come 0.
+- **Ruolo insufficiente:** registrare gli step è riservato a owner ed editor; consultare il dettaglio è consentito a tutti i membri.
+:::
+
+## Ore pianificate
+
+A cosa serve: dare a una voce le ore previste, senza le quali il pannello **Lavoro prodotto** del cantiere non è calcolabile.
+
+1. Apri il dettaglio della voce di avanzamento.
+2. Nel campo **Ore pianificate** inserisci un numero non negativo.
+3. Lascia il campo vuoto per usare le ore del nodo WBS collegato, quando il nodo ne ha.
+4. Premi **Salva**.
+
+Le ore pianificate possono arrivare anche dall'export di pianificazione (colonna `planned_hours`) oppure essere impostate qui. Non cambiano l'avanzamento importato né gli step. Owner ed editor possono modificarle; gli altri membri le leggono nel dettaglio. Il valore ammesso va da 0 a 1.000.000.
+
+Le ore pianificate alimentano il blocco **Lavoro prodotto** della Panoramica e del report: se nessuna voce del cantiere ha ore pianificate, il blocco non mostra numeri e segnala che le ore mancano.
+
+:::caution[Se il campo delle ore non c'è]
+- **Ruolo insufficiente:** solo owner ed editor vedono il modulo di modifica; per gli altri il valore è in sola lettura.
+- **Valore rifiutato:** usa un numero tra 0 e 1.000.000, oppure lascia vuoto per usare il nodo WBS.
+- **Ore del nodo assenti:** se la voce non ha ore proprie e il nodo WBS collegato non ne ha, la voce resta senza ore pianificate e viene esclusa dal calcolo del lavoro prodotto.
+:::
+
+## Report del cantiere
+
+A cosa serve: portare su carta, o in un foglio di calcolo, lo stato di avanzamento e le deviazioni del cantiere.
+
+Il pulsante **Stampa PDF** compare nella **Panoramica** e nella vista **Avanzamento**. Apre la vista **Report del cantiere** e, quando i dati sono caricati, avvia la stampa del browser: nella finestra di stampa scegli «Salva come PDF». Non esiste un PDF generato dal server.
+
+Il report contiene due tabelle, un blocco **Lavoro prodotto** e una sezione di riconciliazione:
+
+- **Cockpit · effettivo e pianificato** — per ogni macro-area: numero di elementi, avanzamento effettivo, avanzamento pianificato e origine del valore (**Calcolato**, **Importato** o **Misto**).
+- **Lavoro prodotto** — tre misure in ore: **Pianificato a oggi**, **Prodotto** e **Ore prenotate**. Pianificato a oggi è ore pianificate × avanzamento pianificato; Prodotto è ore pianificate × avanzamento effettivo; Ore prenotate sono le ore registrate nell'app. Sotto, **Efficienza** è Prodotto diviso Ore prenotate e **Rispetto dei tempi** è Prodotto diviso Pianificato a oggi.
+- **Deviazioni** — per ogni macro-area: totale, aperte, chiuse o respinte e conteggio per stato.
+- **Cronologie incoerenti** — il conteggio delle due verifiche sulle date delle deviazioni e le prime dieci segnalazioni.
+
+L'effettivo di una macro-area è la media delle sue voci: quelle con un tipo di avanzamento usano il valore calcolato dagli step, le altre il valore importato. Le voci senza un valore mostrano **Non disponibile**; nel CSV la cella resta vuota.
+
+Il lavoro prodotto usa le ore pianificate delle voci o, quando la voce non ne ha, quelle del nodo WBS collegato. Se il cantiere non ha nessuna ora pianificata, al posto dei numeri compare un avviso; le voci prive di ore sono escluse e il loro numero è indicato sotto il blocco. Efficienza e Rispetto dei tempi restano vuoti quando il denominatore è zero o manca. Se le ore prenotate sono inferiori a quelle prodotte, il pannello avvisa che l'efficienza è parziale: possono mancare registrazioni.
+
+Le deviazioni sono raggruppate per **area PLC**, perché i dati importati non hanno zona né sezione; quelle senza area finiscono in **Senza sezione**. **Chiuse / respinte** somma gli stati `closed` e `rejected`: respinta è uno stato finale. Una deviazione con stato mancante resta tra le aperte.
+
+La sezione **Cronologie incoerenti** ripete nel report i controlli del pannello **Da riconciliare** della vista Deviazioni: deviazioni chiuse senza data e chiuse prima dell'approvazione. Mostra il conteggio di ciascun controllo e una tabella con le prime dieci segnalazioni, con l'indicazione di quante sono in tutto. È una lettura: nessuna data viene corretta. Le deviazioni non hanno uno stato interno, quindi il report non confronta gli stati. Vedi [Deviazioni](../deviazioni/#da-riconciliare).
+
+Data e ora di generazione sono indicate in **UTC**, anche sulla copia stampata. La stampa usa un formato A4 verticale, senza navigazione e senza pulsanti.
+
+### Esportare le due tabelle in CSV
+
+Nel report trovi **Esporta CSV progressi** ed **Esporta CSV deviazioni**. I file contengono le stesse righe delle tabelle:
+
+| File | Colonne |
+| :-- | :-- |
+| `siteassistant-report-progress-AAAA-MM-GG.csv` | Macro-area, Elementi, Effettivo, Pianificato, Origine avanzamento |
+| `siteassistant-report-deviations-AAAA-MM-GG.csv` | Macro-area, Totale, Aperte, Chiuse / respinte, Conteggio per stato |
+
+I numeri sono grezzi, senza simbolo di percentuale; una cella resta vuota quando il dato manca. Il conteggio per stato sta in una sola cella, con le voci separate da punto e virgola. Se una tabella è vuota, il file non viene creato e compare un avviso.
+
+:::caution[Se il report non si apre o non si stampa]
+- **Pulsanti disattivati:** restano spenti finché i dati non sono caricati; attendi il messaggio di caricamento.
+- **Errore al posto delle tabelle:** il report richiede la connessione; controlla la rete e premi **Riprova**.
+- **La stampa non parte:** la finestra si apre una sola volta, per il cantiere da cui hai premuto **Stampa PDF**; cambia cantiere e riapri il report.
+- **Tabella vuota:** nel cantiere non ci sono voci di avanzamento o deviazioni importate; non è un errore del report.
+:::
+
+## Chi può fare cosa
+
+| Azione | Ruolo |
+| :-- | :-- |
+| Consultare le voci e il dettaglio | Tutti i membri del cantiere |
+| Aprire, stampare ed esportare il report | Tutti i membri del cantiere |
+| Assegnare o togliere un tipo di avanzamento | owner |
+| Registrare il completamento degli step | owner, editor |
+| Impostare le ore pianificate di una voce | owner, editor |
+| Creare o eliminare un tipo di avanzamento | owner, solo via API |
+
+## Cosa non è ancora disponibile
+
+- Creare o modificare un tipo di avanzamento dall'interfaccia.
+- Modificare i campi importati di una voce, salvo le ore pianificate.
+- Creare o eliminare voci di avanzamento dall'interfaccia: arrivano dall'import.
+
+Per il rapporto tra avanzamento e struttura progetto vedi [Struttura progetto (WBS)](../wbs/). Per i dati grezzi vedi [API REST](../../riferimento/api/).

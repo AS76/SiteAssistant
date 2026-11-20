@@ -1,0 +1,76 @@
+---
+title: Impostazioni
+description: Valuta e separatori per importi e numeri, e accesso alle passkey.
+---
+
+import Shot from '../../../components/Shot.astro';
+
+L'ingranaggio in alto a destra apre le **Impostazioni**. Le preferenze valgono per questo browser e riguardano solo come vengono scritti importi e numeri.
+
+## Impostare valuta e formato
+
+A cosa serve: leggere gli importi con la valuta e i separatori che usi tu.
+
+1. Premi l'**ingranaggio** in alto a destra.
+2. Scegli la **Valuta**: EUR, USD, GBP o CHF.
+3. Scegli i **Separatori**: **Automatico** (segue la lingua dell'interfaccia), `1.234,56` (IT) oppure `1,234.56` (EN).
+4. Premi **Salva** e attendi la conferma **Impostazioni salvate** in basso.
+
+<Shot
+  src="/images/2026-11/impacts-desktop.png"
+  alt="Vista Impatti economici con Totale reclamato 41.500,50 € e Totale liquidato 11.250,00 €, formattati con valuta euro e separatori italiani"
+  caption="L'effetto delle impostazioni: gli importi degli Impatti economici con EUR e separatori IT. I totali seguono i filtri attivi."
+/>
+
+## Le tre scelte
+
+| Impostazione | Valori |
+| :-- | :-- |
+| Valuta | EUR, USD, GBP, CHF |
+| Separatori | **Automatico** — lingua dell'interfaccia; 1.234,56 (IT); 1,234.56 (EN) |
+
+I valori predefiniti sono **EUR** e separatori **Automatico**: con l'interfaccia in italiano i numeri si scrivono `1.234,56`, con l'interfaccia in inglese `1,234.56`. Scegliendo IT o EN il formato resta fermo su quella scelta anche quando cambi lingua.
+
+## Come vengono scritti i numeri
+
+La precisione non si sceglie: dipende dal tipo di numero e resta la stessa in tutte le viste.
+
+- gli **importi** hanno sempre **due decimali**;
+- le **ore** hanno **un decimale**;
+- i **conteggi** — attività, deviazioni, persone, giorni — sono numeri interi, senza decimali;
+- le **percentuali** mostrano fino a quattro decimali, senza zeri inutili in fondo.
+
+I separatori scelti valgono per tutti questi numeri, non solo per gli importi: con i separatori IT le migliaia si separano con il punto e i decimali con la virgola, con i separatori EN il contrario. Con **Automatico** valgono quelli della lingua dell'interfaccia, quindi il formato segue il selettore **IT/EN**.
+
+## Dove si vedono
+
+Le impostazioni si applicano agli importi:
+
+- ai contatori **Claim aperti** e **Liquidato** della Panoramica;
+- ai totali e ai dettagli degli **Impatti economici**.
+
+I **separatori** valgono anche per ore, percentuali e conteggi: **Lavoro prodotto** e **report del cantiere**, **Avanzamento**, **Prenotazioni ore**, **Deviazioni** e le tabelle delle altre viste. La scelta non cambia i valori, le date né i calcoli.
+
+## La valuta non converte
+
+Cambiare valuta cambia il simbolo e il formato, non il valore. Un importo di 1.000 euro mostrato in USD resta 1.000: non viene applicato un cambio.
+
+Esempio: con valuta EUR e separatori IT, l'importo 1234,5 compare come `€1.234,50`; con separatori EN compare come `€1,234.50`.
+
+## Sicurezza: le passkey
+
+A cosa serve: arrivare alle passkey dell'account dalla stessa finestra delle preferenze.
+
+In fondo alla finestra **Impostazioni** il pulsante **Sicurezza** apre l'elenco delle **passkey** dell'account: da lì ne aggiungi una, la rinomini o la elimini. Non è una preferenza di questo browser — le passkey restano sull'account e valgono su tutti i dispositivi — e non cambia valuta, separatori o il modo in cui i numeri vengono scritti. Vedi [Accesso e account](../accesso/#le-tue-passkey).
+
+## Dove vengono salvate
+
+Le preferenze restano in questo browser, non sull'account. Su un altro browser o su un altro dispositivo tornano i valori predefiniti. Se cancelli i dati del sito, tornano i valori predefiniti anche su questo browser.
+
+:::caution[Se gli importi non cambiano]
+- Le impostazioni si applicano dopo **Salva**: senza conferma il formato resta quello precedente.
+- Se hai cambiato browser o dispositivo, le preferenze non ti seguono: vanno impostate di nuovo.
+- Le preferenze salvate da una versione precedente ripartono da **Automatico**: se avevi scelto IT o EN, controlla il menu **Separatori** e impostalo di nuovo.
+- Se il simbolo cambia ma il numero no, è il comportamento previsto: la valuta non applica un cambio.
+- Se un importo mostra **Non disponibile**, la sorgente non ha fornito quel valore: non è un problema di formato.
+:::

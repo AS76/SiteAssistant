@@ -1,0 +1,87 @@
+---
+title: Deviations
+description: Consult imported deviations, filter them by status and priority and read the detail.
+---
+
+import Shot from '../../../../components/Shot.astro';
+
+The **Deviations** view shows the deviations of the selected site. They are data **imported from the planning system** and are read-only here: you do not create or edit them in the application. For totals per PLC area and the count by status in a printable table, see the [site report](../avanzamento/#site-report).
+
+## Consulting deviations
+
+What it is for: knowing which deviations are open, who follows them and what has already been closed.
+
+1. Open **Deviations** from the navigation.
+2. Filter by **Status** and **Priority**. The menus include every value present in the data, plus “All statuses” and “All priorities”.
+3. Choose the representation: **Board** for the groups by status, **List** for the table.
+4. Open a card or a row for the detail.
+5. In the detail use the **Data** and **References** tabs: the first gathers status, priority, description and amounts, the second the links.
+
+<Shot
+  src="/images/2026-11/en/deviations-desktop.png"
+  alt="Deviations board with the Status and Priority filters and deviation cards with code, title, status, priority and team"
+  caption="The deviation board with the Status and Priority filters: one card per deviation. The Board/List selector switches to the table."
+/>
+
+The **board** groups deviations into four status groups:
+
+- **Open** — status `open` or `approved`;
+- **In progress** — status `in_progress`;
+- **To close** — work completed, status `work_completed`;
+- **Closed** — status `closed` or `rejected`.
+
+The grouping is presentational only: every card still shows its exact official status, for example **Approved** inside **Open** or **Rejected** inside **Closed**. Each group shows how many deviations it holds; an empty group says “No deviations”.
+
+Deviations with an unrecognised status stay outside the four groups and appear separately, under **Unmapped status**. When the board is wider than the window, the hint **scroll ↔** appears below it and the edge fades on the side where more content is available; the hint disappears once every group is visible. On a phone the groups are an accordion, one open at a time.
+
+**Priority** also appears with its translated label in the interface language — **Low**, **Medium**, **Normal**, **High**, **Urgent** — on cards, in the list, in the detail and in the **Priority** filter; a value not in the list stays as it is in the imported data. Switching to IT changes the cards and menus together.
+
+In the **list** the columns are reference, title, status, priority, assignee, created and closed; headers sort the table.
+
+:::caution[If a deviation is missing]
+- Check the **Status** and **Priority** filters: an active filter narrows the list without warning.
+- Deviations come from the planning import: a deviation missing from the file does not exist on the site. It cannot be created by hand from this view.
+- If the status is not one of the expected ones, the card appears under **Unmapped status**: the export needs fixing.
+- The view requires a connection: offline it shows a message instead of the data.
+:::
+
+## To reconcile
+
+What it is for: seeing where a deviation's dates disagree with each other, without correcting them.
+
+At the top of the view, the collapsible **To reconcile** panel gathers the date checks on the site's deviations (on a phone, below **520 px**, the panel moves **below** the board or the list, so filters and deviations stay at the top):
+
+- **Closed without date** — the status is `closed` but the closure date is missing.
+- **Closure before approval** — the closure date comes before the approval date; the **days apart** are the difference between the two dates.
+
+The panel is **read only**: no date is corrected. The two buttons with the count filter the table; a second click removes the filter. The table shows reference, title, official status, days apart and reason, and a click on a row opens the deviation detail. When there is nothing to report, “Timelines aligned” appears.
+
+:::note[Why statuses are not compared]
+Deviations are imported only: they have no internal status and no status history, so the panel compares official dates only. The conflicting statuses check has been retired, and the panel says so in a note: “An imported deviation has no internal history: reconciliation only compares official dates.”
+:::
+
+The same checks appear in the [site report](../avanzamento/#site-report), in the **Inconsistent timelines** section.
+
+## The detail
+
+The detail is split into two tabs:
+
+- **Data:** reference, status and priority; problem description, author and assignee; PLC area and creation, due, approval and closure dates; actual cost, claimed quantity, labour hours and completed task percentage.
+- **References:** the **linked references** — progress item, task or diary entry.
+
+Switch tabs with a click or with Tab and Enter. The fields are read-only. To change a deviation, change the planning export and repeat the import.
+
+:::caution[If the detail does not open]
+- **Record no longer available:** the data changed after loading. Close the detail and reload the view.
+- **Reference without a detail:** for tasks, diary and project structure the reference stays a label, not a link.
+- **Offline:** the deviation detail requires a connection, even if the list was already visible.
+:::
+
+## Who can do what
+
+| Action | Role |
+| :-- | :-- |
+| View list, board and detail | Every site member |
+| Create or edit a deviation | No role in the interface: they come from the import |
+
+For the export format see [Import a planning export](../../amministrazione/import-pianificazione/). For linked claims see [Cost impacts](../impatti-economici/).

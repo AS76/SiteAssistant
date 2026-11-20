@@ -1,0 +1,292 @@
+---
+title: HSE
+description: Register of near misses, accidents and site observations, without health data.
+---
+
+import Shot from '../../../../components/Shot.astro';
+
+The **HSE** view is the health and safety register of the selected site: near misses, accidents and observations. Every row records a fact — date, type, severity, location, number of people involved and measures taken — not the people themselves.
+
+The view has two screens: the **Register** of events, described below, and **Inspections**, the list of subjects to inspect with their last inspection, next due date and status. From the list you open the **subject page**, with the state, the inspection history and the individual checks, and from there owners and editors record a new inspection. See [The Inspections view](#the-inspections-view), [Opening a subject](#opening-a-subject-state-history-and-checks) and [Recording an inspection](#recording-an-inspection).
+
+The register does not come from an import: rows are created, edited and deleted in the application. It holds no health data and is not linked to the employee record: people involved are **a number only**, never a name. A saved event can carry photos or PDFs, under an explicit rule: **photograph the condition, not the people**. See [Attachments on an event](#attachments-on-an-event).
+
+<Shot
+  src="/images/2026-11/en/hse-desktop.png"
+  alt="HSE view with one counter per type — Near miss, Accidents, Observations, Inspections and External visits — plus the Total, the Type, Severity, From and To filters, and rows with date, type, severity, location, people involved and measures"
+  caption="The HSE register: the counters per type and the total, filters by type, severity and period, and one row per event with the facts and the measures taken."
+/>
+
+## Reading the register
+
+What it is for: knowing how many events were recorded, of which type and severity, and reading the measures taken.
+
+1. Open **HSE** from the navigation, in the **Management** group.
+2. Read the counters at the top: one for each type — **Near misses**, **Accidents**, **Observations**, **Inspections** and **External visits** — plus **Total**.
+3. Narrow the list with the **Type** and **Severity** menus and with the **From** / **To** period. **Type** offers all five types, including **Inspections** and **External visits**: they are the rows that come from asset inspections.
+4. Read the table: **Event date**, **Event number**, **Type**, **Severity**, **Location**, **Persons involved** and **Measures**.
+5. Clear the filters to return to the full list.
+
+Rows that come from an inspection carry **Open the inspection** in the **Type** cell: it opens the subject page in the **Inspections** view with that inspection's checks already open, without hunting for the subject in the list. The command appears only on rows of type **Inspections** and **External visits** that have an inspection behind them, not on rows entered by hand: near misses, accidents and observations have no checks to open. Pressing it switches the **Register** / **Inspections** choice to **Inspections** for that browser session, as if you had used the selector.
+
+The view opens on the **Register**; the **Register** / **Inspections** selector at the top switches screen.
+
+The list starts from the most recent event date. The counters cover **all** site events, not only those passing the filters. If the **From** date follows the **To** date, the view shows a message instead of the list: fix the period.
+
+Date fields use the browser's date control: the saved value stays in ISO format (`YYYY-MM-DD`) and the field shows it according to the browser language. On a phone the **From** and **To** fields go one under the other at full width, each with its own label, instead of sharing the row; the **Edit** and **Delete** commands of each row stay on one line.
+
+## Types and severities
+
+| Type | Meaning |
+| :-- | :-- |
+| Near miss | A close call: the event had no consequences, but it could have |
+| Accidents | An event with consequences for one or more people |
+| Observations | A behaviour, a condition or a tool worth reporting |
+| Inspections | An internal check on a site subject: it comes from the inspection, it is not typed by hand |
+| External visits | An external check on the same subject, under the same rules |
+
+| Severity | Meaning |
+| :-- | :-- |
+| Low | No consequence or a negligible one |
+| Medium | A consequence to manage, with no site stoppage |
+| High | A relevant consequence or an immediate risk |
+
+Type and severity are required choices. On creation the application proposes **Near miss** and severity **Low**.
+
+The register also holds the rows that come from **HSE inspections** of assets: type `inspection` for an internal check, `external_visit` for an external one, with severity **High** when the outcome is failed, **Medium** for passed with notes, **Low** for passed. These rows are created by recording an inspection from the subject page or through the API and appear in the list, in the **Total** counter and in the **Type** filter, which offers all five types.
+
+The **New HSE event** form instead stays on the three manual types — near misses, accidents and observations — and so does editing: an inspection typed by hand would be a row without the checks behind it, so the application rejects `inspection` and `external_visit` on creation and update, both in the interface and through the API. See [Assets and inspection templates](#assets-and-inspection-templates).
+
+## Adding or editing an event
+
+Owners and editors see the **New HSE event** button.
+
+1. Press **New HSE event**.
+2. Choose the **Event date**, required.
+3. Choose **Type** and **Severity**.
+4. Add, if needed, **Event number**, **Location** and **Measures**.
+5. In **Persons involved** enter a number only: if the count is unknown, leave the field empty.
+6. Use **Factual notes** for what happened, without names or health information.
+7. Press **Save HSE event**. The window closes, the counters and the list refresh and the message “HSE event saved” appears.
+
+To correct a row, press **Edit** on the row: the same window opens with the current values and the button becomes **Save changes**.
+
+| Field | Required | Limits |
+| :-- | :-- | :-- |
+| Event date | Yes | `YYYY-MM-DD` date |
+| Event number | No | Up to 120 characters; unique within the site |
+| Type | Yes | Near miss, Accidents, Observations |
+| Severity | Yes | Low, Medium, High |
+| Location | No | Up to 200 characters |
+| Persons involved | No | Whole number from 0 up; no names |
+| Measures | No | Up to 2000 characters |
+| Factual notes | No | Up to 2000 characters |
+
+An **event number** already used stays reserved after deletion: deletion is logical, the row leaves the list and the counters but stays in the audit register, and the number cannot move to another event. If the number is wrong, correct the row instead of creating a new one with the same number.
+
+The **event number** is an internal reference: you can leave it empty, but when filled it must be unique within the site. Two events cannot share the same number, and the application rejects the save asking you to check the number.
+
+## Attachments on an event
+
+A saved event can have attachments: images or PDFs up to **15 MiB** per file. An attachment documents a condition — a missing guard rail, an unmarked edge, a load that swung — not the people.
+
+1. Press **Edit** on the event: the **Attachments** section appears at the bottom of the window, below the buttons.
+2. Press **Add photo or PDF** and choose the file.
+3. If you want, write a **Description** up to 200 characters. It is used only for the check before upload and **is not saved**.
+4. Check the warning, if it appears, then press **Save**: the window closes and the message “Attachment recorded” appears. Open **Edit** again to see the file in the section and open it with **Open attachment**.
+
+The rule is written in the window and in the upload form: **photograph the condition, not the people**. No identifiable faces, no health data; if a photo is not necessary, you can attach a **diagram or pictogram**. The warning appears when the file name or the description contains words suggesting a person or an injury: it is a reminder for human review, not an examination of the image content, and it does not block the upload. The application does not recognise faces or diagnoses.
+
+Upload is reserved to **owners** and **editors**. Removal is not available in the interface: it is API only, by owners and editors. If the event is deleted, its attachments stop being served: the list does not show them and the download returns “not found”.
+
+Every opening of an event attachment writes a **Read** row in the audit register, with the file name. The row appears in **Latest changes** to owners and verifiers and is readable through the API; if the trail write fails, the download still works. Openings of inspection attachments also write a row, which is read through the API and does not appear in the panel: see [Attachments on an inspection](#attachments-on-an-inspection). Attachments on tasks and diary produce no read rows.
+
+## Deleting an event
+
+1. Press **Delete** on the row.
+2. Check the date, type and any number shown in the confirmation.
+3. Confirm with **Delete**.
+
+The event disappears from the list and the counters, later reads and edits on the same row return “not found” and its attachments are no longer served. The row itself is not erased: it stays in the audit register, which keeps a copy of the event as it was plus a record of every creation, edit and deletion, with author and date. The trail is readable from the **Latest changes** panel in the view and through the API, by owners and verifiers: see [Latest changes](#latest-changes) and [Audit register](../../riferimento/api/#audit-register). If the event must stay readable in the interface, correct its data instead of deleting it.
+
+## Latest changes
+
+At the bottom of the view, owners and verifiers have the collapsible **Latest changes** panel: the twenty most recent entries in the HSE register, newest first. It is closed by default and the list loads when you open it.
+
+1. Each row gives the action — **Created**, **Updated**, **Deleted** or **Read** —, who made it and when.
+2. For a read, the name of the attached file; for the other actions the **event number**, or the first eight characters of the identifier when it has none.
+3. For an edit, up to four changed fields appear as **field: before → after**; when more fields changed, the row says how many others remain. A read has no changed fields: it only says which attachment was opened.
+4. When the list reaches twenty rows the panel warns that only the most recent changes are shown: to go further back use `GET /api/audit-events` with `limit` and `offset`.
+
+Values are the stored ones: for type and severity you see the code (`near_miss`, `low`), not the translated label. The panel reloads every time you open it, so close and reopen it to see changes just made. Deleted events stay readable here, with the data they had before deletion. Editors and viewers do not see the panel.
+
+## The Inspections view
+
+What it is for: knowing which site subjects need attention without opening the inspections one by one.
+
+1. Open **HSE** and press **Inspections** in the selector at the top: the **Register** stays in the other position.
+2. Narrow the list with **Category** and **Status** and choose the **Order**.
+3. Read the count line: it gives how many **subjects** are listed and, for the states that have a number, how many are overdue, due soon, failed or never inspected.
+4. Read the table: **Subject** — with the code under the name, when there is one, and the **Inactive** badge when the subject is switched off —, **Family**, **Last inspection**, **Next due date** and **Status**. Owners and editors also get a column with the **Edit** command.
+5. Press the subject **name** to open its page: state, inspection history and individual checks. See [Opening a subject](#opening-a-subject-state-history-and-checks).
+
+<Shot
+  src="/images/2026-11/en/hse-inspections-desktop.png"
+  alt="Inspections view with the Category, Status and Order filters, the count line and the subject table with name, code, family, last inspection, next due date and status: overdue, failed, in order and never inspected"
+  caption="The Inspections view: one row per subject with the last inspection, the next due date and the status derived from the checks. Filters and order narrow the list; the name opens the page."
+/>
+
+The **Register** / **Inspections** choice lasts for the session of that browser: reopening the view takes you back to the last screen, while reopening the browser starts again from the **Register**. The **Refresh data** button reloads the list, as in the register.
+
+| Status | Meaning |
+| :-- | :-- |
+| In order | The last inspection passed and the next due date is not close |
+| Due soon | The next due date falls within 30 days, today included |
+| Overdue | The next due date has passed |
+| Failed | The last outcome is failed |
+| Never inspected | The subject has no inspection yet |
+
+The status is computed in this order — never inspected, failed, overdue, due soon, in order — and the first one that applies wins: a failed subject reads **Failed** even when the due date has passed, and a pass with no due date stays **In order**. Every status has an icon next to the text.
+
+**Order** starts from **Next due date ascending**, with rows without a due date at the bottom; **Name ascending** sorts alphabetically; **Last inspection descending** puts the most recent inspections first.
+
+The two empty lists say different things: when the site has no subjects yet, the view says so; when subjects exist but **Category** and **Status** exclude them all, the view says so and offers **Clear filters**.
+
+The list has no **New HSE event** and does not show the **Latest changes** panel, which stay in the **Register**. Instead, owners and editors get **New subject** and the **Edit** command on every row; verifiers and viewers see the table only, but the name opens the subject page for them too. Subjects are the HSE assets of the site: they are created from this view or through the API. See [Adding or editing a subject](#adding-or-editing-a-subject) and [Assets and inspection templates](#assets-and-inspection-templates).
+
+## Opening a subject: state, history and checks
+
+What it is for: moving from “what do I have to deal with” to “what happened to this subject”.
+
+1. In the **Inspections** view press the subject **name**. The list gives way to the page and the button at the top becomes **Back to inspections**. You can also arrive here from the **Register**, with **Open the inspection** on an inspection row: the page opens with that inspection's checks already open.
+2. At the top read the name, the **code** when there is one, the template **family** with its reference and the number of **checks** the family carries. Then the **state**, with the same icon as the list, the **last inspection** and the **next due date**.
+3. If the family is still a draft, the page says so: “The checklist still needs review”.
+4. Owners and editors also get **New inspection** at the top, which opens the form to record an inspection on the subject. See [Recording an inspection](#recording-an-inspection).
+4. Below, **Inspection history** lists the subject's inspections from the most recent: date, who performed it, **role**, **mode** — **Internal** or **External visit** —, **outcome** — **Compliant**, **Compliant with notes**, **Not compliant** — and next due date. The inspection notes, when there are any, sit under the row.
+5. Press an inspection **date** to open its checks: they appear in the template order, each with the result in words — **Compliant**, **Not compliant**, **Not applicable** — and the item note, when there is one. Below the checks sits the inspection's **Attachments** section. Press the date again to close them.
+6. **Back to inspections** returns to the list with the **filters** and the **order** as you left them.
+
+Next to the outcome the page gives the inspection's check tally: **Compliant: 8 · Not compliant: 1 · Not applicable: 1**. The tally comes from the checks stored with the inspection, so it does not change when the template is edited later. For inspections not opened yet the tally is not there straight away: it arrives when you open the row and stays visible when you close it again.
+
+A check result is always written in words: the coloured badge goes with the text, it does not replace it. The writing commands on the page are **New inspection** and, for owners and editors, adding attachments to the open inspection, because inspections are neither edited nor deleted: a correction is a new inspection, while to correct the subject you go back to the list and use **Edit**. The page is seen by whoever sees the **Inspections** view: owners, editors, verifiers and viewers.
+
+When the history does not load, the error appears in its place but **Back to inspections** stays available. A subject never inspected says “This subject has never been inspected”; a subject that no longer exists — for example deleted through the API by another user — says “Subject not found”.
+
+## Attachments on an inspection
+
+What it is for: keeping the visual proof of a condition found during the check.
+
+Open an inspection on the subject page: below the checks the **Attachments** section shows the files of that inspection. Images appear as thumbnails with the file name, and pressing a thumbnail opens the full image in a window. Other files, and photos still queued on the device, stay a row with **Open attachment** and the sync badge.
+
+1. Open the inspection on the subject page.
+2. Press **Add photo** and choose the file: images or PDFs up to **15 MiB** are accepted.
+3. If you want, write a **Description** up to 200 characters. It is used only for the check before upload and **is not saved**.
+4. Check the warning, if it appears, then press **Save**: the window closes and the attachment appears in the section.
+
+The same rules as event attachments apply: **photograph the condition, not the people**, no identifiable faces and no health data, with a **diagram or pictogram** as an alternative to a photo. The warning on the file name or the description is a reminder for human review, not an examination of the image, and it does not block the upload. The **Add photo** command appears only to **owners** and **editors**; verifiers and viewers see the attachments but do not upload them, and removal is not available in the interface: it is API only. An attachment is seen only from the inspection of the same site.
+
+Every opening of an inspection attachment writes a **Read** row in the audit register, with the file name, as for event attachments. The row does not appear in the **Latest changes** panel, which lists the register's events: it is read through the API with `entity_type` `hse_inspection`, by owners and verifiers. See [REST API](../../riferimento/api/#attachments).
+
+## Recording an inspection
+
+What it is for: recording a subject's check without going through the API, filling in the checklist of its family.
+
+1. Open the subject page and press **New inspection**: the button appears to owners and editors only, and needs a connection. Offline the application warns and does not open the form: inspections do not join the offline write queue.
+2. The window loads the checklist of the subject's family. If the family has no checks to fill in, the form gives way to the notice “The checklist for this family is unavailable” with a **Retry** button.
+3. Check the **Date**, which proposes today, and **Performed by**, which proposes your name. Add the **Role**, if needed — the window suggests *site manager* and *qualified technician* — and choose the **Mode**: **Internal** or **External visit**. With **External visit** the window reminds you that the examiner and the report are recorded here.
+4. Choose the **Outcome** among **Compliant**, **Compliant with notes** and **Not compliant**. The window proposes **Compliant** and switches by itself to **Compliant with notes** as soon as you mark a failed check; once you choose the outcome, the application no longer changes it.
+5. Answer every check in the checklist with **Compliant**, **Not compliant** or **Not applicable**: one result per check, and the chosen result stays pressed. On a failed check the **Note on the failed check** field appears, up to 2000 characters.
+6. The progress line gives how many checks are filled in out of the total and, next to the buttons, how many are still missing; while one is missing the save button stays off.
+7. Add the **General notes**, if needed, up to 2000 characters, and press **Save**.
+
+The window closes, the page and the list refresh and the message gives the next due date, computed from the template interval: “Inspection saved. Next due date: …”. If the template interval produces no due date, the message says so. The inspection appears straight away in **Inspection history** with the checks just saved.
+
+| Field | Mandatory | Limits |
+| :-- | :-- | :-- |
+| Date | Yes | `YYYY-MM-DD` date; today proposed |
+| Performed by | Yes | Up to 200 characters; your name proposed |
+| Role | No | Up to 120 characters; in an external visit it is the examiner |
+| Mode | Yes | Internal (proposed) or External visit |
+| Outcome | Yes | Compliant (proposed), Compliant with notes, Not compliant |
+| Checks | Yes | Every check of the family, one answer per check |
+| Check note | No | Failed checks only; up to 2000 characters |
+| General notes | No | Up to 2000 characters |
+
+A saved inspection is neither edited nor deleted: to correct a mistake you record a new one with the right date and outcome. Recording it also writes a row in the **HSE register**, with type **Inspections** or **External visits** and a severity tied to the outcome, as for inspections recorded through the API: see [Types and severities](#types-and-severities).
+
+## Adding or editing a subject
+
+Owners and editors create and edit subjects from the **Inspections** view, without going through the API.
+
+1. Open **HSE**, choose **Inspections** and press **New subject**: the button is at the top and also appears when the list is empty.
+2. Type the **Name**, mandatory and unique within the site.
+3. Add the **Code** and the **Notes**, if you need them.
+4. Choose the **Family** among the templates of the site's jurisdiction, which the window loads when it opens.
+5. Press **Save subject**. The window closes, the table refreshes and the message “Subject saved” appears.
+
+To correct a subject, press **Edit** on the row: the same window opens with the current values and the button becomes **Save changes**. The **Active** checkbox appears only when editing: clear it to switch the subject off; the subject stays in the list with the **Inactive** badge instead of disappearing. The application sends only the changed fields.
+
+| Field | Mandatory | Limits |
+| :-- | :-- | :-- |
+| Name | Yes | Up to 200 characters; unique within the site |
+| Code | No | Up to 60 characters |
+| Family | Yes | A template of the site's jurisdiction; the subject's kind and category derive from it |
+| Notes | No | Up to 2000 characters |
+| Active | No | Edit only; when off, the subject stays in the list with the **Inactive** badge |
+
+A name already used in the site is rejected with a message under the **Name** field; a template from the other jurisdiction or a field over its limit appears as a window error. Creating and editing need a connection: offline the application warns and does not open the window. Deleting a subject is not available in the interface: it is API only, by owners and editors. See [REST API](../../riferimento/api/#hse-assets-and-the-inspection-catalogue).
+
+## Assets and inspection templates
+
+What it is for: knowing which site assets have to be inspected and with which checks.
+
+The event register is separate from the **inventory of HSE assets** — tools, site works and personal protective equipment — which starts from an **inspection template** for the site's jurisdiction, with the expected visual checks and interval. The inventory is managed from the **Inspections** view (see [Adding or editing a subject](#adding-or-editing-a-subject)); the template catalogue has no screen yet, it is read through the API, and the templates are still drafts. See [REST API](../../riferimento/api/#hse-assets-and-the-inspection-catalogue).
+
+**Inspections** are recorded against the assets in that inventory: each inspection states the date, who performed it, whether the check was internal or external, the outcome — passed, passed with notes, failed — and the answer to every template item, with the next due date computed from the template interval. The inspection keeps the checks as they were in the template that day, so changing the template does not rewrite past inspections. It is neither edited nor deleted: a correction is a new inspection. Unlike the inventory, inspections are recorded from the subject page, by owners and editors (see [Recording an inspection](#recording-an-inspection)), and through the API; they are also read from the subject page (see [Opening a subject](#opening-a-subject-state-history-and-checks)); through the API every site role reads them. See [REST API](../../riferimento/api/#hse-inspections).
+
+Recording an inspection also writes a row in the **HSE register**: the type tells the internal check (`inspection`) from the external one (`external_visit`), the severity follows the outcome and the location carries the asset code, or its name when the code is missing. See [Types and severities](#types-and-severities).
+
+The asset list through the API also states where the inspection stands: every row returns the date of the latest inspection, its outcome, the next due date and a status — `never` when the asset has never been inspected, `failed` when the last outcome is failed, `overdue` when the due date has passed, `due_soon` when it falls within 30 days and `ok` in the other cases. The detail of a single asset does not carry these fields.
+
+## Who can do what
+
+| Action | Role |
+| :-- | :-- |
+| Read the HSE register | owner, editor, verifier |
+| Open the **Inspections** view | owner, editor, verifier |
+| Add, edit or delete an event | owner, editor |
+| Open the attachments of an HSE event | owner, editor, verifier |
+| Add or remove attachments on an HSE event | owner, editor |
+| Open the attachments of an HSE inspection | owner, editor, verifier, viewer |
+| Add or remove attachments on an HSE inspection | owner, editor |
+| Read the HSE assets and the template catalogue | owner, editor, verifier, viewer |
+| Add or edit an HSE asset from the **Inspections** view | owner, editor |
+| Delete an HSE asset — API only | owner, editor |
+| Read the HSE inspections | owner, editor, verifier, viewer |
+| Record an HSE inspection from the subject page or through the API | owner, editor |
+| Read the latest changes | owner, verifier |
+
+The **Attachments** section of an event is in the edit window, which only owners and editors see; verifiers read attachments through the API. Attachments of an inspection sit instead on the subject page, below the checks of the open inspection. Removing an attachment is API only.
+
+The `viewer` role has no access to the register: the entry appears in the navigation, but the view shows **Restricted register**. The register is separate from the other modules and feeds neither the Overview nor the report.
+
+:::caution[If something does not add up]
+- **“Restricted register” or no data:** your role on the site is `viewer`; reading is reserved to owners, editors and verifiers. See [Users and roles](../../amministrazione/utenti-e-ruoli/).
+- **I cannot see the buttons:** only owners and editors write; verifiers only read.
+- **I cannot see Add photo:** the command on inspection attachments is reserved to owners and editors; verifiers and viewers see the attachments but do not upload them.
+- **I cannot see Open the inspection:** the command appears only on rows that come from an inspection, that is **Inspections** and **External visits**; a row entered by hand has no inspection to open.
+- **The Attachments section is missing:** it appears when you open the date of an inspection whose checks have loaded; if the detail fails to load, the section is missing too.
+- **Event number rejected:** another event of the same site already uses it. Leave it empty or change it.
+- **Persons involved rejected:** the field accepts a whole number only, not text and not names.
+- **Attachment rejected:** it must be a non-empty image or PDF, up to 15 MiB.
+- **I cannot find the Attachments section:** it appears only when editing an event already saved, and only for owners and editors.
+- **The subject page has no history:** either the subject has never been inspected, and the page says so, or the load failed and an error appears in place of the inspections; **Back to inspections** stays active.
+- **I do not see New inspection:** the button is reserved to owners and editors and needs a connection; verifiers and viewers only read the page.
+- **Save is off in the new inspection:** at least one checklist item is still unanswered; the line under the form says how many remain.
+- **“The checklist for this family is unavailable”:** the subject's family has no checks to fill in; retry, and if the notice stays report it as a problem with the inspection templates.
+- **Period rejected:** the **From** date must not follow the **To** date.
+- **Offline:** the view requires a connection, like the other module views; without a network you can neither read nor change the register.
+- **Empty list:** the site has no events yet, or type, severity and period add up; clear the filters.
+:::
+
+The same rows are available through the API, with the `/api/hse-events` endpoints: see [REST API](../../riferimento/api/#hse).

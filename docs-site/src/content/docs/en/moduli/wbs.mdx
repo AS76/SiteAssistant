@@ -1,0 +1,81 @@
+---
+title: Project structure (WBS)
+description: Consult and update the project structure, with imported values kept separate from working changes.
+---
+
+import { Image } from 'astro:assets';
+import albero from '../../../../assets/albero-wbs.svg';
+import Shot from '../../../../components/Shot.astro';
+
+The **Project structure** view shows the site's work hierarchy (*Work Breakdown Structure*, WBS). Values from the Time Schedule remain separate and read-only; an owner or editor can add and change the operational name, parent and order without rewriting the source.
+
+## Consulting the structure
+
+What it is for: finding the right WBS code to read progress, hours and linked deviations.
+
+1. Open **Project structure** from the navigation.
+2. Choose **Tree** for the expandable hierarchy, or **Flat table** for the full list.
+3. In the tree open and close a branch with the arrow next to the item; use **Expand all** and **Collapse all** for the whole structure.
+4. In the flat table read code, description, parent, level, order, imported progress and planned dates.
+5. Use the WBS code in the other views to find the same branch and link tasks, progress and hours.
+
+## Editing an item
+
+An **owner** or **editor** can edit the structure from the item form:
+
+- **Create node**: adds a native item to the site, with code, name, parent and order.
+- **Edit**: changes name, parent and order; the code and other imported values stay read-only.
+- **Archive**: removes the item from current work without deleting it or losing links. It remains readable and can be restored.
+- **Provenance**: the form separates source values from working values and shows when a local field has changed.
+
+Imported and native nodes share the same operational identity. If the source changes a field you have edited, the form shows a **conflict**: the working value remains active until you explicitly choose to keep the change or restore the source value.
+
+<Shot
+  src="/images/2026-11/en/wbs-desktop.png"
+  alt="Project structure tree with the items 1 Impianto di smistamento, 1.1 Linea A, 1.2 Linea B, 2 Opere civili, 2.1 Fondazioni, 3 Impianti elettrici, the Tree, Flat table, Retry and Create node buttons, and an Edit command on every node"
+  caption="The project structure tree: branches open and close from the arrow; the buttons at the top switch representation, reload the data and create new nodes, and every node is edited from its own row."
+/>
+
+## What you see
+
+The structure is a tree of items identified by a **WBS code** (for example `1`, `1.1`, `1.1.2`). For each item you can see:
+
+- the code and description;
+- the level in the hierarchy;
+- the imported progress: in the tree it appears as a **percentage badge** next to the item, when the value is present;
+- the planned start and finish dates.
+
+<figure>
+  <Image src={albero} alt="WBS tree of the project structure" />
+  <figcaption>The project structure tree: items are nested by level. The dashed item is a "synthetic parent", rebuilt because it was missing from the Time Schedule.</figcaption>
+</figure>
+
+## Tree and table
+
+The view has two representations:
+
+- **Tree:** an expandable and collapsible hierarchy, with the **Expand all** and **Collapse all** buttons.
+- **Flat table:** one row per item, ordered by level, with code, description, parent, level, order, progress and planned dates.
+
+When the Time Schedule does not contain a parent item, the application rebuilds it as a **synthetic parent**: it is marked and its descriptive fields are empty.
+
+:::caution[If the structure is incomplete]
+- **A branch is missing:** the hierarchy can be partial because the Time Schedule did not contain every item; a rebuilt parent is marked as synthetic.
+- **Item missing from the source:** a partial file never deletes anything. If an item is missing from a complete verified snapshot, it remains with its links and is marked **check needed**; reconcile it before treating it as closed.
+- **Empty view:** no Time Schedule has been imported. An owner or editor can upload the planning export with the Time schedule family.
+- **Loading error:** press **Retry**; if it persists, check the connection and the latest import.
+:::
+
+## Who can do what
+
+- Every site member can **consult** the structure; viewers do not see editing controls.
+- An **owner** or **editor** can create, edit, move, reorder and archive items.
+- Only an **owner** can **import** a Time Schedule snapshot via API.
+- An **owner** or **editor** can import a planning export with the **Time schedule** family from the Overview: see [Import a planning export](../../amministrazione/import-pianificazione/).
+
+Import never overwrites local changes. If the source changes an edited field, the conflict remains visible until resolved; absence from a partial file is not a removal.
+
+## What is not available yet
+
+- Computing progress from WBS items: the percentage shown is only the imported value; linked and computed progress is in the [Site progress](../avanzamento/) view.
+- Changing the WBS code of an imported item: the code remains a source value; a new export is required to change it.

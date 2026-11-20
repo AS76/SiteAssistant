@@ -1,0 +1,155 @@
+---
+title: Site progress
+description: Consult the imported progress items, assign a type and record step completion.
+---
+
+import Shot from '../../../../components/Shot.astro';
+
+The **Site progress** view shows the progress items of the selected site. The base data comes from the planning export; step completion is recorded in the application.
+
+## Consulting the items
+
+What it is for: seeing how far each item has gone and how many hours it has absorbed.
+
+1. Open **Site progress** from the navigation.
+2. Filter with the **Project structure** menu to see only the items linked to a WBS node.
+3. Read description, section, PLC area, percentage and booked hours for each row.
+4. Open a row for the detail: plan, delta, dates and flags.
+
+<Shot
+  src="/images/2026-11/en/progress-desktop.png"
+  alt="Site progress view with the item list, the columns Description, Section, Area asset, Progress with a bar and Booked hours, and the All WBS nodes filter"
+  caption="The progress list: the bar shows the percentage and the “computed” badge marks values recalculated from recorded steps."
+/>
+
+The filter at the top limits the list to the items linked to a work structure node: it does not change the data, only what you see.
+
+:::caution[If an item is missing]
+- The **Project structure** filter may exclude it: set it back to **All WBS nodes**.
+- Items come from the planning import: if an element is missing, fix the export and repeat the import, do not create it by hand.
+- This view requires a connection: offline it shows a message instead of the list.
+:::
+
+## The detail
+
+The detail shows:
+
+- description, section and PLC area;
+- the linked WBS item, when it exists, with the node code and description;
+- the assignee;
+- progress and planned progress;
+- the delta calculated by the source;
+- the planned hours, when present;
+- booked hours;
+- planned start and finish, actual start and expected delay;
+- the **Has files**, **Has notes** and **Has deviations** flags.
+
+Imported fields are read-only, except **planned hours**, which owners and editors can set. Step completion remains the other data you write.
+
+## Progress types and weights
+
+A **progress type** describes how the work of an item is measured: a list of steps, each with a weight. Weights are percentages of the item and must add up to **100**.
+
+Example: four steps with weights 30, 30, 20 and 20. If the total is 99 or 101, the type is rejected.
+
+A type is created via API and reserved to owners. In the interface an owner can assign or remove the type on an item; an owner or editor can record step completion.
+
+## Recording completion
+
+What it is for: updating an item's progress without touching imported data.
+
+1. Open the item detail.
+2. Check that a **progress type** is assigned and read the step list with the weights.
+3. Under **Record step completion**, enter a percentage from 0 to 100 for each step.
+4. Press **Save steps**.
+5. Reopen the detail to see the recalculated progress and the new record in the history.
+
+The item's progress is recalculated as the weighted average. If an item has a type assigned but no recorded step, the computed progress is **0**: the imported value is not used.
+
+Every save appends a record to the **history**. The history is never rewritten, and progress curves are calculated from it, not from imports.
+
+:::caution[If you cannot save steps]
+- **No type assigned:** the step form does not appear. An owner must assign a type from the detail.
+- **No steps available:** the assigned type has no steps; the type needs fixing, not the item.
+- **Percentage rejected:** use values between 0 and 100. Empty fields are read as 0.
+- **Insufficient role:** recording steps is reserved to owners and editors; viewing the detail is open to every member.
+:::
+
+## Planned hours
+
+What it is for: giving an item its expected hours, without which the site **Work produced** panel cannot be calculated.
+
+1. Open the progress item detail.
+2. In the **Planned hours** field enter a non-negative number.
+3. Leave the field blank to use the hours of the linked WBS node, when the node has any.
+4. Press **Save**.
+
+Planned hours can also come from the planning export (the `planned_hours` column) or be set here. They do not change the imported progress or the steps. Owners and editors can edit them; other members read them in the detail. The allowed value runs from 0 to 1,000,000.
+
+Planned hours feed the **Work produced** block on the Overview and in the report: if no item in the site has planned hours, the block shows no figures and says the hours are missing.
+
+:::caution[If the hours field is not there]
+- **Insufficient role:** only owners and editors see the edit form; for everyone else the value is read-only.
+- **Value rejected:** use a number between 0 and 1,000,000, or leave it blank to use the WBS node.
+- **No node hours:** if the item has no hours of its own and the linked WBS node has none, the item stays without planned hours and is excluded from work produced.
+:::
+
+## Site report
+
+What it is for: putting the site's progress and deviations on paper, or into a spreadsheet.
+
+The **Print PDF** button appears on the **Overview** and in the **Site progress** view. It opens the **Site report** view and, once the data is loaded, starts the browser print dialog: choose “Save as PDF” there. There is no server-generated PDF.
+
+The report contains two tables, a **Work produced** block and a reconciliation section:
+
+- **Cockpit · actual and planned** — for each macro-area: number of items, actual progress, planned progress and the source of the value (**Computed**, **Imported** or **Mixed**).
+- **Work produced** — three measures in hours: **Planned to date**, **Produced** and **Booked hours**. Planned to date is planned hours × planned progress; Produced is planned hours × actual progress; Booked hours are the hours recorded in the app. Below, **Efficiency** is Produced divided by Booked hours and **On schedule** is Produced divided by Planned to date.
+- **Deviations** — for each macro-area: total, open, closed or rejected and the count by status.
+- **Inconsistent timelines** — the count of the two date checks on deviations and the first ten findings.
+
+A macro-area's actual value is the average of its items: those with a progress type use the value computed from the steps, the others the imported value. Items without a value show **Not available**; in the CSV the cell stays empty.
+
+Work produced uses the planned hours of the items or, when an item has none, those of the linked WBS node. If the site has no planned hours at all, a notice appears instead of the figures; items without hours are excluded and their number is shown below the block. Efficiency and On schedule stay empty when the denominator is zero or missing. If booked hours are lower than produced hours, the panel warns that efficiency is only partial: some records may be missing.
+
+Deviations are grouped by **PLC area**, because imported data has no zone or section; those without an area go under **Senza sezione** (no section). **Closed / rejected** adds the `closed` and `rejected` statuses: rejected is terminal. A deviation with a missing status stays among the open ones.
+
+The **Inconsistent timelines** section repeats in the report the checks of the **To reconcile** panel in the Deviations view: deviations closed without a date and closed before approval. It shows the count of each check and a table with the first ten findings, saying how many there are in total. It is a read: no date is corrected. Deviations have no internal status, so the report does not compare statuses. See [Deviations](../deviazioni/#to-reconcile).
+
+The generation date and time are shown in **UTC**, on the printed copy too. Printing uses A4 portrait, without navigation or buttons.
+
+### Exporting both tables as CSV
+
+The report has **Export progress CSV** and **Export deviations CSV**. The files contain the same rows as the tables:
+
+| File | Columns |
+| :-- | :-- |
+| `siteassistant-report-progress-YYYY-MM-DD.csv` | Macro-area, Items, Actual, Planned, Progress source |
+| `siteassistant-report-deviations-YYYY-MM-DD.csv` | Macro-area, Total, Open, Closed / rejected, Count by status |
+
+Numbers are raw, without a percentage sign; a cell stays empty when the value is missing. The count by status sits in a single cell, with entries separated by a semicolon. If a table is empty, the file is not created and a warning appears.
+
+:::caution[If the report does not open or print]
+- **Disabled buttons:** they stay disabled until the data is loaded; wait for the loading message.
+- **An error instead of the tables:** the report requires a connection; check the network and press **Retry**.
+- **Printing does not start:** the dialog opens only once, for the site you pressed **Print PDF** on; change site and reopen the report.
+- **Empty table:** the site has no imported progress items or deviations; it is not a report error.
+:::
+
+## Who can do what
+
+| Action | Role |
+| :-- | :-- |
+| View items and details | Every site member |
+| Open, print and export the report | Every site member |
+| Assign or remove a progress type | owner |
+| Record step completion | owner, editor |
+| Set the planned hours of an item | owner, editor |
+| Create or delete a progress type | owner, API only |
+
+## What is not available yet
+
+- Creating or editing a progress type from the interface.
+- Editing the imported fields of an item, except the planned hours.
+- Creating or deleting progress items from the interface: they come from the import.
+
+For the link between progress and the work structure see [Project structure (WBS)](../wbs/). For the raw data see [REST API](../../riferimento/api/).

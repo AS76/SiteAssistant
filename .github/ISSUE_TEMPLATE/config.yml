@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Idea da discutere
+    url: https://github.com/AS76/SiteAssistant/discussions/categories/ideas
+    about: Una proposta su cui non è stata presa una decisione non è un issue. Aprila nelle Discussion.

@@ -1,0 +1,878 @@
+import { moduleAllowed, requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
+import { createServer as createHttpServer } from 'node:http';
+import { createHash } from 'node:crypto';
+import { extname } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
+import { pipeline } from 'node:stream/promises';
+import { S3Storage, ObjectStorageError, encodeS3Component } from './s3.mjs';
+import { authenticate, login, memberships, publicUser, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
+import { createWebAuthn } from './webauthn.mjs';
+import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
+import { createStaticHandler } from './static-dev.mjs';
+import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage } from './signup.mjs';
+import { createTaskResponse } from './idempotency.mjs';
+import { createRateLimiter } from './limits.mjs';
+import { readPagination } from './pagination.mjs';
+import { listAuditEvents, countAuditEvents, appendAttachmentRead } from './audit.mjs';
+import { listWbs, getWbs, importWbs, createWbs, updateWbs } from './wbs.mjs';
+import { listSiteProgress, countSiteProgress, getSiteProgressItem, importSiteProgress, updateSiteProgressItem } from './site-progress.mjs';
+import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.mjs';
+import {
+  listDeviations, countDeviations, getDeviation, importDeviations, listDeviationEvents,
+  latestDeviationImports, updateDeviationOwner, updateDeviationAttribution,
+} from './deviations.mjs';
+import { evidenceExport } from './evidence-export.mjs';
+import { deviationReconciliation } from './deviation-reconciliation.mjs';
+import { listCostImpacts, getCostImpact, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
+import {
+  listPurchaseOrders, getPurchaseOrder, createPurchaseOrder, updatePurchaseOrder, transitionPurchaseOrder,
+  addPurchaseOrderItem, updatePurchaseOrderItem, transitionPurchaseOrderItem,
+} from './purchase-orders.mjs';
+import { listPackages, getPackage, createPackage, closePackage } from './packages.mjs';
+import { listShipments, getShipment, createShipment, transitionShipment, addShipmentReceipt } from './shipments.mjs';
+import { listTimeBookings, countTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForItem } from './time_bookings.mjs';
+import { chat as assistantChat } from './assistant.mjs';
+import { searchPlaces } from './geocode.mjs';
+import { dashboard } from './dashboard.mjs';
+import { getDashboardLayout, saveDashboardLayout, deleteDashboardLayout } from './dashboard-layouts.mjs';
+import { report } from './report.mjs';
+import { reportingOverview } from './reporting.mjs';
+import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
+import { progressCurve } from './progress-curve.mjs';
+import { listViews, createView, updateView, deleteView } from './view-settings.mjs';
+import { listTools, createTool, updateTool, deleteTool } from './tools.mjs';
+import { listCertifications, createCertification, updateCertification, deleteCertification, certificationSummary } from './certifications.mjs';
+import { listHseEvents, createHseEvent, updateHseEvent, deleteHseEvent, hseSummary } from './hse.mjs';
+import { templatesForJurisdiction } from './checklists.mjs';
+import { listHseAssets, createHseAsset, updateHseAsset, deleteHseAsset } from './hse-assets.mjs';
+import { createInspection, listInspections, getInspection } from './hse-inspections.mjs';
+import { importRequest, MAX_IMPORT_BYTES, importDeviationWorkbook, listImportMappings, saveImportMapping, deleteImportMapping } from './planning-import.mjs';
+import { importTemplate } from './import-template.mjs';
+import {
+  RepositoryError, listSites, createSite, getSite, updateSite, updateTaskWbs, listTasks, countTasks, getTask,
+  transitionTask, acceptTask, listDiary, countDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember, listAssignable,
+  createAttachment, listAttachments, getAttachment, deleteAttachment, MAX_ATTACHMENT_BYTES,
+} from './repository.mjs';
+
+function json(response, status, data) {
+  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  response.end(JSON.stringify(data));
+}
+
+async function paginatedJson(response, url, db, list, count, filters, user) {
+  const { limit, offset } = readPagination(url);
+  const rows = await list(db, { ...filters, limit, offset }, user);
+  const total = await count(db, filters, user);
+  response.setHeader('X-Total-Count', String(total));
+  response.setHeader('X-Limit', String(limit));
+  response.setHeader('X-Offset', String(offset));
+  return json(response, 200, rows);
+}
+
+const rateLimitExempt = new Set(['/api/auth/login', '/api/auth/forgot', '/api/auth/password', '/api/auth/request']);
+const authBypassExcluded = new Set([
+  '/api/auth/login', '/api/auth/logout', '/api/auth/forgot', '/api/auth/request',
+  '/api/auth/request/decide', '/api/auth/password',
+]);
+
+async function readJson(request, { includeHash = false, maxBytes = 65536 } = {}) {
+  const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
+  if (contentType !== 'application/json') {
+    throw new RepositoryError(400, 'Content-Type must be application/json.', 'INVALID_JSON');
+  }
+  const decoder = new StringDecoder('utf8');
+  const hash = createHash('sha256');
+  let body = '';
+  let size = 0;
+  // Reject oversized input without accumulating the remainder in memory.
+  let oversized = false;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > maxBytes) { oversized = true; body = ''; }
+    if (!oversized) {
+      hash.update(chunk);
+      body += decoder.write(chunk);
+    }
+  }
+  if (!oversized) body += decoder.end();
+  if (oversized) throw new RepositoryError(maxBytes === 65536 ? 400 : 413, 'JSON body exceeds the size limit.', 'INVALID_JSON');
+  let input;
+  try {
+    input = JSON.parse(body);
+  } catch {
+    throw new RepositoryError(400, 'Malformed JSON body.', 'INVALID_JSON');
+  }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new RepositoryError(400, 'Expected a JSON object.', 'INVALID_JSON');
+  }
+  return includeHash ? { input, requestHash: hash.digest('hex') } : input;
+}
+
+async function readForm(request) {
+  const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
+  if (contentType !== 'application/x-www-form-urlencoded') {
+    throw new RepositoryError(400, 'Content-Type must be application/x-www-form-urlencoded.', 'INVALID_FORM');
+  }
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size <= 4096) chunks.push(chunk);
+    else chunks.length = 0;
+  }
+  if (size > 4096) throw new RepositoryError(400, 'Form body exceeds 4096 bytes.', 'INVALID_FORM');
+  return new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+}
+
+function html(response, status, message, review) {
+  response.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8' });
+  response.end(decisionPage(message, review));
+}
+
+// The caller owns the connection and closes it after the HTTP server stops.
+// The task and diary lists historically read `siteId`; every other list reads
+// `site_id`. Accept both and refuse unknown parameters, so a mistyped filter is
+// an error instead of a silently ignored one.
+function siteFromQuery(url, allowed) {
+  for (const key of url.searchParams.keys()) {
+    if (!allowed.includes(key)) throw new RepositoryError(400, `Unknown query parameter: ${key}.`, 'VALIDATION_ERROR');
+  }
+  return url.searchParams.get('site_id') ?? url.searchParams.get('siteId');
+}
+
+export function createServer(db, { limiter = createLoginLimiter(), production = process.env.NODE_ENV === 'production',
+  authBypassUser = process.env.AUTH_BYPASS_USER || '',
+  mailer = sendMail, ownerEmail = process.env.OWNER_EMAIL,
+  publicUrl = process.env.PUBLIC_URL || 'https://api.siteassistant.asassi.cloud',
+  requestLimiter = createLoginLimiter(), forgotLimiter = createLoginLimiter(), passwordLimiter = createLoginLimiter(),
+  userLimiter = createRateLimiter({ max: Number(process.env.RATE_LIMIT_USER_PER_MIN ?? 600) }),
+  anonLimiter = createRateLimiter({ max: Number(process.env.RATE_LIMIT_ANON_PER_MIN ?? 60) }),
+  storage = new S3Storage(),
+  reporting = reportingOverview,
+  webauthn = {},
+  // Development only: serve the browser client from the same origin as the API.
+  staticDir = process.env.SERVE_APP === '1' ? new URL('../app/', import.meta.url).pathname : null,
+} = {}) {
+  const passkeys = createWebAuthn(db, webauthn);
+  const serveStatic = staticDir ? createStaticHandler(staticDir) : null;
+  const authBypassEmail = authBypassUser.trim().toLowerCase();
+  let authBypassCount = 0, lastAuthBypassLog = -Infinity;
+  return createHttpServer(async (request, response) => {
+    response.setHeader('Vary', 'Origin');
+    response.setHeader('Cache-Control', 'no-store');
+    if (request.headers.origin === 'https://siteassistant.asassi.cloud') {
+      response.setHeader('Access-Control-Allow-Origin', request.headers.origin);
+      response.setHeader('Access-Control-Allow-Credentials', 'true');
+      response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Idempotency-Key, Authorization, Cookie');
+      response.setHeader('Access-Control-Expose-Headers', 'X-Total-Count, X-Limit, X-Offset, X-RateLimit-Remaining, Retry-After, X-Content-SHA256, Link');
+    }
+    if (request.method === 'OPTIONS') {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+    let isDecision = false;
+    try {
+      let url;
+      try {
+        url = new URL(request.url, 'http://127.0.0.1');
+      } catch {
+        throw new RepositoryError(400, 'Invalid request URL.', 'VALIDATION_ERROR');
+      }
+      let path = url.pathname;
+      const method = request.method;
+      if (serveStatic && !path.startsWith('/api/')) {
+        if (await serveStatic(request, response, url)) return;
+        // A client-side route (hash routing aside) still gets the shell.
+        if (!extname(path) && await serveStatic(request, response, new URL('/', url))) return;
+        json(response, 404, { error: 'Not found.', code: 'NOT_FOUND' });
+        return;
+      }
+      let user = null, authError;
+      if (path.startsWith('/api/')) {
+        try { user = await authenticate(db, request.headers.cookie); }
+        catch (error) {
+          if (!(error instanceof RepositoryError) || error.status !== 401) throw error;
+          if (authBypassEmail && !authBypassExcluded.has(path)) {
+            user = await db.get(`SELECT id, email, name, password_change_required FROM users
+              WHERE lower(email) = ? AND disabled_at IS NULL`, authBypassEmail);
+            if (user) {
+              authBypassCount++;
+              const now = Date.now();
+              // Count every bypass; log immediately, then at most once per minute per server.
+              if (now - lastAuthBypassLog >= 60000) {
+                lastAuthBypassLog = now;
+                console.warn(JSON.stringify({ event: 'AUTH_BYPASS', authentication: 'bypassed',
+                  method, path, count: authBypassCount }));
+              }
+            }
+          }
+          // Public routes retain anonymous access; protected routes rethrow below.
+          if (!user) authError = error;
+        }
+        if (!rateLimitExempt.has(path)) {
+          const result = user ? userLimiter.attempt(`user:${user.id}`)
+            : anonLimiter.attempt(`ip:${request.socket?.remoteAddress || ''}`);
+          response.setHeader('X-RateLimit-Remaining', String(result.remaining));
+          if (!result.allowed) {
+            response.setHeader('X-RateLimit-Remaining', '0');
+            response.setHeader('Retry-After', String(Math.max(1, Math.ceil(result.retryAfter))));
+            return json(response, 429, { error: 'Too many requests.', code: 'RATE_LIMITED' });
+          }
+        }
+      }
+      isDecision = path === '/api/auth/request/decide' && ['GET', 'POST'].includes(method);
+      if (isDecision) {
+        response.setHeader('Referrer-Policy', 'no-referrer');
+        response.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+        if (method === 'GET') {
+          const token = url.searchParams.get('token');
+          const row = await readSignupRequest(db, token);
+          return html(response, 200, 'Esamina la richiesta di accesso e scegli se approvarla o rifiutarla.', { email: row.email, requested_at: row.requested_at, token });
+        }
+        const form = await readForm(request);
+        const decision = await decideSignup(db, form.get('token'), form.get('decision'), { mailer });
+        return html(response, 200, decision === 'approve' ? 'Request approved. A temporary password has been emailed to the applicant.' : 'Request rejected. No account was created.');
+      }
+      if (['/api/auth/request', '/api/auth/forgot'].includes(path) && method === 'POST') {
+        const email = normalizeEmail((await readJson(request)).email);
+        const signup = path === '/api/auth/request';
+        (signup ? requestLimiter : forgotLimiter).attempt(request.socket?.remoteAddress || '', email);
+        // Preflight also covers no-op cases, keeping configuration errors uniform.
+        if (signup && (typeof ownerEmail !== 'string' || !ownerEmail.trim())) throw new MailNotConfiguredError();
+        mailer.assertConfigured?.();
+        if (signup) await requestSignup(db, email, { mailer, ownerEmail, publicUrl });
+        else await forgotPassword(db, email, { mailer });
+        return json(response, 202, { status: 'accepted' });
+      }
+      if (path === '/api/health' && method === 'GET') return json(response, 200, {
+        status: 'ok', auth_bypass: Boolean(authBypassEmail),
+      });
+      if (path === '/api/auth/login' && method === 'POST') {
+        const result = await login(db, await readJson(request), {
+          // Rate limiting uses the immediate peer, never X-Forwarded-For.
+          ip: request.socket?.remoteAddress || '', userAgent: request.headers['user-agent'] || '', limiter,
+        });
+        response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
+        return json(response, 200, { user: result.user });
+      }
+      const passkeyContext = { ip: request.socket?.remoteAddress || '', userAgent: request.headers['user-agent'] || '' };
+      if (path === '/api/auth/webauthn/login/options' && method === 'POST') {
+        const input = await readJson(request);
+        limiter.attempt(passkeyContext.ip, typeof input.email === 'string' ? input.email.trim().toLowerCase() : '');
+        return json(response, 200, await passkeys.loginOptions(input));
+      }
+      if (path === '/api/auth/webauthn/login/verify' && method === 'POST') {
+        limiter.attempt(passkeyContext.ip, 'webauthn-verify');
+        const result = await passkeys.loginVerify(await readJson(request), passkeyContext);
+        response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
+        return json(response, 200, { user: result.user, assurance: result.assurance });
+      }
+      if (path.startsWith('/api/auth/webauthn/register/') || path === '/api/auth/credentials' || path.startsWith('/api/auth/credentials/')) {
+        const sessionUser = await authenticate(db, request.headers.cookie);
+        if (path === '/api/auth/webauthn/register/options' && method === 'POST') {
+          await readJson(request);
+          return json(response, 200, await passkeys.registrationOptions(sessionUser));
+        }
+        if (path === '/api/auth/webauthn/register/verify' && method === 'POST') {
+          return json(response, 200, await passkeys.registrationVerify(sessionUser, await readJson(request), passkeyContext));
+        }
+        if (path === '/api/auth/credentials' && method === 'GET') return json(response, 200, await passkeys.credentials(sessionUser));
+        const credential = /^\/api\/auth\/credentials\/([^/]+)$/.exec(path);
+        if (credential && ['PATCH', 'DELETE'].includes(method)) {
+          return json(response, 200, await passkeys.manageCredential(sessionUser, credential[1], method === 'PATCH' ? await readJson(request) : null, passkeyContext));
+        }
+      }
+      if (authError) throw authError;
+      if (path === '/api/reporting/overview' && method === 'GET') {
+        const roles = await memberships(db, user.id);
+        let allowed = false;
+        for (const member of roles) {
+          if (await moduleAllowed(db, member.site_id, user, 'reporting')) { allowed = true; break; }
+        }
+        if (!allowed) throw new RepositoryError(403, 'Module is not available.', 'MODULE_FORBIDDEN');
+        return json(response, 200, await reporting());
+      }
+      if (path === '/api/views' && method === 'GET') {
+        return json(response, 200, await listViews(db, {
+          siteId: url.searchParams.get('site_id'), module: url.searchParams.get('module'),
+        }, user));
+      }
+      if (path === '/api/views' && method === 'POST') {
+        const input = await readJson(request);
+        return json(response, 201, await createView(db, { siteId: input.site_id, module: input.module,
+          name: input.name, shared: input.shared, payload: input.payload }, user));
+      }
+      const view = /^\/api\/views\/([^/]+)$/.exec(path);
+      if (view && method === 'PATCH') {
+        return json(response, 200, await updateView(db, view[1], await readJson(request), user));
+      }
+      if (view && method === 'DELETE') {
+        return json(response, 200, await deleteView(db, view[1], user));
+      }
+      if (path === '/api/member-access' && method === 'GET') {
+        return json(response, 200, await listModuleAccess(db, { siteId: url.searchParams.get('site_id') }, user));
+      }
+      if (path === '/api/member-access' && method === 'PUT') {
+        const input = await readJson(request);
+        return json(response, 200, await saveModuleAccess(db, {
+          siteId: input.site_id, memberId: input.member_id, module: input.module, allowed: input.allowed,
+        }, user));
+      }
+      if (path === '/api/audit-events' && method === 'GET') {
+        return await paginatedJson(response, url, db, listAuditEvents, countAuditEvents, {
+          siteId: url.searchParams.get('site_id'), entityType: url.searchParams.get('entity_type'),
+          entityId: url.searchParams.get('entity_id'),
+        }, user);
+      }
+      if (path === '/api/tools' && method === 'GET') {
+        return json(response, 200, await listTools(db, {
+          siteId: url.searchParams.get('site_id'), company: url.searchParams.get('company'),
+        }, user));
+      }
+      if (path === '/api/tools' && method === 'POST') {
+        return json(response, 201, await createTool(db, await readJson(request), user));
+      }
+      const tool = /^\/api\/tools\/([^/]+)$/.exec(path);
+      if (tool && method === 'PATCH') {
+        return json(response, 200, await updateTool(db, tool[1], await readJson(request), user));
+      }
+      if (tool && method === 'DELETE') {
+        return json(response, 200, await deleteTool(db, tool[1], user));
+      }
+      if (path === '/api/certifications' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id') ?? url.searchParams.get('siteId');
+        if (url.searchParams.get('summary') === '1') {
+          return json(response, 200, await certificationSummary(db, { siteId, within: url.searchParams.get('within') }, user));
+        }
+        return json(response, 200, await listCertifications(db, {
+          siteId, employeeId: url.searchParams.get('employee_id') ?? url.searchParams.get('employeeId'),
+          status: url.searchParams.get('status'), category: url.searchParams.get('category'),
+          within: url.searchParams.get('within'),
+        }, user));
+      }
+      if (path === '/api/certifications' && method === 'POST') {
+        return json(response, 201, await createCertification(db, await readJson(request), user));
+      }
+      const certification = /^\/api\/certifications\/([^/]+)$/.exec(path);
+      if (certification && method === 'PATCH') {
+        return json(response, 200, await updateCertification(db, certification[1], await readJson(request), user));
+      }
+      if (certification && method === 'DELETE') {
+        return json(response, 200, await deleteCertification(db, certification[1], user));
+      }
+      if (path === '/api/hse/inspections' && method === 'POST') {
+        return json(response, 201, await createInspection(db, await readJson(request), user));
+      }
+      if (path === '/api/hse/inspections' && method === 'GET') {
+        return json(response, 200, await listInspections(db, {
+          siteId: url.searchParams.get('siteId'), assetId: url.searchParams.get('assetId'),
+        }, user));
+      }
+      const hseInspection = /^\/api\/hse\/inspections\/([^/]+)$/.exec(path);
+      if (hseInspection && method === 'GET') {
+        return json(response, 200, await getInspection(db, hseInspection[1], user));
+      }
+      if (path === '/api/hse/assets' && method === 'GET') {
+        return json(response, 200, await listHseAssets(db, { siteId: url.searchParams.get('siteId') }, user));
+      }
+      if (path === '/api/hse/assets' && method === 'POST') {
+        return json(response, 201, await createHseAsset(db, await readJson(request), user));
+      }
+      const hseAsset = /^\/api\/hse\/assets\/([^/]+)$/.exec(path);
+      if (hseAsset && method === 'PATCH') {
+        return json(response, 200, await updateHseAsset(db, hseAsset[1], await readJson(request), user));
+      }
+      if (hseAsset && method === 'DELETE') {
+        return json(response, 200, await deleteHseAsset(db, hseAsset[1], user));
+      }
+      if (path === '/api/hse/inspection-templates' && method === 'GET') {
+        const siteId = url.searchParams.get('siteId');
+        if (!siteId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(siteId)) {
+          throw new RepositoryError(400, 'siteId must be a UUID.', 'VALIDATION_ERROR');
+        }
+        const id = siteId.toLowerCase();
+        await requireRole(db, id, user);
+        await requireModule(db, id, user, 'hse');
+        const { jurisdiction } = await getSite(db, id);
+        return json(response, 200, { jurisdiction, templates: templatesForJurisdiction(jurisdiction) });
+      }
+      if (path === '/api/hse-events' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id') ?? url.searchParams.get('siteId');
+        if (url.searchParams.get('summary') === '1') {
+          return json(response, 200, await hseSummary(db, { siteId }, user));
+        }
+        return json(response, 200, await listHseEvents(db, {
+          siteId, type: url.searchParams.get('type'), severity: url.searchParams.get('severity'),
+          from: url.searchParams.get('from'), to: url.searchParams.get('to'),
+        }, user));
+      }
+      if (path === '/api/hse-events' && method === 'POST') {
+        return json(response, 201, await createHseEvent(db, await readJson(request), user));
+      }
+      const hseEvent = /^\/api\/hse-events\/([^/]+)$/.exec(path);
+      if (hseEvent && method === 'PATCH') {
+        return json(response, 200, await updateHseEvent(db, hseEvent[1], await readJson(request), user));
+      }
+      if (hseEvent && method === 'DELETE') {
+        return json(response, 200, await deleteHseEvent(db, hseEvent[1], user));
+      }
+      if (path === '/api/dashboard/layout' && method === 'GET') {
+        return json(response, 200, await getDashboardLayout(db, { siteId: url.searchParams.get('site_id'), user }));
+      }
+      if (path === '/api/dashboard/layout' && method === 'PUT') {
+        const input = await readJson(request);
+        return json(response, 200, await saveDashboardLayout(db, { siteId: input.site_id, widgets: input.widgets, user }));
+      }
+      if (path === '/api/dashboard/layout' && method === 'DELETE') {
+        return json(response, 200, await deleteDashboardLayout(db, { siteId: url.searchParams.get('site_id'), user }));
+      }
+      if (path === '/api/dashboard' && method === 'GET') {
+        return json(response, 200, await dashboard(db, { siteId: url.searchParams.get('site_id'), user }));
+      }
+      if (path === '/api/report' && method === 'GET') {
+        return json(response, 200, await report(db, { siteId: url.searchParams.get('site_id'), user }));
+      }
+      if (path === '/api/progress/curve' && method === 'GET') {
+        return json(response, 200, await progressCurve(db, { siteId: url.searchParams.get('site_id'), user,
+          from: url.searchParams.get('from'), to: url.searchParams.get('to') }));
+      }
+      if (path === '/api/location/search' && method === 'GET') {
+        const query = url.searchParams.get('q') || '';
+        return json(response, 200, { results: await searchPlaces(query) });
+      }
+      if (path === '/api/assistant/chat' && method === 'POST') {
+        const input = await readJson(request);
+        const siteId = input.site_id;
+        if (!siteId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(siteId)) {
+          throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
+        }
+        return json(response, 200, await assistantChat(db, { siteId: siteId.toLowerCase(), user,
+          messages: input.messages, view: input.view, language: input.language }));
+      }
+      if (path === '/api/import-mappings' && method === 'GET') {
+        return json(response, 200, await listImportMappings(db, url.searchParams.get('site_id'), user));
+      }
+      if (path === '/api/import-mappings' && method === 'PUT') {
+        return json(response, 200, await saveImportMapping(db, await readJson(request), user));
+      }
+      const importMapping = /^\/api\/import-mappings\/([^/]+)$/.exec(path);
+      if (importMapping && method === 'DELETE') {
+        return json(response, 200, await deleteImportMapping(db, url.searchParams.get('site_id'), importMapping[1], user));
+      }
+      // Generic public contract: authentication only; no site data or module scope.
+      if (path === '/api/import/template' && method === 'GET') {
+        const family = url.searchParams.get('family'), buffer = importTemplate(family);
+        response.writeHead(200, {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="SiteAssistant-${family}-modello.xlsx"`,
+          'Cache-Control': 'private, no-store',
+        });
+        return response.end(buffer);
+      }
+      if (['/api/import/preview', '/api/import/apply'].includes(path) && method === 'POST') {
+        const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_IMPORT_BYTES / 3) + 65536 });
+        return json(response, 200, await importRequest(db, input, user, { apply: path === '/api/import/apply' }));
+      }
+      if (path === '/api/auth/password' && method === 'POST') {
+        passwordLimiter.attempt(request.socket?.remoteAddress || '', user.id);
+        await changePassword(db, user, await readJson(request));
+        return json(response, 200, { status: 'ok' });
+      }
+      if (path === '/api/auth/me' && method === 'GET') {
+        return json(response, 200, { user: publicUser(user), roles: await memberships(db, user.id), password_change_required: Boolean(user.password_change_required) });
+      }
+      if (path === '/api/auth/logout' && method === 'POST') {
+        await db.run('UPDATE sessions SET revoked_at = ? WHERE id = ?', new Date().toISOString(), user.session_id);
+        response.setHeader('Set-Cookie', sessionCookie('', { production, secure: isSecureRequest(request, { production }), clear: true }));
+        return json(response, 200, { status: 'ok' });
+      }
+      if (['/api/employees', '/api/work-days'].includes(path) && method === 'GET') {
+        const siteId = url.searchParams.get('site_id');
+        if (!siteId) throw new RepositoryError(400, 'site_id is required.', 'VALIDATION_ERROR');
+        await requireRole(db, siteId, user);
+        const result = path === '/api/employees' ? await listEmployees(db, { siteId })
+          : await listWorkDays(db, { siteId, employee_id: url.searchParams.get('employee_id'),
+            from: url.searchParams.get('from'), to: url.searchParams.get('to') });
+        return json(response, 200, result);
+      }
+      if (path === '/api/employees/import' && method === 'POST') {
+        const input = await readJson(request);
+        return json(response, 200, await importEmployees(db, input.site_id, user));
+      }
+      const employee = /^\/api\/employees\/([^/]+)$/.exec(path);
+      if (employee && method === 'GET') {
+        const record = await getEmployee(db, employee[1]);
+        await requireRole(db, record.site_id, user);
+        return json(response, 200, record);
+      }
+      if (path === '/api/wbs' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id');
+        if (!siteId) throw new RepositoryError(400, 'site_id is required.', 'VALIDATION_ERROR');
+        await requireRole(db, siteId, user);
+        await requireModule(db, siteId, user, 'wbs');
+        return json(response, 200, await listWbs(db, { siteId, flat: url.searchParams.get('flat') }));
+      }
+      if (path === '/api/wbs' && method === 'POST') return json(response, 201, await createWbs(db, await readJson(request), user));
+      if (path === '/api/wbs/import' && method === 'POST') {
+        const input = await readJson(request);
+        return json(response, 200, await importWbs(db, input.site_id, user));
+      }
+      const wbs = /^\/api\/wbs\/([^/]+)$/.exec(path);
+      if (wbs && method === 'PATCH') return json(response, 200, await updateWbs(db, wbs[1], await readJson(request), user));
+      if (wbs && method === 'DELETE') return json(response, 200, await updateWbs(db, wbs[1], { archived: true }, user));
+      if (wbs && method === 'GET') {
+        const node = await getWbs(db, wbs[1]);
+        await requireRole(db, node.site_id, user);
+        await requireModule(db, node.site_id, user, 'wbs');
+        return json(response, 200, node);
+      }
+      if (path === '/api/site-progress' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id');
+        if (!siteId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(siteId)) {
+          throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
+        }
+        await requireRole(db, siteId.toLowerCase(), user);
+        await requireModule(db, siteId.toLowerCase(), user, 'progress');
+        return await paginatedJson(response, url, db, listSiteProgress, countSiteProgress,
+          { siteId, wbsId: url.searchParams.get('wbs_id') });
+      }
+      if (path === '/api/site-progress/import' && method === 'POST') {
+        const input = await readJson(request);
+        return json(response, 200, await importSiteProgress(db, input.site_id, user));
+      }
+      const siteProgress = /^\/api\/site-progress\/([^/]+)$/.exec(path);
+      if (siteProgress && method === 'PATCH') {
+        return json(response, 200, await updateSiteProgressItem(db, siteProgress[1], await readJson(request), user));
+      }
+      if (siteProgress && method === 'GET') {
+        const item = await getSiteProgressItem(db, siteProgress[1]);
+        await requireRole(db, item.site_id, user);
+        await requireModule(db, item.site_id, user, 'progress');
+        return json(response, 200, { ...item, booked_hours: await bookedHoursForItem(db, item.id) });
+      }
+      if (path === '/api/progress-types' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id');
+        if (!siteId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(siteId)) {
+          throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
+        }
+        await requireRole(db, siteId.toLowerCase(), user);
+        await requireModule(db, siteId.toLowerCase(), user, 'progress');
+        return json(response, 200, await listProgressTypes(db, { siteId }));
+      }
+      if (path === '/api/progress-types' && method === 'POST') {
+        return json(response, 201, await createProgressType(db, await readJson(request), user));
+      }
+      const progressType = /^\/api\/progress-types\/([^/]+)$/.exec(path);
+      if (progressType && method === 'DELETE') {
+        return json(response, 200, await deleteProgressType(db, progressType[1], user));
+      }
+      const progressTypeAssignment = /^\/api\/site-progress\/([^/]+)\/progress-type$/.exec(path);
+      if (progressTypeAssignment && method === 'PATCH') {
+        const input = await readJson(request);
+        return json(response, 200, await assignProgressType(db, progressTypeAssignment[1], input.progress_type_id ?? null, user));
+      }
+      const progressSteps = /^\/api\/site-progress\/([^/]+)\/steps$/.exec(path);
+      if (progressSteps && method === 'PUT') {
+        const input = await readJson(request);
+        return json(response, 200, await setStepProgress(db, progressSteps[1], input.steps, user));
+      }
+      if (path === '/api/time-bookings' && method === 'GET') {
+        return await paginatedJson(response, url, db, listTimeBookings, countTimeBookings, {
+          siteId: url.searchParams.get('site_id'),
+          siteProgressItemId: url.searchParams.get('site_progress_item_id'),
+          workDayId: url.searchParams.get('work_day_id'),
+        }, user);
+      }
+      if (path === '/api/time-bookings' && method === 'POST') {
+        return json(response, 201, await createTimeBooking(db, await readJson(request), user));
+      }
+      const timeBooking = /^\/api\/time-bookings\/([^/]+)$/.exec(path);
+      if (timeBooking && method === 'DELETE') {
+        return json(response, 200, await deleteTimeBooking(db, timeBooking[1], user));
+      }
+      if (path === '/api/packages' && method === 'GET') {
+        return json(response, 200, await listPackages(db, {
+          siteId: url.searchParams.get('site_id'), purchaseOrderId: url.searchParams.get('purchase_order_id'),
+        }, user));
+      }
+      if (path === '/api/packages' && method === 'POST') {
+        return json(response, 201, await createPackage(db, await readJson(request), user));
+      }
+      const packageDetail = /^\/api\/packages\/([^/]+)$/.exec(path);
+      if (packageDetail && method === 'GET') {
+        return json(response, 200, await getPackage(db, packageDetail[1], user));
+      }
+      const packageClose = /^\/api\/packages\/([^/]+)\/close$/.exec(path);
+      if (packageClose && method === 'POST') {
+        return json(response, 200, await closePackage(db, packageClose[1], user));
+      }
+      if (path === '/api/shipments' && method === 'GET') {
+        return json(response, 200, await listShipments(db, {
+          siteId: url.searchParams.get('site_id'), status: url.searchParams.get('status'),
+        }, user));
+      }
+      if (path === '/api/shipments' && method === 'POST') {
+        return json(response, 201, await createShipment(db, await readJson(request), user));
+      }
+      const shipmentDetail = /^\/api\/shipments\/([^/]+)$/.exec(path);
+      if (shipmentDetail && method === 'GET') {
+        return json(response, 200, await getShipment(db, shipmentDetail[1], user));
+      }
+      const shipmentStatus = /^\/api\/shipments\/([^/]+)\/status$/.exec(path);
+      if (shipmentStatus && method === 'POST') {
+        return json(response, 200, await transitionShipment(db, shipmentStatus[1], await readJson(request), user));
+      }
+      const shipmentReceipts = /^\/api\/shipments\/([^/]+)\/receipts$/.exec(path);
+      if (shipmentReceipts && method === 'POST') {
+        return json(response, 201, await addShipmentReceipt(db, shipmentReceipts[1], await readJson(request), user));
+      }
+      if (path === '/api/purchase-orders' && method === 'GET') {
+        return json(response, 200, await listPurchaseOrders(db, {
+          siteId: url.searchParams.get('site_id'), status: url.searchParams.get('status'),
+        }, user));
+      }
+      if (path === '/api/purchase-orders' && method === 'POST') {
+        return json(response, 201, await createPurchaseOrder(db, await readJson(request), user));
+      }
+      const purchaseOrder = /^\/api\/purchase-orders\/([^/]+)$/.exec(path);
+      if (purchaseOrder && method === 'GET') {
+        return json(response, 200, await getPurchaseOrder(db, purchaseOrder[1], user));
+      }
+      if (purchaseOrder && method === 'PATCH') {
+        return json(response, 200, await updatePurchaseOrder(db, purchaseOrder[1], await readJson(request), user));
+      }
+      const purchaseOrderStatus = /^\/api\/purchase-orders\/([^/]+)\/status$/.exec(path);
+      if (purchaseOrderStatus && method === 'POST') {
+        return json(response, 200, await transitionPurchaseOrder(db, purchaseOrderStatus[1], await readJson(request), user));
+      }
+      const purchaseOrderItems = /^\/api\/purchase-orders\/([^/]+)\/items$/.exec(path);
+      if (purchaseOrderItems && method === 'POST') {
+        return json(response, 201, await addPurchaseOrderItem(db, purchaseOrderItems[1], await readJson(request), user));
+      }
+      const purchaseOrderItem = /^\/api\/purchase-orders\/([^/]+)\/items\/([^/]+)(\/status)?$/.exec(path);
+      if (purchaseOrderItem && ((!purchaseOrderItem[3] && method === 'PATCH') || (purchaseOrderItem[3] && method === 'POST'))) {
+        const order = await getPurchaseOrder(db, purchaseOrderItem[1], user);
+        if (!order.items.some(item => item.id === purchaseOrderItem[2].toLowerCase())) {
+          throw new RepositoryError(404, 'Purchase order item not found.', 'PO_ITEM_NOT_FOUND');
+        }
+        const operation = purchaseOrderItem[3] ? transitionPurchaseOrderItem : updatePurchaseOrderItem;
+        return json(response, 200, await operation(db, purchaseOrderItem[2], await readJson(request), user));
+      }
+      if (path === '/api/cost-impacts' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id');
+        if (!siteId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(siteId)) {
+          throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
+        }
+        await requireRole(db, siteId.toLowerCase(), user);
+        await requireModule(db, siteId.toLowerCase(), user, 'impacts');
+        return json(response, 200, await listCostImpacts(db, { siteId, status: url.searchParams.get('status') }));
+      }
+      if (path === '/api/cost-impacts' && method === 'POST') {
+        return json(response, 201, await createCostImpact(db, await readJson(request), user));
+      }
+      const costImpact = /^\/api\/cost-impacts\/([^/]+)$/.exec(path);
+      if (costImpact && method === 'GET') {
+        const record = await getCostImpact(db, costImpact[1], user);
+        await requireRole(db, record.site_id, user);
+        await requireModule(db, record.site_id, user, 'impacts');
+        return json(response, 200, record);
+      }
+      const costImpactTransition = /^\/api\/cost-impacts\/([^/]+)\/transition$/.exec(path);
+      if (costImpactTransition && method === 'POST') {
+        return json(response, 200, await transitionCostImpact(db, costImpactTransition[1], await readJson(request), user));
+      }
+      if (path === '/api/deviations' && method === 'GET') {
+        const siteId = url.searchParams.get('site_id');
+        if (!siteId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(siteId)) {
+          throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
+        }
+        await requireRole(db, siteId.toLowerCase(), user);
+        await requireModule(db, siteId.toLowerCase(), user, 'deviations');
+        return await paginatedJson(response, url, db, listDeviations, countDeviations, { siteId,
+          status: url.searchParams.get('status'), priority: url.searchParams.get('priority'),
+          withoutOwner: url.searchParams.get('without_owner') === 'true', absent: url.searchParams.get('absent') === 'true' });
+      }
+      if (path === '/api/deviations/import' && method === 'POST') {
+        const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_IMPORT_BYTES / 3) + 65536 });
+        const result = Object.hasOwn(input, 'data_base64') ? await importDeviationWorkbook(db, input, user)
+          : await importDeviations(db, input.site_id, user, input.meta);
+        return json(response, 200, result);
+      }
+      if (path === '/api/deviation-imports/latest' && method === 'GET') {
+        return json(response, 200, await latestDeviationImports(db, url.searchParams.get('site_id'), user));
+      }
+      const deviationAction = /^\/api\/deviations\/([^/]+)\/(owner|attribution|events)$/.exec(path);
+      if (deviationAction) {
+        const [, id, action] = deviationAction;
+        if (action === 'events' && method === 'GET') return json(response, 200, await listDeviationEvents(db, id, user));
+        if (method === 'PATCH' && action !== 'events') {
+          const update = action === 'owner' ? updateDeviationOwner : updateDeviationAttribution;
+          return json(response, 200, await update(db, id, await readJson(request), user));
+        }
+      }
+      if (path === '/api/deviations/reconciliation' && method === 'GET') {
+        return json(response, 200, await deviationReconciliation(db, { siteId: url.searchParams.get('site_id') }, user));
+      }
+      const deviation = /^\/api\/deviations\/([^/]+)$/.exec(path);
+      if (deviation && method === 'GET') {
+        const record = await getDeviation(db, deviation[1]);
+        await requireRole(db, record.site_id, user);
+        await requireModule(db, record.site_id, user, 'deviations');
+        return json(response, 200, record);
+      }
+      if (path === '/api/attachments' && method === 'POST') {
+        const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_ATTACHMENT_BYTES / 3) + 65536 });
+        return json(response, 201, await createAttachment(db, input, user, storage));
+      }
+      if (path === '/api/attachments' && method === 'GET') {
+        const input = {};
+        for (const key of ['site_id', 'entity_type', 'entity_id']) {
+          if (url.searchParams.has(key)) input[key] = url.searchParams.get(key);
+        }
+        return json(response, 200, await listAttachments(db, input, user));
+      }
+      const attachment = /^\/api\/attachments\/([^/]+)$/.exec(path);
+      if (attachment && method === 'GET') {
+        const file = await getAttachment(db, attachment[1], user, storage);
+        if (response.destroyed) { file.stream.destroy(); return; }
+        if (['hse_event', 'hse_inspection'].includes(file.entity_type)) {
+          try { await appendAttachmentRead(db, file, user); }
+          catch { console.error('HSE attachment read audit failed.'); }
+        }
+        response.writeHead(200, {
+          'Content-Type': file.mime, 'Content-Length': String(file.size),
+          'Content-Disposition': `attachment; filename="download"; filename*=UTF-8''${encodeS3Component(file.filename)}`,
+          'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "sandbox; default-src 'none'",
+        });
+        await pipeline(file.stream, response);
+        return;
+      }
+      if (attachment && method === 'DELETE') {
+        await deleteAttachment(db, attachment[1], user, storage);
+        response.writeHead(204);
+        response.end();
+        return;
+      }
+      if (path === '/api/sites' && method === 'GET') return json(response, 200, await listSites(db, user));
+      if (path === '/api/sites' && method === 'POST') {
+        const input = await readJson(request);
+        const created = await db.transaction(async tx => {
+          if (!await tx.get("SELECT site_id FROM site_members WHERE user_id = ? AND role = 'owner'", user.id)) {
+            throw new RepositoryError(403, 'An owner role is required to create sites.', 'FORBIDDEN');
+          }
+          const created = await createSite(tx, input);
+          await tx.run("INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'owner')", created.id, user.id);
+          return created;
+        });
+        return json(response, 201, created);
+      }
+      const evidence = /^\/api\/sites\/([^/]+)\/evidence-export$/.exec(path);
+      if (evidence && method === 'GET') {
+        const checksum = url.searchParams.get('checksum');
+        const generatedAt = url.searchParams.get('generated_at') ?? undefined;
+        const expected = url.searchParams.get('sha256') ?? undefined;
+        const sidecar = checksum === 'sidecar';
+        if (sidecar && (!generatedAt || !expected)) {
+          throw new RepositoryError(400, 'Checksum sidecar requires the paired generated_at and sha256.', 'VALIDATION_ERROR');
+        }
+        if (!sidecar && (checksum !== null || generatedAt !== undefined || expected !== undefined)) {
+          throw new RepositoryError(400, 'Invalid evidence export parameters.', 'VALIDATION_ERROR');
+        }
+        const { csv, sha256, generatedAt: at } = await evidenceExport(db, evidence[1], user, { generatedAt, expected });
+        const paired = new URLSearchParams({ checksum: 'sidecar', generated_at: at, sha256 });
+        if (!sidecar) response.setHeader('Link', `<${path}?${paired}>; rel="describedby"; type="text/plain"`);
+        response.writeHead(200, {
+          'Content-Type': sidecar ? 'text/plain; charset=utf-8' : 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="site-evidence.${sidecar ? 'sha256' : 'csv'}"`,
+          'X-Content-SHA256': sha256,
+        });
+        response.end(Buffer.from(sidecar ? sha256 : csv, 'utf8'));
+        return;
+      }
+      const site = /^\/api\/sites\/([^/]+)$/.exec(path);
+      if (site && method === 'GET') {
+        await requireRole(db, site[1], user);
+        return json(response, 200, await getSite(db, site[1]));
+      }
+      if (site && method === 'PATCH') return json(response, 200, await updateSite(db, site[1], await readJson(request), user));
+      const members = /^\/api\/sites\/([^/]+)\/members$/.exec(path);
+      const assignable = /^\/api\/sites\/([^/]+)\/assignable$/.exec(path);
+      if (assignable && method === 'GET') return json(response, 200, await listAssignable(db, assignable[1], user, { forDeviation: url.searchParams.get('purpose') === 'deviation' }));
+      if (members && method === 'GET') return json(response, 200, await listMembers(db, members[1], user));
+      if (members && method === 'POST') return json(response, 200, await setMember(db, members[1], await readJson(request), user));
+      if (path === '/api/tasks' && method === 'GET') {
+        const siteId = siteFromQuery(url, ['site_id', 'siteId', 'status', 'kind', 'closed_with_waiver', 'limit', 'offset']);
+        if (siteId) {
+          await requireRole(db, siteId, user);
+          await requireModule(db, siteId, user, 'tasks');
+        }
+        return await paginatedJson(response, url, db, listTasks, countTasks, {
+          siteId, status: url.searchParams.get('status'), kind: url.searchParams.get('kind'),
+          closedWithWaiver: url.searchParams.get('closed_with_waiver') === 'true',
+        }, user);
+      }
+      if (path === '/api/tasks' && method === 'POST') {
+        const { input, requestHash } = await readJson(request, { includeHash: true });
+        if (typeof input.siteId !== 'string' || !input.siteId.trim()) throw new RepositoryError(400, 'siteId is required.', 'VALIDATION_ERROR');
+        await requireRole(db, input.siteId.trim(), user, WRITE_ROLES);
+        await requireModule(db, input.siteId.trim(), user, 'tasks');
+        const result = await createTaskResponse(db, { ...input, actor: user.name }, {
+          key: request.headers['idempotency-key'],
+          requestHash: createHash('sha256').update(user.id).update(requestHash).digest('hex'),
+        });
+        return json(response, result.status, result.body);
+      }
+      const task = /^\/api\/tasks\/([^/]+)$/.exec(path);
+      if (task && method === 'PATCH') return json(response, 200, await updateTaskWbs(db, task[1], await readJson(request), user));
+      if (task && method === 'GET') {
+        const record = await getTask(db, task[1]);
+        await requireRole(db, record.site_id, user);
+        await requireModule(db, record.site_id, user, 'tasks');
+        return json(response, 200, record);
+      }
+      const acceptance = /^\/api\/tasks\/([^/]+)\/acceptance$/.exec(path);
+      if (acceptance && method === 'PATCH') {
+        return json(response, 200, await acceptTask(db, acceptance[1], await readJson(request), user));
+      }
+      const transition = /^\/api\/tasks\/([^/]+)\/transition$/.exec(path);
+      if (transition && method === 'POST') {
+        return json(response, 200, await transitionTask(db, transition[1], await readJson(request), user));
+      }
+      if (path === '/api/diary' && method === 'GET') {
+        const siteId = siteFromQuery(url, ['site_id', 'siteId', 'limit', 'offset']);
+        if (siteId) {
+          await requireRole(db, siteId, user);
+          await requireModule(db, siteId, user, 'diary');
+        }
+        return await paginatedJson(response, url, db, listDiary, countDiary, { siteId }, user);
+      }
+      if (path === '/api/diary' && method === 'POST') {
+        const input = await readJson(request);
+        if (typeof input.siteId !== 'string' || !input.siteId.trim()) throw new RepositoryError(400, 'siteId is required.', 'VALIDATION_ERROR');
+        await requireRole(db, input.siteId.trim(), user, WRITE_ROLES);
+        await requireModule(db, input.siteId.trim(), user, 'diary');
+        return json(response, 201, await createDiary(db, input));
+      }
+      json(response, 404, { error: 'Route not found.', code: 'NOT_FOUND' });
+    } catch (error) {
+      // A failed/aborted download must not append JSON to a binary response.
+      if (response.headersSent || response.destroyed) { response.destroy(); return; }
+      if (error instanceof ObjectStorageError) {
+        return json(response, error.status, { error: error.message, code: error.code });
+      }
+      if (error instanceof MailNotConfiguredError || error instanceof MailDeliveryError) {
+        return json(response, 503, { error: error.message, code: error.code });
+      }
+      if (isDecision && error instanceof RepositoryError && error.code !== 'INVALID_FORM') return html(response, error.status, error.message);
+      if (error instanceof RepositoryError) {
+        if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
+        json(response, error.status, { error: error.message, code: error.code });
+      } else {
+        console.error('Backend request failed.');
+        json(response, 500, { error: 'Internal server error.', code: 'INTERNAL_ERROR' });
+      }
+    }
+  });
+}

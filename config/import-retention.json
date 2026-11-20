@@ -1,0 +1,7 @@
+{
+  "default_days": 90,
+  "max_days": 90,
+  "family_overrides": { "employees": 30, "work_days": 30 },
+  "site_overrides": {},
+  "exceptions": []
+}

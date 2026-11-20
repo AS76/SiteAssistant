@@ -1,0 +1,195 @@
+---
+title: Attività e verifiche
+description: Creare attività, farle avanzare di stato e verificarle.
+---
+
+import { Image } from 'astro:assets';
+import flusso from '../../../assets/flusso-stati-attivita.svg';
+import board from '../../../assets/board-elenco.svg';
+import Shot from '../../../components/Shot.astro';
+
+L'**attività** è l'unità di lavoro in cantiere. Ogni attività appartiene a un cantiere, ha un **esecutore** e un **verificatore** distinti, e avanza solo attraverso passaggi consentiti. La regola di fondo: **chi esegue non può verificare il proprio lavoro**.
+
+## Creare un'attività
+
+A cosa serve: mettere in cantiere un lavoro con qualcuno che lo esegue e qualcuno che lo verifica.
+
+1. Apri **Attività** e premi **Nuova attività**.
+2. Compila titolo, area e impresa.
+3. Scegli **esecutore** e **verificatore** dagli elenchi dei membri del cantiere; per chi non ha un account, per esempio un subappaltatore, scegli **Altra persona…** e scrivi il nome. Devono restare due persone diverse.
+4. Scegli il **tipo** — **Ordinaria** o **Correttiva** — la **priorità** e, se serve, la **scadenza**.
+5. Se il cantiere ha una **Struttura progetto** (WBS), scegli a quale nodo collegare l'attività; il predefinito è **Da associare**, e puoi collegarla anche dopo dalla scheda.
+6. Premi **Salva**: l'attività nasce in stato `todo` e compare nella colonna **Da fare**.
+
+| Campo | Obbligatorio | Note |
+| :-- | :-- | :-- |
+| Titolo | Sì | Massimo 180 caratteri |
+| Area | No | Massimo 100 caratteri |
+| Impresa | No | Massimo 100 caratteri |
+| Esecutore | Sì | Un membro del cantiere scelto dall'elenco, oppure un nome libero |
+| Verificatore | Sì | Chi controlla e chiude il lavoro; solo owner e chi ha ruolo verificatore |
+| Tipo | No | **Ordinaria** (predefinito) o **Correttiva** |
+| Priorità | Sì | `normal`, `high`, `urgent` |
+| Scadenza | No | Data, già impostata a oggi |
+| Struttura progetto | No | Nodo WBS del cantiere; se resta vuoto la scheda mostra **Da associare** |
+
+**Esecutore e verificatore devono essere due persone diverse**: l'applicazione rifiuta l'assegnazione se coincidono.
+
+**Scegliere un membro collega l'attività al suo account.** Il nome resta scritto nell'attività come riferimento, ma la verifica la può fare la persona scelta. Con **Altra persona…** l'attività porta solo un nome: non è collegata a un account e la verifica resta agli owner. L'elenco dei verificatori mostra soltanto owner e chi ha ruolo verificatore, e la persona già scelta come esecutore compare disabilitata.
+
+:::caution[Se l'attività non viene creata]
+- **Esecutore e verificatore coincidono:** scegli due persone diverse; la regola vale anche per un owner.
+- **Elenco dei membri non disponibile:** il modulo lo segnala sopra i pulsanti. Puoi comunque scegliere **Altra persona…** e inserire un nome libero.
+- **Campi obbligatori vuoti:** il modulo segnala l'errore sopra i pulsanti e porta il focus sul primo campo da correggere.
+- **Attività creata ma non visibile:** controlla i filtri della bacheca e il cantiere selezionato.
+:::
+
+## Attività ordinarie e correttive
+
+Il **tipo** distingue il lavoro previsto dall'intervento che corregge qualcosa:
+
+- **Ordinaria**: il lavoro pianificato. È il valore predefinito e non viene memorizzato come tipo, quindi le attività create prima di questa classificazione restano ordinarie.
+- **Correttiva**: un intervento che corregge un difetto o una non conformità. Sulle schede della bacheca compare il badge **Correttiva**.
+
+Il tipo si sceglie alla creazione e non si modifica dopo: le attività non sono modificabili. Il filtro **Tipo** nella barra dei filtri vale per la bacheca, per l'elenco, per la vista **Attività leggere** e per l'esportazione CSV, che ha una colonna **Tipo** con l'etichetta tradotta.
+
+## Gli stati
+
+<figure>
+  <Image src={flusso} alt="Flusso degli stati di un'attività" />
+  <figcaption>Il ciclo di vita di un'attività: da <code>todo</code> a <code>closed</code>, con la possibilità di bloccare da più stati e di riaprire un'attività chiusa.</figcaption>
+</figure>
+
+| Stato | Significato |
+| :-- | :-- |
+| `todo` | Da fare: pianificata, non ancora avviata |
+| `in_progress` | In corso |
+| `to_verify` | Eseguita, in attesa di verifica |
+| `closed` | Verificata e chiusa |
+| `blocked` | Ferma per un impedimento |
+
+## Far avanzare un'attività
+
+A cosa serve: registrare il passaggio di stato con la persona, l'ora e la nota che lo giustificano.
+
+1. Apri il dettaglio dell'attività dalla scheda o dalla riga.
+2. Guarda lo **stato corrente** e i pulsanti disponibili: cambiano con lo stato.
+3. Premi il pulsante del passaggio che devi fare — per esempio **Avvia**, **Sottoponi a verifica**, **Blocca**.
+4. Scrivi la **nota** o la **motivazione** richiesta dal passaggio.
+5. Premi **Salva**: la **cronologia** nel dettaglio registra chi, quando, da quale stato e con quale nota.
+
+| Da | A | Cosa fai | Cosa serve |
+| :-- | :-- | :-- | :-- |
+| `todo` | `in_progress` | **Avvia** | — |
+| `todo` | `blocked` | **Blocca** | Motivazione |
+| `in_progress` | `to_verify` | **Sottoponi a verifica** | Nota di esecuzione |
+| `in_progress` | `blocked` | **Blocca** | Motivazione |
+| `to_verify` | `closed` | **Verifica** | Nota; solo il verificatore assegnato o un owner |
+| `to_verify` | `blocked` | **Blocca** | Motivazione |
+| `closed` | `in_progress` | **Riapri** | Motivazione; solo il verificatore assegnato o un owner |
+
+:::caution[Se il passaggio non è disponibile]
+- **Nessun pulsante nel dettaglio:** lo stato corrente non prevede quel passaggio. Riapri il dettaglio per aggiornare i dati.
+- **Nota o motivazione mancante:** il modulo rifiuta il salvataggio e segnala il campo.
+- **Verifica negata:** solo il verificatore assegnato o un owner può chiudere o riaprire; chi ha eseguito il lavoro non può verificarlo.
+- **Attività bloccata:** la ripresa da `blocked` non è esposta nell'interfaccia in questa versione.
+:::
+
+## Cambiare stato dalla bacheca
+
+A cosa serve: fare il passaggio di stato più comune senza aprire il dettaglio.
+
+1. Nella bacheca, guarda l'angolo di una scheda attività: il pulsante **⋯** apre il menu **Cambia stato**.
+2. La finestra mostra lo stato corrente e i soli passaggi consentiti da quello stato, ciascuno con il pulsante **Passa a …**.
+3. Premi il passaggio che ti serve: se richiede una nota o una motivazione si apre la finestra consueta, altrimenti il passaggio viene registrato subito.
+4. Il menu rispetta le stesse regole del dettaglio: permessi, transizioni consentite e cronologia sono gli stessi. Chi non può scrivere non vede il pulsante **⋯**.
+
+Per i passaggi meno frequenti — o per leggere la cronologia mentre decidi — apri il dettaglio come descritto sopra: i due percorsi portano allo stesso risultato.
+
+## Collegare un'attività alla WBS
+
+A cosa serve: ancorare ogni attività al nodo della **Struttura progetto** a cui appartiene, così avanzamento e pianificazione parlano della stessa riga di lavoro.
+
+1. Il collegamento si sceglie anche alla creazione, con il selettore **Struttura progetto** del form **Nuova attività**; se lo lasci vuoto la scheda mostra **Da associare**.
+2. Apri il dettaglio dell'attività: la riga **Struttura progetto** mostra il nodo collegato, con codice e descrizione.
+3. Per owner ed editor la stessa riga propone **Associa alla WBS**: l'elenco propone i nodi del cantiere e preseleziona quello attuale.
+4. Scegli il nodo e premi **Salva**: schede, dettaglio, filtri e viste collegate mostrano subito il nuovo collegamento.
+
+Il collegamento si può cambiare in seguito riaprendo la stessa finestra. Se il cantiere non ha una struttura importata, il comando non compare: importa o crea la struttura dalla vista **Struttura progetto** (vedi [il modulo dedicato](/moduli/wbs/)).
+
+## La verifica
+
+La chiusura richiede due atti distinti:
+
+1. l'**esecutore** dichiara il completamento con una nota di esecuzione;
+2. il **verificatore** conferma con la propria nota.
+
+Solo il verificatore collegato all'attività (o un owner) può chiudere o riaprire. Se l'attività è stata assegnata con un nome libero non c'è un verificatore collegato: la verifica resta agli owner. Chi ha eseguito il lavoro non può mai verificarlo da solo.
+
+## Allegati
+
+Nel dettaglio di un'attività puoi allegare foto o PDF, fino a **15 MiB** per file; il caricamento è riservato a owner ed editor. L'evidenza della verifica resta una **nota testuale**: l'allegato non sostituisce la nota.
+
+## Bacheca, elenco e attività leggere
+
+<Shot
+  src="/images/2026-11/tasks-desktop.png"
+  alt="Bacheca delle attività con le colonne Da fare 4, In corso 3, Da verificare 3, Chiuse 5 e Bloccata 1, le schede con area, titolo, priorità, impresa, squadra, nodo WBS (Da associare) e scadenza, e il pulsante ⋯ di cambio stato"
+  caption="La bacheca: una colonna per stato e una scheda per attività, con il pulsante ⋯ per il cambio stato rapido. I filtri sopra la bacheca valgono anche per l'elenco e per l'esportazione CSV."
+/>
+
+<Shot
+  src="/images/2026-11/tasks-light-desktop.png"
+  alt="Vista Attività leggere con la tabella Titolo, Area, Esecutore, Scadenza, Stato e Azione, e i pulsanti Chiudi e Riapri sulle righe"
+  caption="La vista attività leggere: una riga per attività ordinaria e un solo comando, Chiudi o Riapri."
+/>
+
+<figure>
+  <Image src={board} alt="Vista bacheca e vista elenco" />
+  <figcaption>A sinistra la bacheca, con le colonne per stato; a destra l'elenco, con una riga per attività.</figcaption>
+</figure>
+
+La **bacheca** raggruppa le attività per stato, l'**elenco** le ordina per scadenza e priorità, la vista **Attività leggere** è una tabella essenziale per chiudere o riaprire in fretta. Da bacheca ed elenco si apre il dettaglio con i campi e la cronologia completa. I filtri (testo, stato, esecutore, priorità, tipo) si applicano a tutte e tre le viste e all'esportazione CSV.
+
+## Attività leggere
+
+A cosa serve: chiudere o riaprire le attività ordinarie che passano da una verifica, senza aprire il dettaglio.
+
+1. Apri **Attività** e scegli **Attività leggere** accanto a **Board** ed **Elenco**.
+2. Imposta la ricerca e i filtri come nelle altre viste: valgono anche qui.
+3. Leggi la tabella: **Attività**, **Area**, **Esecutore**, **Scadenza**, **Stato** e **Azione**.
+4. Premi **Chiudi** su un'attività da verificare, oppure **Riapri** su un'attività chiusa.
+5. Il pulsante avvia il passaggio: se richiede una nota o una motivazione si apre la finestra consueta — la chiusura chiede la nota di verifica, la riapertura la motivazione — e il passaggio viene registrato alla conferma.
+
+La vista mostra solo le attività **ordinarie**: le correttive restano in bacheca e in elenco. L'ordine mette prima le attività aperte e poi le chiuse; dentro ciascun gruppo, prima quelle con una scadenza, dalla più vicina, poi quelle senza scadenza, quindi per titolo.
+
+Il pulsante è l'unico comando della riga e non aggira le regole del flusso: la chiusura resta riservata al verificatore assegnato o a un owner, e la riapertura richiede la motivazione. Resta disabilitato quando lo stato non consente il passaggio — per esempio un'attività ancora **Da fare** o **In corso** non si chiude con un clic, deve prima essere sottoposta a verifica — e mentre una modifica sulla stessa attività è ancora in coda o è fallita. Chi ha ruolo `viewer` vede un trattino al posto del pulsante.
+
+Sul telefono, sotto gli 800 px di larghezza, la tabella diventa una **card per attività**: ogni campo ha la propria etichetta a fianco e il comando **Chiudi** o **Riapri** occupa l'ultima riga a tutta larghezza, alto almeno 44 px. I dati e le regole non cambiano: cambia solo la forma. Vedi [Guida rapida mobile](../../guida/mobile/#le-card-al-posto-delle-tabelle).
+
+## Viste salvate
+
+A cosa serve: ritrovare in un clic i filtri, l'ordinamento e le colonne che usi ogni giorno.
+
+1. Apri **Attività**: sopra i filtri trovi **Vista salvata**, con la voce **Nessuna vista**.
+2. Imposta i filtri e scegli **Board**, **Elenco** o **Attività leggere**; nell'elenco imposta anche **Ordina per**, **Direzione** e le **Colonne visibili**.
+3. Premi **Salva come vista**, dai un nome (massimo 80 caratteri) e, se vuoi, seleziona **Condividi con i membri del cantiere**.
+4. Scegli la vista dal menu per riapplicarla; la selezione vale per il cantiere corrente.
+5. Dopo una modifica, accanto al menu compare **Modificata · non salvata**: premi **Aggiorna allo stato attuale** per salvare i nuovi filtri, oppure **Rinomina** o **Elimina vista**.
+
+Le viste sono **personali** per impostazione predefinita; una vista **condivisa** è visibile a tutti i membri del cantiere e si riconosce dal suffisso **· Condivisa**. Solo chi ha creato la vista o un owner del cantiere può modificarla o eliminarla: per gli altri una vista condivisa è in sola lettura.
+
+:::caution[Se una vista non fa quello che ti aspetti]
+- **Nome già usato:** per lo stesso cantiere e la stessa persona i nomi devono essere unici; scegline un altro.
+- **Vista in sola lettura:** è condivisa e non l'hai creata tu. Per cambiarla, salva una tua copia con **Salva come vista**.
+- **Vista non più disponibile:** è stata eliminata o hai cambiato cantiere. Ricarica la pagina e scegli di nuovo **Nessuna vista**.
+- **Le colonne non cambiano:** ordinamento e colonne si impostano in modalità **Elenco**; la bacheca usa i filtri salvati ma non ha colonne da scegliere, e **Attività leggere** ha colonne fisse.
+:::
+
+## Cosa non è ancora disponibile
+
+- Condividere una vista con singole persone invece che con tutto il cantiere.
+- Modificare un'attività dopo la creazione.
+- Criteri di accettazione, descrizioni lunghe, checklist.
+- Eliminare un'attività.
+- Rifiutare una sottomissione (rimandarla a `in_progress`) o riprendere un'attività bloccata: queste transizioni esistono solo via API, non sono ancora esposte nell'applicazione.

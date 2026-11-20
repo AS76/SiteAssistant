@@ -1,0 +1,81 @@
+---
+title: Struttura progetto (WBS)
+description: Consultare e aggiornare la struttura del progetto, con i valori importati separati dalle modifiche di lavoro.
+---
+
+import { Image } from 'astro:assets';
+import albero from '../../../assets/albero-wbs.svg';
+import Shot from '../../../components/Shot.astro';
+
+La vista **Struttura progetto** mostra la gerarchia dei lavori (*Work Breakdown Structure*, WBS) del cantiere. I valori che arrivano dal Time Schedule restano separati e in sola lettura; un owner o un editor può aggiungere e modificare i valori operativi di nome, padre e ordine senza riscrivere la fonte.
+
+## Consultare la struttura
+
+A cosa serve: trovare il codice WBS giusto per leggere avanzamento, ore e deviazioni collegate.
+
+1. Apri **Struttura progetto** dalla navigazione.
+2. Scegli **Albero** per la gerarchia espandibile, oppure **Tabella piatta** per l'elenco completo.
+3. Nell'albero apri e chiudi un ramo con la freccia accanto alla voce; usa **Espandi tutto** e **Comprimi tutto** per l'intera struttura.
+4. Nella tabella piatta leggi codice, descrizione, padre, livello, ordine, avanzamento importato e date pianificate.
+5. Usa il codice WBS nelle altre viste per ritrovare lo stesso ramo e collegare attività, avanzamento e ore.
+
+## Modificare una voce
+
+Un **owner** o un **editor** può modificare la struttura dalla maschera della voce:
+
+- **Crea nodo**: aggiunge una voce nativa al cantiere, con codice, nome, padre e ordine.
+- **Modifica**: cambia nome, padre e ordine; il codice e gli altri valori importati restano in sola lettura.
+- **Archivia**: toglie la voce dalle lavorazioni correnti senza cancellarla né perdere i legami. La voce resta leggibile e può essere ripristinata.
+- **Provenienza**: la maschera distingue i valori della fonte dai valori di lavoro e mostra quando un campo locale è stato modificato.
+
+Un nodo importato e uno nativo hanno lo stesso tipo di identificativo operativo. Se la fonte cambia un campo che hai modificato, la maschera mostra un **conflitto**: il valore operativo resta attivo finché scegli esplicitamente se mantenere la modifica o ripristinare il valore della fonte.
+
+<Shot
+  src="/images/2026-11/wbs-desktop.png"
+  alt="Vista Struttura progetto ad albero con le voci 1 Impianto di smistamento, 1.1 Linea A, 1.2 Linea B, 2 Opere civili, 2.1 Fondazioni, 3 Impianti elettrici, i pulsanti Albero, Tabella piatta, Riprova e Crea nodo, e il comando Modifica su ogni nodo"
+  caption="L'albero della struttura progetto: i rami si aprono e si chiudono dalla freccia; i pulsanti in alto cambiano rappresentazione, ricaricano i dati e creano nuovi nodi, e ogni nodo si modifica dalla sua riga."
+/>
+
+## Cosa vedi
+
+La struttura è un albero di voci identificate da un **codice WBS** (per esempio `1`, `1.1`, `1.1.2`). Per ogni voce puoi vedere:
+
+- il codice e la descrizione;
+- il livello nella gerarchia;
+- l'avanzamento importato: nell'albero compare come **badge con la percentuale** accanto alla voce, quando il dato è presente;
+- le date di inizio e fine pianificate.
+
+<figure>
+  <Image src={albero} alt="Albero WBS della struttura progetto" />
+  <figcaption>L'albero della struttura progetto: le voci sono nidificate per livello. La voce tratteggiata è un "padre sintetico", ricostruito perché mancava nel Time Schedule.</figcaption>
+</figure>
+
+## Albero e tabella
+
+La vista ha due rappresentazioni:
+
+- **Albero:** gerarchia espandibile e comprimibile, con i pulsanti **Espandi tutto** e **Comprimi tutto**.
+- **Tabella piatta:** una riga per voce, ordinata per livello, con codice, descrizione, padre, livello, ordine, avanzamento e date pianificate.
+
+Quando il Time Schedule non contiene una voce padre, l'applicazione la ricostruisce come **padre sintetico**: è indicata con un contrassegno e ha i campi descrittivi vuoti.
+
+:::caution[Se la struttura è incompleta]
+- **Manca un ramo:** la gerarchia può essere parziale perché il Time Schedule non conteneva tutte le voci; un padre ricostruito è marcato come sintetico.
+- **Voce assente dalla fonte:** un file parziale non cancella nulla. Se una voce manca da uno snapshot completo verificato, resta con i suoi legami ed è marcata **da verificare**; riconciliala prima di considerarla chiusa.
+- **Vista vuota:** non è stato importato alcun Time Schedule. Un owner o un editor può caricare l'export di pianificazione con la famiglia Time Schedule.
+- **Errore di caricamento:** premi **Riprova**; se resta, controlla la connessione e l'import più recente.
+:::
+
+## Chi può fare cosa
+
+- Tutti i membri del cantiere possono **consultare** la struttura; il viewer non vede i comandi di modifica.
+- Un **owner** o un **editor** può creare, modificare, spostare, riordinare e archiviare le voci.
+- Solo un **owner** può **importare** uno snapshot del Time Schedule via API.
+- Un **owner** o un **editor** può importare un export di pianificazione con la famiglia **Time Schedule** dalla Panoramica: vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/).
+
+L'import non sovrascrive le modifiche locali. Se la fonte cambia un campo modificato, il conflitto resta visibile fino alla risoluzione; un'assenza in un file parziale non è una rimozione.
+
+## Cosa non è ancora disponibile
+
+- Calcolare l'avanzamento dalle voci WBS: la percentuale mostrata è solo il valore importato; l'avanzamento collegato e quello calcolato sono nella vista [Avanzamento](../avanzamento/).
+- Modificare il codice WBS di una voce importata: il codice resta un valore della fonte; per cambiarlo serve una nuova esportazione.

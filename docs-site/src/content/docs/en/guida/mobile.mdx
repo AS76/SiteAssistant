@@ -1,0 +1,210 @@
+---
+title: Mobile quick guide
+description: "How SiteAssistant changes on a phone: the Today screen, bottom bar, cards instead of tables, touch targets."
+---
+
+import Shot from '../../../../components/Shot.astro';
+
+On a phone SiteAssistant shows the **same data** and the **same permissions** as on the desktop. What changes is how you move around: the first screen is **Today**, which answers "what do I do now", navigation moves to the bottom, tables become cards and controls grow for your finger.
+
+## The bottom bar
+
+What it is for: reaching the four views you use most with your thumb, without opening a menu.
+
+1. Open the application in your phone browser and sign in.
+2. Use the **bottom bar**: **Today**, **Tasks**, **Deviations**, **Hours**, **More**.
+3. Tap **Hours** for Time bookings: it is the same view the desktop calls *Time bookings*.
+4. Tap **More** for the remaining views: **Overview**, **Sites**, **Project structure**, **Site progress**, **Cost impacts**, **Diary**, **Tools**, **Fitness**, **HSE** and, when the module is granted, **Procurement**.
+5. The active item is highlighted; when you are in a view opened from **More**, it is **More** that looks active.
+
+<Shot
+  src="/images/2026-11/en/overview-mobile.png"
+  alt="Overview on a phone with the SiteAssistant header, site selector, AI, gear, Manual, Sign out and EN controls, and the bottom bar with Today, Tasks, Deviations, Hours and More"
+  caption="The Overview on a phone. At the top the site selector and the controls (AI, gear, Manual, Sign out, EN); below 800 px the user name is hidden. At the bottom the bar with five items."
+  compact
+/>
+
+Above the content the **header** stays: full-width site selector, then the assistant **AI** button, the settings gear, the manual link, **Sign out** and the **EN/IT** selector. Below **800 px** the user name is hidden; below **520 px** the selector takes a full row. The site name is not repeated in the page title, where only the code stays.
+
+:::caution[If an item is missing]
+- The bar has five items when you have access to every module: if your access excludes one, its entry does not appear and the bar shows fewer. An excluded module does not appear in **More** either.
+- The bar appears only below **800 px** wide: on a landscape tablet you see the side navigation again.
+- If **More** does not open the list, reload the page: the list is a window of the application, not a separate page.
+:::
+
+## The Today screen
+
+What it is for: knowing what to do now without opening each module.
+
+Below **800 px** wide the application opens on **Today** when the address does not name a view; on the desktop, and on a direct link to a view, the first screen stays the one you asked for. **Today** is always available and composes only the modules you can access. Above **900 px** wide the screen uses a full-width two-column layout, so on the desktop the blocks sit side by side instead of stacked.
+
+The screen has three blocks:
+
+1. **To do today**: at most five rows, without duplicates, in this order — your open tasks due today or already past (**Assigned to me**), the ones you have to verify (**For me to verify**), at most two progress items with open steps (**Open steps**), today's diary when it is missing (**Today’s diary is missing**), deviations not closed or rejected (**Read only**) and, at the bottom, overdue tasks with no executor (**no linked executor**). Each row also shows status and due date when there is one.
+2. **Quick actions**: **Verify tasks**, **Write diary**, **Take photo**, **Open progress**. **Verify tasks** opens the light task list already filtered to the ones awaiting verification, **Open progress** opens the Site progress view; the other two commands open today's diary and the photo target choice. They take at most two taps and follow your permissions: a command you cannot use is disabled, and an action from an excluded module does not appear.
+3. **Recent actions**: the last three closed tasks, with their closing date; when the date is missing the row says so.
+
+Tapping a row opens the target view **already filtered** on the record: **Tasks** in list mode, **Site progress** or **Deviations** in list mode, **Diary** on the given day. At the top of the view a note says the selection comes from **Today**, with **Clear filters** to drop it.
+
+:::caution[If Today looks incomplete]
+- The resources behind **To do today** load independently: while a resource is loading or unavailable, the list declares itself **incomplete** instead of showing partial data without warning.
+- When loading a resource fails, its row offers **Retry**: the retry concerns that resource only, not the whole screen.
+- Tasks with no executor are not "yours": they appear at the bottom as **no linked executor** only when they were due before today.
+- If the list is empty, the application says there are no actions to suggest from the available data: it does not mean the site has stopped.
+- Offline the screen shows the latest data saved on the device and the number of queued writes, which sync when the network returns; for a resource with no saved data the screen says it is unavailable offline.
+:::
+
+## Today: what to do now
+
+What it is for: opening the application and knowing where to start, without reading a dashboard.
+
+On a phone the first screen is **Today** (on desktop it stays the Overview).
+
+<Shot
+  src="/images/2026-11/en/today-mobile.png"
+  alt="Today screen on a phone: To do today with tasks assigned to me, one to verify and the missing site diary; the bottom bar with Today as the first entry"
+  caption="Today: at most five rows — my overdue or to-verify tasks, the missing diary, open deviations. Every row opens the view already filtered."
+  compact
+/>
+
+1. **To do today** — at most five rows, in order: tasks assigned to you that are due today or overdue, the ones you have to verify, up to two progress items with open steps, today's diary when missing, open deviations (read only). Tasks with no responsible are not *yours* and appear at the bottom, marked.
+2. **Quick actions** — four commands with a verb: **Verify tasks**, **Write the diary**, **Take a photo**, **Open progress**. They land on the right view within one or two taps.
+3. **Latest actions** — the three tasks closed most recently.
+4. **Connection status** — offline, one line says how many changes are queued; the list stays the last loaded one and says so.
+
+<Shot
+  src="/images/2026-11/en/today-actions-mobile.png"
+  alt="Today screen scrolled down: four Quick actions (Verify tasks, Write the diary, Take a photo, Open progress) and Latest actions with three closed tasks"
+  caption="Quick actions and latest actions, scrolling Today down."
+  compact
+/>
+
+:::note[Why five rows]
+The cap is deliberate: this is a decision screen, not a list. If you need more, the module view is one tap away.
+:::
+
+## Cards instead of tables
+
+What it is for: reading a table row without horizontal scrolling.
+
+1. Open **Hours**, **Site progress** or **Cost impacts**; for **Deviations** choose **List**, for **Tasks** choose **Light tasks**.
+2. Each row becomes a **card**: the record title is at the top right, labels on the left and values on the right.
+3. Scroll vertically to move from one card to the next.
+4. Use the menus above the list to filter; on a phone the **Column filters** button does not open the field row.
+5. In **Light tasks** the **Close** or **Reopen** command fills a whole row of the card, at least **44 px** tall: it is the only command and stays disabled when the status does not allow the transition.
+
+<div class="shot-pair">
+  <Shot
+    src="/images/2026-11/en/bookings-mobile.png"
+    alt="Time bookings on a phone: one card per booking with employee, progress item and hours, grouped by operational day"
+    caption="Time bookings: each booking is a card with employee, progress item and hours."
+    compact
+  />
+  <Shot
+    src="/images/2026-11/en/progress-mobile.png"
+    alt="Site progress on a phone: one card per item with section, area, progress percentage, bar and booked hours"
+    caption="Site progress: labels stay on the left, values on the right; the bar shows the percentage."
+    compact
+  />
+</div>
+
+:::caution[If a card looks cut off]
+- Long values wrap inside the card: you do not need to rotate the phone.
+- If text leaves the screen, the page stays at its designed scale: pinch zoom is blocked (see **Zoom stays put**), so horizontal scrolling is not the answer — report the view and the phone width.
+- Totals at the top of a view (for example in **Cost impacts**) refer to the filtered data, not to the whole site.
+:::
+
+## Touch targets
+
+What it is for: hitting the right control first time, even with gloves on.
+
+1. The main buttons — **New task**, **Add contribution**, **Refresh data**, **Column filters** — have a large touch area and sit on a row separate from the content. On a touch device controls are at least **44 px** tall: that covers buttons, small buttons, the **Board/List** selector, date fields, the **+** and **−** buttons of the hours booking stepper, **every dropdown menu** — filters, sorting, forms and settings — and the two controls you tap first, the **site selector** and the **Manual** link. Desktop sizes do not change.
+2. Date fields are tapped like buttons: below **520 px** wide the text in the field is **16 px**, the size under which the phone browser no longer zooms the page when you focus the field. The field shows the date in the browser language, with no repeated hint under it.
+3. Dropdown menus are tall and full width: tap the menu and pick an item from the system list.
+4. In the task and deviation boards, status groups are an **accordion**: tap a status heading to open or close it; one group is open at a time.
+5. The **AI** button stays at the bottom right, above the content, and the same command is in the header: both open the same panel, closed with the ×.
+
+<div class="shot-pair">
+  <Shot
+    src="/images/2026-11/en/tasks-mobile.png"
+    alt="Tasks on a phone: filters on several rows, the Board and List selector, a status accordion with the To do group open and the task cards"
+    caption="Tasks: filters and the Board/List selector on separate rows, board as an accordion with one status open at a time."
+    compact
+  />
+  <Shot
+    src="/images/2026-11/en/deviations-mobile.png"
+    alt="Deviations on a phone: status and priority filters, the Board and List selector, accordion board groups and the AI button above the content"
+    caption="Deviations: the board is a status accordion; the AI button stays above the cards."
+    compact
+  />
+</div>
+
+:::caution[If a tap does not do what you expect]
+- In the board, a tap on a status heading opens or closes the group; a tap on a card opens the detail.
+- If the **AI** button covers a control, scroll the page slightly: the button stays fixed at the bottom right and the control becomes reachable again.
+- On very narrow screens the filter menus truncate their text: the selected value is what matters, not the label.
+- In the **HSE** view the two period fields, **From** and **To**, go one under the other at full width below **520 px**, each with its own label: they no longer share a half row. In HSE cards **Edit** and **Delete** stay on the same line, separated by a dot, with a tap area of at least **44 px**.
+- In **Deviations** the **To reconcile** panel is no longer at the top: below **520 px** it appears after the board or the list, so filters and deviations are reached straight away.
+:::
+
+## Zoom stays put
+
+What it is for: keeping the page at its designed scale while you work one-handed or with gloves on.
+
+The application **blocks two-finger zoom** and the browser's multi-touch gestures: pinching to zoom in or out does not change the page scale, which stays the one it is drawn at. Scrolling, dragging and tapping stay native to the phone, and turning the phone still adapts the page as before.
+
+This is deliberate: the page stays at the scale its controls are sized for, so cards, date fields and full-width buttons fill the available width.
+
+:::caution[If the page looks too big or too small]
+- The scale cannot be changed with your fingers and does not depend on an application setting: it is the one designed for the phone width.
+- On a landscape tablet, above **800 px** wide, the page uses the desktop layout, with the side navigation and smaller text.
+- If a block leaves the screen, report the view and the phone model: it is a layout defect, not a zoom question.
+:::
+
+## The remaining views
+
+**Overview**, **Sites**, **Cost impacts** and **Diary** keep the desktop structure, with controls stacked vertically. Open **More** to pick one.
+
+In the **Diary**, the panel that sits on the right on the desktop — **One operational day, two shifts**, with the operational day rule and the contribution limit — is a collapsible panel on a phone, **open by default**: the rule stays readable without taking over the page, and a tap on its heading closes or reopens it.
+
+<div class="shot-pair">
+  <Shot
+    src="/images/2026-11/en/sites-mobile.png"
+    alt="Sites on a phone: the FITT-01 site card with code, name, location, 18 tasks, 13 not yet closed, dates and the Selected button"
+    caption="Sites: one card per site, with counts and dates; the active site shows Selected."
+    compact
+  />
+  <Shot
+    src="/images/2026-11/en/diary-mobile.png"
+    alt="Diary on a phone: the operational day selector, the Print diary and Add contribution buttons and the empty state of the day"
+    caption="Diary: operational day, printing and adding a contribution stay at the top of the page."
+    compact
+  />
+</div>
+
+<div class="shot-pair">
+  <Shot
+    src="/images/2026-11/en/impacts-mobile.png"
+    alt="Cost impacts on a phone: Total claimed 41.500,50 € and Total settled 11.250,00 € in two stacked full-width panels, then the Status filter"
+    caption="Cost impacts: the two totals become full-width panels, one above the other."
+    compact
+  />
+  <Shot
+    src="/images/2026-11/en/wbs-mobile.png"
+    alt="Project structure on a phone: the Tree, Flat table, Retry and Create node buttons, then the tree with Expand all, Collapse all and an Edit command on every node"
+    caption="Project structure under More: tree and flat table stay reachable, with the create and edit controls at the top."
+    compact
+  />
+</div>
+
+:::caution[If a view does not load]
+- **Deviations**, **Site progress**, **Time bookings** and **Cost impacts** require a connection: offline they show a message instead of data.
+- **Today**, **Overview**, **Tasks** and **Diary** remain readable offline with the data saved on the device; queued changes sync when the network returns.
+- If the data looks old, press **Refresh data** in the view or reload the page.
+:::
+
+## What does not change
+
+- Sites, roles and permissions are the same as on the desktop; **Today** is one more view, not one more permission.
+- The **IT/EN** selector and [Settings](../impostazioni/) stay in the header.
+- CSV exports and diary printing use the phone browser's features.

@@ -1,0 +1,18 @@
+:root {
+  --sl-color-accent-low: #d1e7c0;
+  --sl-color-accent: #126c57;
+  --sl-color-accent-high: #0b3b30;
+}
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #17332c;
+  --sl-color-accent: #b9db9e;
+  --sl-color-accent-high: #d9efc9;
+}
+
+/* Two phone screenshots side by side; stacks on narrow screens. */
+.shot-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0 1.5rem;
+  align-items: start;
+}

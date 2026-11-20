@@ -1,0 +1,87 @@
+---
+title: Deviazioni
+description: Consultare le deviazioni importate, filtrarle per stato e priorità e leggere il dettaglio.
+---
+
+import Shot from '../../../components/Shot.astro';
+
+La vista **Deviazioni** mostra le deviazioni del cantiere selezionato. Sono dati **importati dal sistema di pianificazione** e si consultano in sola lettura: nell'applicazione non si creano e non si modificano. Per i totali per area PLC e il conteggio per stato in una tabella stampabile, vedi il [report del cantiere](../avanzamento/#report-del-cantiere).
+
+## Consultare le deviazioni
+
+A cosa serve: sapere quali deviazioni sono aperte, chi le segue e cosa è già stato chiuso.
+
+1. Apri **Deviazioni** dalla navigazione.
+2. Filtra per **Stato** e **Priorità**. I menu includono tutti i valori presenti nei dati, più le voci «Tutti gli stati» e «Tutte le priorità».
+3. Scegli la rappresentazione: **Board** per i gruppi per stato, **Elenco** per la tabella.
+4. Apri una scheda o una riga per il dettaglio.
+5. Nel dettaglio usa le schede **Dati** e **Riferimenti**: la prima raccoglie stato, priorità, descrizione e importi, la seconda i collegamenti.
+
+<Shot
+  src="/images/2026-11/deviations-desktop.png"
+  alt="Vista Deviazioni a bacheca con i filtri Stato e Priorità e le schede delle deviazioni con codice, titolo, stato, priorità e squadra"
+  caption="La bacheca delle deviazioni con i filtri Stato e Priorità: una scheda per deviazione. Il selettore Board/Elenco passa alla tabella."
+/>
+
+La **board** raggruppa le deviazioni in quattro gruppi per stato:
+
+- **Aperte** — stato `open` o `approved`;
+- **In corso** — stato `in_progress`;
+- **Da chiudere** — lavoro completato, stato `work_completed`;
+- **Chiuse** — stato `closed` o `rejected`.
+
+Il raggruppamento è solo di presentazione: ogni scheda continua a mostrare il proprio stato ufficiale esatto, per esempio **Approvato** dentro **Aperte** o **Respinto** dentro **Chiuse**. Ogni gruppo riporta il numero di deviazioni che contiene; un gruppo vuoto dice «Nessuna deviazione».
+
+Le deviazioni con uno stato non riconosciuto restano fuori dai quattro gruppi e compaiono a parte, sotto **Stato non mappato**. Se la board è più larga della finestra, sotto compare il suggerimento **scorri ↔** e il bordo sfuma dal lato in cui c'è altro contenuto; il suggerimento sparisce quando tutti i gruppi sono visibili. Su telefono i gruppi sono una fisarmonica, uno aperto alla volta.
+
+Anche la **priorità** compare con l'etichetta tradotta nella lingua dell'interfaccia — **Bassa**, **Media**, **Normale**, **Alta**, **Urgente** — sulle schede, nell'elenco, nel dettaglio e nel filtro **Priorità**; un valore non previsto resta com'è nel dato importato. Passando a EN cambiano insieme le schede e i menu.
+
+Nell'**elenco** le colonne sono riferimento, titolo, stato, priorità, assegnatario, creazione e chiusura; le intestazioni ordinano la tabella.
+
+:::caution[Se una deviazione non compare]
+- Controlla i filtri **Stato** e **Priorità**: un filtro attivo restringe l'elenco senza avvisare.
+- Le deviazioni arrivano dall'import di pianificazione: una deviazione assente dal file non esiste nel cantiere. Non si crea a mano da questa vista.
+- Se lo stato non è tra quelli previsti, la scheda compare in **Stato non mappato**: va corretto l'export.
+- La vista richiede la connessione: offline mostra un messaggio al posto dei dati.
+:::
+
+## Da riconciliare
+
+A cosa serve: vedere dove date e stati di una deviazione non tornano tra loro, senza correggerli.
+
+In cima alla vista, il pannello richiudibile **Da riconciliare** raccoglie i controlli sulle date delle deviazioni del cantiere (su telefono, sotto i **520 px**, il pannello passa **sotto** la bacheca o l'elenco, così filtri e deviazioni restano in cima):
+
+- **Chiusa senza data** — lo stato è `closed` ma la data di chiusura manca.
+- **Chiusura prima dell'approvazione** — la data di chiusura precede quella di approvazione; i **giorni di distanza** sono la differenza tra le due date.
+
+Il pannello è **solo lettura**: nessuna data viene corretta. I due pulsanti con il conteggio filtrano la tabella; un secondo clic toglie il filtro. La tabella mostra riferimento, titolo, stato ufficiale, giorni di distanza e motivo, e un clic su una riga apre il dettaglio della deviazione. Quando non c'è nulla da segnalare compare «Cronologie allineate».
+
+:::note[Perché non si confrontano gli stati]
+Le deviazioni sono solo importate: non hanno uno stato interno né una storia dei cambi di stato, quindi il pannello confronta soltanto le date ufficiali. Il controllo sugli stati discordanti è stato ritirato e il pannello lo dice in una nota: «Una deviazione importata non ha storia interna: la riconciliazione confronta solo le date ufficiali.»
+:::
+
+Gli stessi controlli compaiono nel [report del cantiere](../avanzamento/#report-del-cantiere), nella sezione **Cronologie incoerenti**.
+
+## Il dettaglio
+
+Il dettaglio è diviso in due schede:
+
+- **Dati:** riferimento, stato e priorità; descrizione del problema, autore e assegnatario; area PLC e date di creazione, scadenza, approvazione e chiusura; costo effettivo, quantità reclamata, ore di lavoro e percentuale di attività completate.
+- **Riferimenti:** i **riferimenti collegati** — voce di avanzamento, attività o voce di diario.
+
+Si passa da una scheda all'altra con un clic o con Tab e Invio. I campi sono in sola lettura. Per cambiare una deviazione si interviene sull'export di pianificazione e si ripete l'import.
+
+:::caution[Se il dettaglio non si apre]
+- **Record non più disponibile:** i dati sono cambiati dopo il caricamento. Chiudi il dettaglio e ricarica la vista.
+- **Riferimento senza dettaglio:** per attività, diario e struttura progetto il riferimento resta un'etichetta, non un collegamento.
+- **Offline:** il dettaglio delle deviazioni richiede la connessione, anche se l'elenco era già visibile.
+:::
+
+## Chi può fare cosa
+
+| Azione | Ruolo |
+| :-- | :-- |
+| Consultare elenco, board e dettaglio | Tutti i membri del cantiere |
+| Creare o modificare una deviazione | Nessun ruolo dall'interfaccia: arrivano dall'import |
+
+Per il formato dell'export vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/). Per i reclami collegati vedi [Impatti economici](../impatti-economici/).

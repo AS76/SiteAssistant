@@ -1,0 +1,97 @@
+---
+title: Assistente dati
+description: Fare domande sui dati del cantiere e aprire i record citati.
+---
+
+import Shot from '../../../components/Shot.astro';
+
+L'**assistente dati** risponde a domande sui dati del cantiere selezionato. Legge i record e non scrive nulla: le modifiche restano nei moduli, dove le confermi tu. Rispetta gli accessi per modulo: non legge i moduli esclusi dal tuo accesso al cantiere.
+
+## Dove si trova
+
+Dopo l'accesso il pulsante **AI** è in basso a destra sul desktop e nell'**intestazione** sul telefono, subito prima dell'ingranaggio delle impostazioni. Apre sempre lo stesso pannello **Assistente dati**.
+
+Il pannello contiene:
+
+- la conversazione;
+- i suggerimenti per la vista corrente;
+- il campo **Chiedi sui dati del cantiere** e il pulsante **Invia**.
+
+Sulla schermata di accesso i pulsanti non ci sono.
+
+## Fare una domanda
+
+A cosa serve: ottenere un dato o un elenco senza attraversare le viste.
+
+1. Apri la vista che ti interessa, così i suggerimenti sono già nel contesto giusto.
+2. Premi **AI**: in basso a destra sul desktop, nell'intestazione sul telefono.
+3. Scegli un suggerimento oppure scrivi la domanda nel campo **Chiedi sui dati del cantiere**.
+4. Premi **Invia** e leggi la risposta: i record citati compaiono tra parentesi quadre.
+5. Apri una citazione quando è un pulsante: porta al dettaglio del record.
+
+La **×** del pannello lo chiude e riporta il focus al pulsante **AI**: su schermi fino a **800 px** di larghezza quello dell'intestazione, sul desktop quello in basso a destra.
+
+<Shot
+  src="/images/2026-11/assistant-desktop.png"
+  alt="Pannello Assistente dati aperto sulla vista Diario, con il suggerimento «Cosa è stato registrato ieri in diario?», il campo Chiedi sui dati del cantiere e il pulsante Invia"
+  caption="Il pannello Assistente dati aperto dalla vista Diario. I suggerimenti cambiano con la vista; il campo in basso accetta una domanda libera."
+/>
+
+## I suggerimenti
+
+I suggerimenti cambiano con la vista aperta. Alcuni esempi:
+
+- in Panoramica: «Cosa è in ritardo in questo cantiere?»;
+- in Attività: «Quante attività sono da verificare?»;
+- in Deviazioni: «Quali deviazioni sono ancora aperte?»;
+- in Avanzamento: «Quali elementi sono indietro rispetto al piano?»;
+- in Prenotazioni ore: «Quante ore sono state prenotate in totale?»;
+- in Impatti economici: «Quanto è stato reclamato e quanto liquidato?»;
+- in Diario: «Cosa è stato registrato ieri in diario?».
+
+Puoi anche scrivere una domanda tua.
+
+## Le risposte
+
+Le risposte sono brevi e citano i record usati, con il codice tra parentesi quadre: `[DEV-014]`, `[WBS 2.1]`.
+
+Le citazioni sono pulsanti: aprono il dettaglio del record quando quel tipo di record ha un dettaglio nell'interfaccia. Per attività, diario e struttura progetto il riferimento resta un'etichetta.
+
+## La lingua
+
+L'assistente risponde nella lingua dell'interfaccia:
+
+- interfaccia in italiano: risponde in italiano;
+- interfaccia in inglese: risponde in inglese.
+
+I codici dei record restano gli stessi.
+
+## Cosa vede
+
+- Solo il **cantiere selezionato**.
+- Solo i dati che il tuo ruolo può consultare.
+- I record di deviazioni, avanzamento, impatti economici, prenotazioni ore, attività, diario e struttura progetto.
+
+Non vede altri cantieri e non legge il contenuto di foto e PDF.
+
+## Cosa non fa
+
+- **Non scrive**: non crea, non modifica e non chiude record. Se chiedi una modifica, indica la schermata da usare.
+- **Non inventa**: se un dato non c'è, risponde che non risulta nei dati.
+- **Non calcola totali che non ha interrogato**: i numeri delle risposte arrivano dalle query sui dati.
+
+:::caution[Se l'assistente non risponde]
+- **Pannello con un errore all'apertura:** l'assistente non è configurato sul server. Segnalalo a chi amministra l'installazione.
+- **Risposta «non risulta nei dati»:** il dato non è nel cantiere selezionato. Controlla il selettore del cantiere e la vista da cui hai aperto il pannello.
+- **Nessuna risposta dopo Invia:** serve la connessione, perché le domande passano dal server. Controlla la rete e riprova.
+- **Conversazione persa:** ricaricando la pagina si riparte da zero; la conversazione non viene salvata.
+:::
+
+## Limiti pratici
+
+- Serve la connessione: le domande passano dal server.
+- La conversazione resta finché la pagina è aperta; ricaricando si riparte da zero.
+- Se l'assistente non è configurato sul server, il pannello mostra un errore.
+- Le domande e i record restituiti vengono inviati al provider del modello configurato sul server. Non inserire dati riservati.
+
+Per l'elenco degli endpoint vedi [API REST](../../riferimento/api/).

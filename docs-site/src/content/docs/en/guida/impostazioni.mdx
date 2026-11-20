@@ -1,0 +1,76 @@
+---
+title: Settings
+description: Currency and separators for amounts and numbers, and access to your passkeys.
+---
+
+import Shot from '../../../../components/Shot.astro';
+
+The gear at the top right opens **Settings**. Preferences apply to this browser and only affect how amounts and numbers are written.
+
+## Setting currency and format
+
+What it is for: reading amounts with the currency and separators you use.
+
+1. Press the **gear** at the top right.
+2. Choose the **Currency**: EUR, USD, GBP or CHF.
+3. Choose **Separators**: **Automatic** (follows the interface language), `1.234,56` (IT) or `1,234.56` (EN).
+4. Press **Save** and wait for the **Settings saved** confirmation at the bottom.
+
+<Shot
+  src="/images/2026-11/en/impacts-desktop.png"
+  alt="Cost impacts view with Total claimed 41.500,50 € and Total settled 11.250,00 €, formatted with the euro currency and Italian separators"
+  caption="The effect of the settings: cost impact amounts with EUR and IT separators. Totals follow the active filters."
+/>
+
+## The three choices
+
+| Setting | Values |
+| :-- | :-- |
+| Currency | EUR, USD, GBP, CHF |
+| Separators | **Automatic** — interface language; 1.234,56 (IT); 1,234.56 (EN) |
+
+The defaults are **EUR** and **Automatic** separators: with the Italian interface numbers are written `1.234,56`, with the English interface `1,234.56`. Choosing IT or EN keeps the format on that choice even when you change language.
+
+## How numbers are written
+
+Precision is not a choice: it depends on the kind of number and stays the same across every view.
+
+- **amounts** always have **two decimals**;
+- **hours** have **one decimal**;
+- **counts** — tasks, deviations, people, days — are whole numbers, without decimals;
+- **percentages** show up to four decimals, without trailing zeros.
+
+The separators you choose apply to all these numbers, not only to amounts: with IT separators thousands are separated by a dot and decimals by a comma, with EN separators it is the other way round. With **Automatic** the separators of the interface language apply, so the format follows the **IT/EN** selector.
+
+## Where they apply
+
+The settings apply to amounts:
+
+- the **Open claims** and **Settled** counters in the Overview;
+- the totals and details of **Cost impacts**.
+
+The **separators** also apply to hours, percentages and counts: **Work produced** and the **site report**, **Site progress**, **Time bookings**, **Deviations** and the tables of the other views. The choice does not change values, dates or calculations.
+
+## The currency does not convert
+
+Changing the currency changes the symbol and the format, not the value. An amount of 1,000 euros shown in USD stays 1,000: no exchange rate is applied.
+
+Example: with EUR and IT separators, the amount 1234.5 appears as `€1.234,50`; with EN separators it appears as `€1,234.50`.
+
+## Security: your passkeys
+
+What it is for: reaching the account's passkeys from the same window as the preferences.
+
+At the bottom of the **Settings** window the **Security** button opens the account's **passkeys**: there you add one, rename it or delete it. It is not a preference of this browser — passkeys live on the account and work on every device — and it does not change currency, separators or the way numbers are written. See [Sign in and account](../accesso/#your-passkeys).
+
+## Where they are stored
+
+Preferences stay in this browser, not on the account. On another browser or device the defaults come back. If you clear the site data, the defaults come back on this browser too.
+
+:::caution[If amounts do not change]
+- Settings apply after **Save**: without confirmation the previous format stays.
+- If you changed browser or device, preferences do not follow you: set them again.
+- Preferences saved by a previous version restart from **Automatic**: if you had chosen IT or EN, check the **Separators** menu and set it again.
+- If the symbol changes but the number does not, that is expected: the currency does not apply an exchange rate.
+- If an amount shows **Not available**, the source did not provide it: it is not a formatting problem.
+:::

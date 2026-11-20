@@ -1,0 +1,67 @@
+---
+title: Import status
+description: Read-only summary of the latest complete bundle per project scope, with counts, dates and quality issues.
+---
+
+The **Import status** view collects the summary of the latest **complete bundle** loaded for each project scope: how many rows arrived for each data family, when the export was declared, when the load was recorded and how many quality issues it carries.
+
+It is a **read-only** and **online-only** view: nothing is created, edited or deleted. The numbers come from a separate reporting database configured on the server, and the summary exposes **counts only**: no detail rows, no names, no personal data.
+
+## Reading the reporting
+
+What it is for: checking what arrived with the latest load, before trusting the numbers in the other views.
+
+1. Open **Import status** from the navigation, in the **Management** group.
+2. Read one card per scope: **Project reference**, **Scope ID**, **Declared export date** and **Loaded at (local time)**.
+3. Scroll the **Counts by family** table: **Employees**, **Work days**, **Work schedule**, **Progress items**, **Daily logs** and **Deviations**.
+4. Read **Total rows** at the bottom of the table and **Quality issues** at the bottom of the card.
+5. Press **Refresh** to read the data from the reporting database again.
+
+The list is **not filtered by the selected site**: it shows the scopes present in the reporting database, sorted by project reference. Access to the view, on the other hand, follows the selected site's module, like the other views. A scope without a complete load does not appear; when a value is missing, **Unavailable** takes its place.
+
+A bundle is not attributed to the selected site: project reference and scope ID are those declared by the bundle. An operational report for one site is a separate feature.
+
+The **declared export date** is a day, without a time, as the load declared it. **Loaded at** is the moment the load was recorded, shown with date and time in the browser's local time zone. When project reference, export date or load time are missing, **Unavailable** takes their place.
+
+## The data families
+
+| Family | What it counts |
+| :-- | :-- |
+| Employees | The people in the load (`employees`) |
+| Work days | The attendance days (`work_days`) |
+| Work schedule | The Time Schedule items (`time_schedule`) |
+| Progress items | The site progress items (`site_progress_items`) |
+| Daily logs | The diary entries (`daily_logs`) |
+| Deviations | The deviations (`deviations`) |
+
+The counts are row numbers, not amounts or hours. **Total rows** sums the six counts. A zero is a real count: that family had no rows in that load.
+
+## The states of the view
+
+| What you see | When |
+| :-- | :-- |
+| **Loading import status…** | The read is in progress |
+| **Import status not configured** | The server has no reporting database connection: no read is performed |
+| **No complete bundle** | The connection exists, but there is no complete load to summarise yet |
+| **Import status is unavailable. Try Refresh again.** | The read failed, for example because the reporting database is not answering |
+
+None of these states is an application error: **Refresh** retries the read and changes nothing.
+
+## Who can access it
+
+The `reporting` module follows the rules of the other modules: it is **on by default** and an owner clears it from the **Import status** column of the **Module access** table in the **Sites** view. Without the module the entry does not appear in the navigation and a direct link shows **Module unavailable**; the endpoint answers `403 MODULE_FORBIDDEN`. See [Users and roles](../../amministrazione/utenti-e-ruoli/#module-access).
+
+Every site role reads the summary, `viewer` included. No role writes, because the view has no editing commands: owners and editors have no buttons the others do not have.
+
+:::caution[Server configuration]
+The reporting database connection is set on the server, with the `REPORTING_DATABASE_URL` variable; it is not configured from the interface. Without that variable the view shows **Import status not configured** and performs no read. Ask whoever administers the environment.
+:::
+
+## If something does not add up
+
+- **“Import status not configured”:** the reporting database connection is missing on the server; it does not depend on the site or on your role.
+- **“No complete bundle”:** no complete bundle has been loaded to summarise yet; the view fills itself at the next load.
+- **“Import status is unavailable”:** press **Refresh**; if it stays, the reporting database is not answering. The data in the other views does not depend on this read.
+- **A count is zero:** that family had no rows in that load; the view counts rows, it does not interpret them.
+- **I cannot see a site:** the view does not filter by site, it lists the scopes present in the reporting database. A scope without a complete load does not appear.
+- **I cannot find the details:** reporting exposes counts only, with no rows, names or personal data. For the details use the site views and the [REST API](../../riferimento/api/#import-status).

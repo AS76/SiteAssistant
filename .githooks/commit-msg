@@ -1,0 +1,4 @@
+#!/bin/sh
+# Il messaggio di commit non è più filtrato per parola: le informazioni sensibili si tolgono dal
+# contenuto, non dal testo che le descrive. Resta il controllo di contenuto in pre-commit.
+exit 0

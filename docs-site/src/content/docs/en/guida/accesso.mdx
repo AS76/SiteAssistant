@@ -1,0 +1,102 @@
+---
+title: Sign in and account
+description: How to sign in to SiteAssistant, request an account, manage your password and your passkeys.
+---
+
+import Shot from '../../../../components/Shot.astro';
+
+You sign in to SiteAssistant with your **email** and **password**, or with a **passkey** if you have registered one. There is no public registration: accounts are created in two ways, both designed for people working on site.
+
+## Sign in
+
+What it is for: opening a session on the site you need to work on.
+
+1. Open the application address in your browser, on desktop or mobile.
+2. If there is no active session, the **Sign in** form appears.
+3. Enter your **email** and **password**, then press **Sign in**. The **◉** button next to the password field shows the password you typed; press it again to hide it.
+4. After signing in you only see the sites you belong to, and you can choose your working context from the menu at the top.
+
+<Shot
+  src="/images/2026-11/en/login-desktop.png"
+  alt="SiteAssistant sign-in form with the Email and Password fields, the Sign in button and the Request access and Forgot password links"
+  caption="The Sign in form. The Sign in button is to the right of the fields; at the bottom you find Request access and Forgot password."
+/>
+
+The email is case-insensitive: `Mario.Rossi@example.com` and `mario.rossi@example.com` are the same account.
+
+In the demo, a note under the **DEMO** bar gives the data languages: which sites hold Italian data and which hold English data. It disappears after sign-in, because the **Overview** repeats it at the top.
+
+:::caution[If sign-in fails]
+- The error message never reveals whether the email or the password is wrong.
+- After **10 failed attempts** in the same **15-minute** window (for the same email and network address), sign-in is suspended for a while: wait a few minutes and try again.
+- If the session expires or is revoked, the application takes you back to the sign-in form.
+:::
+
+## Signing in with a passkey
+
+What it is for: opening a session without typing your password, with a fingerprint, your face, a PIN or a security key.
+
+Below the **Sign in** button the form offers two commands:
+
+1. **Sign in with a passkey** uses the email written in the **Email** field and asks the browser for that account's passkey. The email must be filled in: if the field is empty the browser flags it and no passkey is requested.
+2. **Use a passkey without email** asks for nothing: the browser offers the passkeys saved for this site and you choose one.
+
+In both cases the confirmation happens in the browser — fingerprint, face, PIN or security key — and none of that data leaves the browser: the application only receives the confirmation that the passkey is yours.
+
+If the browser does not support passkeys, or the page is not open over a secure connection, the two buttons stay disabled and a note asks you to use your password. If passkeys are not configured on the server, the message says so. If you cancel the browser window or let it expire, the operation stops without opening a session: you can try again or use your password.
+
+After signing in with a passkey the session lasts **7 days** like the others and closes with **Sign out**.
+
+## Your passkeys
+
+What it is for: adding a passkey to the account, giving it a recognisable name and removing the ones you no longer use.
+
+1. Open the **gear** at the top right.
+2. In the **Settings** window press **Security**.
+3. The window lists your passkeys, each with its **Name**, creation date and last use, or **Never used**.
+
+From there:
+
+- **Add passkey** registers a new passkey on the account, with the browser's confirmation. If the passkey is already registered, the application says so.
+- **Rename** changes the passkey's **Name**, from 1 to 100 characters: it helps tell apart, for example, the phone from the laptop.
+- **Delete** removes the passkey after a confirmation, and with it the sessions opened with that passkey.
+
+The last remaining passkey cannot be deleted: without it you could no longer sign back in without a password. The message says so and the list stays as it was.
+
+If you have no passkeys yet the window says so and reminds you that you can keep using your password. Passkeys live on the account, not in this browser: you find them again from any device, as long as the browser supports them. See [Settings](../impostazioni/) for the other preferences.
+
+## If you do not have an account yet
+
+What it is for: getting an account when you do not have one, without public registration.
+
+From the sign-in form you can press **Request access**:
+
+1. Enter your email.
+2. The request reaches whoever administers the application, who can **approve** or **reject** it.
+3. If approved, you receive a **temporary password** by email.
+4. On first sign-in the application asks you to **change the password**.
+
+A request does not create the account on its own: it needs an administrator's approval. The review link the administrator receives expires after **72 hours** and can be used once: if it has expired, the request must be sent again.
+
+:::caution[If the request does not arrive]
+The request stays pending: it does not create the account until an administrator approves it. If the approval email does not arrive, ask the administrator to check the request and send it again only if it has expired.
+:::
+
+## Forgotten or temporary password
+
+- **Forgot password:** from the sign-in form press **Forgot password** and enter your email. If the account exists, you receive a new temporary password by email.
+- **Change password:** if you are using a temporary password, a notice appears with the **Change password** button. It requires your current password and a new one, different and at least **12 characters** long. Other sessions are closed. You can dismiss the notice with **×**; it stays hidden for the browser session.
+
+If the email service is not active, these operations are unavailable: the application tells you and asks you to try again later.
+
+Access requests, resets and password changes are rate-limited: after **10 attempts** in the same **15-minute** window the operation is suspended for a few minutes.
+
+## How long the session lasts
+
+- The session lasts **7 days** and is remembered by the browser with a secure cookie.
+- The **Sign out** button closes the session on the server immediately.
+- Closing the browser without signing out does **not** close the session: it stays valid until it expires or you sign out.
+
+:::note[Expired session]
+If the session expires or is revoked, the application takes you back to the sign-in form.
+:::

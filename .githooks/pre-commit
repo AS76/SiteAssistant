@@ -1,0 +1,5 @@
+#!/bin/sh
+# Blocca il commit se il contenuto in stage contiene segreti o dati personali.
+# Sostituisce la vecchia blacklist terminologica: cerca ciò che non deve stare in un repository
+# pubblico (chiavi, token, codici fiscali, IBAN, file di dati), non un nome specifico.
+exec sh scripts/content-scan.sh --staged

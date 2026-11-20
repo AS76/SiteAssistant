@@ -1,0 +1,67 @@
+---
+title: Stato importazioni
+description: Riepilogo in sola lettura dell'ultimo bundle completo per ambito di progetto, con conteggi, date e segnalazioni di qualità.
+---
+
+La vista **Stato importazioni** raccoglie il riepilogo dell'ultimo **bundle completo** caricato per ogni ambito di progetto: quante righe sono arrivate per ciascuna famiglia di dati, quando l'export è stato dichiarato, quando il caricamento è stato registrato e quante segnalazioni di qualità porta con sé.
+
+È una vista di **sola lettura** e **solo online**: non si crea, non si modifica e non si elimina nulla. I numeri arrivano da un database di reporting separato, configurato sul server, e il riepilogo espone **solo conteggi**: nessuna riga di dettaglio, nessun nome, nessun dato personale.
+
+## Consultare il reporting
+
+A cosa serve: controllare che cosa è arrivato con l'ultimo caricamento, prima di fidarsi dei numeri delle altre viste.
+
+1. Apri **Stato importazioni** dalla navigazione, nel gruppo **Gestione**.
+2. Leggi un riquadro per ogni ambito: **Riferimento progetto**, **ID ambito**, **Data export dichiarata** e **Caricato il (ora locale)**.
+3. Scorri la tabella **Conteggi per famiglia**: **Personale**, **Giornate di lavoro**, **Programma lavori**, **Voci di avanzamento**, **Diari giornalieri** e **Scostamenti**.
+4. Leggi **Righe totali** in fondo alla tabella e **Segnalazioni di qualità** in fondo al riquadro.
+5. Premi **Aggiorna** per rileggere i dati dal database di reporting.
+
+L'elenco **non è filtrato dal cantiere selezionato**: mostra gli ambiti presenti nel database di reporting, ordinati per riferimento progetto. L'accesso alla vista, invece, segue il modulo del cantiere selezionato, come per le altre viste. Un ambito senza un caricamento completo non compare; quando un valore manca, al suo posto leggi **Non disponibile**.
+
+Un bundle non viene attribuito al cantiere selezionato: il riferimento progetto e l’ID ambito sono quelli dichiarati dal bundle. Un report operativo per singolo cantiere è una funzione distinta.
+
+La **data export dichiarata** è un giorno, senza ora, così come l'ha dichiarata il caricamento. **Caricato il** è invece il momento in cui il caricamento è stato registrato, mostrato con data e ora nel fuso locale del browser. Se riferimento progetto, data export o data di caricamento mancano, al loro posto leggi **Non disponibile**.
+
+## Le famiglie di dati
+
+| Famiglia | Cosa conta |
+| :-- | :-- |
+| Personale | Le persone del caricamento (`employees`) |
+| Giornate di lavoro | Le presenze (`work_days`) |
+| Programma lavori | Le voci del Time Schedule (`time_schedule`) |
+| Voci di avanzamento | Le voci di avanzamento (`site_progress_items`) |
+| Diari giornalieri | Le voci di diario (`daily_logs`) |
+| Scostamenti | Le deviazioni (`deviations`) |
+
+I conteggi sono numeri di righe, non importi né ore. **Righe totali** somma i sei conteggi. Uno zero è un conteggio reale: quella famiglia non aveva righe in quel caricamento.
+
+## Gli stati della vista
+
+| Cosa vedi | Quando |
+| :-- | :-- |
+| **Caricamento stato importazioni…** | La lettura è in corso |
+| **Stato importazioni non configurato** | Il server non ha la connessione al database di reporting: nessuna lettura viene eseguita |
+| **Nessun bundle completo** | La connessione c'è, ma non c'è ancora un caricamento completo da riepilogare |
+| **Stato importazioni non disponibile. Riprova con Aggiorna.** | La lettura non è riuscita, per esempio perché il database di reporting non risponde |
+
+Nessuno di questi stati è un errore dell'applicazione: **Aggiorna** riprova la lettura senza cambiare nulla.
+
+## Chi può accedere
+
+Il modulo `reporting` segue le regole degli altri moduli: è **attivo per impostazione predefinita** e un owner lo toglie dalla colonna **Stato importazioni** della tabella **Accessi per modulo** della vista **Cantieri**. Senza il modulo la voce non compare nella navigazione e un collegamento diretto mostra **Modulo non disponibile**; l'endpoint risponde `403 MODULE_FORBIDDEN`. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/#accessi-per-modulo).
+
+Tutti i ruoli del cantiere leggono il riepilogo, `viewer` compreso. Nessun ruolo scrive, perché la vista non ha comandi di modifica: owner ed editor non hanno pulsanti diversi dagli altri.
+
+:::caution[Configurazione del server]
+La connessione al database di reporting si imposta sul server, con la variabile `REPORTING_DATABASE_URL`; non si configura dall'interfaccia. Senza quella variabile la vista mostra **Stato importazioni non configurato** e non esegue nessuna lettura. Chiedi a chi amministra l'ambiente.
+:::
+
+## Se qualcosa non torna
+
+- **«Stato importazioni non configurato»:** manca la connessione al database di reporting sul server; non dipende dal cantiere né dal tuo ruolo.
+- **«Nessun bundle completo»:** non è ancora stato caricato un bundle completo da riepilogare; la vista si popola da sola al caricamento successivo.
+- **«Stato importazioni non disponibile»:** premi **Aggiorna**; se resta, il database di reporting non risponde. I dati delle altre viste non dipendono da questa lettura.
+- **Un conteggio è zero:** quella famiglia non aveva righe in quel caricamento; la vista conta le righe, non le interpreta.
+- **Non vedo un cantiere:** la vista non filtra per cantiere, ma elenca gli ambiti presenti nel database di reporting. Un ambito senza caricamento completo non compare.
+- **Non trovo i dettagli:** il reporting espone solo conteggi, senza righe, nomi o dati personali. Per i dettagli usa le viste del cantiere e l'[API REST](../../riferimento/api/#stato-importazioni).

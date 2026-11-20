@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="250" height="66" viewBox="0 0 250 66" role="img" aria-label="SiteAssistant">
+  <g font-family="Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <rect x="0" y="8" width="48" height="48" rx="12" fill="#142c30" stroke="#638a80"/>
+    <text x="24" y="40" font-size="30" font-weight="720" fill="#d1e7c0" text-anchor="middle">S</text>
+    <circle cx="45" cy="11" r="5" fill="#b9db9e"/>
+    <text x="60" y="36" font-size="23" font-weight="720" letter-spacing="-0.5" fill="#126c57">SiteAssistant</text>
+    <text x="60" y="51" font-size="9" letter-spacing="1.6" fill="#64757b">IL TUO PUNTO DI CONTROLLO</text>
+  </g>
+</svg>
