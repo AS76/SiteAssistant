@@ -7,6 +7,8 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 21 November 2026
 
+- **New look.** The interface changes palette and type — paper, ink and brick, **Source Sans 3** for text and **Source Serif 4** for headings — and redesigns **Today** and **Diary**; **Tasks** and **Deviations** follow the same style. Navigation is a side rail above **1180 px**, a top bar between **640** and **1179 px**, and the six-item bottom bar below **640 px**. See [Mobile quick guide](../../guida/mobile/#the-bottom-bar) and [Diary](../../moduli/diario/).
+
 - **Account and password in Settings.** The gear now opens a **Your account** section with name, email and user type for the selected site, plus the **Change password** and **Security** buttons. Anyone arriving from a temporary password finds the password change here too, without having to look for the banner at the top. See [Settings](../../guida/impostazioni/#your-account) and [Sign in and account](../../guida/accesso/#forgotten-or-temporary-password).
 
 ## 19 November 2026

@@ -7,6 +7,8 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 21 novembre 2026
 
+- **Nuova veste «Quaderno di cantiere».** L'interfaccia cambia colori e caratteri — carta, inchiostro e laterizio, **Source Sans 3** per il testo e **Source Serif 4** per i titoli — e ridisegna **Oggi** e **Diario**; **Attività** e **Deviazioni** seguono lo stesso stile. La navigazione è laterale sopra i **1180 px**, passa in alto tra **640** e **1179 px** e diventa la barra in basso a sei voci sotto i **640 px**. Vedi [Guida rapida mobile](../../guida/mobile/#la-barra-in-basso) e [Diario](../../moduli/diario/).
+
 - **Account e password nelle Impostazioni.** L'ingranaggio apre ora la sezione **Il tuo account** con nome, email e tipo di utente nel cantiere selezionato, oltre ai pulsanti **Cambia la password** e **Sicurezza**. Chi arriva da una password temporanea trova il cambio password anche qui, senza dover cercare l'avviso in alto. Vedi [Impostazioni](../../guida/impostazioni/#il-tuo-account) e [Accesso e account](../../guida/accesso/#password-dimenticata-o-da-cambiare).
 
 ## 19 novembre 2026
