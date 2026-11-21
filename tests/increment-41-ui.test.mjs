@@ -27,7 +27,7 @@ function ui({ language = 'it', width = 1440, tasks = [], diary = [], reconciliat
   const nodes = new Map();
   const node = selector => {
     if (!nodes.has(selector)) nodes.set(selector, { textContent: '', innerHTML: '', hidden: false,
-      attributes: {}, focused: false, classList: { add() {} }, setAttribute(key, value) { this.attributes[key] = value; }, focus() { this.focused = true; }, insertAdjacentHTML() {} });
+      attributes: {}, focused: false, classList: { add() {} }, setAttribute(key, value) { this.attributes[key] = value; }, focus() { this.focused = true; }, insertAdjacentHTML() {}, append(child) { child.parentElement = this; } });
     return nodes.get(selector);
   };
   const data = { deviations, hse, reconciliation: reconciliation || { items: [], counts: { closed_without_date: 0, close_before_approval: 0 } } };
@@ -41,13 +41,15 @@ function ui({ language = 'it', width = 1440, tasks = [], diary = [], reconciliat
       assert.equal(typeof label, 'string', `${language}: ${key}`);
       return label;
     },
-    today: () => '2026-11-14', siteTasks: () => tasks, currentSite: () => ({ code: 'SYN-01', name: 'Synthetic site with a long name' }),
+    today: () => '2026-11-14', siteTasks: () => tasks, currentSite: () => context.state.sites.find(site => site.id === context.siteId),
     coreData: name => data[name], coreFilters: { deviations: { status: '', priority: '' }, hse: { type: '', severity: '', from: '', to: '' } },
     permissions: () => ({ hseWrite: true }), deviationView: 'board', reconciliationFilter: '', reconciliationOpen: true,
-    compactNavigation: () => width < 800, window: { matchMedia: () => ({ matches: width <= 520 }) },
+    compactNavigation: () => width < 800, window: { matchMedia: query => ({
+      matches: query.includes('1180') ? (query.startsWith('(min-width') ? width >= 1180 : width < 1180) : width <= 520,
+    }) },
     syncBadge: () => '', icon: () => '', taskRow: () => '', renderOffline() {}, render() {},
     document: { documentElement: {} }, sessionStorage: { getItem: () => null },
-    visibleModules: items => items, currentModules: () => [], MOBILE_PRIMARY: ['bookings'], NAV_ITEMS: ['bookings'],
+    visibleModules: items => items, currentModules: () => [], headerNavItems: () => ['bookings'], canWriteTask: () => true,
     desktopNavigation: link => link('bookings'), bindDesktopNavigation() {}, $: node,
   });
   const evidenceLabels = runInContext(section('const evidenceLabels =', 'const t =') + '\nevidenceLabels', context);
@@ -55,9 +57,10 @@ function ui({ language = 'it', width = 1440, tasks = [], diary = [], reconciliat
     ['const esc =', 'let session ='], ['const money =', 'let offlineScope'], ['const dateLabel =', 'const paths ='], ['const button =', 'function toast('],
     ['function heading(', 'function renderChrome('], ['function renderChrome()', 'function dueMarkup('],
     ['const role =', 'const currentModules ='],
+    ['const notebookStates =', 'function todayTaskItem('],
     ['const coreValue =', 'function renderCore('], ['function localOverviewWidgets()', '// Every report opening'],
     ['function earnedValueSummary(', 'const STATUS_COLORS'],
-    ['const RECONCILIATION_KINDS', 'function renderProgress()'], ['function renderHse()', 'function showHseForm()'],
+    ['const deviationGlyphs =', 'function renderProgress()'], ['function renderHse()', 'function showHseForm()'],
     ['function field(', 'function formError('],
     ['function renderOverview()', 'function localOverviewWidgets()'],
   ]) runInContext(section(start, end), context);
@@ -65,24 +68,19 @@ function ui({ language = 'it', width = 1440, tasks = [], diary = [], reconciliat
 }
 
 test('41.01 A2 — desktop floating assistant moves to the top bar on phones', () => {
-  assert.match(media('max-width: 520px'), /\.shell main\s*\{[^}]*padding-bottom:\s*calc\(96px \+ env\(safe-area-inset-bottom\)\)/);
-  assert.match(css, /\.ai-fab\{[^}]*width:56px;height:56px/);
-  assert.match(css, /\.ai-top\s*\{\s*display: none;/);
-  assert.match(css, /@media\(max-width:800px\)\{\s*\.ai-fab\s*\{ display: none; \}\s*\.ai-top\s*\{ display: inline-flex;/);
-  const mobileTopbar = css.slice(css.indexOf('@media(max-width:800px){\n  .ai-fab'), css.indexOf('\n}', css.indexOf('@media(max-width:800px){\n  .ai-fab')));
-  assert.match(mobileTopbar, /#actor-name\s*\{\s*display:\s*none;\s*\}/);
-  assert.match(mobileTopbar, /\.actor-control\s*\{\s*gap:\s*0;\s*\}/);
+  assert.match(css, /\.shell:has\(#navigation:not\(\[hidden\]\)\) \{ padding-bottom: calc\(56px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(css, /\.ai-fab\s*\{[^}]*width: 48px; height: 48px/);
+  assert.match(css, /@media \(width < 1180px\) \{\s*\.ai-fab \{ display: none; \}\s*\.ai-top \{ display: inline-flex;/);
   for (const id of ['ai-fab', 'ai-top']) assert.match(shell, new RegExp(`<button id="${id}"[^>]*data-command="ai-open"[^>]*aria-expanded="false" aria-controls="ai-panel"`));
   for (const width of [390, 800, 1440]) {
     const app = ui({ width }); app.context.renderAssistant = () => {};
-    app.context.window.matchMedia = () => ({ matches: width <= 800 });
     for (const command of ['ai-open', 'ai-close']) {
       const line = source.split('\n').find(line => line.includes(`'${command}':`));
       app.run(`(${line.slice(line.indexOf('() =>'), line.lastIndexOf(','))})()`);
       assert.equal(app.node('#ai-panel').hidden, command === 'ai-close');
       for (const id of ['ai-fab', 'ai-top']) assert.equal(app.node(`#${id}`).attributes['aria-expanded'], String(command === 'ai-open'));
     }
-    assert.equal(app.node(width <= 800 ? '#ai-top' : '#ai-fab').focused, true);
+    assert.equal(app.node(width < 1180 ? '#ai-top' : '#ai-fab').focused, true);
     app.context.session = null; app.run('renderChrome()');
     for (const id of ['ai-fab', 'ai-top', 'ai-panel']) assert.equal(app.node(`#${id}`).hidden, true);
   }
@@ -209,7 +207,7 @@ test('41.08 M4 — today diary has exactly one invitation: a button when empty, 
 });
 
 test('41.09 M5 — person is plain text populated from the signed-in identity', () => {
-  assert.match(shell, /<div class="actor-control"><span id="actor-label">Persona<\/span><span id="actor-name"><\/span><\/div>/);
+  assert.match(shell, /<span class="actor-control"><span id="actor-name"><\/span><strong id="actor-role"><\/strong><\/span>/);
   assert.doesNotMatch(shell + source, /actor-input/);
   const app = ui(); app.run('renderChrome()'); assert.equal(app.node('#actor-name').textContent, 'Synthetic user');
 });
@@ -341,8 +339,8 @@ test('progress list and item detail link the warning at 100 percent or more with
   }
 });
 
-test('41.13 B1 — desktop and phone navigation use the same hours label and preserve the page title', () => {
-  for (const language of ['it', 'en']) for (const width of [390, 1440]) {
+test('41.13 B1 — desktop and tablet navigation use the same hours label and preserve the page title', () => {
+  for (const language of ['it', 'en']) for (const width of [900, 1440]) {
     const app = ui({ language, width }); app.run('renderChrome()');
     assert.ok(app.node('#navigation').innerHTML.includes(`<span>${messages[language].bookingsShort}</span>`));
     assert.notEqual(messages[language].bookingsShort, messages[language].bookings);
@@ -426,7 +424,8 @@ test('demo legend wraps within 390px containers without truncation or horizontal
   assert.match(declarations, /overflow-wrap:\s*anywhere\s*;/);
   assert.doesNotMatch(declarations, /(?:width|min-width):\s*\d+px|nowrap|hidden|ellipsis|line-clamp/);
   assert.match(css, /#login-demo-language \.demo-language-note\s*\{\s*margin:\s*0;\s*color:\s*inherit;/);
-  assert.match(css, /@media\(max-width:520px\)\{[^\n]*\.shell main\{padding:24px 15px\}\.demo-banner\{padding:8px 15px\}/);
+  assert.match(css, /\.shell \{ --shell-gutter: 16px; \}/);
+  assert.match(css, /\.shell main \{[^}]*padding: 26px var\(--shell-gutter\) 45px/);
   assert.match(css, /\*\{box-sizing:border-box\}/);
 });
 
@@ -458,27 +457,28 @@ test('money preferences migrate old separators once while preserving currency an
   }
 });
 
-test('diary toolbar shows localized date input and a visible formatted date, count and bottom note', () => {
+test('diary shows the selected date, chronological contributions and localized counts', () => {
   for (const language of ['it', 'en']) {
     const app = ui({ language });
     app.context.reportDate = '2026-11-14'; app.context.role = () => 'editor';
     app.run(section('function renderDiary()', 'async function loadWbs()'));
     app.run('renderDiary()');
-    const html = app.node('#main').innerHTML, toolbar = html.slice(0, html.indexOf('<div class="diary-grid">'));
-    assert.ok(toolbar.includes(`value="${language === 'it' ? '14/11/2026' : '11/14/2026'}"`));
-    assert.ok(toolbar.includes(app.run("dateLabel(reportDate)")));
-    assert.doesNotMatch(toolbar, /class="badge"/);
-    assert.ok(toolbar.includes(`0 ${messages[language].entries}`));
+    const html = app.node('#main').innerHTML;
+    assert.ok(html.includes(`value="${language === 'it' ? '14/11/2026' : '11/14/2026'}"`));
+    assert.ok(html.includes(app.run("dateLabel(reportDate)")));
+    assert.ok(html.includes(`0 ${messages[language].entries}`));
     assert.ok(html.includes(messages[language].diaryLimit));
-    assert.ok(html.includes(messages[language].draft));
-    app.context.attachmentSection = () => '';
-    const singular = language === 'it' ? '1 contributo' : '1 contribution';
-    app.context.state.diary.push({ siteId: 'site-1', date: app.context.reportDate, shift: 'day', createdAt: '2026-11-14T16:00:00Z' });
+    app.context.state.diary.push({ id: 'later', siteId: 'site-1', date: app.context.reportDate, shift: 'night',
+      createdAt: '2026-11-14T19:00:00Z', actual: 'Synthetic later entry' });
     app.run('renderDiary()');
-    assert.ok(app.node('#main').innerHTML.includes(`class="subtitle">${singular}</span>`));
-    app.context.state.diary.push({ ...app.context.state.diary[0], shift: 'night' });
+    assert.ok(app.node('#main').innerHTML.includes(`1 ${messages[language].entriesOne}`));
+    app.context.state.diary.push({ ...app.context.state.diary[0], id: 'earlier', shift: 'day',
+      createdAt: '2026-11-14T13:00:00Z', actual: 'Synthetic earlier entry' });
     app.run('renderDiary()');
-    assert.ok(app.node('#main').innerHTML.includes(`class="subtitle">2 ${messages[language].entries}</span>`));
+    const register = app.node('#main').innerHTML;
+    assert.ok(register.includes(`2 ${messages[language].entries}`));
+    assert.ok(register.indexOf('Synthetic earlier entry') < register.indexOf('Synthetic later entry'));
+    assert.doesNotMatch(register, /data-command="new-entry"/);
   }
 });
 

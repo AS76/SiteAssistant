@@ -185,7 +185,7 @@ test('shared core table becomes phone cards below 800px and status cells retain 
   assert.match(css, /@media\(max-width:800px\)\{[\s\S]*?\.core-table tr,\.mobile-card-table tr\{display:block;[^}]*border-radius:10px/);
   assert.match(css, /\.core-table td::before,\.mobile-card-table td::before\{content:attr\(data-label\)/);
   assert.match(css, /\.badge\.inspection-never\s*\{[^}]*color: var\(--muted\)/);
-  assert.match(css, /--muted:#5b6c72/);
+  assert.match(css, /--muted: var\(--ink-2\)/);
 });
 
 test('inspection values are escaped and missing dates remain dashes', () => {

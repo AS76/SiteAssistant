@@ -19,7 +19,7 @@ function dialogUi() {
   const content = { innerHTML: '' };
   const modal = new EventTarget();
   Object.assign(modal, {
-    open: false, classList: { remove() {} },
+    open: false, classList: { remove() {}, toggle() {} },
     showModal() { this.open = true; }, close() { this.open = false; },
     focus() { focused = this; }, querySelectorAll() { return controls; },
   });

@@ -49,6 +49,7 @@ function deviationUi({ language = 'it', width = 1440, rows = knownRows(), layout
     messages, validDate, siteId: 'site-1', session: { roles: [{ site_id: 'site-1', role: 'owner' }] }, offline: false,
     coreData: () => rows, coreFilters: { deviations: { status: '', priority: '' } },
     deviationView: layout, compactNavigation: () => width < 800,
+    $: () => ({ innerHTML: '' }),
     renderReconciliation: () => '', empty: () => '', moduleVisible: () => false, attachmentSection: () => '',
     formActions: () => '', showModal: (_title, html) => { context.modalContent = html; },
   });
@@ -58,8 +59,10 @@ function deviationUi({ language = 'it', width = 1440, rows = knownRows(), layout
     ['const dateLabel =', 'const paths ='],
     ['const role =', 'const currentModules ='],
     ['const button =', 'function toast('],
+    ['const notebookStates =', 'function todayTaskItem('],
     ['const coreValue =', 'function progressBar('],
-    ['function renderDeviations()', 'function renderProgress()'],
+    ['const deviationGlyphs =', 'const RECONCILIATION_KINDS'],
+    ['function renderDeviationSummary(', 'function renderProgress()'],
     ['function coreFields(', 'function progressStepsSection('],
     ['const deviationWrite =', 'async function showCoreDetail('],
     ['function field(', 'function dateInput('],
@@ -73,20 +76,25 @@ function deviationUi({ language = 'it', width = 1440, rows = knownRows(), layout
 
 for (const language of ['it', 'en']) {
   const labels = language === 'it' ? ['Aperte', 'In corso', 'Da chiudere', 'Chiuse'] : ['Open', 'In progress', 'To close', 'Closed'];
+  const notation = (glyph, label) => `<span class="notebook-state"><span aria-hidden="true">${glyph}</span> ${label}</span>`;
+  const groupHeader = index => `${notation(['○', '▶', '◆', '✓'][index], labels[index])}<span class="count num">${[2, 1, 1, 2][index]}</span>`;
+  const statusNotation = status => notation({
+    open: '○', approved: '○', in_progress: '▶', work_completed: '◆', rejected: '▲', closed: '✓',
+  }[status], messages[language][status === 'closed' ? 'notebookClosed' : status]);
   const sourceLabels = [
     ['internal', language === 'it' ? 'Inserimento manuale' : 'Manual entry'],
     ['other', language === 'it' ? 'Altro' : 'Other'],
   ];
-  test(`desktop deviation board renders four translated groups with counts and precise status badges (${language})`, () => {
+  test(`desktop deviation board renders four translated groups with counts and official state labels (${language})`, () => {
     for (const width of [800, 1024, 1440]) {
       const html = deviationUi({ language, width });
       const columns = [...html.matchAll(/<section class="core-column">([\s\S]*?)<\/section>/g)];
       assert.equal(columns.length, 4);
       columns.forEach(([, column], index) => {
-        assert.ok(column.includes(`<span>${labels[index]}</span><span>${[2, 1, 1, 2][index]}</span>`));
+        assert.ok(column.includes(groupHeader(index)));
       });
       for (const status of DEVIATION_STATUSES) {
-        assert.ok(html.includes(`core-status-${status}">${messages[language][status]}</span>`));
+        assert.ok(html.includes(statusNotation(status)));
       }
       assert.doesNotMatch(html, /<details|class="core-unknown"/);
       assert.match(html, /aria-describedby="deviation-board-scroll-hint"/);
@@ -99,11 +107,11 @@ for (const language of ['it', 'en']) {
     const groups = [...html.matchAll(/<details class="board-status"[^>]*>([\s\S]*?)<\/details>/g)];
     assert.equal(groups.length, 4);
     groups.forEach(([, group], index) => {
-      assert.ok(group.includes(`<summary><span>${labels[index]}</span><span class="count">${[2, 1, 1, 2][index]}</span></summary>`));
+      assert.ok(group.includes(`<summary class="notebook-section-head">${groupHeader(index)}</summary>`));
     });
     assert.equal((html.match(/class="board-status" open/g) || []).length, 1);
     assert.doesNotMatch(html, /class="core-column"|deviation-board-scroll-hint/);
-    for (const status of DEVIATION_STATUSES) assert.ok(html.includes(`core-status-${status}">${messages[language][status]}</span>`));
+    for (const status of DEVIATION_STATUSES) assert.ok(html.includes(statusNotation(status)));
   });
 
   test(`deviation list uses core cards with all eight translated cell labels (${language})`, () => {
@@ -146,11 +154,11 @@ test('unknown deviation rows appear in a fifth column or disclosure only when pr
     assert.equal((html.match(width === 390 ? /<details class="board-status"/g : /<section class="core-column"/g) || []).length, 5);
     assert.equal((html.match(/data-id="unknown"/g) || []).length, 1);
     assert.match(html, /Stato non mappato/);
-    assert.match(html, /core-status-unknown">Non disponibile<\/span>/);
+    assert.match(html, /notebook-state"><span aria-hidden="true">○<\/span> Non disponibile<\/span>/);
   }
 });
 
-test('scroll hint and edge fades respond to overflow, scrolling and resizing', () => {
+test('scroll hint and edge rules respond to overflow, scrolling and resizing', () => {
   const classes = new Set(), hint = { hidden: true };
   const board = { clientWidth: 900, scrollWidth: 1088, scrollLeft: 0,
     parentElement: { classList: { toggle(key, enabled) { if (enabled) classes.add(key); else classes.delete(key); } } } };
@@ -163,21 +171,21 @@ test('scroll hint and edge fades respond to overflow, scrolling and resizing', (
   board.clientWidth = 1200; board.scrollLeft = 0; update(); assert.equal(hint.hidden, true); assert.equal(classes.size, 0);
   assert.match(source, /window\.addEventListener\('resize', updateDeviationBoardScroll\)/);
   assert.match(source, /addEventListener\('scroll', updateDeviationBoardScroll, \{ passive: true \}\)/);
-  assert.match(css, /\.deviation-board-frame::after\s*\{[^}]*linear-gradient\(to left/);
+  assert.match(css, /\.deviation-board-frame::after\s*\{[^}]*border-left:\s*1px solid var\(--rule-2\)/);
   assert.match(css, /\.deviation-board-frame\.scroll-right::after\s*\{\s*opacity: 1/);
   context.$ = () => null; assert.doesNotThrow(update);
 });
 
 function phoneCardCss() {
   const start = css.indexOf('/* Phones: tables become cards.');
-  const end = css.indexOf('/* Assistant:', start);
+  const end = css.indexOf('/* Assistant', start);
   assert.ok(start >= 0 && end > start);
   const block = css.slice(start, end);
   assert.match(block, /@media\(max-width:800px\)/);
   return block;
 }
 
-test('light table shares the existing phone card CSS while desktop styles remain unchanged', () => {
+test('light table shares the phone card layout and uses notebook styling in the two record views', () => {
   const block = phoneCardCss();
   assert.match(block, /\.core-table-wrap,\.mobile-card-wrap\{[^}]*overflow:visible/);
   assert.match(block, /\.core-table tr,\.mobile-card-table tr\{display:block;[^}]*border-radius:10px/);
@@ -185,6 +193,6 @@ test('light table shares the existing phone card CSS while desktop styles remain
   assert.match(block, /\.mobile-card-table td\{[^}]*overflow-wrap:anywhere;min-width:0;max-width:none/);
   assert.match(block, /\.mobile-card-table td\.mobile-card-actions\{flex-direction:column;align-items:stretch/);
   assert.match(block, /\.mobile-card-table \.mobile-card-action\{width:100%;min-height:44px/);
-  const outside = css.replace(block, '');
-  assert.doesNotMatch(outside, /mobile-card-(?:wrap|table|actions?)/);
+  assert.match(css, /\.notebook-records table td\s*\{[^}]*height: 48px/);
+  assert.match(css, /\.notebook-records \.mobile-card-table td\.mobile-card-actions\s*\{[^}]*flex-direction: row/);
 });

@@ -9,26 +9,26 @@ On a phone SiteAssistant shows the **same data** and the **same permissions** as
 
 ## The bottom bar
 
-What it is for: reaching the four views you use most with your thumb, without opening a menu.
+What it is for: reaching the views you use most with your thumb, without opening a menu.
 
 1. Open the application in your phone browser and sign in.
-2. Use the **bottom bar**: **Today**, **Tasks**, **Deviations**, **Hours**, **More**.
-3. Tap **Hours** for Time bookings: it is the same view the desktop calls *Time bookings*.
-4. Tap **More** for the remaining views: **Overview**, **Sites**, **Project structure**, **Site progress**, **Cost impacts**, **Diary**, **Tools**, **Fitness**, **HSE** and, when the module is granted, **Procurement**.
+2. Use the **bottom bar**: **Today**, **Tasks**, **Diary**, **Deviations**, **Progress** and **More**.
+3. **Today** is the first item and the opening screen; **Diary** and **Progress** are within thumb reach, not inside a menu.
+4. Tap **More** for the remaining views: **Time bookings**, **Overview**, **Sites**, **Project structure**, **Cost impacts**, **Tools**, **Fitness**, **HSE** and, when the module is granted, **Procurement**.
 5. The active item is highlighted; when you are in a view opened from **More**, it is **More** that looks active.
 
 <Shot
   src="/images/2026-11/en/overview-mobile.png"
-  alt="Overview on a phone with the SiteAssistant header, site selector, AI, gear, Manual, Sign out and EN controls, and the bottom bar with Today, Tasks, Deviations, Hours and More"
-  caption="The Overview on a phone. At the top the site selector and the controls (AI, gear, Manual, Sign out, EN); below 800 px the user name is hidden. At the bottom the bar with five items."
+  alt="Overview on a phone with the SiteAssistant header, site selector, AI, gear, Manual, Sign out and EN controls, and the bottom bar with Today, Tasks, Diary, Deviations, Progress and More"
+  caption="The Overview on a phone, reachable from More. At the top the site selector and controls; at the bottom the bar with Today, Tasks, Diary, Deviations, Progress and More."
   compact
 />
 
-Above the content the **header** stays: full-width site selector, then the assistant **AI** button, the settings gear, the manual link, **Sign out** and the **EN/IT** selector. Below **800 px** the user name is hidden; below **520 px** the selector takes a full row. The site name is not repeated in the page title, where only the code stays.
+Above the content the **header** stays: full-width site selector, then the assistant **AI** button, the settings gear, the manual link, **Sign out** and the **EN/IT** selector. Below **640 px** the user name is hidden and the site selector takes a full row. The site name is not repeated in the page title, where only the code stays.
 
 :::caution[If an item is missing]
-- The bar has five items when you have access to every module: if your access excludes one, its entry does not appear and the bar shows fewer. An excluded module does not appear in **More** either.
-- The bar appears only below **800 px** wide: on a landscape tablet you see the side navigation again.
+- The bar has six items when you have access to every module: if your access excludes one, its entry does not appear and the bar shows fewer. An excluded module does not appear in **More** either.
+- The bar appears only below **640 px** wide: on a landscape tablet you see the top navigation.
 - If **More** does not open the list, reload the page: the list is a window of the application, not a separate page.
 :::
 
@@ -36,18 +36,22 @@ Above the content the **header** stays: full-width site selector, then the assis
 
 What it is for: knowing what to do now without opening each module.
 
-Below **800 px** wide the application opens on **Today** when the address does not name a view; on the desktop, and on a direct link to a view, the first screen stays the one you asked for. **Today** is always available and composes only the modules you can access. Above **900 px** wide the screen uses a full-width two-column layout, so on the desktop the blocks sit side by side instead of stacked.
+Below **640 px** wide the application opens on **Today** when the address does not name a view; on the desktop, and on a direct link to a view, the first screen stays the one you asked for. **Today** is always available and composes only the modules you can access.
 
-The screen has three blocks:
+The screen is organised in sections:
 
-1. **To do today**: at most five rows, without duplicates, in this order — your open tasks due today or already past (**Assigned to me**), the ones you have to verify (**For me to verify**), at most two progress items with open steps (**Open steps**), today's diary when it is missing (**Today’s diary is missing**), deviations not closed or rejected (**Read only**) and, at the bottom, overdue tasks with no executor (**no linked executor**). Each row also shows status and due date when there is one.
-2. **Quick actions**: **Verify tasks**, **Write diary**, **Take photo**, **Open progress**. **Verify tasks** opens the light task list already filtered to the ones awaiting verification, **Open progress** opens the Site progress view; the other two commands open today's diary and the photo target choice. They take at most two taps and follow your permissions: a command you cannot use is disabled, and an action from an excluded module does not appear.
-3. **Recent actions**: the last three closed tasks, with their closing date; when the date is missing the row says so.
+1. **Now**: one dominant action, the most urgent thing to do; it shows state, time and a **Task details** command.
+2. **To verify**: the tasks waiting for your check.
+3. **Today's work**: the tasks and progress items for the day.
+4. **Upcoming**: what is due after the operational day, kept separate from current work.
+5. **Quick actions**: **Task list**, **Write diary**, **Take photo**, **Open progress**. They land on the right view within one or two taps and follow permissions: a command you cannot use is disabled.
+6. **Latest actions**: the last three closed tasks, with their closing date.
+7. **Connection status**: offline, one line says how many changes are queued.
 
 Tapping a row opens the target view **already filtered** on the record: **Tasks** in list mode, **Site progress** or **Deviations** in list mode, **Diary** on the given day. At the top of the view a note says the selection comes from **Today**, with **Clear filters** to drop it.
 
 :::caution[If Today looks incomplete]
-- The resources behind **To do today** load independently: while a resource is loading or unavailable, the list declares itself **incomplete** instead of showing partial data without warning.
+- The resources behind the sections load independently: while a resource is loading or unavailable, the section declares itself **incomplete** instead of showing partial data without warning.
 - When loading a resource fails, its row offers **Retry**: the retry concerns that resource only, not the whole screen.
 - Tasks with no executor are not "yours": they appear at the bottom as **no linked executor** only when they were due before today.
 - If the list is empty, the application says there are no actions to suggest from the available data: it does not mean the site has stopped.
@@ -62,25 +66,27 @@ On a phone the first screen is **Today** (on desktop it stays the Overview).
 
 <Shot
   src="/images/2026-11/en/today-mobile.png"
-  alt="Today screen on a phone: To do today with tasks assigned to me, one to verify and the missing site diary; the bottom bar with Today as the first entry"
-  caption="Today: at most five rows — my overdue or to-verify tasks, the missing diary, open deviations. Every row opens the view already filtered."
+  alt="Today screen on a phone: the dominant Now action first, then To verify and Today's work; the bottom bar with Today, Tasks, Diary, Deviations, Progress and More"
+  caption="Today puts one dominant action first, then verifications and the day's work; every row opens the view already filtered."
   compact
 />
 
-1. **To do today** — at most five rows, in order: tasks assigned to you that are due today or overdue, the ones you have to verify, up to two progress items with open steps, today's diary when missing, open deviations (read only). Tasks with no responsible are not *yours* and appear at the bottom, marked.
-2. **Quick actions** — four commands with a verb: **Verify tasks**, **Write the diary**, **Take a photo**, **Open progress**. They land on the right view within one or two taps.
-3. **Latest actions** — the three tasks closed most recently.
-4. **Connection status** — offline, one line says how many changes are queued; the list stays the last loaded one and says so.
+1. **Now** — the first action to take, with state and time. **Task details** opens the record; when there is nothing, the screen says so and offers the diary or the available views.
+2. **To verify** — the tasks waiting for your check, with their due date.
+3. **Today's work** — the tasks and progress items for the day; **Upcoming** keeps separate what is due after the operational day.
+4. **Quick actions** — **Task list**, **Write diary**, **Take photo**, **Open progress**.
+5. **Latest actions** — the three tasks closed most recently.
+6. **Connection status** — offline, one line says how many changes are queued; the list stays the last loaded one and says so.
 
 <Shot
   src="/images/2026-11/en/today-actions-mobile.png"
-  alt="Today screen scrolled down: four Quick actions (Verify tasks, Write the diary, Take a photo, Open progress) and Latest actions with three closed tasks"
+  alt="Today screen scrolled down: four Quick actions (Task list, Write the diary, Take a photo, Open progress) and Latest actions with three closed tasks"
   caption="Quick actions and latest actions, scrolling Today down."
   compact
 />
 
-:::note[Why five rows]
-The cap is deliberate: this is a decision screen, not a list. If you need more, the module view is one tap away.
+:::note[Why one dominant action]
+The screen is for deciding, not for listing everything: there is one first action, and the rest stays one tap away in its section or module view.
 :::
 
 ## Cards instead of tables
@@ -118,7 +124,7 @@ What it is for: reading a table row without horizontal scrolling.
 
 What it is for: hitting the right control first time, even with gloves on.
 
-1. The main buttons — **New task**, **Add contribution**, **Refresh data**, **Column filters** — have a large touch area and sit on a row separate from the content. On a touch device controls are at least **44 px** tall: that covers buttons, small buttons, the **Board/List** selector, date fields, the **+** and **−** buttons of the hours booking stepper, **every dropdown menu** — filters, sorting, forms and settings — and the two controls you tap first, the **site selector** and the **Manual** link. Desktop sizes do not change.
+1. The main buttons — **New task**, **Close shift**, **Refresh data**, **Column filters** — have a large touch area and sit on a row separate from the content. On a touch device controls are at least **44 px** tall: that covers buttons, small buttons, the **Board/List** selector, date fields, the **+** and **−** buttons of the hours booking stepper, **every dropdown menu** — filters, sorting, forms and settings — and the two controls you tap first, the **site selector** and the **Manual** link. Desktop sizes do not change.
 2. Date fields are tapped like buttons: below **520 px** wide the text in the field is **16 px**, the size under which the phone browser no longer zooms the page when you focus the field. The field shows the date in the browser language, with no repeated hint under it.
 3. Dropdown menus are tall and full width: tap the menu and pick an item from the system list.
 4. In the task and deviation boards, status groups are an **accordion**: tap a status heading to open or close it; one group is open at a time.
@@ -157,7 +163,7 @@ This is deliberate: the page stays at the scale its controls are sized for, so c
 
 :::caution[If the page looks too big or too small]
 - The scale cannot be changed with your fingers and does not depend on an application setting: it is the one designed for the phone width.
-- On a landscape tablet, above **800 px** wide, the page uses the desktop layout, with the side navigation and smaller text.
+- Above **640 px** navigation returns to the top; above **1180 px** the fixed desktop rail appears.
 - If a block leaves the screen, report the view and the phone model: it is a layout defect, not a zoom question.
 :::
 
@@ -176,8 +182,8 @@ In the **Diary**, the panel that sits on the right on the desktop — **One oper
   />
   <Shot
     src="/images/2026-11/en/diary-mobile.png"
-    alt="Diary on a phone: the operational day selector, the Print diary and Add contribution buttons and the empty state of the day"
-    caption="Diary: operational day, printing and adding a contribution stay at the top of the page."
+    alt="Diary on a phone: the operational day selector, the Print diary and Close shift buttons and the empty state of the day"
+    caption="Diary: operational day, printing and closing the shift stay at the top of the page; the day opens without scrolling."
     compact
   />
 </div>

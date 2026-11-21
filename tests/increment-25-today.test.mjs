@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { initialView, todayActions, recentActions, visibleModules, filterSortRecords, corePermissions, allowedTransitions, defaultViewState, navGroups } from '../app/domain.mjs';
+import { validDate, initialView, todayActions, recentActions, visibleModules, filterSortRecords, corePermissions, allowedTransitions, defaultViewState, navGroups } from '../app/domain.mjs';
 import { messages } from '../app/i18n.mjs';
 import { createOfflineStore, overlayPending } from '../app/offline.mjs';
 import { mockIndexedDB, mockLocks } from './helpers/indexeddb.mjs';
@@ -148,7 +148,8 @@ function todayUi({ tasks = [], diary = [], snapshots = {}, modules = {}, memberR
     permissions: () => corePermissions(memberRole), currentModules: () => modules,
     moduleVisible: module => visibleModules([module], modules).length > 0,
     todayActions, recentActions, filterSortRecords, allowedTransitions,
-    today: () => day, t: key => messages.it[key], dateLabel: value => value, timeLabel: value => value,
+    today: () => day, operationalDay: () => ({ date: day, shift: 'day' }), validDate, notebookTime: () => '',
+    t: key => messages.it[key], dateLabel: value => value, timeLabel: value => value, icon: () => '',
     siteTasks: () => context.state.tasks.filter(row => row.siteId === context.siteId),
     heading: title => `<h1>${messages.it[title]}</h1>`, $: selector => nodes[selector],
     showModal: (title, html) => dialogs.push({ title, html }), formActions: () => '',
@@ -165,7 +166,7 @@ function todayUi({ tasks = [], diary = [], snapshots = {}, modules = {}, memberR
     section('function filteredTasks()', 'const currentViewState ='),
     section('const canEditTask =', 'const canCreateSite ='),
     section('const lightTransitions =', 'function lightTaskButton('),
-    section('function showEntryForm()', '// Photos:'),
+    section('function showEntryForm(', '// Photos:'),
     section('function showAttachmentForm(', 'async function openAttachment('),
   ].join('\n'), context);
   context.render = () => context.renderToday();
@@ -174,12 +175,19 @@ function todayUi({ tasks = [], diary = [], snapshots = {}, modules = {}, memberR
 }
 
 test('Today renderer scopes to active site, escapes titles and shows resource loading', () => {
-  const { context, nodes, writes } = todayUi({ tasks: [task('mine', { title: '<img src=x onerror=bad()>' }), task('other-site', { siteId: 'site-b' })] });
+  const { context, nodes, writes } = todayUi({ tasks: [
+    task('mine', { title: '<img src=x onerror=bad()>' }),
+    task('verify', { status: 'to_verify', verifier_id: userId, submitted_by_id: 'other' }),
+    task('future', { due: '2026-04-16' }), task('recent', { status: 'closed' }), task('other-site', { siteId: 'site-b' }),
+  ] });
   context.renderToday();
   const html = nodes['#main'].innerHTML;
   assert.match(html, /&lt;img src=x onerror=bad\(\)&gt;/); assert.doesNotMatch(html, /<img|other-site/);
   assert.equal((html.match(/data-command="today-quick"/g) || []).length, 4);
-  assert.ok(html.indexOf('today-todo') < html.indexOf('today-quick'));
+  assert.match(html, /class="notebook-primary" data-command="transition" data-id="verify" data-to="closed"/);
+  assert.equal((html.match(/class="notebook-primary"/g) || []).length, 1);
+  assert.match(html, /id="today-upcoming"[\s\S]*data-id="future"[\s\S]*In arrivo/);
+  assert.ok(html.indexOf('today-now') < html.indexOf('today-quick'));
   assert.ok(html.indexOf('today-quick') < html.indexOf('today-recent'));
   assert.equal(writes.length, 0);
 });
@@ -195,10 +203,10 @@ test('Today shows the latest block reason and opens the handover diary on its op
   });
   context.renderToday();
   const html = nodes['#main'].innerHTML;
-  assert.match(html, /Bloccata · 2026-04-14 · 1 giorno di ritardo/);
+  assert.match(html, /Scadenza 2026-04-14[\s\S]*▲<\/span> Bloccata/);
   assert.match(html, /Crew deferred · &lt;guard&gt; missing/);
   assert.match(html, /data-command="task-history" data-id="blocked"/);
-  assert.match(html, /data-kind="diary-next" data-id="2026-04-14"><strong>Check &lt;guard&gt;<\/strong><span>Prossimo passo · 2026-04-14 · Turno notturno/);
+  assert.match(html, /data-kind="diary-next" data-id="2026-04-14"[\s\S]*<strong>Check &lt;guard&gt;<\/strong>[\s\S]*Prossimo passo · 2026-04-14 · Turno notturno/);
   assert.doesNotMatch(html, /Other site handover/);
   assert.ok(html.indexOf('data-id="unassigned"') < html.indexOf('data-kind="diary-next"'));
   assert.ok(html.indexOf('data-kind="diary-next"') < html.indexOf('data-kind="deviation"'));
@@ -267,7 +275,7 @@ test('viewers can open progress but cannot invoke write shortcuts, and all denie
   for (const action of ['verify', 'diary', 'photo']) context.runTodayQuick(action);
   assert.deepEqual(dialogs, []); assert.deepEqual(routes, []);
   context.runTodayQuick('progress'); assert.deepEqual(routes, ['progress']);
-  context.renderToday(); assert.equal((nodes['#main'].innerHTML.match(/data-action="\w+" disabled/g) || []).length, 3);
+  context.renderToday(); assert.equal((nodes['#main'].innerHTML.match(/data-action="\w+" disabled/g) || []).length, 2);
   const denied = todayUi({ modules: { tasks: false, diary: false, progress: false, deviations: false } });
   denied.context.renderToday(); assert.doesNotMatch(denied.nodes['#main'].innerHTML, /data-command="today-quick"/);
 });
@@ -284,9 +292,9 @@ test('existing offline mirror reloads Today with cached resources and a derived 
   reloaded.context.state = overlayPending(reloaded.context.state, ops); reloaded.context.pendingOps = ops;
   reloaded.context.renderToday(); let html = reloaded.nodes['#main'].innerHTML;
   assert.match(html, /cached-progress/); assert.doesNotMatch(html, /data-kind="diary"/);
-  assert.match(html, /ultimi dati disponibili/); assert.match(html, /<strong>1<\/strong> scritture in coda/);
+  assert.ok(html.includes(messages.it.todayCached)); assert.match(html, /<strong class="num">1<\/strong> scritture in coda/);
   reloaded.context.pendingOps = []; reloaded.context.renderToday(); html = reloaded.nodes['#main'].innerHTML;
-  assert.match(html, /<strong>0<\/strong> scritture in coda/);
+  assert.match(html, /<strong class="num">0<\/strong> scritture in coda/);
   reloaded.context.siteId = 'site-b'; reloaded.context.renderToday(); assert.doesNotMatch(reloaded.nodes['#main'].innerHTML, /cached-progress/);
 });
 
@@ -314,19 +322,19 @@ test('every Today label and metadata key is translated in Italian and English', 
 test('mobile navigation starts with Today and desktop keeps every group plus Today while respecting denials', () => {
   for (const width of [390, 800, 1280]) {
     const { context, nodes } = todayUi({ modules: { tasks: false } });
-    const node = () => ({ innerHTML: '', classList: { add() {} }, setAttribute() {}, insertAdjacentHTML() {}, querySelectorAll: () => [] });
+    const node = () => ({ innerHTML: '', setAttribute() {}, insertAdjacentHTML() {}, querySelectorAll: () => [], append(child) { child.parentElement = this; } });
     context.$ = selector => nodes[selector] ??= node();
-    context.window = { matchMedia: () => ({ matches: width < 800 }) };
+    context.window = { matchMedia: query => ({ matches: query.includes('1180') ? width >= 1180 : width < 640 }) };
     context.document = { documentElement: {} }; context.sessionStorage = { getItem: () => null };
-    Object.assign(context, { language: 'it', loading: false, renderOffline() {}, icon: () => '', navGroups, visibleModules });
+    Object.assign(context, { language: 'it', loading: false, renderOffline() {}, currentSite: () => undefined, icon: () => '', navGroups, visibleModules });
     runInNewContext(section('const NAV_ITEMS =', 'const coreCache =') + section('function renderChrome()', 'function dueMarkup('), context);
     context.renderChrome();
     const html = nodes['#navigation'].innerHTML;
     assert.doesNotMatch(html, /href="#tasks"/);
-    if (width < 800) assert.match(html, /^<a href="#today"/);
+    if (width < 1180) assert.match(html, /^<a href="#today"/);
     else {
       assert.match(html, /href="#overview"/);
-      assert.match(html, /^<a href="#today" class="nav-today/);
+      assert.match(html, /^<a href="#today"/);
       assert.equal((html.match(/<details class="nav-group"/g) || []).length, 3);
       assert.equal((html.match(/<a href=/g) || []).length, 13);
     }
@@ -354,7 +362,7 @@ test('cold Today loads progress and deviations itself, reuses each site cache, a
   } });
   ui.context.renderToday();
   assert.deepEqual(ui.requests, [['progress', 'site-a'], ['deviations', 'site-a']]);
-  assert.match(ui.nodes['#main'].innerHTML, /Avanzamento: Caricamento/);
+  assert.match(ui.nodes['#main'].innerHTML, /Avanzamento · Caricamento/);
   ui.context.siteId = 'site-b'; ui.context.renderToday();
   resolveA([progress('progress-site-a')]); await ui.settle();
   assert.match(ui.nodes['#main'].innerHTML, /progress-site-b|deviation-site-b/);

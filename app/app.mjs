@@ -41,7 +41,7 @@ let taskSort = defaultViewState().sort, taskColumns = [...TASK_COLUMNS];
 let selectedViewId = '', savedViewsCache = null;
 let wbsView = 'tree', wbsLoad = null;
 const wbsCache = new Map();
-let reportDate = today();
+let reportDate = operationalDay().date;
 let reportPrintIntent = null, lastReport = null;
 const evidenceLabels = {
   evidenceExport: ['Esporta registro delle prove', 'Export evidence register'],
@@ -113,18 +113,54 @@ const siteTasks = () => state.tasks.filter(task => task.siteId === siteId);
 const dateLabel = value => value && validDate(value) ? new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T12:00:00`)) : t('noDue');
 const coreDate = value => value == null || value === '' ? t('coreUnknown') : esc(dateLabel(String(value).slice(0, 10)));
 const timeLabel = value => new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+function operationalDay(instant = new Date()) {
+  // Use the application's diary defaults until a site supplies its own shift policy.
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
+  }).formatToParts(instant);
+  const { year, month, day, hour } = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  const date = new Date(`${year}-${month}-${day}T12:00:00Z`);
+  const localHour = Number(hour);
+  if (localHour < 6) date.setUTCDate(date.getUTCDate() - 1);
+  return { date: date.toISOString().slice(0, 10), shift: localHour >= 6 && localHour < 18 ? 'day' : 'night' };
+}
+function notebookTime(value, timeZone) {
+  if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) return '';
+  const format = zone => new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', {
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone,
+  }).format(new Date(value));
+  let clock;
+  try { clock = format(timeZone || 'Europe/Rome'); } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    clock = format('UTC');
+  }
+  return `<time class="num" datetime="${esc(value)}">${esc(clock)}</time>`;
+}
 const paths = {
+  today: '<rect x="3" y="5" width="18" height="16" rx="1.5"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  bookings: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',
+  wbs: '<path d="M12 8v4M5 16v-4h14v4"/><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="2" y="16" width="6" height="5" rx="1"/><rect x="16" y="16" width="6" height="5" rx="1"/>',
+  impacts: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/>',
+  certifications: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 12h6m-3-3v6"/>',
+  'progress': '<path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M4.5 13.5L12 17.5l7.5-4"/>',
+  'logistics': '<path d="M3.5 8h17v12h-17z"/><path d="M3.5 8L5.5 4h13L20.5 8"/><path d="M12 8v12"/>',
+  'deviations': '<path d="M12 4.5l8 15H4z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.4" r="1" fill="currentColor" stroke="none"/>',
+  'document': '<path d="M6 3.5h7.5L18 8v12.5H6z"/><path d="M13.5 3.5V8H18"/><path d="M9 12h6M9 15h4.5"/>',
+  'photo': '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.1" fill="currentColor" stroke="none"/><path d="M4.5 17l5-5 3.5 3.5 3-3 4 4"/>',
+  'diary-next': '<path d="M5 19l.9-3.7L16.3 4.9a1.5 1.5 0 012.1 0l.7.7a1.5 1.5 0 010 2.1L8.7 18.1z"/><path d="M14.6 6.6l2.8 2.8"/>',
+  'hse': '<path d="M7 13.5a5 5 0 013.4-4.7V6.5h3.2v2.3A5 5 0 0117 13.5"/><path d="M3.5 13.5h17"/><path d="M6 17h12"/>',
   reporting: '<path d="M4 3h16v18H4zM8 16v-4m4 4V8m4 8v-6"/>',
   inspectionFailed: '<circle cx="12" cy="12" r="9"/><path d="m8 8 8 8m0-8-8 8"/>',
   inspectionNever: '<circle cx="12" cy="12" r="9"/><path d="M9.5 8a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4m0 4h.01"/>',
   overview:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
   sites:'<path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1M9 13h1m4 0h1M10 21v-4h4v4"/>',
-  tasks:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="m8 8 1 1 2-2m2 1h3M8 13h2m3 0h3M8 17h2m3 0h3"/>',
-  diary:'<path d="M4 3h13a3 3 0 0 1 3 3v15H7a3 3 0 0 1-3-3V3Zm0 14h16M8 7h8M8 11h6"/>',
+  'tasks': '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12.3l2.8 2.8L16.5 9"/>',
+  'diary': '<path d="M4 5.6A1.6 1.6 0 015.6 4H11v16H5.6A1.6 1.6 0 014 18.4z"/><path d="M20 5.6A1.6 1.6 0 0018.4 4H13v16h5.4A1.6 1.6 0 0020 18.4z"/>',
   tools:'<path d="m14.7 6.3-2.3 2.3-3-3 2.3-2.3a4 4 0 0 0-5.4 5.4L3 12l3 3 6.3-6.3a4 4 0 0 0 5.4 2.3Z"/><path d="m13 15 6 6M15 13l6 6"/>',
   execution:'<path d="m8 5 11 7-11 7V5Z"/>',review:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',closed:'<circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/>',overdue:'<path d="m12 3 10 18H2L12 3Zm0 6v5m0 3h.01"/>',
 };
-const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[key] || paths.tasks}</svg>`;
+const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[key] || paths.tasks}</svg>`;
 const badge = status => `<span class="badge ${status}">${t(status)}</span>`;
 const priorityBadge = priority => priority !== 'normal' ? `<span class="badge ${esc(priority)}">${esc(t(priority))}</span>` : '';
 const button = (key, command, extra = '', css = '') => `<button type="button" class="${css}" data-command="${command}" ${extra}>${t(key)}</button>`;
@@ -299,8 +335,6 @@ function renderChrome() {
   renderOffline();
   document.documentElement.lang = language;
   document.title = `SiteAssistant · ${t(view)}`;
-  $('#brand-sub').textContent = t('brandSub'); $('#workspace-label').textContent = t('workspace');
-  $('#local-label').innerHTML = `${t('local')}<small>${t('fiction')}</small>`;
   // The assistant only exists for a signed-in user: no fab, no panel on the login screen.
   const fab = $('#ai-fab'), top = $('#ai-top'), aiPanel = $('#ai-panel');
   for (const trigger of [fab, top]) if (trigger) {
@@ -308,28 +342,51 @@ function renderChrome() {
     if (!session) trigger.setAttribute('aria-expanded', 'false');
   }
   if (aiPanel && !session) aiPanel.hidden = true;
-  $('#navigation').setAttribute('aria-label', t('nav'));
-  $('#navigation').classList.add('core-navigation');
-  $('.sidebar').classList.add('core-sidebar');
-  const compact = compactNavigation();
-  const navItems = visibleModules(compact ? MOBILE_PRIMARY : NAV_ITEMS, currentModules());
-  const more = compact && !MOBILE_PRIMARY.includes(view);
-  const navLabel = key => t(key === 'bookings' ? 'bookingsShort' : key);
+  const nav = $('#navigation');
+  const rail = window.matchMedia('(min-width: 1180px)').matches;
+  const destinations = rail ? [] : visibleModules(headerNavItems(), currentModules());
+  const more = !rail && !destinations.includes(view);
+  const navLabel = key => t(({ bookings: 'bookingsShort', diary: 'diaryNav', progress: rail ? 'progress' : 'progressShort' })[key] || key);
   const navLink = key => {
-    const css = [!compact && key === 'today' ? 'nav-today' : '', view === key ? 'active' : ''].filter(Boolean).join(' ');
-    return `<a href="#${key}" ${css ? `class="${css}" ` : ''}${view === key ? 'aria-current="page"' : ''}>${icon(key)}<span>${navLabel(key)}</span></a>`;
+    const active = view === key;
+    return `<a href="#${key}"${active ? ' aria-current="page"' : ''}>${icon(key)}<span>${navLabel(key)}</span></a>`;
   };
-  $('#navigation').innerHTML = (compact
-    ? navItems.map(navLink).join('') + `<button type="button" class="nav-more${more ? ' active' : ''}" data-command="more-nav">${icon('more')}${t('more')}</button>`
-    : desktopNavigation(navLink));
-  if (!compact) bindDesktopNavigation();
-  $('#skip').textContent = t('skip'); $('#site-label').textContent = t('site'); $('#actor-label').textContent = t('actor');
+  const navSlot = $(rail ? '.rail-navigation' : '.topbar-navigation');
+  if (nav.parentElement !== navSlot) navSlot.append(nav);
+  nav.setAttribute('aria-label', t('nav'));
+  nav.innerHTML = rail ? desktopNavigation(navLink) : destinations.map(navLink).join('')
+    + `<button type="button" class="nav-more${more ? ' active' : ''}" data-command="more-nav" aria-haspopup="dialog">${icon('more')}<span>${t('more')}</span></button>`;
+  if (rail) bindDesktopNavigation();
+  nav.hidden = !session;
+  $('#skip').textContent = t('skip');
+  $('.site-control').hidden = !session;
+  $('#site-label').textContent = t('site');
+  $('#settings-button').title = t('settingsTitle');
+  $('#settings-button').setAttribute('aria-label', t('settingsTitle'));
   $('#manual-link').textContent = t('manual');
   $('#manual-link').href = `https://as76.github.io/SiteAssistant/${language === 'en' ? 'en/' : ''}${manualPages[view] || ''}`;
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
-  $('#site-select').title = state.sites.find(site => site.id === siteId)?.name || '';
+  const site = currentSite();
+  $('#site-select').title = site?.name || '';
+  $('#topbar-code').textContent = site?.code || '';
+  $('#topbar-code').hidden = !site?.code;
+  $('#site-location').textContent = site?.location || '';
+  $('#site-location').hidden = !site?.location;
+  $('#operational-context').hidden = !site;
+  if (site) {
+    const { date, shift } = operationalDay();
+    const dateParts = new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+    }).formatToParts(new Date(`${date}T12:00:00Z`));
+    $('#operational-label').textContent = t('reportDate');
+    $('#operational-date').dateTime = date;
+    $('#operational-date').innerHTML = dateParts.map(({ type, value }) =>
+      type === 'day' ? `<b class="num">${esc(value)}</b>` : esc(value)).join('');
+    $('#operational-shift').textContent = t(shift);
+  }
   $('#actor-name').textContent = actor;
-  $('#navigation').hidden = !session;
+  const memberRole = role();
+  $('#actor-role').textContent = memberRole ? t(`responsibleRole_${memberRole}`) : '';
   let logoutButton = $('#logout');
   if (!logoutButton) {
     $('#language').insertAdjacentHTML('beforebegin', '<button type="button" id="logout" data-command="logout"></button>');
@@ -378,22 +435,64 @@ function rememberTodayResource(name, data, selected = siteId) {
     if (scope === offlineScope) await persistState();
   }).catch(() => { storageError = true; });
 }
-function currentTodayActions() {
-  return todayActions({ tasks: siteTasks(), progress: todayResource('progress'),
+function currentTodayActions(day = operationalDay().date) {
+  return todayActions({ progress: todayResource('progress'),
     diary: state.diary.filter(entry => entry.siteId === siteId), deviations: todayResource('deviations'),
-    userId: session?.user.id, today: today(), modules: currentModules() });
+    userId: session?.user.id, today: day, modules: currentModules() });
 }
 function canCloseTodayTask(task) {
   return task.status !== 'closed' && canRunLightTransition(task);
 }
 function todayPhotoTargets() {
-  const entries = moduleVisible('diary') ? state.diary.filter(entry => entry.siteId === siteId && entry.date === today())
+  const day = operationalDay().date;
+  const entries = moduleVisible('diary') && ['owner', 'editor'].includes(role())
+    ? state.diary.filter(entry => entry.siteId === siteId && entry.date === day)
     .map(entry => ({ type: 'diary', id: entry.id, title: `${t('journalToday')} · ${t(entry.shift)}` })) : [];
   const tasks = canEditTask() ? filterSortRecords(siteTasks().filter(task => task.status !== 'closed'), {}, [{ key: 'due' }, { key: 'title' }, { key: 'id' }])
     .map(task => ({ type: 'task', id: task.id, title: task.title })) : [];
   return [...entries, ...tasks].slice(0, 5);
 }
+const notebookStates = {
+  todo: ['○', 'todo'], in_progress: ['▶', 'in_progress'], to_verify: ['◆', 'to_verify'],
+  blocked: ['▲', 'blocked'], closed: ['✓', 'notebookClosed'], upcoming: ['→', 'todayUpcoming'],
+};
+function notebookState(status, state = Object.hasOwn(notebookStates, status) ? notebookStates[status] : null) {
+  return state ? `<span class="notebook-state"><span aria-hidden="true">${state[0]}</span> ${esc(t(state[1]))}</span>` : '';
+}
+const notebookSync = entity => entity.syncStatus ? `<span class="notebook-meta">${t(entity.syncStatus === 'failed' ? 'syncFailed' : 'syncPending')}</span>` : '';
+const notebookPriority = priority => priority !== 'normal' ? `<span class="notebook-meta">${esc(t(priority))}</span>` : '';
+const notebookCount = (count, singular, plural) => `<strong class="num">${count}</strong> ${t(count === 1 ? singular : plural)}`;
+const notebookBoardHead = (state, count) => `${state}<span class="count num">${count}</span>`;
+const notebookDue = task => `<span class="num">${dueMarkup(task)}</span>`;
+function todayTaskItem(task, day) {
+  const status = task.status;
+  const event = task.events?.findLast(event => event.to_status === status);
+  const time = status === 'to_verify' ? task.declared_at || event?.at : event?.at;
+  return {
+    kind: 'task', id: task.id, title: task.title, status, time, due: task.due,
+    meta: [task.area, task.company, task.wbsCode, task.assignee,
+      status === 'to_verify' && task.submitted_by,
+      validDate(task.due) && task.due <= day && `${t('due')} ${dateLabel(task.due)}`,
+      task.executor_id === session?.user.id && t('todayMine'),
+      status === 'blocked' && validDate(task.due) && task.due < day && t('overdue'),
+      task.syncStatus && t(task.syncStatus === 'failed' ? 'syncFailed' : 'syncPending')],
+    note: status === 'blocked' ? task.last_block_note || event?.reason : event?.note,
+    canVerify: status === 'to_verify' && taskTransitions(task).includes('closed'),
+  };
+}
+function notebookRow(item, upcoming = false) {
+  const type = ({ task: 'tasks', recent: 'tasks', progress: 'progress', deviation: 'deviations', diary: 'diary', 'diary-next': 'diary-next' })[item.kind];
+  const column = upcoming ? `<time class="num" datetime="${esc(item.due)}">${esc(dateLabel(item.due))}</time>`
+    : notebookTime(item.time) || '<span aria-hidden="true">—</span>';
+  return `<li><button type="button" class="today-row" data-command="today-open" data-kind="${item.kind}" data-id="${esc(item.id)}">
+    <span class="today-row-time">${column}</span><span class="today-row-main"><strong>${esc(item.title)}</strong>
+      <span class="notebook-meta">${esc([...new Set(item.meta.filter(Boolean))].join(' · '))}</span>
+      ${item.note ? `<span class="notebook-meta prewrap">${esc(item.note)}</span>` : ''}</span>
+    ${notebookState(item.status)}<span class="today-row-mark" aria-hidden="true">${icon(type)}<span>›</span></span>
+  </button>${item.status === 'blocked' ? button('history', 'task-history', `data-id="${esc(item.id)}"`, 'small today-history') : ''}</li>`;
+}
 function renderToday() {
+  const day = operationalDay().date;
   const resources = ['progress', 'deviations'].filter(moduleVisible).map(name => {
     const entry = offline ? null : coreResource(name);
     const cached = state.todayResources?.[siteId]?.[name];
@@ -403,40 +502,77 @@ function renderToday() {
   });
   const incomplete = resources.some(({ entry, status }) => entry?.pending || entry?.error || status === 'todayUnavailableOffline');
   const resourceStates = resources.filter(row => row.status).map(({ name, entry, status }) =>
-    `<p class="note" role="${entry?.error ? 'alert' : 'status'}">${t(name)}: ${t(status)}${entry?.error ? ` ${button('retry', 'today-retry', `data-resource="${name}"`)}` : ''}</p>`).join('');
-  const actions = currentTodayActions();
-  const recent = moduleVisible('tasks') ? recentActions({ tasks: siteTasks() }) : [];
-  const row = (item, kind = item.kind) => {
-    const meta = item.meta;
-    const details = kind === 'recent' ? [t('todayClosed'), item.date ? timeLabel(item.date) : t('todayClosureUnknown')]
-      : [t(meta.label), meta.status && t(meta.status), (meta.due || meta.date) && dateLabel(meta.due || meta.date),
-        meta.shift && t(meta.shift), meta.overdueDays > 0 && t(meta.overdueDays === 1 ? 'todayLateDay' : 'todayLateDays').replace('{days}', meta.overdueDays)];
-    const blocked = meta?.status === 'blocked';
-    const history = blocked ? button('history', 'task-history', `data-id="${esc(item.id)}"`, 'small today-history') : '';
-    return `<li><button type="button" class="today-row" data-command="today-open" data-kind="${kind}" data-id="${esc(item.id)}"><strong>${esc(item.title || (item.kind === 'diary' ? t('journalToday') : item.id))}</strong><span>${esc(details.filter(Boolean).join(' · '))}</span>${meta?.blockNote ? `<span>${esc(meta.blockNote)}</span>` : ''}</button>${history}</li>`;
-  };
-  const quick = (label, action, enabled) => button(label, 'today-quick', `data-action="${action}" ${enabled ? '' : 'disabled'}`);
+    `<p class="notebook-meta" role="${entry?.error ? 'alert' : 'status'}">${t(name)} · ${t(status)}${entry?.error ? ` ${button('retry', 'today-retry', `data-resource="${name}"`)}` : ''}</p>`).join('');
+  const tasksVisible = moduleVisible('tasks');
+  const diaryVisible = moduleVisible('diary');
+  const tasks = tasksVisible ? filterSortRecords(siteTasks().filter(task => task.status !== 'closed'), {},
+    [{ key: 'due' }, { key: 'title' }, { key: 'id' }]).map(task => todayTaskItem(task, day)) : [];
+  const verify = tasks.filter(item => item.status === 'to_verify' && (item.canVerify || !validDate(item.due) || item.due <= day));
+  const work = tasks.filter(item => item.status !== 'to_verify' && validDate(item.due) && item.due <= day);
+  const upcoming = tasks.filter(item => !item.canVerify && validDate(item.due) && item.due > day)
+    .map(item => ({ ...item, status: 'upcoming' }));
+  const other = currentTodayActions(day).filter(item => item.meta.label !== 'todayDiaryMissing').map(item => ({
+    kind: item.kind, id: item.id, title: item.title || t('journalToday'),
+    status: item.meta.status,
+    meta: [t(item.meta.label), item.meta.status && !Object.hasOwn(notebookStates, item.meta.status) && t(item.meta.status),
+      item.meta.date && dateLabel(item.meta.date), item.meta.shift && t(item.meta.shift)],
+  }));
+  const now = verify.find(item => item.canVerify) || work.find(item => item.status !== 'blocked') || verify[0] || work[0] || other[0];
+  const recent = tasksVisible ? recentActions({ tasks: siteTasks() }).map(item => ({
+    ...item, kind: 'recent', status: 'closed', time: item.date,
+    meta: [item.date ? timeLabel(item.date) : t('todayClosureUnknown')],
+  })) : [];
+  const section = (id, title, rows) => rows.length ? `<section aria-labelledby="${id}">
+    <div class="notebook-section-head"><h2 id="${id}">${t(title)}</h2><span class="num">${rows.length}</span></div>
+    <ul class="today-list">${rows.map(item => notebookRow(item)).join('')}</ul></section>` : '';
+  const openDiary = diaryVisible ? button('openDiary', 'today-diary') : '';
+  const primary = now?.canVerify
+    ? `<button type="button" class="notebook-primary" data-command="transition" data-id="${esc(now.id)}" data-to="closed">${t('todayVerifyTasks')}<span aria-hidden="true">→</span></button>`
+    : now ? button('details', 'today-open', `data-id="${esc(now.id)}" data-kind="${now.kind}"`, 'notebook-primary') : '';
+  const quick = (label, action, enabled) => button(label, 'today-quick', `data-action="${action}"${enabled ? '' : ' disabled'}`);
   const quickActions = [
-    moduleVisible('tasks') ? quick('todayVerifyTasks', 'verify', canTransitionTask()) : '',
-    moduleVisible('diary') ? quick('todayWriteDiary', 'diary', canWriteTask()) : '',
-    moduleVisible('tasks') || moduleVisible('diary') ? quick('todayTakePhoto', 'photo', canWriteTask()) : '',
+    tasksVisible && verify.length && canTransitionTask() ? quick('todayVerificationList', 'verify', true) : '',
+    diaryVisible ? quick('todayWriteDiary', 'diary', canWriteTask()) : '',
+    (tasksVisible || diaryVisible) ? quick('todayTakePhoto', 'photo', ['owner', 'editor'].includes(role())) : '',
     moduleVisible('progress') ? quick('todayOpenProgress', 'progress', true) : '',
   ].join('');
-  $('#main').innerHTML = heading('today', 'todaySub') + `<div class="today-content">
-    <section class="panel today-section" aria-labelledby="today-todo"><h2 id="today-todo">${t('todayTodo')}</h2>
-      ${actions.length ? `<ul class="today-list">${actions.map(item => row(item)).join('')}</ul>` : `<p class="note">${t(incomplete ? 'todayIncomplete' : 'todayEmpty')}</p>`}
-      ${resourceStates}</section>
-    <section class="panel today-section" aria-labelledby="today-quick"><h2 id="today-quick">${t('todayQuick')}</h2><div class="today-quick">${quickActions}</div></section>
-    <section class="panel today-section" aria-labelledby="today-recent"><h2 id="today-recent">${t('todayRecent')}</h2>
-      ${recent.length ? `<ul class="today-list">${recent.map(item => row(item, 'recent')).join('')}</ul>` : `<p class="note">${t('todayRecentEmpty')}</p>`}</section>
-    ${offline ? `<p class="today-connection" role="status">${t('todayOffline')} <strong>${pendingOps.length}</strong> ${t('todayQueued')}</p>` : ''}</div>`;
+  $('#main').innerHTML = `<div class="notebook today-content">
+    <header class="notebook-page-head"><div><h1>${t('today')}</h1><time class="notebook-meta num" datetime="${day}">${esc(dateLabel(day))}</time></div>
+      ${now && openDiary ? `<div class="notebook-actions">${openDiary}</div>` : ''}</header>
+    <section class="today-section" aria-labelledby="today-now">
+      <div class="notebook-section-head"><h2 id="today-now">${t('todayNow')}</h2></div>
+      ${now ? `<article class="today-next">
+        <div class="today-next-top">${notebookState(now.status)}${notebookTime(now.time)}</div>
+        <h3>${esc(now.title)}</h3><p class="notebook-meta">${esc(now.meta.filter(Boolean).join(' · '))}</p>
+        ${now.note ? `<p class="today-next-note prewrap">${esc(now.note)}</p>` : ''}
+        <div class="notebook-actions">${primary}</div>
+      </article>` : `<div class="today-empty">${icon('today')}<h3>${t(incomplete ? 'todayIncompleteTitle' : 'todayEmptyTitle')}</h3>
+        <p class="notebook-meta">${t(incomplete ? 'todayIncomplete' : 'todayEmpty')}</p>
+        <div class="notebook-actions">${openDiary}${tasksVisible ? `<button type="button" data-command="today-see-upcoming">${t('todaySeeUpcoming')} <span aria-hidden="true">→</span></button>` : ''}</div>
+      </div>`}
+    </section>
+    ${section('today-verify', 'to_verify', verify.filter(item => item !== now))}
+    ${section('today-work', 'todayWork', [...work, ...other].filter(item => item !== now))}
+    ${tasksVisible ? `<section id="today-upcoming" class="today-upcoming" aria-labelledby="today-upcoming-title">
+      <div class="notebook-section-head"><h2 id="today-upcoming-title" tabindex="-1">${t('todayUpcoming')}</h2><span>${t('todayOutsideDay')}</span></div>
+      ${upcoming.length ? `<ul class="today-list">${upcoming.map(item => notebookRow(item, true)).join('')}</ul>`
+        : `<p class="notebook-meta">${t('todayUpcomingEmpty')}</p>`}</section>` : ''}
+    ${quickActions ? `<section aria-labelledby="today-quick"><div class="notebook-section-head"><h2 id="today-quick">${t('todayQuick')}</h2></div>
+      <div class="notebook-actions today-quick">${quickActions}</div></section>` : ''}
+    ${section('today-recent', 'todayRecent', recent)}
+    ${resourceStates ? `<div class="today-resource-states">${resourceStates}</div>` : ''}
+    ${offline ? `<p class="notebook-meta" role="status"><strong class="num">${pendingOps.length}</strong> ${t('todayQueued')}</p>` : ''}
+  </div>`;
 }
 function openTodayAction(control) {
-  const item = control.dataset.kind === 'recent'
-    ? (moduleVisible('tasks') ? recentActions({ tasks: siteTasks() }).find(row => row.id === control.dataset.id) : null)
-    : currentTodayActions().find(row => row.id === control.dataset.id && row.kind === control.dataset.kind);
-  if (!item || !moduleVisible(item.target.view)) return;
-  const target = item.target;
+  const { id, kind } = control.dataset;
+  let target;
+  if (kind === 'task' || kind === 'recent') {
+    if (siteTasks().some(task => task.id === id)) target = { view: 'tasks', filters: { id } };
+  } else {
+    target = currentTodayActions().find(row => row.id === id && row.kind === kind)?.target;
+  }
+  if (!target || !moduleVisible(target.view)) return;
   if (target.view === 'tasks') { resetSavedViews(); filters = { ...filters, ...target.filters }; taskView = 'list'; }
   else if (target.view === 'diary') reportDate = target.date;
   else { coreFilters[target.view] = { ...Object.fromEntries(Object.keys(coreFilters[target.view]).map(key => [key, ''])), ...target.filters }; if (target.view === 'deviations') deviationView = 'list'; }
@@ -446,10 +582,10 @@ function runTodayQuick(action) {
   if (action === 'verify' && canTransitionTask()) {
     resetSavedViews(); filters = { ...filters, status: 'to_verify', kind: 'ordinary', closable: true }; taskView = 'light'; go('tasks');
   } else if (action === 'diary' && moduleVisible('diary') && canWriteTask()) {
-    reportDate = today(); showEntryForm();
+    reportDate = operationalDay().date; showEntryForm();
   } else if (action === 'progress' && moduleVisible('progress')) {
     coreFilters.progress = { wbsId: '' }; go('progress');
-  } else if (action === 'photo' && canWriteTask() && (moduleVisible('tasks') || moduleVisible('diary'))) {
+  } else if (action === 'photo' && ['owner', 'editor'].includes(role()) && (moduleVisible('tasks') || moduleVisible('diary'))) {
     const targets = todayPhotoTargets();
     showModal(t('todayTakePhoto'), `<p class="note">${t('todayPhotoTarget')}</p>${targets.length
       ? `<div class="today-photo-targets">${targets.map(item => `<button type="button" data-command="today-photo-target" data-entity-type="${item.type}" data-id="${esc(item.id)}">${esc(item.title)}</button>`).join('')}</div>`
@@ -872,10 +1008,29 @@ async function updateSelectedView() {
 }
 function renderTasks() {
   loadSavedViews();
-  $('#main').innerHTML = heading('tasksTitle', 'tasksSub', button('exportCsv', 'csv') +
-    button(`${t('evidenceWaiverView')} (${siteTasks().filter(task => task.closed_with_waiver).length})`, 'task-waiver-view',
-      `aria-pressed="${Boolean(filters.waiver)}"`, filters.waiver ? 'selected' : '') + (canWriteTask() ? button('newTask', 'new-task', '', 'primary') : '')) +
-    `<div id="saved-views" class="toolbar saved-views"></div><div class="toolbar"><input class="search" id="filter-search" maxlength="512" aria-label="${t('search')}" placeholder="${t('search')}" value="${esc(filters.search)}"><select id="filter-status" aria-label="${t('status')}"><option value="">${t('allStatuses')}</option>${STATUSES.map(status => `<option value="${status}" ${filters.status === status ? 'selected' : ''}>${t(status)}</option>`).join('')}</select><select id="filter-person" aria-label="${t('assignee')}"><option value="">${t('allPeople')}</option>${[...new Set([...siteTasks().map(task => task.assignee), ...(filters.person ? [filters.person] : [])])].map(person => `<option value="${esc(person)}" ${filters.person === person ? 'selected' : ''}>${personName(person)}</option>`).join('')}</select><select id="filter-priority" aria-label="${t('priority')}"><option value="">${t('allPriorities')}</option>${PRIORITIES.map(priority => `<option value="${priority}" ${filters.priority === priority ? 'selected' : ''}>${t(priority)}</option>`).join('')}</select><select id="filter-kind" aria-label="${t('kind')}"><option value="">${t('allKinds')}</option>${TASK_KINDS.map(kind => `<option value="${kind}" ${filters.kind === kind ? 'selected' : ''}>${t(taskKindLabelKey(kind))}</option>`).join('')}</select><div class="view-toggle">${button('board', 'task-view', `data-value="board" aria-pressed="${taskView === 'board'}"`, taskView === 'board' ? 'selected' : '')}${button('list', 'task-view', `data-value="list" aria-pressed="${taskView === 'list'}"`, taskView === 'list' ? 'selected' : '')}${button('light', 'task-view', `data-value="light" aria-pressed="${taskView === 'light'}"`, taskView === 'light' ? 'selected' : '')}</div></div>${taskView === 'list' ? taskListControls() : ''}<div id="task-results"></div>`;
+  $('#main').innerHTML = `<div class="notebook notebook-records">
+    <header class="notebook-page-head">
+      <div><h1>${t('tasksTitle')}</h1><p id="task-summary" class="notebook-meta num" role="status"></p></div>
+      ${canWriteTask() ? `<div class="notebook-actions">${button('newTask', 'new-task', '', 'notebook-primary')}</div>` : ''}
+    </header>
+    <div class="notebook-tools">
+      <div class="toolbar">
+        <input class="search" id="filter-search" maxlength="512" aria-label="${t('search')}" placeholder="${t('search')}" value="${esc(filters.search)}">
+        <select id="filter-status" aria-label="${t('status')}"><option value="">${t('allStatuses')}</option>${STATUSES.map(status => `<option value="${status}" ${filters.status === status ? 'selected' : ''}>${t(status)}</option>`).join('')}</select>
+        <select id="filter-person" aria-label="${t('assignee')}"><option value="">${t('allPeople')}</option>${[...new Set([...siteTasks().map(task => task.assignee), ...(filters.person ? [filters.person] : [])])].map(person => `<option value="${esc(person)}" ${filters.person === person ? 'selected' : ''}>${personName(person)}</option>`).join('')}</select>
+        <select id="filter-priority" aria-label="${t('priority')}"><option value="">${t('allPriorities')}</option>${PRIORITIES.map(priority => `<option value="${priority}" ${filters.priority === priority ? 'selected' : ''}>${t(priority)}</option>`).join('')}</select>
+        <select id="filter-kind" aria-label="${t('kind')}"><option value="">${t('allKinds')}</option>${TASK_KINDS.map(kind => `<option value="${kind}" ${filters.kind === kind ? 'selected' : ''}>${t(taskKindLabelKey(kind))}</option>`).join('')}</select>
+        <div class="view-toggle">${['board', 'list', 'light'].map(value => button(value, 'task-view', `data-value="${value}" aria-pressed="${taskView === value}"`)).join('')}</div>
+      </div>
+      <div id="saved-views" class="toolbar saved-views"></div>
+      ${taskView === 'list' ? taskListControls() : ''}
+      <div class="notebook-actions">
+        ${button('exportCsv', 'csv')}
+        ${button(`${t('evidenceWaiverView')} (${siteTasks().filter(task => task.closed_with_waiver).length})`, 'task-waiver-view', `aria-pressed="${Boolean(filters.waiver)}"`, 'num')}
+      </div>
+    </div>
+    <div id="task-results"></div>
+  </div>`;
   renderSavedViews(); renderTaskResults();
 }
 function taskCard(task) {
@@ -884,7 +1039,15 @@ function taskCard(task) {
   const menu = transitions.length
     ? `<button type="button" class="task-card-menu" data-command="task-status-menu" data-id="${esc(task.id)}" aria-label="${t('changeStatus')}" title="${t('changeStatus')}">⋯</button>`
     : '';
-  return `<div class="task-card">${menu}<button type="button" class="task-card-main" data-command="detail" data-id="${esc(task.id)}"><span class="card-code">${esc(task.area || t('noArea'))}</span><h2>${esc(task.title)}</h2>${task.kind === 'corrective' ? `<span class="badge">${t('kindCorrective')}</span> ` : ''}${priorityBadge(task.priority)} ${syncBadge(task)}<p>${esc(task.company)}</p><p>${esc(taskWbsText(task))}</p><p>${personName(task.assignee)}</p><div class="card-footer">${dueMarkup(task)}<span>→</span></div></button></div>`;
+  const context = [task.company, taskWbsText(task), task.assignee || '—'].filter(Boolean);
+  return `<div class="task-card">${menu}
+    <button type="button" class="task-card-main" data-command="detail" data-id="${esc(task.id)}">
+      <span class="notebook-meta">${esc(task.area || t('noArea'))}</span>
+      <span class="notebook-card-title">${esc(task.title)}</span>
+      <span class="notebook-meta">${esc(context.join(' · '))}</span>
+      <span class="notebook-card-meta">${task.kind === 'corrective' ? `<span class="notebook-meta">${t('kindCorrective')}</span>` : ''}${notebookPriority(task.priority)}${notebookSync(task)}</span>
+      <span class="card-footer">${notebookState(task.status)}${notebookDue(task)}<span aria-hidden="true">→</span></span>
+    </button></div>`;
 }
 const lightTransitions = new Set();
 function canRunLightTransition(task) {
@@ -917,37 +1080,122 @@ async function runLightTransition(taskId) {
 function renderTaskResults() {
   const filtered = filteredTasks();
   const tasks = taskView === 'light' ? lightTaskRows(filtered) : filtered;
-  let html = `<p class="note" role="status">${tasks.length} ${t(tasks.length === 1 ? 'resultCountOne' : 'resultCount')} · ${siteTasks().length - counts(siteTasks()).closed} ${t('nonClosed')}</p>`;
+  const active = [
+    filters.search?.trim(),
+    filters.person,
+    filters.priority && t(filters.priority),
+    filters.kind && t(taskKindLabelKey(filters.kind)),
+    filters.waiver && t('evidenceWaiverView'),
+  ].filter(Boolean).map(esc);
+  const scope = filters.openVerification ? 'progressVerificationFilter' : filters.id || filters.closable ? 'todayFiltered' : '';
+  if (scope) active.push(t(scope));
+  $('#task-summary').innerHTML = [
+    notebookState(filters.status),
+    ...active,
+    notebookCount(tasks.length, 'resultCountOne', 'resultCount'),
+    `<strong class="num">${siteTasks().length - counts(siteTasks()).closed}</strong> ${t('nonClosed')}`,
+  ].filter(Boolean).join(' · ');
+  let html = '';
   if (!tasks.length) html += `<section class="panel">${empty(taskView === 'light' ? 'lightEmpty' : 'noResults', 'noResultsHint', button('clearFilters', 'clear-filters'))}</section>`;
   else if (taskView === 'board') {
     const columns = STATUSES.map(status => ({ status, column: tasks.filter(task => task.status === status) }));
     // On a phone the columns would need horizontal panning: one status open at a time, by thumb.
     html += compactNavigation()
       ? `<div class="board-accordion">${columns.map(({ status, column }, index) => `<details class="board-status" ${index === 0 ? 'open' : ''}>
-          <summary><span>${t(status)}</span><span class="count">${column.length}</span></summary>
+          <summary class="notebook-section-head">${notebookBoardHead(notebookState(status), column.length)}</summary>
           ${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</details>`).join('')}</div>`
-      : `<div class="board">${columns.map(({ status, column }) => `<section class="board-column" aria-label="${t(status)}"><div class="column-heading"><span>${t(status)}</span><span>${column.length}</span></div>${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</section>`).join('')}</div>`;
+      : `<div class="board">${columns.map(({ status, column }) => `<section class="board-column" aria-labelledby="task-column-${status}"><h2 class="notebook-section-head" id="task-column-${status}">${notebookBoardHead(notebookState(status), column.length)}</h2>${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</section>`).join('')}</div>`;
   }
   else if (taskView === 'light') {
-    html += `<div class="table-scroll mobile-card-wrap"><table class="mobile-card-table"><thead><tr>${['title', 'area', 'assignee', 'due', 'status', 'lightAction'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead><tbody>${tasks.map(task => `<tr><td data-label="${t('title')}"><button type="button" data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></td><td data-label="${t('area')}">${esc(task.area || '—')}</td><td data-label="${t('assignee')}">${personName(task.assignee)}</td><td data-label="${t('due')}">${dueMarkup(task)}</td><td data-label="${t('status')}"><span>${badge(task.status)} ${syncBadge(task)}</span></td><td data-label="${t('lightAction')}" class="mobile-card-actions">${lightTaskButton(task)}</td></tr>`).join('')}</tbody></table></div>`;
+    html += `<div class="table-scroll mobile-card-wrap"><table class="mobile-card-table"><thead><tr>${['title', 'area', 'assignee', 'due', 'status', 'lightAction'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead>
+      <tbody>${tasks.map(task => `<tr>
+        <td data-label="${t('title')}"><button type="button" data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></td>
+        <td data-label="${t('area')}">${esc(task.area || '—')}</td><td data-label="${t('assignee')}">${personName(task.assignee)}</td>
+        <td data-label="${t('due')}">${notebookDue(task)}</td><td data-label="${t('status')}"><span>${notebookState(task.status)} ${notebookSync(task)}</span></td>
+        <td data-label="${t('lightAction')}" class="mobile-card-actions">${lightTaskButton(task)}</td>
+      </tr>`).join('')}</tbody></table></div>`;
   }
   else {
     const sorted = filterSortRecords(tasks, {}, [{ key: taskSort.key, descending: taskSort.direction === 'desc' }]);
-    const cell = (task, key) => key === 'status' ? `${badge(task.status)} ${syncBadge(task)}` : key === 'due' ? dueMarkup(task)
-      : ['assignee', 'reviewer'].includes(key) ? personName(task[key]) : esc(task[key] || '—') + (key === 'title' ? `<br><small>${esc(taskWbsText(task))}</small>` : '');
+    const cell = (task, key) => key === 'status' ? `${notebookState(task.status)} ${notebookSync(task)}` : key === 'due' ? notebookDue(task)
+      : ['assignee', 'reviewer'].includes(key) ? personName(task[key]) : esc(task[key] || '—') + (key === 'title' ? `<br><small class="notebook-meta">${esc(taskWbsText(task))}</small>` : '');
     html += `<div class="table-scroll"><table><thead><tr>${taskColumns.map(key => `<th scope="col" ${key === taskSort.key ? `aria-sort="${taskSort.direction === 'asc' ? 'ascending' : 'descending'}"` : ''}>${t(key)}</th>`).join('')}</tr></thead><tbody>${sorted.map(task => `<tr>${taskColumns.map((key, index) => `<td>${index === 0 ? `<button data-command="detail" data-id="${esc(task.id)}" aria-label="${esc(task.title)}">${cell(task, key)}</button>` : cell(task, key)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
-  if (filters.id || filters.closable || filters.openVerification) html = `<p class="note">${t(filters.openVerification ? 'progressVerificationFilter' : 'todayFiltered')} ${button('clearFilters', 'clear-filters')}</p>` + html;
+  if (scope) html = `<div class="notebook-actions">${button('clearFilters', 'clear-filters')}</div>` + html;
   renderViewDirty();
   $('#task-results').innerHTML = html;
 }
 function renderDiary() {
-  const entries = state.diary.filter(item => item.siteId === siteId && item.date === reportDate);
-  const canWrite = ['owner', 'editor', 'verifier'].includes(role());
-  $('#main').innerHTML = heading('diaryTitle', 'diarySub', button('print', 'print') + (canWrite ? button('newEntry', 'new-entry', '', 'primary') : '')) +
-    `<div class="diary-toolbar"><label for="report-date">${t('reportDate')}</label><div class="field">${dateInput('report-date', reportDate, 'required')}</div><time class="subtitle" datetime="${reportDate}">${esc(dateLabel(reportDate))}</time><span class="subtitle">${entries.length} ${t(entries.length === 1 ? 'entriesOne' : 'entries')}</span></div><div class="diary-grid"><section class="panel">${entries.length ? entries.map(entry => {
-      return `<article class="diary-entry"><div class="entry-heading"><strong>${t(entry.shift)} ${syncBadge(entry)}</strong><span>${t('recordedAt')} ${timeLabel(entry.createdAt)}</span></div><div class="entry-grid">${['plan', 'actual', 'blockers', 'next'].map(key => `<section class="entry-section ${key === 'blockers' && entry[key] ? 'entry-blocker' : ''}"><h3>${t(key)}</h3><p>${esc(entry[key] || '—')}</p></section>`).join('')}</div>${attachmentSection('diary', entry.id)}</article>`;
-    }).join('') : empty('diaryEmpty', 'diaryEmptyHint', canWrite ? button('newEntry', 'new-entry', '', 'primary') : '')}</section><details class="panel diary-aside" open><summary>${t('dayRule')}</summary><div class="panel-body"><p>${t('dayRuleNote')}</p><div class="blank-message">${t('diaryLimit')}</div></div></details></div><p class="note">${t('forDate')} ${dateLabel(reportDate)} · ${t('draft')} · ${t('diaryLimit')}</p>`;
+  const recordedAt = entry => {
+    const timestamp = Date.parse(entry.createdAt);
+    return Number.isFinite(timestamp) ? timestamp : Infinity;
+  };
+  const entries = state.diary.filter(item => item.siteId === siteId && item.date === reportDate)
+    .sort((a, b) => recordedAt(a) - recordedAt(b) || String(a.id).localeCompare(String(b.id)));
+  const shifts = [...new Set(entries.map(entry => entry.shift).filter(shift => ['day', 'night'].includes(shift)))];
+  const filesByEntry = new Map(entries.map(entry => [entry.id, []]));
+  for (const file of state.attachments || []) {
+    if (file.entity_type === 'diary') filesByEntry.get(file.entity_id)?.push(file);
+  }
+  const fileCount = [...filesByEntry.values()].reduce((total, files) => total + files.length, 0);
+  const availableShifts = ['day', 'night'].filter(shift => !shifts.includes(shift));
+  const current = operationalDay();
+  const shownShifts = shifts.length || current.date !== reportDate ? shifts : [current.shift];
+  const canWrite = canWriteTask() && availableShifts.length > 0;
+  const canAttach = ['owner', 'editor'].includes(role());
+  const count = (number, single, multiple) => `<span class="num">${number} ${t(number === 1 ? single : multiple)}</span>`;
+  $('#main').innerHTML = `<div class="notebook diary-notebook">
+    <header class="notebook-page-head">
+      <div><h1>${t('diaryTitle')}</h1><div class="notebook-meta diary-summary">
+        <time datetime="${esc(reportDate)}" class="num">${esc(dateLabel(reportDate))}</time>
+        ${shownShifts.map(shift => `<span>${t(shift)}</span>`).join('')}
+        ${count(entries.length, 'entriesOne', 'entries')}
+        ${count(fileCount, 'diaryAttachmentOne', 'attachments')}
+      </div></div>
+      <div class="notebook-actions">
+        ${button('print', 'print')}
+        ${canWrite ? `<button type="button" class="notebook-primary" data-command="new-entry" data-shift="${availableShifts.length === 1 ? availableShifts[0] : ''}">${t('diaryCloseShift')}<span aria-hidden="true">→</span></button>` : ''}
+      </div>
+    </header>
+    <div class="diary-toolbar"><label for="report-date">${t('reportDate')}</label>
+      <div class="field">${dateInput('report-date', reportDate, 'required')}</div>
+    </div>
+    <section aria-labelledby="diary-register">
+      <div class="notebook-section-head"><h2 id="diary-register">${t('diaryRegister')}</h2></div>
+      ${entries.length ? `<ol>${entries.map(entry => {
+        const files = filesByEntry.get(entry.id);
+        const clock = notebookTime(entry.createdAt, entry.time_zone);
+        return `<li class="diary-entry">
+          <span class="diary-entry-time">${clock || '<span aria-hidden="true">—</span>'}</span>
+          <div class="diary-entry-context">${t(entry.shift)}${entry.syncStatus ? `<span class="notebook-meta sync-${esc(entry.syncStatus)}">${t(entry.syncStatus === 'failed' ? 'syncFailed' : 'syncPending')}</span>` : ''}</div>
+          <div class="diary-entry-text">
+            ${['plan', 'actual', 'blockers', 'next'].filter(key => entry[key]).map(key =>
+              `<section><h3>${t(key)}</h3><p class="prewrap">${esc(entry[key])}</p></section>`).join('')}
+            ${files.length || canAttach ? `<div class="diary-attachments">${files.map(diaryAttachment).join('')}
+              ${canAttach ? button('addAttachment', 'new-attachment', `data-entity-type="diary" data-id="${esc(entry.id)}"`) : ''}</div>` : ''}
+          </div>
+        </li>`;
+      }).join('')}</ol>` : `<div class="diary-empty"><strong>${t('diaryEmpty')}</strong>${canWrite ? `<p class="notebook-meta">${t('diaryEmptyHint')}</p>` : ''}</div>`}
+    </section>
+    <details class="diary-rule"><summary>${t('dayRule')}</summary>
+      <p class="notebook-meta">${t('dayRuleNote')}</p><p class="notebook-meta">${t('diaryLimit')}</p>
+    </details>
+  </div>`;
+}
+function diaryAttachment(file) {
+  const image = file.mime?.startsWith('image/') || file.blob?.type?.startsWith('image/');
+  const preview = image && !offline && !file.blob
+    ? `<img src="${esc(attachmentUrl(file))}" alt="" width="30" height="30" loading="lazy">` : '';
+  const bytes = file.size ?? file.blob?.size;
+  const unit = bytes >= 1048576 ? 'MiB' : bytes >= 1024 ? 'KiB' : 'B';
+  const divisor = { B: 1, KiB: 1024, MiB: 1048576 }[unit];
+  const size = bytes == null ? '' : `${formatDisplayNumber(bytes / divisor, { language })} ${unit}`;
+  const sync = file.syncStatus && t(file.syncStatus === 'failed' ? 'syncFailed' : 'syncPending');
+  return `<button type="button" class="diary-file" data-command="open-attachment" data-id="${esc(file.id)}">
+    <span class="diary-file-preview" aria-hidden="true">${icon(image ? 'photo' : 'document')}${preview}</span>
+    <span><strong>${esc(file.filename)}</strong>
+      ${size || sync ? `<small class="num">${esc([size, sync].filter(Boolean).join(' · '))}</small>` : ''}</span>
+  </button>`;
 }
 async function loadWbs() {
   const selected = siteId, scope = offlineScope, token = {};
@@ -1079,7 +1327,9 @@ const permissions = () => corePermissions(role());
 const moduleResources = { deviations: ['deviations', 'reconciliation'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'], hse: ['hse', 'hseAssets'], logistics: ['purchaseOrders', 'packages', 'shipments'] };
 // Mobile keeps four destinations reachable with the thumb; the rest lives behind «Altro».
 const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'reporting'];
-const MOBILE_PRIMARY = ['today', 'tasks', 'deviations', 'bookings'];
+const MOBILE_PRIMARY = ['today', 'tasks', 'diary', 'deviations', 'progress'];
+const TABLET_PRIMARY = [...MOBILE_PRIMARY, 'bookings'];
+const headerNavItems = () => window.matchMedia('(width < 640px)').matches ? MOBILE_PRIMARY : TABLET_PRIMARY;
 const compactNavigation = () => window.matchMedia('(width < 800px)').matches;
 const NAV_OPEN_KEY = 'sa-nav-open';
 const navGroupId = group => group.label.slice(3).toLowerCase();
@@ -1228,38 +1478,47 @@ function progressBar(value) {
   return `<div class="core-progress"><span>${coreNumber(value, 'percent')}%</span><progress max="100" value="${Math.min(100, Math.max(0, Number(value)))}" aria-label="${t('coreProgressPct')}"></progress></div>`;
 }
 function renderCore() {
+  const deviations = view === 'deviations';
   const inspections = view === 'hse' && hseView === 'inspections';
   const subjectDetail = inspections && hseAssetDetail.id;
-  $('#main').innerHTML = heading(view, inspections ? 'hseInspectionsSub' : `${view}Sub`,
+  const tools = (inspections ? '' : button(columnFiltersOn ? 'columnFiltersHide' : 'columnFiltersShow', 'column-filters', `aria-pressed="${columnFiltersOn}"`)) + button('coreRefresh', 'core-reload');
+  $('#main').innerHTML = deviations ? `<div class="notebook notebook-records">
+    <header class="notebook-page-head"><div><h1>${t('deviations')}</h1><p id="deviation-summary" class="notebook-meta num" role="status">${t('deviationsSub')}</p></div></header>
+    <div class="notebook-actions">${tools}</div>
+    <div id="deviation-content"></div>
+  </div>` : heading(view, inspections ? 'hseInspectionsSub' : `${view}Sub`,
     (view === 'progress' ? button('reportPrint', 'open-report') : '')
     + (view === 'logistics' && purchaseOrderCanWrite() ? button(logisticsView === 'shipments' ? 'shpNew' : logisticsView === 'packages' ? 'pkgNew' : 'poNew', logisticsView === 'shipments' ? 'shp-new' : logisticsView === 'packages' ? 'pkg-new' : 'po-new', '', 'primary') : '')
     + (view === 'tools' && permissions().tools ? button('toolAdd', 'tool-new', '', 'primary') : '')
     + (view === 'certifications' && permissions().certificationWrite ? button('certAdd', 'cert-new', '', 'primary') : '')
     + (view === 'hse' && !inspections && permissions().hseWrite ? button('hseAdd', 'hse-new', '', 'primary') : '')
     + (subjectDetail ? button('hseAssetBack', 'hse-asset-back') : inspections && permissions().hseWrite ? button('hseAssetAdd', 'hse-asset-new', '', 'primary') : '')
-    + (inspections ? '' : button(columnFiltersOn ? 'columnFiltersHide' : 'columnFiltersShow', 'column-filters', `aria-pressed="${columnFiltersOn}"`)) + button('coreRefresh', 'core-reload'));
-  if (view === 'logistics') $('#main').insertAdjacentHTML('beforeend', renderLogisticsViewToggle());
-  if (view === 'hse') $('#main').insertAdjacentHTML('beforeend', renderHseViewToggle());
+    + tools);
+  const target = $(deviations ? '#deviation-content' : '#main');
+  if (view === 'logistics') target.insertAdjacentHTML('beforeend', renderLogisticsViewToggle());
+  if (view === 'hse') target.insertAdjacentHTML('beforeend', renderHseViewToggle());
   if (offline || !navigator.onLine) {
-    $('#main').insertAdjacentHTML('beforeend', empty('coreOnlineOnly', 'coreOnlineHint')); return;
+    target.insertAdjacentHTML('beforeend', empty('coreOnlineOnly', 'coreOnlineHint')); return;
   }
-  if (view === 'hse' && !permissions().hse) { $('#main').insertAdjacentHTML('beforeend', empty('forbidden', 'hseRestricted')); return; }
-  if (!inspections && coreFilters[view]?.id) $('#main').insertAdjacentHTML('beforeend', `<p class="note">${t('todayFiltered')} ${button('clearFilters', 'today-clear-filter')}</p>`);
+  if (view === 'hse' && !permissions().hse) { target.insertAdjacentHTML('beforeend', empty('forbidden', 'hseRestricted')); return; }
+  if (!inspections && coreFilters[view]?.id) target.insertAdjacentHTML('beforeend', deviations
+    ? `<div class="notebook-actions">${button('clearFilters', 'today-clear-filter')}</div>`
+    : `<p class="note">${t('todayFiltered')} ${button('clearFilters', 'today-clear-filter')}</p>`);
   const resourceNames = view === 'logistics' ? (logisticsView === 'shipments' ? (shipmentDetailId ? [] : ['shipments']) : logisticsView === 'packages' ? (packageDetailId ? [] : ['packages', 'purchaseOrders']) : (purchaseOrderDetailId ? [] : ['purchaseOrders'])) : view === 'hse' ? [inspections ? 'hseAssets' : 'hse'] : moduleResources[view];
   // Not `.map(coreResource)`: map would pass the index as the custom loader.
   const resources = resourceNames.map(name => coreResource(name));
   if (resources.some(entry => entry.pending)) {
     $('#main').setAttribute('aria-busy', 'true');
-    $('#main').insertAdjacentHTML('beforeend', `<p role="status">${t('loading')}</p>`); return;
+    target.insertAdjacentHTML('beforeend', `<p role="status">${t('loading')}</p>`); return;
   }
   const error = resources.find(entry => entry.error)?.error;
-  if (error) { $('#main').insertAdjacentHTML('beforeend', `<p role="alert">${esc(errorMessage(error))}</p>`); return; }
+  if (error) { target.insertAdjacentHTML('beforeend', `<p role="alert">${esc(errorMessage(error))}</p>`); return; }
   const content = { logistics: () => logisticsView === 'shipments' ? renderShipments() : logisticsView === 'packages' ? renderPackages() : renderPurchaseOrders(), deviations: renderDeviations, progress: renderProgress, bookings: renderBookings, impacts: renderImpacts, tools: renderTools, certifications: renderCertifications, hse: subjectDetail ? renderHseAssetDetail : inspections ? renderHseAssets : renderHse }[view]();
-  $('#main').insertAdjacentHTML('beforeend', `<div class="core-view">${content}${inspections ? '' : renderAuditPanel()}</div>`);
+  target.insertAdjacentHTML('beforeend', `<div class="core-view">${content}${inspections ? '' : renderAuditPanel()}</div>`);
   const reconciliationPanel = $('#deviation-reconciliation');
   if (reconciliationPanel) reconciliationPanel.addEventListener('toggle', () => { reconciliationOpen = reconciliationPanel.open; });
   if (!inspections) enhanceCoreTables();
-  if (view === 'deviations') {
+  if (deviations) {
     updateDeviationBoardScroll();
     $('#deviation-board')?.addEventListener('scroll', updateDeviationBoardScroll, { passive: true });
   }
@@ -1336,6 +1595,7 @@ const cellNumber = value => {
   const normalized = cleaned.replace(/\.(?=\d{3})/g, '').replace(',', '.');
   return Number.isFinite(Number(normalized)) ? Number(normalized) : null;
 };
+const coreCellText = cell => cell?.firstElementChild?.getAttribute('data-column-text') ?? cell?.innerText ?? '';
 function enhanceCoreTables() {
   document.querySelectorAll('.core-table').forEach(table => {
     if (table.dataset.enhanced) return;
@@ -1353,7 +1613,7 @@ function enhanceCoreTables() {
         th.dataset.sort = direction; th.setAttribute('aria-sort', direction === 'asc' ? 'ascending' : 'descending');
         const body = table.tBodies[0];
         [...body.rows].sort((left, right) => {
-          const a = left.cells[index]?.innerText.trim() ?? '', b = right.cells[index]?.innerText.trim() ?? '';
+          const a = coreCellText(left.cells[index]).trim(), b = coreCellText(right.cells[index]).trim();
           const na = cellNumber(a), nb = cellNumber(b);
           const compared = na != null && nb != null ? na - nb : a.localeCompare(b, language === 'it' ? 'it' : 'en');
           return direction === 'asc' ? compared : -compared;
@@ -1379,21 +1639,36 @@ function enhanceCoreTables() {
 }
 function applyColumnFilters(table) {
   const inputs = [...table.querySelectorAll('.column-filters input')];
-  if (!inputs.length) { [...table.tBodies[0].rows].forEach(row => { row.hidden = false; }); return; }
-  for (const row of table.tBodies[0].rows) {
+  const rows = [...table.tBodies[0].rows];
+  for (const row of rows) {
     row.hidden = inputs.some(input => {
       const needle = input.value.trim().toLowerCase();
       if (!needle) return false;
-      return !(row.cells[Number(input.dataset.column)]?.innerText || '').toLowerCase().includes(needle);
+      return !coreCellText(row.cells[Number(input.dataset.column)]).toLowerCase().includes(needle);
     });
   }
+  if (view === 'deviations' && table.closest('#deviation-list')) {
+    const active = inputs.filter(input => input.value.trim()).map(input => `${input.getAttribute('aria-label')} · ${input.value.trim()}`);
+    renderDeviationSummary(rows.filter(row => !row.hidden).length, active);
+  }
 }
+const deviationGlyphs = {
+  open: '○', approved: '○', in_progress: '▶', work_completed: '◆', rejected: '▲', closed: '✓',
+  deviationsGroupOpen: '○', deviationsGroupInProgress: '▶', deviationsGroupToClose: '◆', deviationsGroupClosed: '✓',
+};
+function deviationState(status) {
+  const glyph = Object.hasOwn(deviationGlyphs, status) ? deviationGlyphs[status] : '○';
+  return notebookState(status, [glyph, status === 'closed' ? 'notebookClosed' : status || 'coreUnknown']);
+}
+// Column controls still match the original status label, including for imported records.
+const deviationStatusCell = status => `<span data-column-text="${esc(t(status || 'coreUnknown'))}">${deviationState(status)}</span>`;
+const deviationCode = value => `<span class="notebook-meta num">${coreValue(value)}</span>`;
 const RECONCILIATION_KINDS = ['closed_without_date', 'close_before_approval'];
 const reconciliationColumns = ['coreReference', 'title', 'reconciliationOfficial', 'reconciliationDays', 'reconciliationReason'];
 function reconciliationCells(row, interactive = false) {
-  return [coreValue(row.deviation_no), interactive
+  return [interactive ? deviationCode(row.deviation_no) : coreValue(row.deviation_no), interactive
     ? coreDetailButton('deviations', row, row.title || row.deviation_no || row.id) : coreValue(row.title),
-  coreStatus(row.official_status), coreNumber(row.disagreement_days, 'count'),
+  interactive ? deviationStatusCell(row.official_status) : coreStatus(row.official_status), coreNumber(row.disagreement_days, 'count'),
   esc(t(`reconciliation_${row.kind}`))];
 }
 function reconciliationNotes() {
@@ -1430,29 +1705,56 @@ function updateDeviationBoardScroll() {
   board.parentElement.classList.toggle('scroll-left', overflow && board.scrollLeft > 1);
   board.parentElement.classList.toggle('scroll-right', overflow && board.scrollLeft + board.clientWidth < board.scrollWidth - 1);
 }
+function renderDeviationSummary(count, columnFilters = []) {
+  const { status, priority, withoutOwner, absent, id } = coreFilters.deviations;
+  const active = [
+    priority && t(priority),
+    deviationView === 'list' && withoutOwner && t('evidenceWithoutOwner'),
+    deviationView === 'list' && absent && t('evidenceAbsentFilter'),
+    id && t('todayFiltered'),
+    ...columnFilters,
+  ].filter(Boolean).map(esc);
+  $('#deviation-summary').innerHTML = [
+    status && deviationState(status === '__unknown' ? null : status),
+    ...active,
+    notebookCount(count, 'deviationCountOne', 'deviationCount'),
+  ].filter(Boolean).join(' · ');
+}
 function renderDeviations() {
   const all = coreData('deviations'), { status, priority, withoutOwner, absent } = coreFilters.deviations;
   const priorities = [...new Set(all.map(row => row.priority).filter(value => value != null))].sort();
-  let html = `<div class="toolbar core-toolbar">${coreSelect('status', 'status', [...DEVIATION_STATUSES.map(value => [value, t(value)]), ['__unknown', t('coreUnknown')]], status, 'allStatuses')}${coreSelect('priority', 'priority', priorities.map(value => [value, t(value)]), priority, 'allPriorities')}<div class="view-toggle">${['board', 'list'].map(value => button(value, 'deviation-view', `data-value="${value}" aria-pressed="${deviationView === value}"`, deviationView === value ? 'selected' : '')).join('')}</div></div>`;
+  let html = `<div class="notebook-tools"><div class="toolbar core-toolbar">${coreSelect('status', 'status', [...DEVIATION_STATUSES.map(value => [value, t(value)]), ['__unknown', t('coreUnknown')]], status, 'allStatuses')}${coreSelect('priority', 'priority', priorities.map(value => [value, t(value)]), priority, 'allPriorities')}<div class="view-toggle">${['board', 'list'].map(value => button(value, 'deviation-view', `data-value="${value}" aria-pressed="${deviationView === value}"`)).join('')}</div></div>`;
   const source = deviationView === 'list'
     ? all.filter(row => (!withoutOwner || !row.internalOwnerId) && (!absent || row.absence === true)) : all;
   const visible = filterSortRecords(source, { status: status === '__unknown' ? null : status, priority },
     [{ key: 'creationDate', descending: true }, { key: 'deviationNo' }]);
+  renderDeviationSummary(visible.length);
   if (deviationView === 'list') {
     html += `<div class="toolbar core-toolbar">
       ${button('evidenceWithoutOwner', 'deviation-filter', `data-key="withoutOwner" aria-pressed="${Boolean(withoutOwner)}"`, withoutOwner ? 'selected' : '')}
       ${button('evidenceAbsentFilter', 'deviation-filter', `data-key="absent" aria-pressed="${Boolean(absent)}"`, absent ? 'selected' : '')}
       ${role() === 'owner' && !offline ? button('evidenceImport', 'deviation-import') : ''}</div>`;
   }
-  const card = row => `<button type="button" class="task-card" data-command="core-detail" data-module="deviations" data-id="${esc(row.id)}"><span class="card-code">${coreValue(row.deviationNo)}</span><h2>${esc(row.title || row.id)}</h2>${coreStatus(row.status)}<p>${t('priority')}: ${coreValue(row.priority == null ? null : t(row.priority))}</p><p>${coreValue(row.assignedTo)}</p></button>`;
+  html += '</div>';
+  const priorityText = priority => coreValue(priority == null ? null : t(priority));
+  const card = row => `<button type="button" class="task-card" data-command="core-detail" data-module="deviations" data-id="${esc(row.id)}">
+    ${deviationCode(row.deviationNo)}<span class="notebook-card-title">${esc(row.title || row.id)}</span>
+    <span class="notebook-meta">${t('priority')}: ${priorityText(row.priority)}</span>
+    <span class="notebook-meta">${coreValue(row.assignedTo)}</span>
+    <span class="card-footer">${deviationState(row.status)}</span>
+  </button>`;
   if (deviationView === 'board') {
     const columns = groupDeviationRows(visible);
     html += compactNavigation()
       ? `<div class="board-accordion core-board-accordion">${columns.map(({ label, rows: column }, index) => `<details class="board-status" ${index === 0 ? 'open' : ''}>
-          <summary><span>${t(label)}</span><span class="count">${column.length}</span></summary>
+          <summary class="notebook-section-head">${notebookBoardHead(deviationState(label), column.length)}</summary>
           ${column.length ? column.map(card).join('') : `<p class="mini-empty">${t('coreEmptyColumn')}</p>`}</details>`).join('')}</div>`
-      : `<div class="deviation-board-frame"><div id="deviation-board" class="core-board" tabindex="0" role="region" aria-label="${t('coreDeviationBoard')}" aria-describedby="deviation-board-scroll-hint">${columns.map(({ label, rows: column }) => `<section class="core-column"><div class="column-heading"><span>${t(label)}</span><span>${column.length}</span></div>${column.length ? column.map(card).join('') : `<p class="mini-empty">${t('coreEmptyColumn')}</p>`}</section>`).join('')}</div></div><p id="deviation-board-scroll-hint" class="board-scroll-hint" hidden>${t('deviationsScroll')} ↔</p>`;
-  } else html += visible.length ? coreTable(['coreReference', 'title', 'status', 'priority', 'coreAssignedTo', 'coreCreated', 'coreClosed', 'evidenceLastSeen'], visible.map(row => [coreValue(row.deviationNo), coreDetailButton('deviations', row), coreStatus(row.status), coreValue(row.priority == null ? null : t(row.priority)), coreValue(row.assignedTo), coreDate(row.creationDate), coreDate(row.closedDate), coreDate(row.lastSeenInExportDate)])) : empty('noResults', 'noResultsHint');
+      : `<div class="deviation-board-frame"><div id="deviation-board" class="core-board" tabindex="0" role="region" aria-label="${t('coreDeviationBoard')}" aria-describedby="deviation-board-scroll-hint">${columns.map(({ label, rows: column }) => `<section class="core-column"><h2 class="notebook-section-head">${notebookBoardHead(deviationState(label), column.length)}</h2>${column.length ? column.map(card).join('') : `<p class="mini-empty">${t('coreEmptyColumn')}</p>`}</section>`).join('')}</div></div><p id="deviation-board-scroll-hint" class="board-scroll-hint" hidden>${t('deviationsScroll')} ↔</p>`;
+  } else html += visible.length ? `<div id="deviation-list">${coreTable(
+    ['coreReference', 'title', 'status', 'priority', 'coreAssignedTo', 'coreCreated', 'coreClosed', 'evidenceLastSeen'],
+    visible.map(row => [deviationCode(row.deviationNo), coreDetailButton('deviations', row), deviationStatusCell(row.status),
+      priorityText(row.priority), coreValue(row.assignedTo), coreDate(row.creationDate), coreDate(row.closedDate), coreDate(row.lastSeenInExportDate)]),
+  )}</div>` : empty('noResults', 'noResultsHint');
   return window.matchMedia('(max-width: 520px)').matches ? html + renderReconciliation() : renderReconciliation() + html;
 }
 function renderProgress() {
@@ -2315,7 +2617,7 @@ function progressStepsSection(row) {
 let aiMessages = [], aiBusy = false;
 const AI_SUGGESTIONS = {
   overview: ['aiSuggestOverview', 'aiSuggestOverviewHours', 'aiSuggestOverviewClaims'],
-  tasks: ['aiSuggestTasks', 'aiSuggestTasksBlocked', 'aiSuggestTasksDue'],
+  tasks: ['aiSuggestTasks', 'aiSuggestTasksDue', 'aiSuggestTasksBlocked'],
   deviations: ['aiSuggestDeviations', 'aiSuggestDeviationsByArea', 'aiSuggestDeviationsOld'],
   progress: ['aiSuggestProgress', 'aiSuggestProgressBooked', 'aiSuggestProgressSections'],
   bookings: ['aiSuggestBookings', 'aiSuggestBookingsWeek', 'aiSuggestBookingsMissing'],
@@ -2615,7 +2917,7 @@ function deviationHistory(events) {
     const values = event.action === 'attribution' ? [context?.causingCompany, context?.resolvingCompany, t(attributionLabels[context?.attributionState] || 'evidenceUndetermined')]
       : [context?.fromName ?? context?.from, context?.toName ?? context?.to];
     return `<div class="event"><strong>${t(deviationActions[event.action] || 'history')}${event.from_status !== event.to_status
-      ? ` · ${esc(t(event.from_status ?? 'coreUnknown'))} → ${esc(t(event.to_status || 'coreUnknown'))}` : ''}</strong>
+      ? ` · ${deviationState(event.from_status)} → ${deviationState(event.to_status)}` : ''}</strong>
       <div class="event-meta">${esc(event.source === 'import' ? t('evidenceImported') : event.actor)} · ${timeLabel(event.at)}</div>
       ${context ? `<p>${values.map(value => coreValue(value)).join(event.action === 'attribution' ? ' · ' : ' → ')}</p>` : ''}</div>`;
   }).join('') : `<p>${t('coreNoReferences')}</p>`}</section>`;
@@ -2655,12 +2957,13 @@ function showDeviationImport() {
     ${field('evidenceExportDate', 'exportDate', '', { type: 'date', required: true })}
     ${field('evidenceScope', 'scope', '', { max: 240, required: true })}
     <label class="field"><span><input type="checkbox" name="complete"> ${t('evidenceComplete')}</span></label>
-    <label class="field full">${t('attachmentFile')}<input name="file" type="file" accept=".xlsx" required></label></div>${formActions()}</form>`);
+    <label class="field full">${t('attachmentFile')}<input name="file" type="file" accept=".xlsx" required></label></div>${formActions()}</form>`, { notebook: true });
 }
 
 async function showCoreDetail(module, id) {
   const selected = siteId;
-  showModal(t('coreDetails'), `<p role="status">${t('loading')}</p>`);
+  const modalStyle = { notebook: module === 'deviations' };
+  showModal(t('coreDetails'), `<p role="status">${t('loading')}</p>`, modalStyle);
   $('#modal').classList.add('core-modal');
   const version = modalVersion;
   try {
@@ -2682,7 +2985,7 @@ async function showCoreDetail(module, id) {
     if (module === 'deviations') {
       state.attachments = [...state.attachments.filter(file => file.entity_type !== 'deviation' || file.entity_id !== id || file.localOnly), ...files];
       const typeLabels = { site_progress_item: 'coreProgressItem', task: 'tasks', diary: 'diary' };
-      const details = coreFields(row, [['deviationNo', 'coreReference'], ['status', 'status'], ['priority', 'priority'], ['problemDescription', 'coreDescription'], ['author', 'coreAuthor'], ['assignedTo', 'coreAssignedTo'], ['plcArea', 'area'], ['creationDate', 'coreCreated', coreDate], ['dueDate', 'due', coreDate], ['approvedDate', 'coreApprovedDate', coreDate], ['closedDate', 'coreClosed', coreDate], ['actualCost', 'coreActualCost'], ['claimQuantity', 'coreClaimQuantity'], ['laborHours', 'coreLaborHours'], ['completedTasksPct', 'coreCompletedPct']]);
+      const details = coreFields(row, [['deviationNo', 'coreReference', deviationCode], ['status', 'status', deviationState], ['priority', 'priority'], ['problemDescription', 'coreDescription'], ['author', 'coreAuthor'], ['assignedTo', 'coreAssignedTo'], ['plcArea', 'area'], ['creationDate', 'coreCreated', coreDate], ['dueDate', 'due', coreDate], ['approvedDate', 'coreApprovedDate', coreDate], ['closedDate', 'coreClosed', coreDate], ['actualCost', 'coreActualCost'], ['claimQuantity', 'coreClaimQuantity'], ['laborHours', 'coreLaborHours'], ['completedTasksPct', 'coreCompletedPct']]);
       const references = row.links?.length ? `<ul class="core-links">${row.links.map(link => `<li>${esc(t(typeLabels[link.entityType] || 'coreReference'))}: ${esc(link.entityId)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`;
       // Two tabs keep the sheet readable: everything about the record, then what it points to.
       content = `<div class="detail-tabs" role="tablist">
@@ -2703,10 +3006,10 @@ async function showCoreDetail(module, id) {
       const transitions = impactTransitions(row.status);
       if (permissions().transition && transitions.length) content += `<form id="impact-transition-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('transitionTo')}<select name="to" required>${transitions.map(status => `<option value="${status}">${t(status)}</option>`).join('')}</select></label><label class="field core-result" id="impact-result-field" ${transitions[0] !== 'closed' ? 'hidden' : ''}>${t('coreResult')}<select name="result" ${transitions[0] === 'closed' ? 'required' : 'disabled'}><option value="">${t('coreChoose')}</option>${IMPACT_RESULTS.map(result => `<option value="${result}">${t(result)}</option>`).join('')}</select></label></div>${formActions()}</form>`;
     }
-    showModal(row.title || row.description || t('coreDetails'), content);
+    showModal(row.title || row.description || t('coreDetails'), content, modalStyle);
     $('#modal').classList.add('core-modal');
   } catch (error) {
-    if (version === modalVersion && $('#modal').open) showModal(t('coreDetails'), `<p role="alert">${esc(errorMessage(error))}</p>${button('retry', 'core-detail', `data-module="${module}" data-id="${esc(id)}"`)}`);
+    if (version === modalVersion && $('#modal').open) showModal(t('coreDetails'), `<p role="alert">${esc(errorMessage(error))}</p>${button('retry', 'core-detail', `data-module="${module}" data-id="${esc(id)}"`)}`, modalStyle);
   }
 }
 function showBookingDelete(id) {
@@ -2810,8 +3113,9 @@ function selectSite(id) {
   siteId = id; filters = { search: '', status: '', person: '', priority: '', kind: '' }; render();
   if (!offline) void loadData();
 }
-function showModal(title, content) {
+function showModal(title, content, { notebook = false } = {}) {
   $('#modal').classList.remove('core-modal');
+  $('#modal').classList.toggle('notebook-detail', notebook);
   delete $('#modal').evidenceDownload;
   modalVersion++;
   $('#modal-content').innerHTML = `<div class="modal-header"><h2 id="modal-title">${esc(title)}</h2><button class="close" type="button" data-command="close-modal" aria-label="${t('close')}">×</button></div><div class="modal-body">${content}</div>`;
@@ -2989,7 +3293,8 @@ function taskEvidence(task) {
     ${task.closed_with_waiver ? `<p><strong>${t('evidenceWaiver')}</strong></p>` : ''}${form}</section>`;
 }
 async function showDetail(taskId, { history = false } = {}) {
-  showModal(t('details'), `<p role="status">${t('loading')}</p>`);
+  const modalStyle = { notebook: true };
+  showModal(t('details'), `<p role="status">${t('loading')}</p>`, modalStyle);
   const version = modalVersion;
   try {
     const local = state.tasks.find(item => item.id === taskId);
@@ -3008,12 +3313,16 @@ async function showDetail(taskId, { history = false } = {}) {
     });
     render();
     const actions = taskTransitions(task);
-    showModal(task.title, `<p>${badge(task.status)} ${priorityBadge(task.priority)} ${syncBadge(task)}</p><dl class="detail-grid"><div><dt>${t('wbs')}</dt><dd>${esc(taskWbsText(task))}${canEditTask() && moduleVisible('wbs') && !offline && !task.localOnly ? button('wbsAssociate', 'task-wbs', `data-id="${esc(task.id)}"`, 'small') : ''}</dd></div>${['area', 'company', 'assignee', 'reviewer', 'due', 'priority'].map(key => `<div><dt>${t(key)}</dt><dd>${['assignee', 'reviewer'].includes(key) ? personName(task[key]) : key === 'due' ? dateLabel(task[key]) : key === 'priority' ? esc(t(task[key])) : esc(task[key] || '—')}</dd></div>`).join('')}</dl><div class="detail-actions">${actions.map(to => `<button type="button" data-command="transition" data-id="${esc(task.id)}" data-to="${to}">${esc(taskTransitionLabel(task, to))}</button>`).join('')}</div>${canTransitionTask() && !actions.length ? `<p class="note">${t('noTransitions')}</p>` : ''}${taskEvidence(task)}<section class="timeline"><h3 id="task-history" tabindex="-1">${t('history')}</h3>${[...(task.events || [])].reverse().map(event => `<div class="event"><strong>${event.from_status ? `${esc(t(event.from_status))} → ` : ''}${esc(t(event.to_status))}${event.waiver ? ` · ${t('evidenceWaiver')}` : ''}</strong><div class="event-meta">${personName(event.actor)} · ${timeLabel(event.at)}</div>${event.note ? `<p>${t('note')}: ${esc(event.note)}</p>` : ''}${event.reason ? `<p>${t('reason')}: ${esc(event.reason)}</p>` : ''}${event.evidence_attachment_id &&
+    showModal(task.title, `<p class="notebook-card-meta">${notebookState(task.status)}${notebookPriority(task.priority)}${notebookSync(task)}</p>
+      <dl class="detail-grid"><div><dt>${t('wbs')}</dt><dd>${esc(taskWbsText(task))}${canEditTask() && moduleVisible('wbs') && !offline && !task.localOnly ? button('wbsAssociate', 'task-wbs', `data-id="${esc(task.id)}"`, 'small') : ''}</dd></div>${['area', 'company', 'assignee', 'reviewer', 'due', 'priority'].map(key => `<div><dt>${t(key)}</dt><dd>${['assignee', 'reviewer'].includes(key) ? personName(task[key]) : key === 'due' ? dateLabel(task[key]) : key === 'priority' ? esc(t(task[key])) : esc(task[key] || '—')}</dd></div>`).join('')}</dl>
+      <div class="detail-actions">${actions.map(to => `<button type="button" data-command="transition" data-id="${esc(task.id)}" data-to="${to}">${esc(taskTransitionLabel(task, to))}</button>`).join('')}</div>
+      ${canTransitionTask() && !actions.length ? `<p class="note">${t('noTransitions')}</p>` : ''}${taskEvidence(task)}
+      <section class="timeline"><h3 id="task-history" tabindex="-1">${t('history')}</h3>${[...(task.events || [])].reverse().map(event => `<div class="event"><strong>${event.from_status ? `${notebookState(event.from_status)} → ` : ''}${notebookState(event.to_status)}${event.waiver ? ` · ${t('evidenceWaiver')}` : ''}</strong><div class="event-meta num">${personName(event.actor)} · ${timeLabel(event.at)}</div>${event.note ? `<p>${t('note')}: ${esc(event.note)}</p>` : ''}${event.reason ? `<p>${t('reason')}: ${esc(event.reason)}</p>` : ''}${event.evidence_attachment_id &&
       state.attachments.some(file => file.id === event.evidence_attachment_id)
-      ? button('openAttachment', 'open-attachment', `data-id="${esc(event.evidence_attachment_id)}"`) : ''}</div>`).join('')}</section>${attachmentSection('task', task.id)}`);
+      ? button('openAttachment', 'open-attachment', `data-id="${esc(event.evidence_attachment_id)}"`) : ''}</div>`).join('')}</section>${attachmentSection('task', task.id)}`, modalStyle);
     if (history) $('#task-history').focus();
   } catch (error) {
-    if (version === modalVersion && $('#modal').open) showModal(t('details'), `<p role="alert">${esc(errorMessage(error))}</p>${button('retry', 'detail', `data-id="${esc(taskId)}"`)}`);
+    if (version === modalVersion && $('#modal').open) showModal(t('details'), `<p role="alert">${esc(errorMessage(error))}</p>${button('retry', 'detail', `data-id="${esc(taskId)}"`)}`, modalStyle);
   }
 }
 function showTransition(taskId, to) {
@@ -3030,7 +3339,7 @@ function showTransition(taskId, to) {
       <input type="checkbox" name="waiver" ${hasAttachment ? '' : 'checked'}> ${t('evidenceWaiver')}</span></label>` : ''}
     ${field('note', 'note', '', { type: 'textarea', required: closing ? hasAttachment : required.note })}
     ${field(closing ? 'evidenceWaiverReason' : 'reason', 'reason', '',
-      { type: 'textarea', required: closing ? !hasAttachment : required.reason })}${formActions()}</form>`);
+      { type: 'textarea', required: closing ? !hasAttachment : required.reason })}${formActions()}</form>`, { notebook: true });
   if (closing) updateClosureForm($('#transition-form'));
 }
 function updateClosureForm(form) {
@@ -3043,9 +3352,9 @@ function showTaskStatusMenu(taskId) {
   const task = state.tasks.find(item => item.id === taskId);
   if (!task || !canTransitionTask()) return;
   const targets = taskTransitions(task);
-  showModal(`${t('changeStatus')} · ${t(task.status)}`, `<p>${badge(task.status)} ${priorityBadge(task.priority)}</p>${targets.length
+  showModal(`${t('changeStatus')} · ${t(task.status)}`, `<p class="notebook-card-meta">${notebookState(task.status)}${notebookPriority(task.priority)}</p>${targets.length
     ? `<div class="detail-actions">${targets.map(to => button(taskTransitionLabel(task, to), 'status-transition', `data-id="${esc(task.id)}" data-to="${to}"`)).join('')}</div>`
-    : `<p class="note">${t('noTransitions')}</p>`}`);
+    : `<p class="note">${t('noTransitions')}</p>`}`, { notebook: true });
 }
 async function runStatusTransition(taskId, to) {
   const task = state.tasks.find(item => item.id === taskId);
@@ -3056,8 +3365,10 @@ async function runStatusTransition(taskId, to) {
     toast(t('actionSaved'));
   } catch (error) { toast(errorMessage(error)); }
 }
-function showEntryForm() {
-  showModal(t('newEntry'), `<form id="entry-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${field('shift', 'shift', '', { required: true, options: `<option value="day">${t('day')}</option><option value="night">${t('night')}</option>` })}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}</div>
+function showEntryForm(preferredShift = '') {
+  const current = operationalDay();
+  const shift = preferredShift || (reportDate === current.date ? current.shift : 'day');
+  showModal(t(view === 'diary' ? 'diaryCloseShift' : 'newEntry'), `<form id="entry-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${field('shift', 'shift', '', { required: true, options: ['day', 'night'].map(value => `<option value="${value}"${value === shift ? ' selected' : ''}>${t(value)}</option>`).join('') })}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}</div>
       <label class="dropzone" id="entry-drop" for="entry-photos"><strong>${t('diaryPhotos')}</strong><span>${t('diaryPhotosHint')}</span>
         <input id="entry-photos" name="photos" type="file" accept="image/*,application/pdf" multiple hidden></label>
       <p class="note" id="entry-photos-count" hidden></p>${formActions()}</form>`);
@@ -3105,10 +3416,11 @@ function attachmentSection(entityType, entityId) {
     : entityType === 'deviation' ? deviationWrite() : entityType !== 'hse_inspection' || permissions().hseWrite;
   const inspection = entityType === 'hse_inspection';
   const hse = inspection || entityType === 'hse_event';
+  const sync = entityType === 'task' || entityType === 'deviation' ? notebookSync : syncBadge;
   const files = (state.attachments || []).filter(file => file.entity_type === entityType && file.entity_id === entityId);
   return `<section class="attachment-section"><h3>${t('attachments')}</h3>${hse ? `<p class="note">${t('hseAttachmentRule')}</p><p class="note">${t('hseAttachmentAlternative')}</p>` : ''}${files.map(file => inspection && file.mime?.startsWith('image/') && !file.blob
     ? `<p><button type="button" class="attachment-photo" data-command="open-attachment" data-id="${esc(file.id)}"><img class="attachment-thumbnail" src="${esc(attachmentUrl(file))}" alt="${esc(file.filename)}" loading="lazy" width="72" height="72"><span>${esc(file.filename)}</span></button>${syncBadge(file)}</p>`
-    : `<p>${button('openAttachment', 'open-attachment', `data-id="${esc(file.id)}"`)} ${esc(file.filename)} ${syncBadge(file)}</p>`).join('')}${write ? button(inspection ? 'addPhoto' : 'addAttachment', 'new-attachment', `data-entity-type="${entityType}" data-id="${esc(entityId)}"`) : ''}</section>`;
+    : `<p>${button('openAttachment', 'open-attachment', `data-id="${esc(file.id)}"`)} ${esc(file.filename)} ${sync(file)}</p>`).join('')}${write ? button(inspection ? 'addPhoto' : 'addAttachment', 'new-attachment', `data-entity-type="${entityType}" data-id="${esc(entityId)}"`) : ''}</section>`;
 }
 function showAttachmentForm(entityType, entityId, { camera = false } = {}) {
   if ((entityType === 'task' && !canEditTask()) || (entityType === 'hse_inspection' && !permissions().hseWrite) || (entityType === 'deviation' && !deviationWrite())) return toast(t('forbidden'));
@@ -3194,9 +3506,14 @@ document.addEventListener('click', event => {
   const commands = {
     'go-diary': () => { reportDate = today(); go('diary'); },
     'today-open': () => openTodayAction(target),
+    'today-diary': () => { if (moduleVisible('diary')) { reportDate = operationalDay().date; go('diary'); } },
     'task-history': () => showDetail(id, { history: true }),
     'progress-verifications': () => openProgressVerifications(id),
     'today-quick': () => runTodayQuick(target.dataset.action),
+    'today-see-upcoming': () => {
+      $('#today-upcoming')?.scrollIntoView({ block: 'start' });
+      $('#today-upcoming-title')?.focus({ preventScroll: true });
+    },
     'today-retry': () => {
       const name = target.dataset.resource;
       if (view !== 'today' || offline || !['progress', 'deviations'].includes(name) || !moduleVisible(name)) return;
@@ -3271,7 +3588,7 @@ document.addEventListener('click', event => {
     'change-password': showPasswordForm, 'request-access': () => showEmailForm('request'), 'forgot-password': () => showEmailForm('forgot'),
     logout, 'new-site': showSiteForm, 'new-task': showTaskForm, reload: loadData,
     'select-site': () => { selectSite(id); go('overview'); }, detail: () => showDetail(id),
-    transition: () => showTransition(id, target.dataset.to), 'status-transition': () => runStatusTransition(id, target.dataset.to), 'task-status-menu': () => showTaskStatusMenu(id), 'light-transition': () => runLightTransition(id), 'new-entry': showEntryForm,
+    transition: () => showTransition(id, target.dataset.to), 'status-transition': () => runStatusTransition(id, target.dataset.to), 'task-status-menu': () => showTaskStatusMenu(id), 'light-transition': () => runLightTransition(id), 'new-entry': () => showEntryForm(target.dataset.shift),
     'view-create': () => showSavedViewForm('create'), 'view-rename': () => showSavedViewForm('rename'),
     'view-delete': () => showSavedViewForm('delete'), 'view-update': updateSelectedView,
     'views-retry': () => { savedViewsCache = null; selectedViewId = ''; renderTasks(); },
@@ -3313,10 +3630,10 @@ document.addEventListener('click', event => {
     'passkey-security': showPasskeySecurity,
     'passkey-refresh': showPasskeySecurity,
     'ai-open': () => { const panel = $('#ai-panel'); panel.hidden = false; for (const selector of ['#ai-fab', '#ai-top']) $(selector).setAttribute('aria-expanded', 'true'); renderAssistant(); $('#ai-form [name=message]').focus(); },
-    'ai-close': () => { $('#ai-panel').hidden = true; for (const selector of ['#ai-fab', '#ai-top']) $(selector).setAttribute('aria-expanded', 'false'); $(window.matchMedia('(max-width: 800px)').matches ? '#ai-top' : '#ai-fab').focus(); },
+    'ai-close': () => { $('#ai-panel').hidden = true; for (const selector of ['#ai-fab', '#ai-top']) $(selector).setAttribute('aria-expanded', 'false'); $(window.matchMedia('(width < 1180px)').matches ? '#ai-top' : '#ai-fab').focus(); },
     'ai-suggest': () => { askAssistant(target.dataset.text); },
     'more-nav': () => {
-      const rest = visibleModules(['today', ...NAV_ITEMS], currentModules()).filter(key => !MOBILE_PRIMARY.includes(key));
+      const rest = visibleModules(['today', ...NAV_ITEMS], currentModules()).filter(key => !headerNavItems().includes(key));
       showModal(t('more'), `<nav class="more-nav" aria-label="${t('more')}">${rest.map(key => `<a href="#${key}">${icon(key)}${t(key)}</a>`).join('')}</nav>`);
     },
     'reporting-refresh': () => { if (view === 'reporting' && session && moduleVisible('reporting')) renderReporting(); },
@@ -3574,7 +3891,9 @@ window.addEventListener('resize', updateDeviationBoardScroll);
 window.matchMedia('(max-width: 520px)').addEventListener('change', () => { if (view === 'deviations') render(); });
 window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = initialView({ width: window.innerWidth, hash: next ? `#${next}` : '#overview' }); if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
 window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view] || view === 'today') { closeModal(); render(); } });
-window.matchMedia('(width < 800px)').addEventListener('change', () => renderChrome());
+for (const breakpoint of ['(width < 640px)', '(min-width: 1180px)']) {
+  window.matchMedia(breakpoint).addEventListener('change', renderChrome);
+}
 window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view] || view === 'today') render(); void syncQueue(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) void syncQueue(); });
 

@@ -199,17 +199,15 @@ async function readPath(s, env) {
   const { page, reads } = s;
   assert.equal(new URL(page.url()).hash, '#today');
   const row = page.locator(`[data-command=today-open][data-kind=deviation][data-id="${env.deviation.id}"]`);
-  await hasText(row, IMPEDIMENT);
+  await hasText(page.locator('.today-content'), IMPEDIMENT);
   // Await complete Today resources before opening any module (cold-cache regression).
   await page.waitForFunction(() => document.querySelector('#main').getAttribute('aria-busy') === 'false' &&
-    [...document.querySelectorAll('.today-section > p[role=status]')].every(el => !el.textContent.includes('Caricamento')));
+    [...document.querySelectorAll('.today-resource-states > p[role=status]')].every(el => !el.textContent.includes('Caricamento')));
   for (const [pathname, id] of [['/api/deviations', env.deviation.id], ['/api/site-progress', env.progress.id], ['/api/tasks', env.task.id]]) {
     assert.ok(reads.some(read => read.pathname === pathname && read.hash === '#today' &&
       Array.isArray(read.body) && read.body.some(item => item.id === id)), `Today did not load ${pathname} with C03`);
   }
-  const rows = page.locator('.today-section').first().locator('[data-command=today-open]');
-  assert.ok(await rows.count() <= 5);
-  assert.ok((await rows.evaluateAll(nodes => nodes.map(node => node.dataset.id))).includes(env.deviation.id));
+  assert.equal(await row.count(), 1);
   await noOverflow(page);
   await row.click();
   await page.waitForURL(url => url.hash === '#deviations');
@@ -319,7 +317,7 @@ async function offline(env) {
   const rows = () => env.db.all('SELECT * FROM diary WHERE site_id = ? AND operational_date = ? AND shift = ?', env.site.id, date, 'night');
   try {
     await signIn(page, 'editor', env.site);
-    await hasText(page.locator(`[data-command=today-open][data-id="${env.deviation.id}"]`), IMPEDIMENT);
+    await hasText(page.locator('.today-content'), IMPEDIMENT);
     await openTask(page, env); await openWbs(page, env, true); await openProgress(page, env);
     await go(page, 'diary'); await setDiaryDate(page, date);
     assert.equal((await rows()).length, 0, 'Offline diary slot must start empty');

@@ -9,12 +9,12 @@ Il **diario** racconta ogni turno: cosa era previsto, cosa è stato fatto, quali
 
 ## Dove si trova
 
-La vista **Diario** mostra le voci del cantiere selezionato per il **giorno operativo** scelto. Da qui si apre il modulo **Aggiungi contributo**.
+La vista **Diario** mostra le voci del cantiere selezionato per il **giorno operativo** scelto. Da qui si apre il modulo **Chiudi il turno**.
 
 <Shot
   src="/images/2026-11/diary-desktop.png"
-  alt="Vista Diario del 10 novembre 2026 senza contributi, con il selettore del giorno operativo, il pulsante Stampa diario, Aggiungi contributo e la nota su giorno operativo e turni"
-  caption="Il diario di un giorno ancora vuoto: in alto il giorno operativo e il conteggio dei contributi, a destra la regola del giorno operativo e dei due turni."
+  alt="Vista Diario del 21 novembre 2026 senza contributi, con il selettore del giorno operativo, i pulsanti Stampa diario e Chiudi il turno e la nota su giorno operativo e turni"
+  caption="Giorno operativo uno, turni due: una giornata vuota lo dice prima di qualsiasi contributo — data selezionata, conteggio, regola dei turni."
 />
 
 ## Registrare un contributo
@@ -22,7 +22,7 @@ La vista **Diario** mostra le voci del cantiere selezionato per il **giorno oper
 A cosa serve: lasciare al turno successivo il piano, il consuntivo e ciò che è rimasto aperto.
 
 1. Scegli il **giorno operativo** con il campo data: il campo lo mostra secondo la lingua del browser, mentre il valore salvato resta in formato ISO (`YYYY-MM-DD`). Accanto al campo la data compare per esteso nella lingua dell'interfaccia, per esempio «10 nov 2026».
-2. Premi **Aggiungi contributo**.
+2. Premi **Chiudi il turno**.
 3. Scegli il **turno**: diurno o notturno.
 4. Compila **piano del turno**, **consuntivo**, **impedimenti** e **prossimo passo**. I campi testuali sono facoltativi, ma un contributo senza consuntivo racconta poco.
 5. Allega le foto, se servono (vedi il paragrafo seguente).
@@ -38,10 +38,10 @@ A cosa serve: lasciare al turno successivo il piano, il consuntivo e ciò che è
 
 Il giorno operativo è calcolato dall'applicazione in base al cantiere e all'orario. Esiste **una sola voce per cantiere, giorno e turno**: un secondo inserimento sulla stessa combinazione viene rifiutato.
 
-Registrare un contributo è riservato a **owner**, **editor** e **verificatori**. Chi ha il ruolo `viewer` consulta il diario ma non vede il pulsante **Aggiungi contributo**.
+Registrare un contributo è riservato a **owner**, **editor** e **verificatori**. Chi ha il ruolo `viewer` consulta il diario ma non vede il pulsante **Chiudi il turno**.
 
 :::caution[Se il contributo non viene salvato]
-- **Il pulsante Aggiungi contributo non c'è:** il tuo ruolo è `viewer`. Chiedi a un owner di registrare il contributo o di cambiare il tuo ruolo sul cantiere.
+- **Il pulsante Chiudi il turno non c'è:** il tuo ruolo è `viewer`. Chiedi a un owner di registrare il contributo o di cambiare il tuo ruolo sul cantiere.
 - **Contributo duplicato:** per quel giorno e quel turno esiste già una voce. Scegli l'altro turno o apri la voce esistente.
 - **Giorno sbagliato:** il campo data decide il giorno operativo; un turno notturno appartiene al giorno in cui è iniziato.
 - **Salvataggio offline:** il contributo resta in coda sul dispositivo e viene inviato al ritorno della rete; lo stato è visibile accanto alla voce.
@@ -51,7 +51,7 @@ Registrare un contributo è riservato a **owner**, **editor** e **verificatori**
 
 A cosa serve: allegare al turno le immagini che documentano il lavoro e i PDF che lo accompagnano.
 
-1. Nel modulo **Aggiungi contributo**, trova il riquadro **Foto o documenti**.
+1. Nel modulo **Chiudi il turno**, trova il riquadro **Foto o documenti**.
 2. Trascina i file dal desktop nel riquadro, oppure tocca il riquadro e scegli i file dal dispositivo.
 3. Puoi selezionare più file: immagini o PDF, fino a **15 MiB** ciascuno.
 4. Controlla il conteggio dei file selezionati sotto il riquadro.
@@ -77,7 +77,7 @@ Il giorno operativo non coincide con la mezzanotte:
 
 Esempio: un turno notturno che inizia il 12 novembre alle 22:00 e finisce il 13 alle 06:00 viene registrato sul **12 novembre**.
 
-La regola è anche nella pagina del diario: sul desktop nel riquadro **Un giorno operativo, due turni** a destra delle voci, su telefono in un pannello richiudibile aperto per impostazione predefinita.
+La regola è anche nella pagina del diario: sotto le voci nel pannello **Un giorno operativo, due turni**, richiudibile a tutte le larghezze.
 
 ## Stampa
 
@@ -88,4 +88,4 @@ Il pulsante **Stampa diario** usa la stampa del browser. Non esiste un PDF gener
 - Modificare o cancellare una voce dopo il salvataggio.
 - Collegare una voce di diario a un'attività.
 - Rimuovere un allegato dall'interfaccia: la rimozione è disponibile solo via API.
-- Chiudere o firmare formalmente il diario: i contributi restano aperti e salvati sul server.
+- Chiudere o firmare formalmente il diario: **Chiudi il turno** registra un contributo, non una firma; i contributi restano aperti e salvati sul server.

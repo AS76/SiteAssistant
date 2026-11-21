@@ -290,7 +290,7 @@ async function run() {
     assert.deepEqual(await visibleWidgets(), visualOrder);
     failLayoutReads = true;
     await page.locator('a[href="#tasks"]').click();
-    await page.locator('a[href="#overview"]').click();
+    await page.locator('#navigation a[href="#overview"]').click();
     await overviewReady();
     assert.deepEqual(await visibleWidgets(), allWidgets);
     await openLayout();
@@ -409,7 +409,7 @@ async function run() {
     await page.locator('a[href="#diary"]').click();
     await page.locator('#report-date').fill('10/01/2026');
     await page.locator('#report-date').dispatchEvent('change');
-    await page.getByRole('button', { name: 'Aggiungi contributo', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Chiudi il turno', exact: true }).first().click();
     await page.locator('[name="shift"]').selectOption('night');
     await page.locator('[name="plan"]').fill('Test night plan');
     await page.locator('[name="actual"]').fill('<img src=x onerror="window.demoXss=true">');
@@ -418,7 +418,7 @@ async function run() {
     await page.waitForSelector('.diary-entry');
     assert.equal(await page.locator('.diary-entry img').count(), 0);
     assert.equal(await page.evaluate(() => window.demoXss), undefined);
-    await page.getByRole('button', { name: 'Aggiungi contributo', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Chiudi il turno', exact: true }).first().click();
     await page.locator('[name="shift"]').selectOption('night');
     await page.getByRole('button', { name: 'Salva', exact: true }).click();
     await contains(page.locator('.form-error'), 'Esiste già un contributo');

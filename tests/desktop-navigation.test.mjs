@@ -12,7 +12,8 @@ const section = (start, end) => source.slice(source.indexOf(start), source.index
 // Run the real chrome renderer and native toggle callbacks with synthetic DOM/storage.
 function navigation({ width = 1440, height = 1000, view = 'overview', saved, modules = {}, blocked = false } = {}) {
   const values = new Map(saved === undefined ? [] : [['sa-nav-open', saved]]), reads = [], writes = [];
-  const node = () => ({ innerHTML: '', classList: { add() {} }, setAttribute() {}, insertAdjacentHTML() {} });
+  const node = () => ({ innerHTML: '', setAttribute() {}, insertAdjacentHTML() {},
+    append(child) { child.parentElement = this; } });
   const nodes = {}, nav = node();
   let html = '', details = [];
   Object.defineProperty(nav, 'innerHTML', {
@@ -30,18 +31,18 @@ function navigation({ width = 1440, height = 1000, view = 'overview', saved, mod
   nodes['#navigation'] = nav;
   const context = {
     view, language: 'it', loading: false, actor: '', siteId: 'site-1', state: { sites: [] }, session: { user: {} },
-    window: { innerHeight: height, matchMedia: () => ({ matches: width < 800 }) },
+    window: { innerHeight: height, matchMedia: query => ({ matches: query.includes('1180') ? width >= 1180 : width < 640 }) },
     document: { documentElement: {} }, sessionStorage: { getItem: () => null },
     localStorage: {
       getItem(key) { reads.push(key); if (blocked) throw new Error('Storage unavailable'); return values.get(key) ?? null; },
       setItem(key, value) { if (blocked) throw new Error('Storage unavailable'); writes.push([key, value]); values.set(key, value); },
     },
-    navGroups, visibleModules, currentModules: () => modules, renderOffline() {}, button: () => '',
+    navGroups, visibleModules, currentSite: () => undefined, role: () => undefined, currentModules: () => modules, renderOffline() {}, button: () => '',
     t: key => messages[context.language][key], icon: key => `<svg data-icon="${key}"></svg>`, esc: String,
     $: selector => nodes[selector] ??= node(),
   };
   runInNewContext(section('const NAV_ITEMS =', 'const coreCache =')
-    + section('function renderChrome()', 'function dueMarkup('), context);
+    + section('function demoLanguageLegend()', 'function dueMarkup('), context);
   return {
     context, nav, reads, writes, values,
     render() { context.renderChrome(); return html; },
@@ -56,7 +57,7 @@ function navigation({ width = 1440, height = 1000, view = 'overview', saved, mod
 const openState = ui => Object.fromEntries(ui.details.map(item => [item.dataset.group, item.open]));
 
 test('desktop renders three native collapsible sections in order with their module destinations', () => {
-  for (const width of [800, 1024, 1440]) {
+  for (const width of [1180, 1280, 1440]) {
     const ui = navigation({ width }), html = ui.render();
     const sections = [...html.matchAll(/<details[^>]*>(.*?)<\/details>/g)];
     assert.equal(sections.length, 3);
@@ -71,7 +72,7 @@ test('desktop renders three native collapsible sections in order with their modu
 
 test('Today is the first desktop link outside the sections, with the same icon as mobile and current-page semantics', () => {
   const desktop = navigation({ view: 'today' }), html = desktop.render();
-  assert.match(html, /^<a href="#today" class="nav-today active" aria-current="page"><svg data-icon="today"><\/svg><span>Oggi<\/span><\/a><details/);
+  assert.match(html, /^<a href="#today" aria-current="page"><svg data-icon="today"><\/svg><span>Oggi<\/span><\/a><details/);
   assert.equal((html.match(/aria-current="page"/g) || []).length, 1);
   assert.match(navigation({ width: 390, view: 'today' }).render(), /<svg data-icon="today"><\/svg><span>Oggi<\/span>/);
 });
@@ -106,7 +107,7 @@ test('entering a route opens and persists its group without closing others or re
   ui.context.view = 'tasks';
   const html = ui.render();
   assert.deepEqual(openState(ui), { operations: true, site: false, management: true });
-  assert.match(html, /href="#tasks" class="active" aria-current="page"/);
+  assert.match(html, /href="#tasks" aria-current="page"/);
   assert.deepEqual(JSON.parse(ui.values.get('sa-nav-open')), openState(ui));
   ui.context.view = 'bookings'; ui.render();
   assert.deepEqual(openState(ui), { operations: true, site: true, management: true });
@@ -142,48 +143,97 @@ test('disabled modules are omitted without empty sections or lost preferences', 
   modules.progress = true; ui.render(); assert.equal(openState(ui).site, false);
 });
 
-test('mobile still renders four primary links plus More and never accesses desktop storage, including on resize', () => {
-  for (const width of [390, 799]) {
+test('phone and tablet render their tab links plus More and only the rail uses desktop storage', () => {
+  for (const width of [390, 639, 640, 1179]) {
     const ui = navigation({ width }), html = ui.render();
-    assert.deepEqual([...html.matchAll(/href="#([^"]+)"/g)].map(match => match[1]), ['today', 'tasks', 'deviations', 'bookings']);
-    assert.match(html, /<button type="button" class="nav-more active" data-command="more-nav">.*Altro<\/button>$/);
+    const links = ['today', 'tasks', 'diary', 'deviations', 'progress'];
+    if (width >= 640) links.push('bookings');
+    assert.deepEqual([...html.matchAll(/href="#([^"]+)"/g)].map(match => match[1]), links);
+    assert.match(html, /href="#progress"><svg data-icon="progress"><\/svg><span>Avanz\.<\/span>/);
+    assert.match(html, /<button type="button" class="nav-more active" data-command="more-nav" aria-haspopup="dialog">.*<span>Altro<\/span><\/button>$/);
     assert.doesNotMatch(html, /<details|<summary/);
     assert.equal(ui.reads.length, 0); assert.equal(ui.writes.length, 0);
-    ui.resize(1024); ui.render(); ui.toggle('site', false);
+    ui.context.language = 'en';
+    assert.match(ui.render(), /href="#progress"><svg data-icon="progress"><\/svg><span>Progress<\/span>/);
+    ui.resize(1180);
+    assert.match(ui.render(), /href="#progress"><svg data-icon="progress"><\/svg><span>Site progress<\/span>/);
+    ui.toggle('site', false);
     const writes = ui.writes.length;
     ui.resize(390); ui.render(); assert.equal(ui.details.length, 0); assert.equal(ui.writes.length, writes);
-    ui.resize(1440); ui.render(); assert.equal(openState(ui).site, false);
+    ui.context.language = 'it';
+    ui.resize(1440);
+    assert.match(ui.render(), /href="#progress"><svg data-icon="progress"><\/svg><span>Avanzamento<\/span>/);
+    assert.equal(openState(ui).site, false);
   }
 });
 
-test('CSS and exported tokens agree; secondary text and every focus rule use the approved contrast values', async () => {
+test('the site selector follows the session at the desktop login viewport', () => {
+  const ui = navigation({ width: 1440, height: 900 });
+  const session = ui.context.session;
+  const siteControl = ui.context.$('.site-control');
+  ui.context.session = null;
+  ui.render();
+  assert.equal(siteControl.hidden, true);
+  ui.context.session = session;
+  ui.render();
+  assert.equal(siteControl.hidden, false);
+  ui.context.session = null;
+  ui.render();
+  assert.equal(siteControl.hidden, true);
+});
+
+test('shell tokens use the notebook palette and the base focus ring uses ink', () => {
+  const live = Object.fromEntries([.../:root\s*\{([^}]+)\}/.exec(css)[1].matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)]
+    .map(match => [match[1], match[2].trim()]));
+  assert.deepEqual(Object.values(live).filter(value => value.startsWith('#')), [
+    '#FAF6EC', '#FFFCF5', '#F2ECDD', '#E9E1CE', '#1E1A15', '#544E46', '#8B8378',
+    '#E3DAC8', '#CFC3AC', '#8E2E24', '#6E211A', '#F7EAE4',
+  ]);
+  assert.equal(live['--shadow'], 'none');
+  assert.match(css, /button:focus-visible,a:focus-visible[^}]+outline:\s*2px solid var\(--ink-2\)/);
+  assert.match(css, /@media \(width < 640px\) \{\s*#navigation \{[^}]*position: fixed;[^}]*min-height: 56px/);
+  assert.match(css, /@media \(min-width: 640px\)[\s\S]*?\.topbar-navigation #navigation \{ display: flex;/);
+  assert.match(css, /@media \(min-width: 1180px\) \{\s*\.sidebar \{[^}]*width: 216px/);
+});
+
+test('exported tokens agree with the live block and the notebook palette keeps its contrast', async () => {
   const tokens = JSON.parse(await readFile(new URL('../docs/design-system.tokens.json', import.meta.url), 'utf8')).tokens;
-  const live = Object.fromEntries([.../:root\{([^}]+)\}/.exec(css)[1].matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(match => [match[1], match[2].trim()]));
+  const live = Object.fromEntries([.../:root\s*\{([^}]+)\}/.exec(css)[1].matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)]
+    .map(match => [match[1], match[2].trim()]));
   assert.deepEqual(tokens, live);
-  assert.equal(live['--muted'], '#5b6c72');
-  assert.equal(live['--green'], '#126c57');
+  const resolve = name => {
+    let value = live[name], guard = 0;
+    while (guard++ < 8) {
+      const alias = /^var\((--[a-z0-9-]+)\)$/.exec(value || '');
+      if (!alias) return value;
+      value = live[alias[1]];
+    }
+    return value;
+  };
   const luminance = hex => hex.slice(1).match(/../g).map(value => parseInt(value, 16) / 255)
     .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
     .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
-  const contrast = (foreground, background) => (luminance(background) + 0.05) / (luminance(foreground) + 0.05);
-  assert.equal(contrast(live['--muted'], live['--paper']).toFixed(2), '5.08');
-  assert.equal(contrast(live['--muted'], '#ffffff').toFixed(2), '5.48');
-  assert.equal(contrast(live['--green'], '#ffffff').toFixed(2), '6.35');
-  const focusRules = [...css.matchAll(/([^{}]*:focus-visible[^{}]*)\{([^}]*)\}/g)].filter(match => match[2].includes('outline:'));
-  assert.ok(focusRules.length >= 3);
-  assert.ok(focusRules.some(match => match[1].includes('summary:focus-visible') && match[1].includes('a:focus-visible')));
-  for (const [, , body] of focusRules) {
-    assert.match(body, /outline:\s*3px solid var\(--green\)/);
-    assert.match(body, /box-shadow:\s*(?:inset )?0 0 0 3px #fff/);
+  const contrast = (foreground, background) => {
+    const [light, dark] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+    return (light + 0.05) / (dark + 0.05);
+  };
+  // Body and secondary text must clear WCAG AA on both surfaces; the strongest ink is the page title colour.
+  for (const surface of ['--paper', '--surface']) {
+    assert.ok(contrast(resolve('--ink'), resolve(surface)) >= 7, `ink on ${surface}`);
+    assert.ok(contrast(resolve('--ink-2'), resolve(surface)) >= 4.5, `ink-2 on ${surface}`);
   }
-  assert.doesNotMatch(css, /#d89a44/);
-  assert.match(css, /@media\(width < 800px\)\{\s*\.sidebar/);
-  assert.equal((css.match(/@media\(width < 800px\)/g) || []).length, 2);
-  assert.match(css, /@media \(width < 800px\) \{\s*\.core-navigation/);
+  // The single brand fill carries ivory text, and brick itself stays readable on paper.
+  assert.ok(contrast(resolve('--paper'), resolve('--brick')) >= 4.5);
+  assert.ok(contrast(resolve('--brick'), resolve('--paper')) >= 4.5);
+  // Decorative ink only: never the sole carrier of a state or a label.
+  assert.ok(contrast(resolve('--ink-3'), resolve('--paper')) < 4.5);
+  const stateLabel = /\.notebook-state\s*\{([^}]*)\}/.exec(css)[1];
+  assert.match(stateLabel, /color:\s*var\(--ink-2\)/);
+  assert.doesNotMatch(stateLabel, /--ink-3/);
 });
 
 test('sidebar exposes a thin visible scrollbar', () => {
-  assert.match(css, /\.core-sidebar\s*\{[^}]*scrollbar-width: thin;[^}]*scrollbar-color:/);
+  assert.match(css, /\.sidebar\s*\{[^}]*scrollbar-width: thin;[^}]*scrollbar-color:/);
 });
 
 test('manual link follows the current module and language and aligns with the top-bar controls', () => {
@@ -194,5 +244,5 @@ test('manual link follows the current module and language and aligns with the to
   assert.equal(ui.context.$('#manual-link').href, 'https://as76.github.io/SiteAssistant/en/moduli/logistica/');
   ui.context.view = 'reporting'; ui.render();
   assert.equal(ui.context.$('#manual-link').href, 'https://as76.github.io/SiteAssistant/en/');
-  assert.match(css, /\.manual-link\{[^}]*display:inline-flex[^}]*align-items:center[^}]*text-decoration:none/);
+  assert.match(css, /\.manual-link\s*\{[^}]*display: inline-flex[^}]*align-items: center/);
 });

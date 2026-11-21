@@ -14,13 +14,14 @@ const renderCoreSource = source.slice(from, to);
 // "(loader || loaders[name]) is not a function". Every two-resource view broke.
 test('renderCore asks each resource by name, never with the map index', () => {
   const main = { innerHTML: '', insertAdjacentHTML(_position, html) { this.innerHTML += html; }, setAttribute() {} };
+  const content = { ...main };
   const calls = [];
   const context = createContext({
     view: 'deviations', hseView: 'register', hseAssetDetail: { id: '' },
     language: 'it', offline: false, navigator: { onLine: true },
     moduleResources: { deviations: ['deviations', 'reconciliation'] },
     coreFilters: {}, columnFiltersOn: false,
-    $: selector => selector === '#main' ? main : null,
+    $: selector => ({ '#main': main, '#deviation-content': content })[selector],
     coreResource: (...args) => { calls.push(args); return { pending: false, error: null, data: [] }; },
     heading: () => '', button: () => '', empty: () => '', t: key => key,
     permissions: () => ({ hse: true, hseWrite: true }), errorMessage: () => '',
@@ -34,5 +35,5 @@ test('renderCore asks each resource by name, never with the map index', () => {
   runInContext('renderCore()', context);
   assert.deepEqual(calls.map(args => args.length), [1, 1]);
   assert.deepEqual(calls.map(args => args[0]), ['deviations', 'reconciliation']);
-  assert.match(main.innerHTML, /deviation-board/);
+  assert.match(content.innerHTML, /deviation-board/);
 });

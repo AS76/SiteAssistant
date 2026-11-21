@@ -146,7 +146,8 @@ test('UI renders filters, detail references, empty state, escaped text and bound
       coreData: () => data, coreValue: value => esc(value ?? t('coreUnknown')), coreNumber: value => value == null ? t('coreUnknown') : String(value),
       coreStatus: value => esc(t(value || 'coreUnknown')) });
     runInContext(source.slice(source.indexOf('function coreTable('), source.indexOf('function progressBar(')), context);
-    runInContext(source.slice(source.indexOf('const RECONCILIATION_KINDS'), source.indexOf('function renderDeviations(')), context);
+    runInContext(source.slice(source.indexOf('const notebookStates ='), source.indexOf('function todayTaskItem(')), context);
+    runInContext(source.slice(source.indexOf('const deviationGlyphs ='), source.indexOf('function renderDeviations(')), context);
     let html = runInContext('renderReconciliation()', context);
     assert.match(html, /<details[^>]*open/); assert.equal((html.match(/data-command="reconciliation-filter"/g) || []).length, 2);
     assert.equal((html.match(/<th scope="col">/g) || []).length, 5);

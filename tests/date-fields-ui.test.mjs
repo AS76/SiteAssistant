@@ -14,9 +14,9 @@ function dateUi(language) {
   const status = { textContent: '' };
   const context = createContext({
     language, formatDateInput, t: key => messages[language][key] || key,
-    heading: () => '', empty: () => '', role: () => 'editor',
+    heading: () => '', empty: () => '', role: () => 'editor', canWriteTask: () => true,
     state: { diary: [] }, siteId: 'site-1', reportDate: '2026-11-10', offline: false, moduleVisible: () => true,
-    dateLabel: date => date, today: () => '2026-11-10',
+    dateLabel: date => date, today: () => '2026-11-10', operationalDay: () => ({ date: '2026-11-10', shift: 'day' }),
     coreData: () => [], coreFilters: { hse: { type: '', severity: '', from: '2026-11-01', to: '' } },
     permissions: () => ({ hseWrite: true }), hseEditingId: '',
     HSE_TYPES, HSE_MANUAL_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts,

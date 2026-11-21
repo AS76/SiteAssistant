@@ -9,12 +9,12 @@ The **diary** tells the story of every shift: what was planned, what was actuall
 
 ## Where it is
 
-The **Diary** view shows the entries of the selected site for the chosen **operational day**. From here you open the **Add contribution** form.
+The **Diary** view shows the entries of the selected site for the chosen **operational day**. From here you open the **Close shift** form.
 
 <Shot
   src="/images/2026-11/en/diary-desktop.png"
-  alt="Diary view for 10 November 2026 with no contributions, the operational day selector, the Print diary and Add contribution buttons and the note about the operational day and shifts"
-  caption="The diary of a day still empty: at the top the operational day and the contribution count, on the right the rule of the operational day and its two shifts."
+  alt="Diary view for 21 November 2026 with no contributions, the operational day selector, the Print diary and Close shift buttons and the note about the operational day and shifts"
+  caption="One operational day, two shifts: an empty day says so before any contribution — selected date, count and the shift rule."
 />
 
 ## Recording a contribution
@@ -22,7 +22,7 @@ The **Diary** view shows the entries of the selected site for the chosen **opera
 What it is for: leaving the next shift the plan, the results and what is still open.
 
 1. Choose the **operational day** with the date field: the field shows it according to the browser language, while the saved value stays in ISO format (`YYYY-MM-DD`). Next to the field the date appears in full in the interface language, for example “10 Nov 2026”.
-2. Press **Add contribution**.
+2. Press **Close shift**.
 3. Choose the **shift**: day or night.
 4. Fill in **shift plan**, **actual results**, **blockers** and **next step**. The text fields are optional, but a contribution without results tells very little.
 5. Attach photos if you need them (see the next section).
@@ -38,10 +38,10 @@ What it is for: leaving the next shift the plan, the results and what is still o
 
 The operational day is computed by the application from the site and the time. There is **one entry per site, day and shift**: a second entry on the same combination is rejected.
 
-Recording a contribution is reserved to **owners**, **editors** and **verifiers**. Users with the `viewer` role read the diary but do not see the **Add contribution** button.
+Recording a contribution is reserved to **owners**, **editors** and **verifiers**. Users with the `viewer` role read the diary but do not see the **Close shift** button.
 
 :::caution[If the contribution is not saved]
-- **The Add contribution button is missing:** your role is `viewer`. Ask an owner to record the contribution or to change your role on the site.
+- **The Close shift button is missing:** your role is `viewer`. Ask an owner to record the contribution or to change your role on the site.
 - **Duplicate contribution:** an entry already exists for that day and shift. Choose the other shift or open the existing entry.
 - **Wrong day:** the date field decides the operational day; a night shift belongs to the day it started on.
 - **Saving offline:** the contribution stays queued on the device and is sent when the network returns; the status is visible next to the entry.
@@ -51,7 +51,7 @@ Recording a contribution is reserved to **owners**, **editors** and **verifiers*
 
 What it is for: attaching to the shift the images that document the work and the PDFs that go with it.
 
-1. In the **Add contribution** form, find the **Photos or documents** box.
+1. In the **Close shift** form, find the **Photos or documents** box.
 2. Drag the files from the desktop into the box, or tap the box and pick files from the device.
 3. You can select several files: images or PDFs, up to **15 MiB** each.
 4. Check the count of selected files under the box.
@@ -77,7 +77,7 @@ The operational day does not start at midnight:
 
 Example: a night shift starting on 12 November at 22:00 and ending on the 13th at 06:00 is recorded on **12 November**.
 
-The rule also sits on the diary page: on the desktop in the **One operational day, two shifts** panel to the right of the entries, on a phone in a collapsible panel open by default.
+The rule also sits on the diary page, below the entries, in the collapsible **One operational day, two shifts** panel.
 
 ## Printing
 
@@ -88,4 +88,4 @@ The **Print diary** button uses the browser's print dialog. There is no server-g
 - Editing or deleting an entry after saving.
 - Linking a diary entry to a task.
 - Removing an attachment from the interface: removal is available via API only.
-- Closing or formally signing the diary: contributions stay open and are saved on the server.
+- Closing or formally signing the diary: **Close shift** records a contribution, not a signature; contributions stay open and are saved on the server.

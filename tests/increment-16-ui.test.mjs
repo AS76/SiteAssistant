@@ -211,7 +211,7 @@ test('light view labels are available in Italian and English', () => {
 async function lightUi(tasks, overrides = {}) {
   const source = await readFile(new URL('../app/app.mjs', import.meta.url), 'utf8');
   const section = (start, end) => source.slice(source.indexOf(start), source.indexOf(end));
-  const nodes = { '#main': { innerHTML: '' }, '#task-results': { innerHTML: '' } };
+  const nodes = { '#main': { innerHTML: '' }, '#task-summary': { innerHTML: '' }, '#task-results': { innerHTML: '' } };
   const dialogs = [], writes = [];
   const context = {
     state: { tasks, attachments: [] }, siteId: 'site-a', taskView: 'light', view: 'tasks', actor: 'Synthetic reviewer', pendingOps: [],
@@ -244,6 +244,7 @@ async function lightUi(tasks, overrides = {}) {
   runInNewContext([
     section('const esc =', 'let session ='),
     section('const button =', 'function toast('),
+    section('const notebookStates =', 'function todayTaskItem('),
     section('function filteredTasks()', 'const currentViewState ='),
     section('const canEditTask =', 'const canCreateSite ='),
     section('function openProgressVerifications(', 'function renderBookings('),
@@ -251,7 +252,7 @@ async function lightUi(tasks, overrides = {}) {
     section('function taskCard(', 'const lightTransitions ='),
     section('const lightTransitions =', 'function renderDiary()'),
     section('function taskEvidence(', 'function showTransition('),
-    section('function showTransition(', 'function showEntryForm()'),
+    section('function showTransition(', 'function showEntryForm('),
     section('function attachmentSection(', 'async function openAttachment('),
   ].join('\n'), context);
   return { context, nodes, dialogs, writes };
@@ -303,7 +304,7 @@ test('light renderer shows six columns and ordinary rows while keeping shared fi
   }
 });
 
-test('light renderer labels every phone card field and gives its final action the full width class', async () => {
+test('light renderer labels every phone card field and puts its text command in the last cell', async () => {
   const { context, nodes } = await lightUi([
     { id: 'synthetic-a', siteId: 'site-a', kind: 'ordinary', status: 'to_verify', title: 'Example task', submitted_by_id: 'editor' },
     { id: 'synthetic-b', siteId: 'site-a', kind: 'ordinary', status: 'todo', title: 'Example pending task' },
@@ -316,7 +317,7 @@ test('light renderer labels every phone card field and gives its final action th
   for (const row of rows) {
     assert.deepEqual([...row.matchAll(/<td data-label="([^"]+)"/g)].map(match => match[1]),
       ['title', 'area', 'assignee', 'due', 'status', 'lightAction'].map(key => messages.it[key]));
-    assert.match(row, /<td[^>]*class="mobile-card-actions"><button[^>]*class="mobile-card-action"[^>]*data-command="light-transition"[^>]*>[\s\S]*?<\/button><\/td><\/tr>$/);
+    assert.match(row, /<td[^>]*class="mobile-card-actions"><button[^>]*class="mobile-card-action"[^>]*data-command="light-transition"[^>]*>[\s\S]*?<\/button><\/td>\s*<\/tr>$/);
   }
   assert.doesNotMatch(rows.find(row => row.includes('data-id="synthetic-a"')), /disabled/);
   assert.match(rows.find(row => row.includes('data-id="synthetic-b"')), /disabled/);
@@ -422,7 +423,8 @@ test('task result counts use singular for one and plural for zero and two in bot
     for (const [index, search] of ['missing', 'Alpha', ''].entries()) {
       context.filters.search = search;
       context.renderTaskResults();
-      assert.ok(nodes['#task-results'].innerHTML.includes(`>${expected[index]} ·`));
+      const summary = nodes['#task-summary'].innerHTML.replace(/<\/?strong\b[^>]*>/g, '');
+      assert.ok(summary.includes(`${expected[index]} ·`));
     }
   }
 });
