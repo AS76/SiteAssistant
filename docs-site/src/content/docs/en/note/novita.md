@@ -5,6 +5,10 @@ description: Changes to SiteAssistant that change the product or how you use it.
 
 This page collects the changes visible to those who use the application. It is not a technical changelog: for that, see the commit history in the repository.
 
+## 21 November 2026
+
+- **Account and password in Settings.** The gear now opens a **Your account** section with name, email and user type for the selected site, plus the **Change password** and **Security** buttons. Anyone arriving from a temporary password finds the password change here too, without having to look for the banner at the top. See [Settings](../../guida/impostazioni/#your-account) and [Sign in and account](../../guida/accesso/#forgotten-or-temporary-password).
+
 ## 19 November 2026
 
 - **Two pilot sites in the demo.** The demo now holds **Northline Piacenza** (`NL-IT-01`) and **Northline Midlands** (`NL-UK-01`): twin sites for an intralogistics plant, one with Italian data and one with English data. They are synthetic data built for the pilot, with tasks, diary, attendance, progress, deviations, HSE, fitness, tools and logistics. They contain no real data. See [Demo data](../../guida/dati-dimostrativi/).
@@ -25,7 +29,7 @@ This page collects the changes visible to those who use the application. It is n
 
 - **Sign-in with a passkey.** The **Sign in** form offers two passkey commands: **Sign in with a passkey**, next to **Sign in**, which uses the email written in the field, and **Use a passkey without email**, below the form, which lets the browser choose among the passkeys saved for the site. The confirmation happens in the browser — fingerprint, face, PIN or security key — and the session lasts like the others: **7 days**. If the browser does not support passkeys, or the page is not open over a secure connection, the two buttons stay disabled with a note asking you to use your password; if passkeys are not configured on the server the application says so. The password stays: whoever does not register a passkey keeps signing in as before. See [Sign in and account](../../guida/accesso/#signing-in-with-a-passkey).
 
-- **Passkeys are managed from the Security window.** At the bottom of the **Settings** window the **Security** button opens the account's passkeys, with name, creation date and last use, or **Never used**. From there you add a passkey, rename it and delete the one you no longer need, with a confirmation: deleting it revokes the sessions opened with that passkey. The last remaining passkey cannot be deleted, because without it you could not sign back in without a password. See [Sign in and account](../../guida/accesso/#your-passkeys) and [Settings](../../guida/impostazioni/#security-your-passkeys).
+- **Passkeys are managed from the Security window.** In the **Your account** section of **Settings** the **Security** button opens the account's passkeys, with name, creation date and last use, or **Never used**. From there you add a passkey, rename it and delete the one you no longer need, with a confirmation: deleting it revokes the sessions opened with that passkey. The last remaining passkey cannot be deleted, because without it you could not sign back in without a password. See [Sign in and account](../../guida/accesso/#your-passkeys) and [Settings](../../guida/impostazioni/#security-your-passkeys).
 
 - **Registering a passkey rechecks the session.** Registering a passkey requires the session that opened the **Security** window to still be valid: if it has been revoked or has expired in the meantime, the passkey is not registered and the application shows the message, without taking you back to the sign-in screen. The same check applies to renaming and deleting a passkey. See [Sign in and account](../../guida/accesso/#your-passkeys).
 

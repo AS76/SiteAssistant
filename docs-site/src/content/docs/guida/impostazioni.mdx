@@ -1,11 +1,26 @@
 ---
 title: Impostazioni
-description: Valuta e separatori per importi e numeri, e accesso alle passkey.
+description: Account, cambio password, passkey, valuta e separatori.
 ---
 
 import Shot from '../../../components/Shot.astro';
 
-L'ingranaggio in alto a destra apre le **Impostazioni**. Le preferenze valgono per questo browser e riguardano solo come vengono scritti importi e numeri.
+L'ingranaggio in alto a destra apre le **Impostazioni**. In cima trovi il tuo account; sotto, le preferenze di visualizzazione.
+
+## Il tuo account
+
+A cosa serve: riconoscere con quale account e con quale tipo di utente stai lavorando, e cambiare la password senza dover cercare l'avviso.
+
+La sezione **Il tuo account** mostra:
+
+- **nome** ed **email** dell'account con cui hai fatto accesso;
+- il **tipo di utente** nel cantiere selezionato: **Proprietario**, **Editor**, **Verificatore** o **Lettore**;
+- il pulsante **Cambia la password**;
+- il pulsante **Sicurezza**, che apre le passkey dell'account.
+
+Il tipo di utente è quello del cantiere scelto nel selettore in alto: lo stesso account può essere Proprietario in un cantiere e Lettore in un altro. Se nel cantiere selezionato non hai un ruolo, la finestra lo dice.
+
+Per cambiare la password servono la password attuale e una nuova password, diversa e di almeno **12 caratteri**. Al salvataggio le altre sessioni vengono chiuse. Se stai usando una password temporanea, l'avviso in alto resta un accesso rapido allo stesso modulo; se lo chiudi, il pulsante resta qui.
 
 ## Impostare valuta e formato
 
@@ -61,7 +76,7 @@ Esempio: con valuta EUR e separatori IT, l'importo 1234,5 compare come `€1.234
 
 A cosa serve: arrivare alle passkey dell'account dalla stessa finestra delle preferenze.
 
-In fondo alla finestra **Impostazioni** il pulsante **Sicurezza** apre l'elenco delle **passkey** dell'account: da lì ne aggiungi una, la rinomini o la elimini. Non è una preferenza di questo browser — le passkey restano sull'account e valgono su tutti i dispositivi — e non cambia valuta, separatori o il modo in cui i numeri vengono scritti. Vedi [Accesso e account](../accesso/#le-tue-passkey).
+Nella sezione **Il tuo account** il pulsante **Sicurezza** apre l'elenco delle **passkey** dell'account: da lì ne aggiungi una, la rinomini o la elimini. Non è una preferenza di questo browser — le passkey restano sull'account e valgono su tutti i dispositivi — e non cambia valuta, separatori o il modo in cui i numeri vengono scritti. Vedi [Accesso e account](../accesso/#le-tue-passkey).
 
 ## Dove vengono salvate
 

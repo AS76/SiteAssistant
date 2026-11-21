@@ -1,11 +1,26 @@
 ---
 title: Settings
-description: Currency and separators for amounts and numbers, and access to your passkeys.
+description: Account, password change, passkeys, currency and separators.
 ---
 
 import Shot from '../../../../components/Shot.astro';
 
-The gear at the top right opens **Settings**. Preferences apply to this browser and only affect how amounts and numbers are written.
+The gear at the top right opens **Settings**. Your account is at the top; display preferences are below.
+
+## Your account
+
+What it is for: recognizing which account and user type you are working with, and changing your password without having to look for the banner.
+
+The **Your account** section shows:
+
+- the **name** and **email** of the signed-in account;
+- the **user type** for the selected site: **Owner**, **Editor**, **Reviewer** or **Viewer**;
+- the **Change password** button;
+- the **Security** button, which opens the account's passkeys.
+
+The user type is the one for the site chosen in the selector at the top: the same account can be Owner on one site and Viewer on another. If you have no role on the selected site, the window says so.
+
+To change the password you need the current password and a new password, different and at least **12 characters** long. Saving closes the other sessions. If you are using a temporary password, the banner at the top remains a quick route to the same form; if you close it, the button stays here.
 
 ## Setting currency and format
 
@@ -61,7 +76,7 @@ Example: with EUR and IT separators, the amount 1234.5 appears as `€1.234,50`;
 
 What it is for: reaching the account's passkeys from the same window as the preferences.
 
-At the bottom of the **Settings** window the **Security** button opens the account's **passkeys**: there you add one, rename it or delete it. It is not a preference of this browser — passkeys live on the account and work on every device — and it does not change currency, separators or the way numbers are written. See [Sign in and account](../accesso/#your-passkeys).
+In the **Your account** section the **Security** button opens the account's **passkeys**: there you add one, rename it or delete it. It is not a preference of this browser — passkeys live on the account and work on every device — and it does not change currency, separators or the way numbers are written. See [Sign in and account](../accesso/#your-passkeys).
 
 ## Where they are stored
 

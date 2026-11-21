@@ -5,6 +5,10 @@ description: Le modifiche a SiteAssistant che cambiano il prodotto o il modo di 
 
 Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è un changelog tecnico: per quello vale la cronologia dei commit nel repository.
 
+## 21 novembre 2026
+
+- **Account e password nelle Impostazioni.** L'ingranaggio apre ora la sezione **Il tuo account** con nome, email e tipo di utente nel cantiere selezionato, oltre ai pulsanti **Cambia la password** e **Sicurezza**. Chi arriva da una password temporanea trova il cambio password anche qui, senza dover cercare l'avviso in alto. Vedi [Impostazioni](../../guida/impostazioni/#il-tuo-account) e [Accesso e account](../../guida/accesso/#password-dimenticata-o-da-cambiare).
+
 ## 19 novembre 2026
 
 - **Due cantieri pilot in demo.** La demo ospita **Northline Piacenza** (`NL-IT-01`) e **Northline Midlands** (`NL-UK-01`): due cantieri gemelli per un impianto di intralogistica, uno con dati in italiano e uno in inglese. Sono dati sintetici, pensati per il pilot, con attività, diario, presenze, avanzamento, deviazioni, HSE, idoneità, attrezzature e logistica. Non contengono dati reali. Vedi [Dati dimostrativi](../../guida/dati-dimostrativi/).
@@ -25,7 +29,7 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 - **Accesso con passkey.** Il modulo **Accedi** offre due comandi per le passkey: **Accedi con passkey**, accanto ad **Accedi**, che usa l'email scritta nel campo, e **Usa una passkey senza email**, sotto il modulo, che lascia scegliere al browser tra le passkey salvate per il sito. La conferma avviene nel browser — impronta, volto, PIN o chiave di sicurezza — e la sessione dura come le altre, **7 giorni**. Se il browser non supporta le passkey, o la pagina non è aperta in connessione sicura, i due pulsanti restano spenti con una nota che invita a usare la password; se le passkey non sono configurate sul server l'applicazione lo dice. La password resta: chi non registra passkey continua a entrare come prima. Vedi [Accesso e account](../../guida/accesso/#entrare-con-una-passkey).
 
-- **Le passkey si gestiscono dalla finestra Sicurezza.** In fondo alla finestra **Impostazioni** il pulsante **Sicurezza** apre l'elenco delle passkey dell'account, con nome, data di creazione e ultimo utilizzo, oppure **Mai utilizzata**. Da lì si aggiunge una passkey, se ne cambia il nome e si elimina quella che non serve, con una conferma: eliminarla revoca le sessioni aperte con quella passkey. L'ultima passkey rimasta non si elimina, perché senza non si rientrerebbe senza password. Vedi [Accesso e account](../../guida/accesso/#le-tue-passkey) e [Impostazioni](../../guida/impostazioni/#sicurezza-le-passkey).
+- **Le passkey si gestiscono dalla finestra Sicurezza.** Nella sezione **Il tuo account** delle **Impostazioni** il pulsante **Sicurezza** apre l'elenco delle passkey dell'account, con nome, data di creazione e ultimo utilizzo, oppure **Mai utilizzata**. Da lì si aggiunge una passkey, se ne cambia il nome e si elimina quella che non serve, con una conferma: eliminarla revoca le sessioni aperte con quella passkey. L'ultima passkey rimasta non si elimina, perché senza non si rientrerebbe senza password. Vedi [Accesso e account](../../guida/accesso/#le-tue-passkey) e [Impostazioni](../../guida/impostazioni/#sicurezza-le-passkey).
 
 - **L'iscrizione di una passkey ricontrolla la sessione.** Registrare una passkey richiede che la sessione con cui hai aperto la finestra **Sicurezza** sia ancora valida: se nel frattempo è stata revocata o è scaduta, la passkey non viene registrata e l'applicazione mostra il messaggio, senza riportarti alla schermata di accesso. Lo stesso controllo vale per rinominare ed eliminare una passkey. Vedi [Accesso e account](../../guida/accesso/#le-tue-passkey).
 
