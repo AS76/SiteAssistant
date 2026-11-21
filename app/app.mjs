@@ -2746,10 +2746,23 @@ async function submitPasskeyForm(event) {
 
 
 function showSettingsForm() {
-  showModal(t('settingsTitle'), `<form id="settings-form"><p class="note">${t('settingsHint')}</p><div class="form-grid">
+  let account = '';
+  if (session) {
+    const siteRole = role();
+    account = `<section class="account-summary" aria-labelledby="account-heading">
+      <h3 id="account-heading">${t('accountSection')}</h3>
+      <p><strong>${esc(session.user.name)}</strong><br>${esc(session.user.email)}</p>
+      <dl>
+        <dt>${t('accountUserType')}</dt>
+        <dd>${t(siteRole ? `responsibleRole_${siteRole}` : 'accountNoRole')} <small>${t('accountCurrentSite')}</small></dd>
+      </dl>
+      <div class="account-actions">${button('changePassword', 'change-password')}${button('passkeySecurity', 'passkey-security')}</div>
+    </section>`;
+  }
+  showModal(t('settingsTitle'), `${account}<form id="settings-form"><p class="note">${t('settingsHint')}</p><div class="form-grid">
     <label class="field">${t('settingsCurrency')}<select name="currency">${['EUR', 'USD', 'GBP', 'CHF'].map(code => `<option value="${code}" ${prefs.currency === code ? 'selected' : ''}>${code}</option>`).join('')}</select></label>
     <label class="field">${t('settingsSeparators')}<select name="separators"><option value="auto" ${prefs.separators === 'auto' ? 'selected' : ''}>${t('settingsSeparatorsAuto')}</option><option value="it" ${prefs.separators === 'it' ? 'selected' : ''}>1.234,56 (IT)</option><option value="en" ${prefs.separators === 'en' ? 'selected' : ''}>1,234.56 (EN)</option></select></label>
-    </div>${session ? button('passkeySecurity', 'passkey-security') : ''}${formActions()}</form>`);
+    </div>${formActions()}</form>`);
 }
 
 async function showImportForm() {

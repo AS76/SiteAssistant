@@ -1,7 +1,7 @@
 import { createApi } from './api.mjs';
 import { getMirror, replayOps, SYNC_TAG } from './offline.mjs';
 
-const VERSION = 'siteassistant-v15-42';
+const VERSION = 'siteassistant-v15-43';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data-`;
 const shellUrls = [
@@ -11,7 +11,10 @@ const shellUrls = [
   './assets/fonts/SourceSerif4-normal-400-11.woff2', './assets/fonts/SourceSerif4-italic-400-5.woff2',
 ].map(path => new URL(path, self.registration.scope).href);
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(SHELL).then(cache => cache.addAll(shellUrls)));
+  event.waitUntil((async () => {
+    await caches.open(SHELL).then(cache => cache.addAll(shellUrls));
+    await self.skipWaiting();
+  })());
 });
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {

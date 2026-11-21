@@ -172,6 +172,22 @@ dialog{border:1px solid var(--line);border-radius:var(--radius);background:var(-
 
 dialog:modal { overscroll-behavior: contain; }
 dialog::backdrop { overflow: hidden; overscroll-behavior: contain; }
+.account-summary {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+.account-summary :is(h3, p, dl, dd) { margin: 0; }
+.account-summary h3 { font: 600 18px/1.3 var(--serif); }
+.account-summary dt { font-weight: 600; }
+.account-summary small { display: block; color: var(--ink-2); }
+.account-summary .account-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.account-summary button { min-height: 44px; border-radius: var(--radius); }
 .skip:focus:not(:focus-visible){top:-60px}
 @media(min-width:1500px){.task-card h2{font-size:14px}.task-card p,.task-card .card-footer{font-size:11px}}
 @media(max-width:1150px){.board{grid-template-columns:repeat(3,minmax(0,1fr))}.site-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-overview{grid-template-columns:minmax(0,1.3fr) minmax(230px,1fr)}}
