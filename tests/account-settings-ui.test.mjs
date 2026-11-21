@@ -91,6 +91,6 @@ for (const language of ['it', 'en']) {
 
 test('service worker activates the account update without waiting for old tabs', async () => {
   const worker = await readFile(new URL('../app/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const VERSION = 'siteassistant-v15-43'/);
+  assert.match(worker, /const VERSION = 'siteassistant-v15-44'/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });

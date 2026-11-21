@@ -3,13 +3,14 @@ import { RepositoryError, requireRole } from './repository.mjs';
 
 export const MODULES = Object.freeze([
   'overview', 'tasks', 'deviations', 'diary', 'progress', 'bookings', 'wbs', 'impacts',
-  'tools', 'certifications', 'hse', 'sites', 'logistics', 'reporting',
+  'tools', 'certifications', 'hse', 'sites', 'logistics', 'reporting', 'workforce_names', 'workforce_presence',
 ]);
 const alwaysAllowed = new Set(['sites', 'overview']);
+const strictModules = new Set(['logistics', 'workforce_names', 'workforce_presence']);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const invalid = () => { throw new RepositoryError(400, 'Invalid member module access.', 'ACCESS_INVALID'); };
 const isAllowed = value => value !== false && value !== 0;
-const moduleGranted = (module, value) => module === 'logistics' ? value === true || value === 1 : isAllowed(value);
+const moduleGranted = (module, value) => strictModules.has(module) ? value === true || value === 1 : isAllowed(value);
 
 export async function moduleAllowed(db, siteId, user, module) {
   if (!user?.id || !MODULES.includes(module)) return false;

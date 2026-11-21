@@ -215,6 +215,10 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     })),
     listWorkDays: async (filters = {}) => (await request(`/api/work-days${query(wireFilters(filters))}`)).map(camelRecord),
     listEmployees: async (filters = {}) => (await request(`/api/employees${query(wireFilters(filters))}`)).map(camelRecord),
+    workforceSummary: async ({ siteId, groupBy, from, to }) => (await request(
+      `/api/workforce/summary${query({ site_id: siteId, group_by: groupBy, from, to })}`)).map(camelRecord),
+    workforcePresence: async ({ siteId, date }) => (await request(
+      `/api/workforce/presence${query({ site_id: siteId, date })}`)).map(camelRecord),
     assistantChat: input => request('/api/assistant/chat', input),
     searchLocations: async query => request(`/api/location/search?q=${encodeURIComponent(query)}`),
     dashboard: siteId => request(`/api/dashboard?site_id=${encodeURIComponent(siteId)}`),

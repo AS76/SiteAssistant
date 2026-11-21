@@ -14,9 +14,10 @@ for (const driver of ['sqlite', 'pg']) test(`HR ${driver}: Employees and Work Da
     for (const [role, user] of Object.entries(auth.users)) await db.run('INSERT INTO site_members VALUES (?, ?, ?)', site.id, user.id, role);
     return { site, ...await hrSource(db, site, options) };
   };
-  const promote = site => importEmployees(db, site.id, auth.users.owner);
-  const state = async site => ({ employees: await listEmployees(db, { siteId: site.id }),
-    workDays: await listWorkDays(db, { siteId: site.id }) });
+  const owner = auth.users.owner;
+  const promote = site => importEmployees(db, site.id, owner);
+  const state = async site => ({ employees: await listEmployees(db, { siteId: site.id }, owner),
+    workDays: await listWorkDays(db, { siteId: site.id }, owner) });
 
   await t.test('source fields, time pairs, null/zero and operational dates survive promotion with correct shifts', async t => {
     const f = await fixture();
@@ -64,23 +65,23 @@ for (const driver of ['sqlite', 'pg']) test(`HR ${driver}: Employees and Work Da
     t.assert.strictEqual(first.employees[0].employee_no, second.employees[0].employee_no);
     t.assert.notStrictEqual(first.employees[0].id, second.employees[0].id);
     await t.assert.rejects(() => db.run('UPDATE employees SET employee_no = ? WHERE id = ?', first.employees[0].employee_no, first.employees[1].id), /unique/i);
-    t.assert.deepStrictEqual(await listWorkDays(db, { siteId: a.site.id, employee_id: second.employees[0].id }), []);
+    t.assert.deepStrictEqual(await listWorkDays(db, { siteId: a.site.id, employee_id: second.employees[0].id }, owner), []);
   });
 
   await t.test('employee detail and inclusive date/employee filters return only matching work days', async t => {
     const { site } = await fixture(); await promote(site);
-    const employee = (await listEmployees(db, { siteId: site.id }))[0];
-    const detail = await getEmployee(db, employee.id);
+    const employee = (await listEmployees(db, { siteId: site.id }, owner))[0];
+    const detail = await getEmployee(db, employee.id, owner);
     t.assert.strictEqual(detail.work_days.length, 3);
-    const rows = await listWorkDays(db, { siteId: site.id, employee_id: employee.id, from: '2026-01-16', to: '2026-01-17' });
+    const rows = await listWorkDays(db, { siteId: site.id, employee_id: employee.id, from: '2026-01-16', to: '2026-01-17' }, owner);
     t.assert.deepStrictEqual(rows.map(row => row.operational_date), ['2026-01-16', '2026-01-17']);
-    t.assert.strictEqual((await listWorkDays(db, { siteId: site.id, from: '2026-01-16', to: '2026-01-16' })).length, 2);
-    t.assert.strictEqual((await listWorkDays(db, { siteId: site.id, to: '2026-01-15' })).length, 1);
-    t.assert.strictEqual((await listWorkDays(db, { siteId: site.id, from: '2026-01-19' })).length, 1);
-    await t.assert.rejects(() => getEmployee(db, 'invalid'), { status: 404 });
-    await t.assert.rejects(() => getEmployee(db, randomUUID()), { status: 404 });
+    t.assert.strictEqual((await listWorkDays(db, { siteId: site.id, from: '2026-01-16', to: '2026-01-16' }, owner)).length, 2);
+    t.assert.strictEqual((await listWorkDays(db, { siteId: site.id, to: '2026-01-15' }, owner)).length, 1);
+    t.assert.strictEqual((await listWorkDays(db, { siteId: site.id, from: '2026-01-19' }, owner)).length, 1);
+    await t.assert.rejects(() => getEmployee(db, 'invalid', owner), { status: 404 });
+    await t.assert.rejects(() => getEmployee(db, randomUUID(), owner), { status: 404 });
     for (const filters of [{ from: '2026-02-30' }, { to: '' }, { employee_id: 'invalid' }, { from: '2026-02-01', to: '2026-01-01' }]) {
-      await t.assert.rejects(() => listWorkDays(db, { siteId: site.id, ...filters }), { status: 400 });
+      await t.assert.rejects(() => listWorkDays(db, { siteId: site.id, ...filters }, owner), { status: 400 });
     }
   });
 
@@ -157,7 +158,7 @@ for (const driver of ['sqlite', 'pg']) test(`HR ${driver}: Employees and Work Da
     t.assert.deepStrictEqual(await db.get('SELECT * FROM hr_import_sources WHERE site_id = ?', f.site.id), config);
   });
 
-  await t.test('HTTP requires sessions/membership: viewer reads, only the site owner imports', async t => {
+  await t.test('HTTP requires sessions and membership, with unchanged owner-only promotion', async t => {
     const { site } = await fixture(), request = requestListener(createServer(db));
     const listPath = `/api/employees?site_id=${site.id}`, daysPath = `/api/work-days?site_id=${site.id}`;
     for (const path of [listPath, daysPath, '/api/employees/invalid']) t.assert.strictEqual((await request(path)).status, 401);
@@ -169,18 +170,22 @@ for (const driver of ['sqlite', 'pg']) test(`HR ${driver}: Employees and Work Da
     }
     const imported = await request('/api/employees/import', { method: 'POST', cookie: auth.cookies.owner, body: { site_id: site.id } });
     t.assert.strictEqual(imported.status, 200); t.assert.strictEqual(imported.body.work_days, 6);
-    const listed = await request(listPath, { cookie: auth.cookies.viewer });
+    const listed = await request(listPath, { cookie: auth.cookies.owner });
     t.assert.strictEqual(listed.status, 200); t.assert.strictEqual(listed.body.length, 2);
     const detailPath = `/api/employees/${listed.body[0].id}`;
-    const detail = await request(detailPath, { cookie: auth.cookies.viewer });
+    const detail = await request(detailPath, { cookie: auth.cookies.owner });
     t.assert.strictEqual(detail.status, 200); t.assert.strictEqual(detail.body.work_days.length, 3);
-    const filtered = await request(`${daysPath}&employee_id=${listed.body[0].id}&from=2026-01-16&to=2026-01-17`, { cookie: auth.cookies.viewer });
+    const filtered = await request(`${daysPath}&employee_id=${listed.body[0].id}&from=2026-01-16&to=2026-01-17`, { cookie: auth.cookies.owner });
     t.assert.strictEqual(filtered.status, 200); t.assert.strictEqual(filtered.body.length, 2);
     for (const path of ['/api/employees', '/api/work-days', `${daysPath}&from=invalid`]) t.assert.strictEqual((await request(path, { cookie: auth.cookies.viewer })).status, 400);
     t.assert.strictEqual((await request('/api/employees/import', { method: 'POST', cookie: auth.cookies.owner, body: {} })).status, 400);
     t.assert.strictEqual((await request('/api/employees/invalid', { cookie: auth.cookies.viewer })).status, 404);
     await db.run('DELETE FROM site_members WHERE site_id = ? AND user_id = ?', site.id, auth.users.viewer.id);
-    for (const path of [listPath, daysPath, detailPath]) t.assert.strictEqual((await request(path, { cookie: auth.cookies.viewer })).status, 403);
+    for (const path of [listPath, daysPath, detailPath]) {
+      const response = await request(path, { cookie: auth.cookies.viewer });
+      t.assert.strictEqual(response.status, 403);
+      t.assert.strictEqual(response.body.code, 'FORBIDDEN');
+    }
     const other = await createSite(db, { code: randomUUID(), name: 'Synthetic unrelated site' });
     t.assert.strictEqual((await request('/api/employees/import', { method: 'POST', cookie: auth.cookies.owner, body: { site_id: other.id } })).status, 403);
     for (const path of [listPath, detailPath, daysPath]) t.assert.strictEqual((await request(path, { method: 'PATCH', cookie: auth.cookies.owner, body: {} })).status, 404);

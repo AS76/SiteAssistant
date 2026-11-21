@@ -16,7 +16,7 @@ import { readPagination } from './pagination.mjs';
 import { listAuditEvents, countAuditEvents, appendAttachmentRead } from './audit.mjs';
 import { listWbs, getWbs, importWbs, createWbs, updateWbs } from './wbs.mjs';
 import { listSiteProgress, countSiteProgress, getSiteProgressItem, importSiteProgress, updateSiteProgressItem } from './site-progress.mjs';
-import { listEmployees, getEmployee, listWorkDays, importEmployees } from './hr.mjs';
+import { listEmployees, getEmployee, listWorkDays, importEmployees, workforceSummary, workforcePresence } from './hr.mjs';
 import {
   listDeviations, countDeviations, getDeviation, importDeviations, listDeviationEvents,
   latestDeviationImports, updateDeviationOwner, updateDeviationAttribution,
@@ -490,12 +490,21 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (['/api/employees', '/api/work-days'].includes(path) && method === 'GET') {
         const siteId = url.searchParams.get('site_id');
-        if (!siteId) throw new RepositoryError(400, 'site_id is required.', 'VALIDATION_ERROR');
-        await requireRole(db, siteId, user);
-        const result = path === '/api/employees' ? await listEmployees(db, { siteId })
+        const result = path === '/api/employees' ? await listEmployees(db, { siteId }, user)
           : await listWorkDays(db, { siteId, employee_id: url.searchParams.get('employee_id'),
-            from: url.searchParams.get('from'), to: url.searchParams.get('to') });
+            from: url.searchParams.get('from'), to: url.searchParams.get('to') }, user);
         return json(response, 200, result);
+      }
+      if (path === '/api/workforce/summary' && method === 'GET') {
+        return json(response, 200, await workforceSummary(db, {
+          siteId: url.searchParams.get('site_id'), groupBy: url.searchParams.get('group_by'),
+          from: url.searchParams.get('from'), to: url.searchParams.get('to'),
+        }, user));
+      }
+      if (path === '/api/workforce/presence' && method === 'GET') {
+        return json(response, 200, await workforcePresence(db, {
+          siteId: url.searchParams.get('site_id'), date: url.searchParams.get('date'),
+        }, user));
       }
       if (path === '/api/employees/import' && method === 'POST') {
         const input = await readJson(request);
@@ -503,9 +512,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       const employee = /^\/api\/employees\/([^/]+)$/.exec(path);
       if (employee && method === 'GET') {
-        const record = await getEmployee(db, employee[1]);
-        await requireRole(db, record.site_id, user);
-        return json(response, 200, record);
+        return json(response, 200, await getEmployee(db, employee[1], user));
       }
       if (path === '/api/wbs' && method === 'GET') {
         const siteId = url.searchParams.get('site_id');

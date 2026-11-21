@@ -14,6 +14,8 @@ import { messages } from '../app/i18n.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
 import { openTestDb, isPg } from './helpers/db.mjs';
 
+const strictModules = ['logistics', 'workforce_names', 'workforce_presence'];
+
 test('member module access: repository and HTTP', async t => {
   const { db, close } = await openTestDb();
   t.after(close);
@@ -45,10 +47,10 @@ test('member module access: repository and HTTP', async t => {
   });
   const error = (response, status, code) => { assert.equal(response.status, status); assert.equal(response.body.code, code); };
 
-  await t.test('no rows allows existing modules while logistics requires an explicit grant', async () => {
+  await t.test('strict modules require explicit grants, other existing modules are allowed without rows', async () => {
     const f = await fixture();
     for (const role of ['editor', 'viewer']) {
-      for (const module of MODULES) assert.equal(await moduleAllowed(db, f.site.id, users[role], module), module !== 'logistics');
+      for (const module of MODULES) assert.equal(await moduleAllowed(db, f.site.id, users[role], module), !strictModules.includes(module));
       assert.equal((await get(`/api/tasks?site_id=${f.site.id}`, role)).status, 200);
     }
     const body = { siteId: f.site.id, title: 'Synthetic write', executor: 'Executor', verifier: 'Reviewer' };
@@ -77,7 +79,10 @@ test('member module access: repository and HTTP', async t => {
     error(await get(`/api/cost-impacts/${f.impact.id}`, 'verifier'), 403, 'MODULE_FORBIDDEN');
     error(await api(`/api/cost-impacts/${f.impact.id}/transition`, { method: 'POST', body: { to: 'notification_sent' }, cookie: cookies.verifier }), 403, 'MODULE_FORBIDDEN');
     error(await api('/api/cost-impacts', { method: 'POST', body: { site_id: f.site.id, title: 'Denied', deviation_ids: [f.deviationId] }, cookie: cookies.verifier }), 403, 'MODULE_FORBIDDEN');
-    for (const path of ['deviations', 'tasks', 'time-bookings']) assert.equal((await get(`/api/${path}?site_id=${f.site.id}`, 'verifier')).status, 200);
+    for (const path of ['deviations', 'tasks', 'workforce/summary']) {
+      const query = path === 'workforce/summary' ? '&group_by=day&from=2026-01-15&to=2026-01-15' : '';
+      assert.equal((await get(`/api/${path}?site_id=${f.site.id}${query}`, 'verifier')).status, 200);
+    }
   });
 
   await t.test('only owners save; invalid modules, flags, other-site members and all owner denials are rejected', async () => {
@@ -104,7 +109,7 @@ test('member module access: repository and HTTP', async t => {
       const member = matrix.body.members.find(member => member.user_id === users[role].id);
       assert.equal(member.email, users[role].email); assert.equal(member.name, users[role].name); assert.equal(member.role, role);
       assert.deepEqual(Object.keys(member.modules), MODULES);
-      for (const module of MODULES) assert.equal(member.modules[module], role === 'owner' || (module !== 'logistics' && !(role === 'editor' && module === 'tasks')));
+      for (const module of MODULES) assert.equal(member.modules[module], role === 'owner' || (!strictModules.includes(module) && !(role === 'editor' && module === 'tasks')));
     }
     await db.run('UPDATE member_module_access SET updated_at = ? WHERE id = ?', '2020-01-01T00:00:00.000Z', before.id);
     assert.equal((await save(f, 'tasks', true)).status, 200);
@@ -132,6 +137,7 @@ test('member module access: repository and HTTP', async t => {
 
   await t.test('remaining module lists, details and writes reject denied access', async () => {
     const f = await fixture();
+    assert.equal((await save(f, 'workforce_names', true)).status, 200);
     const booking = await api('/api/time-bookings', { method: 'POST', body: { work_day_id: f.workDayId, site_progress_item_id: f.itemId, hours: 1 }, cookie: cookies.editor });
     assert.equal(booking.status, 201);
     const cases = [

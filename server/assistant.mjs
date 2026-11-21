@@ -106,6 +106,7 @@ async function runTool(db, { siteId, user }, name, args) {
     : ({ site_progress_items: 'progress', cost_impacts: 'impacts', time_bookings: 'bookings' })[args.family] || args.family;
   await requireModule(db, siteId, user, module);
   if (name === 'find_records') {
+    if (args.family === 'time_bookings') await requireModule(db, siteId, user, 'workforce_names');
     const limit = Math.min(Number(args.limit) || 10, MAX_ROWS);
     const clauses = ['site_id = ?'], values = [siteId];
     if (args.status && typeof args.status === 'string' && family.columns.includes('status')) { clauses.push('status = ?'); values.push(args.status); }

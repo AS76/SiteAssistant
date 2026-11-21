@@ -43,6 +43,7 @@ function auditUi(currentRole = 'owner', view = 'tools', load = async () => []) {
     $: selector => selector === '#main' ? main : selector === '#audit-panel' ? panel : null,
     heading: () => '<h1>Module</h1>', button: () => '', empty: () => '<p>Empty</p>',
     moduleResources: { tools: [], certifications: [], hse: [], progress: [] }, coreResource: () => ({}),
+    moduleVisible: () => true,
     renderDeviations: () => '', renderProgress: () => '', renderBookings: () => '', renderImpacts: () => '',
     renderTools: () => '<section>Tools</section>', renderCertifications: () => '<section>Certifications</section>',
     renderHse: () => '<section>HSE</section>', renderHseViewToggle: () => '<div class="view-toggle"></div>', enhanceCoreTables: () => {},

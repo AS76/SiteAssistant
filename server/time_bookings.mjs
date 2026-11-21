@@ -17,6 +17,11 @@ function requireUser(user) {
   if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
 }
 
+async function requireBookingAccess(db, site, user) {
+  await requireModule(db, site, user, 'bookings');
+  await requireModule(db, site, user, 'workforce_names');
+}
+
 async function timeBookingFilters(db, { siteId, siteProgressItemId, workDayId }, user) {
   requireUser(user);
   const site = validId(siteId, 'site_id'), clauses = ['site_id = ?'], values = [site];
@@ -24,7 +29,7 @@ async function timeBookingFilters(db, { siteId, siteProgressItemId, workDayId },
     if (value != null) { clauses.push(`${field} = ?`); values.push(validId(value, field)); }
   }
   await requireRole(db, site, user);
-  await requireModule(db, site, user, 'bookings');
+  await requireBookingAccess(db, site, user);
   return { where: clauses.join(' AND '), values };
 }
 
@@ -53,7 +58,7 @@ export async function createTimeBooking(db, input, user) {
   if (!item) fail(404, 'Site progress item not found.', 'SITE_PROGRESS_ITEM_NOT_FOUND');
   if (workDay.site_id !== item.site_id) fail(409, 'Work day and progress item must belong to the same site.', 'TIME_BOOKING_SITE_MISMATCH');
   await requireRole(db, workDay.site_id, user, ['editor', 'owner']);
-  await requireModule(db, workDay.site_id, user, 'bookings');
+  await requireBookingAccess(db, workDay.site_id, user);
   try {
     // The database constraint arbitrates concurrent inserts on both drivers.
     const row = await db.get(`INSERT INTO time_bookings
@@ -73,7 +78,7 @@ export async function deleteTimeBooking(db, id, user) {
   const row = await db.get('SELECT site_id FROM time_bookings WHERE id = ?', bookingId);
   if (!row) fail(404, 'Time booking not found.', 'TIME_BOOKING_NOT_FOUND');
   await requireRole(db, row.site_id, user, ['editor', 'owner']);
-  await requireModule(db, row.site_id, user, 'bookings');
+  await requireBookingAccess(db, row.site_id, user);
   await db.run('DELETE FROM time_bookings WHERE id = ?', bookingId);
   return { deleted: true };
 }

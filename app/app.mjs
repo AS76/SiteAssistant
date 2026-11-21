@@ -140,6 +140,7 @@ const paths = {
   today: '<rect x="3" y="5" width="18" height="16" rx="1.5"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   bookings: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',
+  workforce_presence: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m1-13a3 3 0 0 1 0 6m1 3a4 4 0 0 1 4 4"/>',
   wbs: '<path d="M12 8v4M5 16v-4h14v4"/><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="2" y="16" width="6" height="5" rx="1"/><rect x="16" y="16" width="6" height="5" rx="1"/>',
   impacts: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/>',
   certifications: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 12h6m-3-3v6"/>',
@@ -891,7 +892,7 @@ function renderSites() {
       <p>${t('evidenceChecksumHint')}</p>${button('evidenceExport', 'evidence-export')}</div></section>`);
   }
   if (role() === 'owner' && siteId) {
-    const modules = navGroups({ logistics: true }).flatMap(group => group.items);
+    const modules = [...navGroups(ownerModules).flatMap(group => group.items), 'workforce_names'];
     const members = state.memberAccess?.[siteId]?.members || [];
     $('#main').insertAdjacentHTML('beforeend', `<section class="panel module-access"><div class="panel-body"><h2>${t('moduleAccess')}</h2><p>${t('moduleAccessHint')}</p><div class="table-scroll"><table><thead><tr><th scope="col">${t('accessMember')}</th>${modules.map(module => `<th scope="col">${t(module)}</th>`).join('')}</tr></thead><tbody>${members.map(member => `<tr><th scope="row">${esc(member.name)}<br><small>${esc(member.email)} · ${esc(member.role === 'owner' ? t('accessOwner') : member.role)}</small></th>${modules.map(module => {
       const locked = member.role === 'owner' || ['sites', 'overview'].includes(module);
@@ -1320,13 +1321,14 @@ function renderWbs() {
 }
 // Core modules are online-only and never write to the offline operation queue.
 const role = () => session?.roles?.find(member => member.site_id === siteId)?.role;
-const currentModules = () => role() === 'owner' ? { logistics: true } : state.memberAccess?.[siteId]?.members?.find(member => member.user_id === session?.user.id)?.modules || {};
+const ownerModules = { logistics: true, workforce_names: true, workforce_presence: true };
+const currentModules = () => role() === 'owner' ? ownerModules : state.memberAccess?.[siteId]?.members?.find(member => member.user_id === session?.user.id)?.modules || {};
 const moduleVisible = module => visibleModules([module], currentModules()).length > 0;
 
 const permissions = () => corePermissions(role());
-const moduleResources = { deviations: ['deviations', 'reconciliation'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'], hse: ['hse', 'hseAssets'], logistics: ['purchaseOrders', 'packages', 'shipments'] };
+const moduleResources = { deviations: ['deviations', 'reconciliation'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress', 'workforceSummary'], workforce_presence: ['workforcePresence'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'], hse: ['hse', 'hseAssets'], logistics: ['purchaseOrders', 'packages', 'shipments'] };
 // Mobile keeps four destinations reachable with the thumb; the rest lives behind «Altro».
-const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'reporting'];
+const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'workforce_presence', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'reporting'];
 const MOBILE_PRIMARY = ['today', 'tasks', 'diary', 'deviations', 'progress'];
 const TABLET_PRIMARY = [...MOBILE_PRIMARY, 'bookings'];
 const headerNavItems = () => window.matchMedia('(width < 640px)').matches ? MOBILE_PRIMARY : TABLET_PRIMARY;
@@ -1369,6 +1371,7 @@ function bindDesktopNavigation() {
   }
 }
 const coreCache = new Map();
+let workforceSummaryFilters;
 let coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' }, hse: { type: '', severity: '', from: '', to: '' }, logistics: { status: '', supplier: '' } };
 let purchaseOrderDetailId = '';
 let packageDetailId = '', packageFilters = { status: '', purchaseOrderId: '' };
@@ -1402,6 +1405,7 @@ function selectHseView(value, assetId = '', inspectionId = '') {
 }
 function resetCore() {
   coreCache.clear();
+  workforceSummaryFilters = undefined;
   coreFilters = { deviations: { status: '', priority: '' }, progress: { wbsId: '' }, bookings: { date: '' }, impacts: { status: '', result: '' }, tools: { company: '', status: '' }, certifications: { employee: '', category: '', status: '' }, hse: { type: '', severity: '', from: '', to: '' }, logistics: { status: '', supplier: '' } };
   shipmentDetailId = ''; shipmentFilters = { status: '' };
   purchaseOrderDetailId = ''; packageDetailId = ''; packageFilters = { status: '', purchaseOrderId: '' };
@@ -1438,6 +1442,8 @@ function coreResource(name, loader) {
     hse: () => freshApi.listHseEvents({ siteId: selected }),
     hseAssets: () => freshApi.listHseAssets({ siteId: selected }),
     workDays: () => freshApi.listWorkDays({ siteId: selected }), employees: () => freshApi.listEmployees({ siteId: selected }),
+    workforceSummary: () => freshApi.workforceSummary({ siteId: selected, ...summaryFilters() }),
+    workforcePresence: () => freshApi.workforcePresence({ siteId: selected, date: operationalDay().date }),
     wbs: async () => {
       if (wbsLoad?.promise) await wbsLoad.promise;
       if (siteId !== selected || coreCache.get(selected) !== cache) return [];
@@ -1480,17 +1486,18 @@ function progressBar(value) {
 function renderCore() {
   const deviations = view === 'deviations';
   const inspections = view === 'hse' && hseView === 'inspections';
+  const summary = view === 'bookings' && !moduleVisible('workforce_names');
   const subjectDetail = inspections && hseAssetDetail.id;
   const tools = (inspections ? '' : button(columnFiltersOn ? 'columnFiltersHide' : 'columnFiltersShow', 'column-filters', `aria-pressed="${columnFiltersOn}"`)) + button('coreRefresh', 'core-reload');
   $('#main').innerHTML = deviations ? `<div class="notebook notebook-records">
     <header class="notebook-page-head"><div><h1>${t('deviations')}</h1><p id="deviation-summary" class="notebook-meta num" role="status">${t('deviationsSub')}</p></div></header>
     <div class="notebook-actions">${tools}</div>
     <div id="deviation-content"></div>
-  </div>` : heading(view, inspections ? 'hseInspectionsSub' : `${view}Sub`,
+  </div>` : heading(view, inspections ? 'hseInspectionsSub' : summary ? 'workforceSummarySub' : `${view}Sub`,
     (view === 'progress' ? button('reportPrint', 'open-report') : '')
     + (view === 'logistics' && purchaseOrderCanWrite() ? button(logisticsView === 'shipments' ? 'shpNew' : logisticsView === 'packages' ? 'pkgNew' : 'poNew', logisticsView === 'shipments' ? 'shp-new' : logisticsView === 'packages' ? 'pkg-new' : 'po-new', '', 'primary') : '')
     + (view === 'tools' && permissions().tools ? button('toolAdd', 'tool-new', '', 'primary') : '')
-    + (view === 'certifications' && permissions().certificationWrite ? button('certAdd', 'cert-new', '', 'primary') : '')
+    + (view === 'certifications' && permissions().certificationWrite && moduleVisible('workforce_names') ? button('certAdd', 'cert-new', '', 'primary') : '')
     + (view === 'hse' && !inspections && permissions().hseWrite ? button('hseAdd', 'hse-new', '', 'primary') : '')
     + (subjectDetail ? button('hseAssetBack', 'hse-asset-back') : inspections && permissions().hseWrite ? button('hseAssetAdd', 'hse-asset-new', '', 'primary') : '')
     + tools);
@@ -1504,16 +1511,26 @@ function renderCore() {
   if (!inspections && coreFilters[view]?.id) target.insertAdjacentHTML('beforeend', deviations
     ? `<div class="notebook-actions">${button('clearFilters', 'today-clear-filter')}</div>`
     : `<p class="note">${t('todayFiltered')} ${button('clearFilters', 'today-clear-filter')}</p>`);
-  const resourceNames = view === 'logistics' ? (logisticsView === 'shipments' ? (shipmentDetailId ? [] : ['shipments']) : logisticsView === 'packages' ? (packageDetailId ? [] : ['packages', 'purchaseOrders']) : (purchaseOrderDetailId ? [] : ['purchaseOrders'])) : view === 'hse' ? [inspections ? 'hseAssets' : 'hse'] : moduleResources[view];
+  let resourceNames = view === 'logistics' ? (logisticsView === 'shipments' ? (shipmentDetailId ? [] : ['shipments']) : logisticsView === 'packages' ? (packageDetailId ? [] : ['packages', 'purchaseOrders']) : (purchaseOrderDetailId ? [] : ['purchaseOrders'])) : view === 'hse' ? [inspections ? 'hseAssets' : 'hse'] : moduleResources[view];
+  if (view === 'bookings') {
+    resourceNames = summary ? ['workforceSummary'] : resourceNames.filter(name => name !== 'workforceSummary');
+    if (summary) target.insertAdjacentHTML('beforeend', renderWorkforceSummaryFilters());
+  }
+  if (view === 'certifications' && !moduleVisible('workforce_names')) resourceNames = ['certifications'];
+  const presenceDate = view === 'workforce_presence' ? operationalDay().date : null;
+  if (presenceDate && coreCache.get(siteId)?.get('workforcePresence')?.date !== presenceDate) {
+    coreCache.get(siteId)?.delete('workforcePresence');
+  }
   // Not `.map(coreResource)`: map would pass the index as the custom loader.
   const resources = resourceNames.map(name => coreResource(name));
+  if (presenceDate) resources[0].date = presenceDate;
   if (resources.some(entry => entry.pending)) {
     $('#main').setAttribute('aria-busy', 'true');
     target.insertAdjacentHTML('beforeend', `<p role="status">${t('loading')}</p>`); return;
   }
   const error = resources.find(entry => entry.error)?.error;
   if (error) { target.insertAdjacentHTML('beforeend', `<p role="alert">${esc(errorMessage(error))}</p>`); return; }
-  const content = { logistics: () => logisticsView === 'shipments' ? renderShipments() : logisticsView === 'packages' ? renderPackages() : renderPurchaseOrders(), deviations: renderDeviations, progress: renderProgress, bookings: renderBookings, impacts: renderImpacts, tools: renderTools, certifications: renderCertifications, hse: subjectDetail ? renderHseAssetDetail : inspections ? renderHseAssets : renderHse }[view]();
+  const content = { logistics: () => logisticsView === 'shipments' ? renderShipments() : logisticsView === 'packages' ? renderPackages() : renderPurchaseOrders(), deviations: renderDeviations, progress: renderProgress, bookings: () => summary ? renderWorkforceSummary() : renderBookings(), workforce_presence: () => renderWorkforcePresence(presenceDate), impacts: renderImpacts, tools: renderTools, certifications: renderCertifications, hse: subjectDetail ? renderHseAssetDetail : inspections ? renderHseAssets : renderHse }[view]();
   target.insertAdjacentHTML('beforeend', `<div class="core-view">${content}${inspections ? '' : renderAuditPanel()}</div>`);
   const reconciliationPanel = $('#deviation-reconciliation');
   if (reconciliationPanel) reconciliationPanel.addEventListener('toggle', () => { reconciliationOpen = reconciliationPanel.open; });
@@ -1778,6 +1795,43 @@ function openProgressVerifications(wbsId) {
   filters = { ...filters, wbsId, openVerification: true };
   taskView = 'list';
   go('tasks');
+}
+function summaryFilters() {
+  if (workforceSummaryFilters) return workforceSummaryFilters;
+  const to = operationalDay().date, start = new Date(`${to}T00:00:00Z`);
+  start.setUTCDate(start.getUTCDate() - 29);
+  return { groupBy: 'day', from: start.toISOString().slice(0, 10), to };
+}
+const workforceGroups = { company: 'workforceCompany', day: 'workforceDay', period: 'workforcePeriod' };
+function renderWorkforceSummaryFilters() {
+  const { groupBy, from, to } = summaryFilters();
+  const options = Object.entries(workforceGroups).map(([key, label]) =>
+    `<option value="${key}"${key === groupBy ? ' selected' : ''}>${t(label)}</option>`).join('');
+  return `<form id="workforce-summary-form" class="toolbar core-toolbar">
+    <div class="form-error" role="alert" tabindex="-1" hidden></div>
+    ${field('workforceGroup', 'groupBy', groupBy, { options, required: true })}
+    ${field('hseFrom', 'from', from, { type: 'date', required: true })}
+    ${field('hseTo', 'to', to, { type: 'date', required: true })}
+    <button type="submit">${t('workforceApply')}</button></form>`;
+}
+function renderWorkforceSummary() {
+  const { groupBy, from, to } = summaryFilters(), rows = coreData('workforceSummary');
+  if (!rows.length) return empty('noResults', 'noResultsHint');
+  const groupLabel = key => {
+    if (groupBy === 'day') return coreDate(key);
+    if (groupBy === 'period') return `${coreDate(from)} – ${coreDate(to)}`;
+    return coreValue(key);
+  };
+  return coreTable([workforceGroups[groupBy], 'coreSourceWorkTime', 'coreSourceOpenHours', 'coreSourceBookedHours'],
+    rows.map(row => [groupLabel(row.groupKey), coreNumber(row.workTime, 'hours'), coreNumber(row.openHours, 'hours'), coreNumber(row.bookedHours, 'hours')]));
+}
+function renderWorkforcePresence(date) {
+  const rows = coreData('workforcePresence');
+  return `<h2>${coreDate(date)}</h2>` + (rows.length
+    ? coreTable(['coreEmployee', 'workforceCompany', 'shift', 'workforceStart', 'workforceFinish'],
+      rows.map(row => [coreValue([row.firstName, row.lastName].filter(Boolean).join(' ') || null), coreValue(row.company),
+        t(row.shift || 'coreUnknown'), coreValue(row.startTime), coreValue(row.finishTime)]))
+    : empty('noResults', 'noResultsHint'));
 }
 function renderBookings() {
   const days = coreData('workDays'), employees = coreData('employees'), items = coreData('progress');
@@ -2243,17 +2297,18 @@ function certDaysLeft(row) {
   return esc(t('certDaysLeft').replace('{days}', String(row.daysLeft)));
 }
 function renderCertifications() {
-  const all = coreData('certifications'), employees = coreData('employees');
-  const filter = coreFilters.certifications, canWrite = permissions().certificationWrite;
+  const names = moduleVisible('workforce_names');
+  const all = coreData('certifications'), employees = names ? coreData('employees') : [];
+  const filter = { ...coreFilters.certifications, ...(!names && { employee: '' }) }, canWrite = permissions().certificationWrite;
   const rows = filterCertifications(all, filter), counts = certificationCounts(all);
   const byEmployee = new Map(employees.map(employee => [employee.id, employee]));
   const kpis = [['certExpired', counts.expired, 'cert-count-expired'], ['certExpiring', counts.expiring, 'cert-count-expiring'],
     ['certValid', counts.valid, 'cert-count-valid'], ['certNoExpiry', counts.no_expiry, 'cert-count-no_expiry']]
     .map(([label, value, css]) => `<div class="panel panel-body"><span>${t(label)}</span><strong class="cert-count ${css}">${value}</strong></div>`).join('');
   let html = `<div class="core-kpis" role="status">${kpis}</div><p class="note">${t('certHint')}</p>`;
-  html += `<div class="toolbar core-toolbar">${coreSelect('employee', 'coreEmployee', employees.map(employee => [employee.id, employeeLabel(employee)]), filter.employee, 'coreAllEmployees')}${coreSelect('category', 'certCategory', CERT_CATEGORIES.map(category => [category, t(certCategoryLabelKey(category))]), filter.category, 'certAllCategories')}${coreSelect('status', 'status', CERT_STATUSES.map(status => [status, t(certStatusLabelKey(status))]), filter.status, 'allStatuses')}</div>`;
-  html += rows.length ? coreTable(['coreEmployee', 'certCategory', 'certName', 'certIssuer', 'certIssuedOn', 'certExpiresOn', 'certDays', 'status', ...(canWrite ? ['coreActions'] : [])],
-    rows.map(row => [esc(employeeLabel(byEmployee.get(row.employeeId))), t(certCategoryLabelKey(row.category)), `<strong>${esc(row.name)}</strong>`,
+  html += `<div class="toolbar core-toolbar">${names ? coreSelect('employee', 'coreEmployee', employees.map(employee => [employee.id, employeeLabel(employee)]), filter.employee, 'coreAllEmployees') : ''}${coreSelect('category', 'certCategory', CERT_CATEGORIES.map(category => [category, t(certCategoryLabelKey(category))]), filter.category, 'certAllCategories')}${coreSelect('status', 'status', CERT_STATUSES.map(status => [status, t(certStatusLabelKey(status))]), filter.status, 'allStatuses')}</div>`;
+  html += rows.length ? coreTable([...(names ? ['coreEmployee'] : []), 'certCategory', 'certName', 'certIssuer', 'certIssuedOn', 'certExpiresOn', 'certDays', 'status', ...(canWrite ? ['coreActions'] : [])],
+    rows.map(row => [...(names ? [esc(employeeLabel(byEmployee.get(row.employeeId)))] : []), t(certCategoryLabelKey(row.category)), `<strong>${esc(row.name)}</strong>`,
       coreValue(row.issuer), coreDate(row.issuedOn), coreDate(row.expiresOn), certDaysLeft(row), certificationStatusBadge(row.status),
       ...(canWrite ? [`<div class="tool-actions">${button('edit', 'cert-edit', `data-id="${esc(row.id)}"`, 'small')}${button('coreDelete', 'cert-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`] : [])])) : empty('certEmpty', 'certEmptyHint');
   return html;
@@ -2261,17 +2316,19 @@ function renderCertifications() {
 function showCertificationForm() {
   if (!permissions().certificationWrite) return toast(t('forbidden'));
   const editing = certEditingId ? coreData('certifications').find(cert => cert.id === certEditingId) : null;
-  const employees = coreData('employees');
+  const names = moduleVisible('workforce_names');
+  if (!editing && !names) return toast(t('forbidden'));
+  const employees = names ? coreData('employees') : [];
   const employeeOptions = employees.map(employee => `<option value="${esc(employee.id)}" ${(editing?.employeeId || '') === employee.id ? 'selected' : ''}>${esc(employeeLabel(employee))}</option>`).join('');
   const categoryOptions = CERT_CATEGORIES.map(category => `<option value="${category}" ${(editing?.category || 'qualification') === category ? 'selected' : ''}>${t(certCategoryLabelKey(category))}</option>`).join('');
-  showModal(t(editing ? 'certEdit' : 'certAdd'), `<form id="cert-form" data-id="${esc(editing?.id || '')}"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('coreEmployee', 'employeeId', editing?.employeeId || '', { required: true, options: employeeOptions })}${field('certCategory', 'category', editing?.category || 'qualification', { required: true, options: categoryOptions })}${field('certName', 'name', editing?.name || '', { required: true, max: 120 })}${field('certIssuer', 'issuer', editing?.issuer || '', { max: 200 })}${field('certIssuedOn', 'issuedOn', editing?.issuedOn || '', { type: 'date' })}${field('certExpiresOn', 'expiresOn', editing?.expiresOn || '', { type: 'date' })}${field('certOutcome', 'outcome', editing?.outcome || '', { max: 500, full: true })}${field('certNotes', 'notes', editing?.notes || '', { type: 'textarea', full: true, max: 2000 })}</div><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="primary">${t(editing ? 'certSaveChanges' : 'certSave')}</button></div></form>`);
+  showModal(t(editing ? 'certEdit' : 'certAdd'), `<form id="cert-form" data-id="${esc(editing?.id || '')}"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${names ? field('coreEmployee', 'employeeId', editing?.employeeId || '', { required: true, options: employeeOptions }) : ''}${field('certCategory', 'category', editing?.category || 'qualification', { required: true, options: categoryOptions })}${field('certName', 'name', editing?.name || '', { required: true, max: 120 })}${field('certIssuer', 'issuer', editing?.issuer || '', { max: 200 })}${field('certIssuedOn', 'issuedOn', editing?.issuedOn || '', { type: 'date' })}${field('certExpiresOn', 'expiresOn', editing?.expiresOn || '', { type: 'date' })}${field('certOutcome', 'outcome', editing?.outcome || '', { max: 500, full: true })}${field('certNotes', 'notes', editing?.notes || '', { type: 'textarea', full: true, max: 2000 })}</div><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="primary">${t(editing ? 'certSaveChanges' : 'certSave')}</button></div></form>`);
 }
 function showCertificationDelete(id) {
   if (!permissions().certificationWrite) return toast(t('forbidden'));
   const row = coreData('certifications').find(cert => cert.id === id);
   if (!row) return toast(t('certNotFound'));
-  const employee = coreData('employees').find(candidate => candidate.id === row.employeeId);
-  showModal(t('certDelete'), `<form id="cert-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('certDeleteConfirm')}</p><p><strong>${esc(row.name)}</strong> · ${esc(employeeLabel(employee))}${row.expiresOn ? ` · ${coreDate(row.expiresOn)}` : ''}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
+  const employee = moduleVisible('workforce_names') && coreData('employees').find(candidate => candidate.id === row.employeeId);
+  showModal(t('certDelete'), `<form id="cert-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('certDeleteConfirm')}</p><p><strong>${esc(row.name)}</strong>${employee ? ` · ${esc(employeeLabel(employee))}` : ''}${row.expiresOn ? ` · ${coreDate(row.expiresOn)}` : ''}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
 }
 async function submitCertification(form, data) {
   const selected = siteId, user = session?.user.id, version = modalVersion;
@@ -3026,7 +3083,7 @@ async function showCoreDetail(module, id) {
   }
 }
 function showBookingDelete(id) {
-  if (!permissions().book) return toast(t('forbidden'));
+  if (!permissions().book || !moduleVisible('workforce_names')) return toast(t('forbidden'));
   const row = coreData('bookings').find(booking => booking.id === id);
   if (!row) return;
   showModal(t('coreDeleteBooking'), `<form id="booking-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('coreDeleteConfirm')}</p><p>${coreNumber(row.hours, 'hours')} ${t('coreAppBookedHours')} · ${esc(progressLabel(coreData('progress').find(item => item.id === row.siteProgressItemId)))}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
@@ -3071,7 +3128,7 @@ async function submitCore(form, data) {
   const isHours = form.id === 'progress-hours-form';
   if (isSteps || isHours) { if (!permissions().steps) throw new Error('forbidden'); }
   else if (isType) { if (!permissions().assign) throw new Error('forbidden'); }
-  else if (!(isImpact ? permissions().transition : permissions().book)) throw new Error('forbidden');
+  else if (!(isImpact ? permissions().transition : permissions().book && moduleVisible('workforce_names'))) throw new Error('forbidden');
   if (isHours) {
     const hours = data.planned_hours === '' ? null : Number(data.planned_hours);
     if (hours !== null && (!Number.isFinite(hours) || hours < 0 || hours > 1e6)) throw new Error('invalidData');
@@ -3116,7 +3173,7 @@ function render() {
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
   if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
   if (!moduleVisible(view)) { $('#main').innerHTML = empty('moduleUnavailable', 'moduleUnavailableHint'); return; }
-  ({ today: renderToday, report: renderReport, reporting: renderReporting, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, impacts: renderCore, tools: renderCore, certifications: renderCore, hse: renderCore, logistics: renderCore })[view]();
+  ({ today: renderToday, report: renderReport, reporting: renderReporting, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, workforce_presence: renderCore, impacts: renderCore, tools: renderCore, certifications: renderCore, hse: renderCore, logistics: renderCore })[view]();
 }
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
 function selectSite(id) {
@@ -3656,6 +3713,17 @@ document.addEventListener('click', event => {
 document.addEventListener('submit', async event => {
   if (event.target?.dataset?.passkeyAction) return submitPasskeyForm(event);
   const form = event.target;
+  if (form.id === 'workforce-summary-form') {
+    event.preventDefault();
+    const data = dateFormData(form);
+    if (!data) return;
+    const span = (Date.parse(data.to) - Date.parse(data.from)) / 86_400_000 + 1;
+    if (!(span >= 1 && span <= 366)) { formError(form, new Error('workforceRange')); return; }
+    workforceSummaryFilters = { groupBy: data.groupBy, from: data.from, to: data.to };
+    coreCache.get(siteId)?.delete('workforceSummary');
+    render();
+    return;
+  }
   if (form.id === 'hse-inspection-form') { event.preventDefault(); await submitHseInspection(form); return; }
   if (form.id === 'dashboard-layout-form') { event.preventDefault(); await submitDashboardLayout(form); return; }
   if (form.id === 'ai-form') {

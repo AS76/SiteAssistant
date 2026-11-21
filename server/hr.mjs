@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { RepositoryError, getSite, requireRole } from './repository.mjs';
+import { RepositoryError, requireRole } from './repository.mjs';
+import { requireModule } from './module-access.mjs';
 import { shiftOf } from './operational-day.mjs';
 
 const fail = (status, message, code = 'HR_RECONCILIATION_REQUIRED') => { throw new RepositoryError(status, message, code); };
@@ -18,6 +19,7 @@ function validId(value, field) {
 }
 function date(value, status = 409) {
   if (typeof value !== 'string' || !/^\d{4}-\d\d-\d\d$/.test(value) ||
+      (status === 400 && value.startsWith('0000-')) ||
       !Number.isFinite(Date.parse(`${value}T00:00:00Z`)) || new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) !== value) {
     fail(status, 'A valid YYYY-MM-DD date is required.', status === 400 ? 'VALIDATION_ERROR' : 'HR_RECONCILIATION_REQUIRED');
   }
@@ -35,27 +37,80 @@ function stableId(...parts) {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-export async function listEmployees(db, { siteId: input } = {}) {
+async function requireWorkforceAccess(db, site, user, module) {
+  if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
+  await requireRole(db, site, user);
+  await requireModule(db, site, user, module);
+}
+
+export async function listEmployees(db, { siteId: input } = {}, user) {
   const site = validId(input, 'site_id');
-  await getSite(db, site);
+  await requireWorkforceAccess(db, site, user, 'workforce_names');
   return db.all(`SELECT ${appFields(employeeFields)} FROM employees WHERE site_id = ? ORDER BY employee_no, id`, site);
 }
 
-export async function getEmployee(db, id) {
-  const row = typeof id === 'string' && uuid.test(id)
-    ? await db.get(`SELECT ${appFields(employeeFields)} FROM employees WHERE id = ?`, id.toLowerCase()) : null;
+export async function getEmployee(db, id, user) {
+  const employeeId = typeof id === 'string' && uuid.test(id) ? id.toLowerCase() : null;
+  const locator = employeeId && await db.get('SELECT site_id FROM employees WHERE id = ?', employeeId);
+  if (!locator) fail(404, 'Employee not found.', 'EMPLOYEE_NOT_FOUND');
+  await requireWorkforceAccess(db, locator.site_id, user, 'workforce_names');
+  const row = await db.get(`SELECT ${appFields(employeeFields)} FROM employees WHERE id = ? AND site_id = ?`, employeeId, locator.site_id);
   if (!row) fail(404, 'Employee not found.', 'EMPLOYEE_NOT_FOUND');
-  return { ...row, work_days: await listWorkDays(db, { siteId: row.site_id, employee_id: row.id }) };
+  return { ...row, work_days: await workDayRows(db, ['site_id = ?', 'employee_id = ?'], [row.site_id, row.id]) };
 }
 
-export async function listWorkDays(db, { siteId: input, employee_id, from, to } = {}) {
+function workDayRows(db, clauses, values) {
+  return db.all(`SELECT ${appFields(workFields)} FROM work_days WHERE ${clauses.join(' AND ')} ORDER BY operational_date, id`, ...values);
+}
+
+export async function listWorkDays(db, { siteId: input, employee_id, from, to } = {}, user) {
   const site = validId(input, 'site_id'), clauses = ['site_id = ?'], values = [site];
   if (employee_id != null) { clauses.push('employee_id = ?'); values.push(validId(employee_id, 'employee_id')); }
   if (from != null) { clauses.push('operational_date >= ?'); values.push(date(from, 400)); }
   if (to != null) { clauses.push('operational_date <= ?'); values.push(date(to, 400)); }
   if (from != null && to != null && from > to) fail(400, 'from must not follow to.', 'VALIDATION_ERROR');
-  await getSite(db, site);
-  return db.all(`SELECT ${appFields(workFields)} FROM work_days WHERE ${clauses.join(' AND ')} ORDER BY operational_date, id`, ...values);
+  await requireWorkforceAccess(db, site, user, 'workforce_names');
+  return workDayRows(db, clauses, values);
+}
+
+const summaryGroups = new Map([
+  ['company', 'e.company'],
+  ['day', 'w.operational_date'],
+  ['period', null],
+]);
+const summaryHours = ['work_time', 'open_hours', 'booked_hours'];
+const dayMillis = 86_400_000;
+
+export async function workforceSummary(db, { siteId: input, groupBy, from, to }, user) {
+  const site = validId(input, 'site_id');
+  if (!summaryGroups.has(groupBy)) fail(400, 'group_by must be company, day or period.', 'VALIDATION_ERROR');
+  date(from, 400);
+  date(to, 400);
+  const span = (Date.parse(to) - Date.parse(from)) / dayMillis + 1;
+  if (span < 1 || span > 366) fail(400, 'The date range must include between 1 and 366 days.', 'VALIDATION_ERROR');
+  await requireWorkforceAccess(db, site, user, 'bookings');
+
+  const group = summaryGroups.get(groupBy);
+  // Preserve the existing meaning of a partial source total as unknown.
+  const hours = summaryHours.map(field => `CASE WHEN COUNT(w.${field}) = COUNT(*) THEN SUM(w.${field}) END AS ${field}`).join(', ');
+  const rows = await db.all(`SELECT ${group ? `CAST(${group} AS TEXT) AS group_key, ` : ''}${hours}
+    FROM work_days w
+    ${groupBy === 'company' ? 'LEFT JOIN employees e ON e.id = w.employee_id AND e.site_id = w.site_id' : ''}
+    WHERE w.site_id = ? AND w.operational_date BETWEEN ? AND ?
+    ${group ? `GROUP BY ${group} ORDER BY ${group} IS NULL, ${group}` : 'HAVING COUNT(*) > 0'}`, site, from, to);
+  return rows.map(row => ({
+    group_key: group ? row.group_key : `${from}/${to}`,
+    ...Object.fromEntries(summaryHours.map(field => [field, row[field] == null ? null : Number(row[field])])),
+  }));
+}
+
+export async function workforcePresence(db, { siteId: input, date: inputDate }, user) {
+  const site = validId(input, 'site_id'), day = date(inputDate, 400);
+  await requireWorkforceAccess(db, site, user, 'workforce_presence');
+  return db.all(`SELECT e.first_name, e.last_name, e.company, w.shift, ${selectFields(['start_time', 'finish_time'], 'w.')}
+    FROM work_days w JOIN employees e ON e.id = w.employee_id AND e.site_id = w.site_id
+    WHERE w.site_id = ? AND w.operational_date = ?
+    ORDER BY e.last_name, e.first_name, w.start_time, w.id`, site, day);
 }
 
 async function sourceRows(tx, family, batch, scope) {

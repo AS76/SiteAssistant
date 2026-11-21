@@ -7,6 +7,7 @@ import { createSite, listTasks, listDiary } from '../server/repository.mjs';
 import { listDeviations } from '../server/deviations.mjs';
 import { listSiteProgress } from '../server/site-progress.mjs';
 import { listTimeBookings } from '../server/time_bookings.mjs';
+import { saveModuleAccess } from '../server/module-access.mjs';
 import { login, createLoginLimiter } from '../server/auth.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
 import { isPg, openTestDb, openSqliteTestDb } from './helpers/db.mjs';
@@ -145,6 +146,10 @@ for (const driver of ['sqlite', 'pg']) test(`Pagination ${driver}: five lists, f
   const hidden = await createSite(db, { code: 'HIDDEN', name: 'Hidden synthetic pagination site' });
   const auth = await authFixture(db, site);
   await db.run("INSERT INTO site_members VALUES (?, ?, 'viewer')", other.id, auth.users.viewer.id);
+  await db.run("INSERT INTO site_members VALUES (?, ?, 'owner')", other.id, auth.users.owner.id);
+  for (const current of [site, other]) {
+    await saveModuleAccess(db, { siteId: current.id, memberId: auth.users.viewer.id, module: 'workforce_names', allowed: true }, auth.users.owner);
+  }
   const api = requestListener(createServer(db));
   const as = path => api(path, { cookie: auth.cookies.viewer });
   const at = '2026-01-01T08:00:00.000Z';

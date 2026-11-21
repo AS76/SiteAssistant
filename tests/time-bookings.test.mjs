@@ -4,6 +4,7 @@ import { createSite } from '../server/repository.mjs';
 import { getSiteProgressItem } from '../server/site-progress.mjs';
 import { createTimeBooking, listTimeBookings, deleteTimeBooking, bookedHoursForItem } from '../server/time_bookings.mjs';
 import { createServer } from '../server/http.mjs';
+import { saveModuleAccess } from '../server/module-access.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
 import { isPg, openTestDb, openSqliteTestDb } from './helpers/db.mjs';
 import { siteProgressDatabase } from './helpers/site-progress.mjs';
@@ -19,6 +20,9 @@ for (const driver of ['sqlite', 'pg']) test(`Time bookings ${driver}: writes, ag
   const fixture = async () => {
     const site = await createSite(db, { code: randomUUID(), name: 'Synthetic booking site' });
     for (const role of ['owner', 'editor', 'viewer']) await db.run('INSERT INTO site_members VALUES (?, ?, ?)', site.id, auth.users[role].id, role);
+    for (const role of ['editor', 'viewer']) {
+      await saveModuleAccess(db, { siteId: site.id, memberId: auth.users[role].id, module: 'workforce_names', allowed: true }, auth.users.owner);
+    }
     // The verifier deliberately has no membership in these sites.
     const employeeId = randomUUID(), workDays = [randomUUID(), randomUUID()], items = [randomUUID(), randomUUID()];
     const at = '2026-01-15T08:00:00.000Z';
