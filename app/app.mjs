@@ -3817,9 +3817,11 @@ document.addEventListener('change', event => {
     const iso = validateDateInput(event.target);
     if (iso === null) return;
     if (event.target.id === 'report-date') {
+      event.target.blur();
       reportDate = iso;
       renderDiary();
     } else if (event.target.dataset.coreFilter && view === 'hse') {
+      event.target.blur();
       coreFilters.hse[event.target.dataset.coreFilter] = iso;
       render();
     }

@@ -36,7 +36,7 @@ async function go(page, view) {
 async function selectSite(page, site) {
   await page.locator(`#site-select option[value="${site.id}"]`).waitFor({ state: 'attached' });
   await page.selectOption('#site-select', site.id);
-  await hasText(page.locator('#main .eyebrow'), site.code);
+  await hasText(page.locator('#topbar-code'), site.code);
   await page.waitForFunction(() => !document.querySelector('#site-select').disabled);
   assert.equal(await page.locator('#site-select').inputValue(), site.id);
 }
@@ -151,7 +151,7 @@ async function openTask(page, env) {
   }
   await card.click();
   await hasText(page.locator('#modal'), STORY);
-  await hasText(page.locator('#modal .badge.blocked'), 'Bloccata');
+  await hasText(page.locator('#modal .notebook-state'), 'Bloccata');
   await hasText(page.locator('#modal .detail-grid'), SECTION);
   await hasText(page.locator('#modal .detail-grid'), 'C03');
 }
