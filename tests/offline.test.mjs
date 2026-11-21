@@ -235,7 +235,7 @@ async function workerFixture() {
   };
   const source = (await readFile(new URL('../app/sw.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
   runInNewContext(source, {
-    self: { location: { origin: baseUrl }, registration: { scope: `${baseUrl}/` }, addEventListener: (event, handler) => { listeners[event] = handler; }, clients: { claim: async () => {}, matchAll: async () => [{ postMessage: message => notices.push(message) }] } },
+    self: { location: { origin: baseUrl }, registration: { scope: `${baseUrl}/` }, addEventListener: (event, handler) => { listeners[event] = handler; }, skipWaiting: async () => { state.skipWaiting = true; }, clients: { claim: async () => {}, matchAll: async () => [{ postMessage: message => notices.push(message) }] } },
     caches, URL, fetch: request => state.network(request), getMirror: async () => state.active,
     createApi: () => ({}), replayOps: (...args) => state.replay(...args), SYNC_TAG,
   });
@@ -251,6 +251,7 @@ async function workerFixture() {
 
 test('worker precaches the shell and serves navigation and modules with the network down', async () => {
   const f = await workerFixture(); await f.dispatch('install'); await f.dispatch('activate');
+  assert.equal(f.state.skipWaiting, true);
   f.state.network = async () => { throw networkError(); };
   for (const path of ['/app.mjs', '/offline.mjs', '/manifest.webmanifest']) {
     assert.equal(await (await f.dispatch('fetch', { request: new Request(`${baseUrl}${path}`) })).text(), 'synthetic shell');
