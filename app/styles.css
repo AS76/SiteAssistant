@@ -104,9 +104,18 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:pan-x pan-
   background: var(--surface-2); color: var(--ink-2); font-size: 12.5px;
 }
 .demo-banner strong { font-weight: 650; }
+#demo-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+#demo-banner p, .demo-info p:first-child, .demo-info h3 { margin: 0; }
+#demo-banner a, #demo-info { text-decoration: underline; text-underline-offset: 2px; }
+#dismiss-demo-notice { flex: none; min-width: 44px; min-height: 44px; font-size: 20px; }
+.demo-info h3 { margin-top: 16px; font-size: 1em; }
+.demo-info ul { margin-block: 4px 16px; padding-inline-start: 20px; }
+.demo-info p:last-child { margin-bottom: 0; }
 .shell { --shell-gutter: 16px; }
 .shell main { flex: 1; width: 100%; max-width: 1800px; padding: 26px var(--shell-gutter) 45px; margin: auto; }
-.shell footer { padding-inline: var(--shell-gutter); }
+.shell footer { padding-inline: var(--shell-gutter); flex-wrap: wrap; }
 
 @media (width < 640px) {
   #navigation {

@@ -369,7 +369,7 @@ test('mobile navigation starts with Today and desktop keeps every group plus Tod
     context.window = { matchMedia: query => ({ matches: query.includes('1180') ? width >= 1180 : width < 640 }) };
     context.document = { documentElement: {} }; context.sessionStorage = { getItem: () => null };
     Object.assign(context, { language: 'it', loading: false, renderOffline() {}, currentSite: () => undefined, icon: () => '', navGroups, visibleModules });
-    runInNewContext(section('const NAV_ITEMS =', 'const coreCache =') + section('function renderChrome()', 'function dueMarkup('), context);
+    runInNewContext(section('const NAV_ITEMS =', 'const coreCache =') + section('const DEMO_NOTICE_KEY', 'function dueMarkup('), context);
     context.renderChrome();
     const html = nodes['#navigation'].innerHTML;
     assert.doesNotMatch(html, /href="#tasks"/);

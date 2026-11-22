@@ -61,7 +61,12 @@
         <nav id="navigation" aria-label="Principale" hidden></nav>
       </div>
     </header>
-    <div class="demo-banner" id="demo-banner"></div>
+    <section class="demo-banner" id="demo-banner" aria-labelledby="demo-notice-title" hidden>
+      <p><strong id="demo-notice-title"></strong> <span id="demo-notice-text"></span>
+        <a id="demo-feedback" href="https://github.com/AS76/SiteAssistant/issues" target="_blank" rel="noopener noreferrer"></a>
+      </p>
+      <button id="dismiss-demo-notice" type="button" class="text-button" data-command="dismiss-demo-notice">×</button>
+    </section>
     <section id="offline-banner" class="offline-banner" role="status" aria-live="polite" hidden></section>
     <main id="main" tabindex="-1"></main>
     <button id="ai-fab" class="ai-fab" type="button" data-command="ai-open" aria-label="Assistente AI" aria-expanded="false" aria-controls="ai-panel">AI</button>
@@ -74,7 +79,10 @@
       <button type="submit" class="primary">Invia</button>
     </form>
   </aside>
-  <footer><span id="footer-note"></span></footer>
+  <footer>
+    <span id="footer-note"></span>
+    <button id="demo-info" type="button" class="text-button" data-command="open-demo-info" aria-haspopup="dialog" hidden></button>
+  </footer>
   </div>
   <div id="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="modal" aria-labelledby="modal-title"><div id="modal-content"></div></dialog>

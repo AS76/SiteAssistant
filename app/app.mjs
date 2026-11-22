@@ -322,6 +322,42 @@ function heading(title, subtitle, actions = '') {
   return `<div class="page-heading"><div><div class="eyebrow">${esc(currentSite()?.code || '')}<span class="eyebrow-site-name"> · ${esc(currentSite()?.name || '')}</span></div><h1>${t(title)}</h1><p>${t(subtitle)}</p></div><div class="heading-actions">${actions}</div></div>`;
 }
 function empty(title, subtitle, action = '') { return `<div class="empty"><strong>${t(title)}</strong>${t(subtitle)}${action ? `<div style="margin-top:16px">${action}</div>` : ''}</div>`; }
+const DEMO_NOTICE_KEY = 'sa-demo-notice-dismissed';
+function initDemoNotice() {
+  const banner = $('#demo-banner');
+  try { banner.hidden = localStorage.getItem(DEMO_NOTICE_KEY) === '1'; }
+  catch { banner.hidden = false; }
+  renderDemoNotice();
+}
+function renderDemoNotice() {
+  const info = $('#demo-info');
+  info.textContent = t('demoInfoTitle');
+  info.hidden = false;
+  if ($('#demo-banner').hidden) return;
+  $('#demo-notice-title').textContent = t('demoNoticeTitle');
+  $('#demo-notice-text').textContent = t('demoNoticeText');
+  $('#demo-feedback').textContent = t('demoNoticeFeedback');
+  $('#dismiss-demo-notice').setAttribute('aria-label', t('demoNoticeDismiss'));
+}
+function dismissDemoNotice() {
+  $('#demo-banner').hidden = true;
+  try { localStorage.setItem(DEMO_NOTICE_KEY, '1'); } catch { /* storage unavailable */ }
+  $('#main').focus({ preventScroll: true });
+}
+function showDemoInfo() {
+  showModal(t('demoInfoTitle'), `<div class="demo-info">
+    <p>${esc(t('demoInfoEnvironment'))}</p>
+    <h3>${esc(t('demoInfoLimits'))}</h3>
+    <ul>
+      <li>${esc(t('demoInfoLogistics'))}</li>
+      <li>${esc(t('demoInfoCountryModules'))}</li>
+      <li>${esc(t('demoInfoQualityAcceptance'))}</li>
+      <li>${esc(t('demoInfoLocationHierarchy'))}</li>
+    </ul>
+    <p>${esc(t('demoInfoAssistant'))}</p>
+    <p>${esc(t('demoInfoRetention'))}</p>
+  </div>`);
+}
 function demoLanguageLegend() {
   return `<p class="note demo-language-note" role="note" aria-label="${esc(t('demoLanguageLabel'))}">${esc(t('demoLanguageNote'))}</p>`;
 }
@@ -413,7 +449,7 @@ function renderChrome() {
   $('#site-select').disabled = loading || !state.sites.length;
   $('#language').textContent = language === 'it' ? 'EN' : 'IT';
   $('#language').setAttribute('aria-label', language === 'it' ? 'Switch to English' : 'Passa all’italiano');
-  $('#demo-banner').innerHTML = `<strong>${t('demo')}</strong> &nbsp; ${t('demoNote')}`;
+  renderDemoNotice();
   let loginLegend = $('#login-demo-language');
   if (!loginLegend) {
     $('#demo-banner').insertAdjacentHTML('afterend', '<div id="login-demo-language" class="demo-banner"></div>');
@@ -3893,6 +3929,8 @@ document.addEventListener('click', event => {
       modal.querySelectorAll('[data-detail-panel]').forEach(section => { section.hidden = section.dataset.detailPanel !== panel; });
     },
     'dismiss-password-banner': () => { sessionStorage.setItem('sa-password-banner', 'hidden'); renderChrome(); },
+    'dismiss-demo-notice': dismissDemoNotice,
+    'open-demo-info': showDemoInfo,
     'toggle-password': () => {
       const input = document.querySelector('#login-form [name=password]') || document.querySelector('form [name=password]');
       if (!input) return;
@@ -4272,6 +4310,7 @@ navigator.serviceWorker?.addEventListener('message', event => {
 });
 setInterval(() => { if (pendingOps.some(op => op.status !== 'failed') && navigator.onLine) void syncQueue(); }, 30000);
 async function start() {
+  initDemoNotice();
   try { await openDb(); storageReady = true; } catch { storageError = true; }
   if ('serviceWorker' in navigator) {
     try {

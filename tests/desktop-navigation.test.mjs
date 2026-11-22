@@ -42,7 +42,7 @@ function navigation({ width = 1440, height = 1000, view = 'overview', saved, mod
     $: selector => nodes[selector] ??= node(),
   };
   runInNewContext(section('const NAV_ITEMS =', 'const coreCache =')
-    + section('function demoLanguageLegend()', 'function dueMarkup('), context);
+    + section('const DEMO_NOTICE_KEY', 'function dueMarkup('), context);
   return {
     context, nav, reads, writes, values,
     render() { context.renderChrome(); return html; },
