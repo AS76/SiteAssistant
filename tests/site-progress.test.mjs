@@ -88,6 +88,8 @@ for (const driver of ['sqlite', 'pg']) test(`Site Progress ${driver}: snapshots,
         progress_pct: item.progress_pct == null ? null : Number(item.progress_pct),
         progress_pct_source: 'imported',
         open_verifications: 0,
+        verification_open_tasks: 0,
+        verification_conflict: false,
         wbs_code: item.wbs_id == null ? null : '1',
         wbs_description: item.wbs_id == null ? null : 'Synthetic WBS description' };
       for (const field of ['has_files', 'has_notes', 'has_deviations']) {

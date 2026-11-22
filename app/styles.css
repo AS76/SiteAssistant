@@ -753,7 +753,12 @@ footer{font-size:11px}
 .today-empty .notebook-actions { margin-top: 4px; }
 .today-quick, .today-resource-states { padding-top: 8px; }
 .today-resource-states { display: grid; gap: 4px; }
-.progress-verification-warning { margin: 8px 0 0; }
+.progress-verification-warning {
+  margin: 8px 0 0; padding: 5px 8px; border-inline-start: 2px solid var(--ink-2);
+  background: var(--surface-2); color: var(--ink); font-size: 12px; font-weight: 600; white-space: normal;
+}
+.task-progress-conflict { margin-block: 4px 8px; }
+.task-progress-conflict .progress-verification-warning { margin: 0; }
 .today-photo-targets { display: grid; gap: 10px; }
 .today-photo-targets button { min-height: 48px; text-align: left; overflow-wrap: anywhere; }
 

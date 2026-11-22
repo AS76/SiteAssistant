@@ -913,7 +913,7 @@ function filteredTasks() {
   return siteTasks().filter(task => (!filters.id || task.id === filters.id)
     && (!filters.closable || canCloseTodayTask(task))
     && (!filters.wbsId || task.wbsId === filters.wbsId)
-    && (!filters.openVerification || task.status === 'to_verify' || task.acceptance_state === 'declared')
+    && (!filters.openVerification || task.status === 'to_verify')
     && (!filters.waiver || task.closed_with_waiver)
     && (!filters.status || task.status === filters.status) && (!filters.person || task.assignee === filters.person)
     && (!filters.priority || task.priority === filters.priority)
@@ -1042,7 +1042,7 @@ function renderTasks() {
   </div>`;
   renderSavedViews(); renderTaskResults();
 }
-function taskCard(task) {
+function taskCard(task, progressWarnings = '') {
   const transitions = taskTransitions(task);
   // The card is a wrapper because a status menu cannot be nested inside the detail button.
   const menu = transitions.length
@@ -1056,7 +1056,7 @@ function taskCard(task) {
       <span class="notebook-meta">${esc(context.join(' · '))}</span>
       <span class="notebook-card-meta">${task.kind === 'corrective' ? `<span class="notebook-meta">${t('kindCorrective')}</span>` : ''}${notebookPriority(task.priority)}${notebookSync(task)}</span>
       <span class="card-footer">${notebookState(task.status)}${notebookDue(task)}<span aria-hidden="true">→</span></span>
-    </button></div>`;
+    </button>${progressWarnings}</div>`;
 }
 const lightTransitions = new Set();
 function canRunLightTransition(task) {
@@ -1089,6 +1089,17 @@ async function runLightTransition(taskId) {
 function renderTaskResults() {
   const filtered = filteredTasks();
   const tasks = taskView === 'light' ? lightTaskRows(filtered) : filtered;
+  const verificationWbs = new Set(tasks.filter(task => task.status === 'to_verify' && task.wbsId).map(task => task.wbsId));
+  const warnings = new Map();
+  if (verificationWbs.size && moduleVisible('progress')) {
+    const progress = offline ? todayResource('progress') : coreResource('progress').data ?? [];
+    for (const item of progress) {
+      if (item.siteId !== siteId || !verificationWbs.has(item.wbsId) || item.verificationConflict !== true) continue;
+      const label = offline ? esc(progressLabel(item)) : coreDetailButton('progress', item);
+      warnings.set(item.wbsId, (warnings.get(item.wbsId) ?? '') + `<div class="task-progress-conflict">${label}${progressVerificationWarning(item, false)}</div>`);
+    }
+  }
+  const taskWarning = task => task.status === 'to_verify' ? warnings.get(task.wbsId) ?? '' : '';
   const active = [
     filters.search?.trim(),
     filters.person,
@@ -1108,17 +1119,18 @@ function renderTaskResults() {
   if (!tasks.length) html += `<section class="panel">${empty(taskView === 'light' ? 'lightEmpty' : 'noResults', 'noResultsHint', button('clearFilters', 'clear-filters'))}</section>`;
   else if (taskView === 'board') {
     const columns = STATUSES.map(status => ({ status, column: tasks.filter(task => task.status === status) }));
+    const card = task => taskCard(task, taskWarning(task));
     // On a phone the columns would need horizontal panning: one status open at a time, by thumb.
     html += compactNavigation()
       ? `<div class="board-accordion">${columns.map(({ status, column }, index) => `<details class="board-status" ${index === 0 ? 'open' : ''}>
           <summary class="notebook-section-head">${notebookBoardHead(notebookState(status), column.length)}</summary>
-          ${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</details>`).join('')}</div>`
-      : `<div class="board">${columns.map(({ status, column }) => `<section class="board-column" aria-labelledby="task-column-${status}"><h2 class="notebook-section-head" id="task-column-${status}">${notebookBoardHead(notebookState(status), column.length)}</h2>${column.length ? column.map(taskCard).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</section>`).join('')}</div>`;
+          ${column.length ? column.map(card).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</details>`).join('')}</div>`
+      : `<div class="board">${columns.map(({ status, column }) => `<section class="board-column" aria-labelledby="task-column-${status}"><h2 class="notebook-section-head" id="task-column-${status}">${notebookBoardHead(notebookState(status), column.length)}</h2>${column.length ? column.map(card).join('') : `<div class="mini-empty">${t('emptyColumn')}</div>`}</section>`).join('')}</div>`;
   }
   else if (taskView === 'light') {
     html += `<div class="table-scroll mobile-card-wrap"><table class="mobile-card-table"><thead><tr>${['title', 'area', 'assignee', 'due', 'status', 'lightAction'].map(key => `<th scope="col">${t(key)}</th>`).join('')}</tr></thead>
       <tbody>${tasks.map(task => `<tr>
-        <td data-label="${t('title')}"><button type="button" data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></td>
+        <td data-label="${t('title')}"><div><button type="button" data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button>${taskWarning(task)}</div></td>
         <td data-label="${t('area')}">${esc(task.area || '—')}</td><td data-label="${t('assignee')}">${personName(task.assignee)}</td>
         <td data-label="${t('due')}">${notebookDue(task)}</td><td data-label="${t('status')}"><span>${notebookState(task.status)} ${notebookSync(task)}</span></td>
         <td data-label="${t('lightAction')}" class="mobile-card-actions">${lightTaskButton(task)}</td>
@@ -1128,7 +1140,7 @@ function renderTaskResults() {
     const sorted = filterSortRecords(tasks, {}, [{ key: taskSort.key, descending: taskSort.direction === 'desc' }]);
     const cell = (task, key) => key === 'status' ? `${notebookState(task.status)} ${notebookSync(task)}` : key === 'due' ? notebookDue(task)
       : ['assignee', 'reviewer'].includes(key) ? personName(task[key]) : esc(task[key] || '—') + (key === 'title' ? `<br><small class="notebook-meta">${esc(taskWbsText(task))}</small>` : '');
-    html += `<div class="table-scroll"><table><thead><tr>${taskColumns.map(key => `<th scope="col" ${key === taskSort.key ? `aria-sort="${taskSort.direction === 'asc' ? 'ascending' : 'descending'}"` : ''}>${t(key)}</th>`).join('')}</tr></thead><tbody>${sorted.map(task => `<tr>${taskColumns.map((key, index) => `<td>${index === 0 ? `<button data-command="detail" data-id="${esc(task.id)}" aria-label="${esc(task.title)}">${cell(task, key)}</button>` : cell(task, key)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    html += `<div class="table-scroll"><table><thead><tr>${taskColumns.map(key => `<th scope="col" ${key === taskSort.key ? `aria-sort="${taskSort.direction === 'asc' ? 'ascending' : 'descending'}"` : ''}>${t(key)}</th>`).join('')}</tr></thead><tbody>${sorted.map(task => `<tr>${taskColumns.map((key, index) => `<td>${index === 0 ? `<button data-command="detail" data-id="${esc(task.id)}" aria-label="${esc(task.title)}">${cell(task, key)}</button>${taskWarning(task)}` : cell(task, key)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
   if (scope) html = `<div class="notebook-actions">${button('clearFilters', 'clear-filters')}</div>` + html;
   renderViewDirty();
@@ -1438,7 +1450,8 @@ function coreResource(name, loader) {
   const entry = { pending: true };
   cache.set(name, entry);
   const loaders = {
-    deviations: () => loadPages(page => freshApi.listDeviations({ siteId: selected, ...page })), progress: () => freshApi.listProgress({ siteId: selected }),
+    deviations: () => loadPages(page => freshApi.listDeviations({ siteId: selected, ...page })),
+    progress: () => loadPages(page => freshApi.listProgress({ siteId: selected, ...page })),
     reconciliation: () => freshApi.deviationReconciliation(selected),
     progressTypes: () => freshApi.listProgressTypes(selected),
     bookings: () => loadBookingRows(selected), impacts: () => freshApi.listImpacts({ siteId: selected }),
@@ -1468,7 +1481,9 @@ function coreResource(name, loader) {
     if (!loader && coreCache.get(selected) === cache && cache.get(name) === entry && session?.user.id === resourceUser) rememberTodayResource(name, data, selected);
   }, error => { entry.error = error; }).finally(() => {
     entry.pending = false;
-    if (coreCache.get(selected) === cache && cache.get(name) === entry && siteId === selected && (moduleResources[view]?.includes(name) || view === 'today' || (loader && ((view === 'hse' && hseAssetDetail.id) || view === 'logistics')) || (name === 'wbs' && view === 'logistics'))) render();
+    if (coreCache.get(selected) !== cache || cache.get(name) !== entry || siteId !== selected) return;
+    if (name === 'progress' && view === 'tasks' && $('#task-results')) renderTaskResults();
+    else if (moduleResources[view]?.includes(name) || view === 'today' || (loader && ((view === 'hse' && hseAssetDetail.id) || view === 'logistics')) || (name === 'wbs' && view === 'logistics')) render();
   });
   return entry;
 }
@@ -1786,13 +1801,15 @@ function renderProgress() {
   const rows = filterSortRecords(coreData('progress'), coreFilters.progress, [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
   return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbs', coreData('wbs').map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), coreFilters.progress.wbsId, 'coreAllWbs')}</div>` +
     (rows.length ? coreTable(['wbsDescription', 'coreSection', 'area', 'coreProgressPct', 'coreBookedHours'], rows.map(row => [coreDetailButton('progress', row), coreValue(row.section), coreValue(row.plcArea),
-      progressBar(row.progressPct) + (row.progressPctSource === 'computed' ? ` <span class="badge">${t('coreComputed')}</span>` : '')
-      + progressVerificationWarning(row), coreNumber(row.bookedHours, 'hours')])) : empty('noResults', 'noResultsHint'));
+      `<div>${progressBar(row.progressPct)}${row.progressPctSource === 'computed' ? ` <span class="badge">${t('coreComputed')}</span>` : ''}
+      ${progressVerificationWarning(row)}</div>`, coreNumber(row.bookedHours, 'hours')])) : empty('noResults', 'noResultsHint'));
 }
-function progressVerificationWarning(row) {
-  if (!(row.progressPct >= 100 && row.openVerifications > 0)) return '';
-  const message = esc(t('progressVerificationWarning').replace('{count}', row.openVerifications));
-  const link = moduleVisible('tasks') && row.wbsId
+function progressVerificationWarning(row, linkToTasks = true) {
+  if (row.verificationConflict !== true) return '';
+  const count = row.verificationOpenTasks;
+  const countLabel = t(count === 1 ? 'progressVerificationTask' : 'progressVerificationTasks').replace('{count}', count);
+  const message = esc(t('progressVerificationWarning').replace('{count}', countLabel));
+  const link = linkToTasks && moduleVisible('tasks') && row.wbsId
     ? `<a href="#tasks" data-command="progress-verifications" data-id="${esc(row.wbsId)}">${message}</a>` : message;
   return `<p class="note progress-verification-warning">${link}</p>`;
 }
@@ -4016,7 +4033,7 @@ window.addEventListener('offline', () => { offline = true; renderOffline(); if (
 for (const breakpoint of ['(width < 640px)', '(min-width: 1180px)']) {
   window.matchMedia(breakpoint).addEventListener('change', renderChrome);
 }
-window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view] || view === 'today') render(); void syncQueue(); });
+window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view] || view === 'today' || view === 'tasks') render(); void syncQueue(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) void syncQueue(); });
 
 // Mobile browsers may still expose pinch gestures despite the viewport meta.

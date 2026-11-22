@@ -302,20 +302,19 @@ test('deviation, HSE and fitness registers localize displayed dates in Italian a
   }
 });
 
-test('progress list and item detail link the warning at 100 percent or more with an open verification', async () => {
+test('progress list and item detail link the server-reported verification conflict', async () => {
   for (const [language, expected] of [
-    ['it', 'Avanzamento dichiarato 100%, verifica ancora aperta (2)'],
-    ['en', 'Progress reported at 100%, verification still open (2)'],
+    ['it', 'Avanzamento dichiarato 100%, verifica aperta (2 attività)'],
+    ['en', 'Progress reported at 100%, verification open (2 tasks)'],
   ]) {
     const app = ui({ language });
     const modal = app.node('#modal');
-    const item = { id: 'complete', siteId: 'site-1', wbsId: 'node-a', progressPct: 100, openVerifications: 2 };
-    const above = { ...item, id: 'above', progressPct: 101 };
-    const warn = [item, above];
-    const rows = [...warn,
-      { ...item, id: 'below', progressPct: 99 },
-      { ...item, id: 'verified', openVerifications: 0 },
-      { ...item, id: 'cached', openVerifications: undefined },
+    const item = { id: 'complete', siteId: 'site-1', wbsId: 'node-a', progressPct: 100, verificationConflict: true, verificationOpenTasks: 2 };
+    const rows = [item,
+      { ...item, id: 'above', progressPct: 101, verificationConflict: false },
+      { ...item, id: 'below', progressPct: 80, verificationConflict: false },
+      { ...item, id: 'verified', verificationConflict: false, verificationOpenTasks: 0, openVerifications: 1 },
+      { ...item, id: 'cached', verificationConflict: undefined, verificationOpenTasks: undefined, openVerifications: 2 },
     ];
     Object.assign(app.data, { progress: rows, progressTypes: [], wbs: [] });
     app.context.coreFilters.progress = { wbsId: '' };
@@ -330,11 +329,11 @@ test('progress list and item detail link the warning at 100 percent or more with
     app.run(section('const deviationWrite =', 'function showBookingDelete('));
     const link = `<a href="#tasks" data-command="progress-verifications" data-id="node-a">${expected}</a>`;
     const list = app.run('renderProgress()');
-    assert.equal(list.split(link).length - 1, warn.length);
-    assert.equal((list.match(/progress-verification-warning/g) || []).length, warn.length);
+    assert.equal(list.split(link).length - 1, 1);
+    assert.equal((list.match(/progress-verification-warning/g) || []).length, 1);
     for (const row of rows) {
       await app.run(`showCoreDetail('progress', '${row.id}')`);
-      assert.equal(modal.innerHTML.includes(link), warn.includes(row), row.id);
+      assert.equal(modal.innerHTML.includes(link), row === item, row.id);
       assert.doesNotMatch(modal.innerHTML, /role="alert"/);
     }
   }

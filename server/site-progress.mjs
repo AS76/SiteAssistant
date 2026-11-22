@@ -24,11 +24,31 @@ export const effectiveProgressSql = `CASE WHEN s.progress_type_id IS NULL THEN s
 ) / NULLIF((SELECT SUM(ps2.weight) FROM progress_type_steps ps2
   WHERE ps2.progress_type_id = s.progress_type_id), 0), 0) END`;
 
-const openVerifications = `(SELECT COUNT(*) FROM tasks t WHERE t.site_id = s.site_id AND t.wbs_id = s.wbs_id
-  AND (t.status = 'to_verify' OR t.acceptance_state = 'declared')) AS open_verifications`;
-const publicItem = row => ({ ...row, open_verifications: Number(row.open_verifications),
-  planned_hours: row.planned_hours == null ? null : Number(row.planned_hours), ...Object.fromEntries(booleanFields.map(field =>
-  [field, row[field] == null ? null : Boolean(row[field])])) });
+const verificationCounts = `COALESCE(v.open_verifications, 0) AS open_verifications,
+  COALESCE(v.verification_open_tasks, 0) AS verification_open_tasks`;
+// Keep the legacy acceptance count while deriving the conflict from task status only.
+const verificationJoin = `LEFT JOIN (
+  SELECT site_id, wbs_id, COUNT(*) AS open_verifications,
+    COUNT(*) FILTER (WHERE status = 'to_verify') AS verification_open_tasks
+  FROM tasks
+  WHERE wbs_id IS NOT NULL AND (status = 'to_verify' OR acceptance_state = 'declared')
+  GROUP BY site_id, wbs_id
+) v ON v.site_id = s.site_id AND v.wbs_id = s.wbs_id`;
+// The denominator includes every step, so an unrecorded step counts as zero.
+const computedProgress = `CASE WHEN s.progress_type_id IS NOT NULL THEN
+  (SELECT COALESCE(SUM(ps.weight * st.percent * 1.0), 0) FROM site_progress_item_steps st
+    JOIN progress_type_steps ps ON ps.id = st.progress_type_step_id WHERE st.site_progress_item_id = s.id)
+  / (SELECT SUM(ps2.weight) FROM progress_type_steps ps2 WHERE ps2.progress_type_id = s.progress_type_id)
+  END AS progress_pct_computed`;
+
+function publicItem({ progress_pct_computed, ...row }) {
+  const progress = effectiveProgress(row, progress_pct_computed);
+  const openTasks = Number(row.verification_open_tasks);
+  return { ...row, ...progress, open_verifications: Number(row.open_verifications),
+    verification_open_tasks: openTasks, verification_conflict: progress.progress_pct === 100 && openTasks > 0,
+    planned_hours: row.planned_hours == null ? null : Number(row.planned_hours), ...Object.fromEntries(booleanFields.map(field =>
+      [field, row[field] == null ? null : Boolean(row[field])])) };
+}
 
 function validId(value, field) {
   if (typeof value !== 'string' || !uuid.test(value)) fail(400, `${field} must be a UUID.`, 'VALIDATION_ERROR');
@@ -52,45 +72,32 @@ export async function listSiteProgress(db, { limit = 50, offset = 0, ...filters 
   // List and detail expose the same aggregates so the UI never needs a second request.
   return (await db.all(`SELECT s.*, ps.wbs_code AS wbs_code, ps.description AS wbs_description,
       COALESCE(b.booked_hours, 0) AS booked_hours,
-      c.progress_pct_computed, ${openVerifications}
+      ${computedProgress}, ${verificationCounts}
     FROM site_progress_items s
     LEFT JOIN project_structure ps ON ps.id = s.wbs_id
     LEFT JOIN (
       SELECT site_progress_item_id, SUM(hours) AS booked_hours FROM time_bookings GROUP BY site_progress_item_id
-    ) b ON b.site_progress_item_id = s.id LEFT JOIN (
-      -- Denominator is every step of the type, so an unrecorded step counts as zero.
-      SELECT i.id AS site_progress_item_id,
-        (SELECT COALESCE(SUM(ps.weight * st.percent * 1.0), 0) FROM site_progress_item_steps st
-          JOIN progress_type_steps ps ON ps.id = st.progress_type_step_id
-          WHERE st.site_progress_item_id = i.id)
-        / (SELECT SUM(ps2.weight) FROM progress_type_steps ps2 WHERE ps2.progress_type_id = i.progress_type_id)
-        AS progress_pct_computed
-      FROM site_progress_items i WHERE i.progress_type_id IS NOT NULL
-    ) c ON c.site_progress_item_id = s.id
+    ) b ON b.site_progress_item_id = s.id
+    ${verificationJoin}
     WHERE ${where}
     ORDER BY s.section, s.plc_area, s.source_row, s.id LIMIT ? OFFSET ?`, ...values, limit, offset))
-    .map(row => ({ ...publicItem(row), ...effectiveProgress(row, row.progress_pct_computed),
-      booked_hours: Number(row.booked_hours) }))
-    .map(({ progress_pct_computed, ...row }) => row);
+    .map(row => ({ ...publicItem(row), booked_hours: Number(row.booked_hours) }));
 }
 
 export async function getSiteProgressItem(db, id) {
   const row = typeof id === 'string' && uuid.test(id)
-    ? await db.get(`SELECT s.*, ps.wbs_code AS wbs_code, ps.description AS wbs_description, ${openVerifications}
+    ? await db.get(`SELECT s.*, ps.wbs_code AS wbs_code, ps.description AS wbs_description,
+          ${computedProgress}, ${verificationCounts}
         FROM site_progress_items s LEFT JOIN project_structure ps ON ps.id = s.wbs_id
+        ${verificationJoin}
         WHERE s.id = ?`, id.toLowerCase()) : null;
   if (!row) fail(404, 'Site progress item not found.', 'SITE_PROGRESS_ITEM_NOT_FOUND');
-  const aggregate = row.progress_type_id == null ? null
-    : (await db.get(`SELECT (SELECT COALESCE(SUM(ps.weight * st.percent * 1.0), 0) FROM site_progress_item_steps st
-        JOIN progress_type_steps ps ON ps.id = st.progress_type_step_id WHERE st.site_progress_item_id = ?)
-        / (SELECT SUM(ps2.weight) FROM progress_type_steps ps2 WHERE ps2.progress_type_id = ?) AS progress_pct_computed`,
-      row.id, row.progress_type_id))?.progress_pct_computed ?? null;
   const steps = row.progress_type_id == null ? [] : (await db.all(`SELECT ps.id, ps.code, ps.description, ps.position,
       ps.weight, st.percent FROM progress_type_steps ps
       LEFT JOIN site_progress_item_steps st ON st.progress_type_step_id = ps.id AND st.site_progress_item_id = ?
       WHERE ps.progress_type_id = ? ORDER BY ps.position`, row.id, row.progress_type_id)).map(step => ({
     ...step, weight: Number(step.weight), percent: step.percent == null ? null : Number(step.percent) }));
-  return { ...publicItem(row), ...effectiveProgress(row, aggregate), steps };
+  return { ...publicItem(row), steps };
 }
 
 export async function updateSiteProgressItem(db, id, input, user) {

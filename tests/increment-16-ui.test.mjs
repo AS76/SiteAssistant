@@ -218,7 +218,9 @@ async function lightUi(tasks, overrides = {}) {
     filters: { search: '', status: '', person: '', priority: '', kind: '' },
     siteTasks: () => tasks.filter(task => task.siteId === 'site-a'),
     $: selector => nodes[selector], t: key => messages.it[key] ?? key,
-    session: { user: { id: 'reviewer' } }, role: () => 'owner', moduleVisible: () => true,
+    session: { user: { id: 'reviewer' } }, role: () => 'owner', moduleVisible: () => true, offline: false,
+    coreResource: () => ({ data: [] }), compactNavigation: () => false,
+    taskSort: { key: 'title', direction: 'asc' }, taskColumns: ['title', 'status'], filterSortRecords,
     canWriteTask: () => true, loadSavedViews() {}, renderSavedViews() {}, renderViewDirty() {},
     heading: () => '', taskListControls: () => '',
     personName: name => name || '—', dueMarkup: task => task.due || '—', priorityBadge: () => '',
@@ -247,7 +249,8 @@ async function lightUi(tasks, overrides = {}) {
     section('const notebookStates =', 'function todayTaskItem('),
     section('function filteredTasks()', 'const currentViewState ='),
     section('const canEditTask =', 'const canCreateSite ='),
-    section('function openProgressVerifications(', 'function renderBookings('),
+    section('const coreDetailButton =', 'function progressBar('),
+    section('function progressVerificationWarning(', 'function renderBookings('),
     section('function renderTasks()', 'function taskCard('),
     section('function taskCard(', 'const lightTransitions ='),
     section('const lightTransitions =', 'function renderDiary()'),
@@ -255,7 +258,7 @@ async function lightUi(tasks, overrides = {}) {
     section('function showTransition(', 'function showEntryForm('),
     section('function attachmentSection(', 'async function openAttachment('),
   ].join('\n'), context);
-  return { context, nodes, dialogs, writes };
+  return { context, nodes, dialogs, writes, section };
 }
 
 test('task card separates detail from the status menu and quick transition', async () => {
@@ -410,7 +413,68 @@ test('progress verification link resets unrelated filters and shows the same tas
   context.openProgressVerifications('node-a');
   assert.deepEqual(actions, ['close', 'tasks']);
   assert.equal(context.taskView, 'list');
-  assert.deepEqual(Array.from(context.filteredTasks(), task => task.id), ['review', 'declared']);
+  assert.deepEqual(Array.from(context.filteredTasks(), task => task.id), ['review']);
+});
+
+test('verification views show the affected progress item and leave the close action available', async () => {
+  const review = { id: 'review', siteId: 'site-a', wbsId: 'node-a', status: 'to_verify', kind: 'ordinary',
+    title: 'Synthetic review', submitted_by_id: 'synthetic-executor' };
+  const item = { id: 'conflict', siteId: 'site-a', wbsId: 'node-a', description: 'Synthetic progress', verificationConflict: true, verificationOpenTasks: 1 };
+  for (const [language, expected] of [
+    ['it', 'Avanzamento dichiarato 100%, verifica aperta (1 attività)'],
+    ['en', 'Progress reported at 100%, verification open (1 task)'],
+  ]) {
+    const { context, nodes } = await lightUi([review,
+      { ...review, id: 'other', wbsId: 'node-b', title: 'Other synthetic task' },
+      { ...review, id: 'closed', status: 'closed', title: 'Closed synthetic task' },
+    ], {
+      t: key => messages[language][key] ?? key,
+      coreResource: resource => {
+        assert.equal(resource, 'progress');
+        return { data: [item,
+          { ...item, id: 'foreign', siteId: 'site-b' },
+          { ...item, id: 'incomplete', wbsId: 'node-b', verificationConflict: false },
+        ] };
+      },
+    });
+    for (const layout of ['light', 'list', 'board']) {
+      context.taskView = layout;
+      context.renderTasks();
+      const html = nodes['#task-results'].innerHTML;
+      assert.equal(html.split(expected).length - 1, 1);
+      assert.match(html, /data-module="progress" data-id="conflict">Synthetic progress<\/button>/);
+      assert.doesNotMatch(html, /data-module="progress" data-id="(?:foreign|incomplete)"/);
+      if (layout === 'light') {
+        const close = html.match(/<button[^>]*data-command="light-transition" data-id="review"[^>]*>/)?.[0];
+        assert.ok(close);
+        assert.doesNotMatch(close, /\bdisabled\b/);
+      }
+    }
+  }
+});
+
+test('verification warnings appear when the paginated progress resource finishes loading', async () => {
+  const { context, nodes, section } = await lightUi([
+    { id: 'review', siteId: 'site-a', wbsId: 'node-a', status: 'to_verify', kind: 'ordinary', title: 'Synthetic review' },
+  ]);
+  const item = { id: 'conflict', siteId: 'site-a', wbsId: 'node-a', verificationConflict: true, verificationOpenTasks: 1 };
+  const calls = [];
+  Object.assign(context, {
+    coreCache: new Map(), rememberTodayResource() {},
+    freshApi: { async listProgress(filters) {
+      calls.push({ ...filters });
+      return filters.offset ? [item] : Array.from({ length: 200 }, (_, id) => ({ id, siteId: 'site-a', wbsId: 'node-b' }));
+    } },
+  });
+  runInNewContext([
+    section('async function loadPages(', 'async function loadData('),
+    section('function coreResource(', 'const coreData ='),
+  ].join('\n'), context);
+  context.renderTasks();
+  assert.doesNotMatch(nodes['#task-results'].innerHTML, /progress-verification-warning/);
+  await context.coreCache.get('site-a').get('progress').promise;
+  assert.match(nodes['#task-results'].innerHTML, /progress-verification-warning/);
+  assert.deepEqual(calls, [{ siteId: 'site-a' }, { siteId: 'site-a', offset: 200 }]);
 });
 
 test('task result counts use singular for one and plural for zero and two in both languages', async () => {
