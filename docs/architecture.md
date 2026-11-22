@@ -85,7 +85,7 @@ of the repository.
 - **Frontend**: nginx (`siteassistant-demo` container), `siteassistant.asassi.cloud` with basic auth.
 - **Files**: iDrive e2 S3, `siteassistant` bucket (dedicated `S3_*` env, not the backup bucket).
 - **Manual**: `docs-site/` (Astro+Starlight) → GitHub Pages (`as76.github.io/SiteAssistant`), updated automatically by the docs job.
-- **CI**: four workflows — `ci.yml` (jobs: SQLite/PGlite, real PostgreSQL, browser C03), `content-scan.yml`, `docs-freshness.yml` (weekly), `docs.yml`. The C03 browser job is currently red for an obsolete fixture on the `workforce_names` permission (fix in progress, not intended behavior).
+- **CI**: four workflows — `ci.yml` (jobs: SQLite/PGlite, real PostgreSQL, browser C03), `content-scan.yml`, `docs-freshness.yml` (weekly), `docs.yml`. All three `ci.yml` jobs must be green; the C03 fixture grants `workforce_names` explicitly to the roles that need named hours, and the viewer asserts the 403 denial.
 
 Development/staging/production have separate databases, credentials and buckets. Only synthetic data in the public repo.
 

@@ -81,9 +81,9 @@ npm run test:schema
 node tests/browser.cjs # optional, needs Playwright and Chromium
 ```
 
-As measured on 2026-11-22: the SQLite/PGlite suite runs 1384 tests, 1372 passing and 8 skipped; against a real PostgreSQL service, 1389 tests, 1382 passing and 7 skipped. Schema checks: 9/9.
+As measured by CI on `main` on 2026-11-22: the SQLite/PGlite suite runs 1384 tests, 1376 passing and 8 skipped; against a real PostgreSQL service, 1405 tests, 1398 passing and 7 skipped. Schema checks: 9/9.
 
-The same suites run on every push and pull request through GitHub Actions, against SQLite/PGlite and against a real PostgreSQL service, and `main` requires both checks to be green. `ci.yml` also carries a browser regression job (C03) over the synthetic fixture; when it fails, the cause belongs to the fixture or the code — the `workforce_names` permission stays explicit and is never granted by role to make the test pass.
+The same suites run on every push and pull request through GitHub Actions, against SQLite/PGlite and against a real PostgreSQL service, and `main` requires both checks to be green. `ci.yml` also carries a browser regression job (C03) over the synthetic fixture. When it fails, the cause belongs to the fixture or the code: the `workforce_names` permission stays explicit and is never granted by role to make the test pass.
 
 ## Documentation
 

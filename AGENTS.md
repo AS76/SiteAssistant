@@ -5,7 +5,8 @@
 Backend, autenticazione, import e allegati sono implementati e in esecuzione. Non trattare il progetto come demo da collegare. Fonti correnti: questo file, `docs/architecture.md` e `README.md`. `docs/development-handoff.md` è solo archivio storico superato: non usarlo come istruzione.
 
 - Runtime: Node.js 24, HTTP server con `node:http`, senza framework né ORM.
-- Dati: driver SQLite (default) e PostgreSQL (`pg`); migrazioni SQL versionate a coppie nei due dialetti. Applicate: 001–045 e 047. Il numero 046 è riservato e non esiste ancora: non usarlo.
+- Dati: driver SQLite (default) e PostgreSQL (`pg`); migrazioni SQL versionate a coppie nei due dialetti. Nel repository sono presenti 001–038, 040, 045 e 047: i numeri 039 e 046 non esistono, non crearli. Il prossimo numero libero è 048.
+- Migrazioni presenti nel repository e migrazioni applicate a un ambiente sono due cose diverse: la verità di un ambiente si legge da `select max(version) from app.schema_migrations`, non dal contenuto di `server/migrations/`. Aver aggiunto un file non significa che sia applicato in produzione, e un deploy può applicarlo senza intervento manuale.
 - Frontend: PWA vanilla (HTML/CSS/JS) in `app/`, bilingue IT/EN, offline con coda di scritture; servita same-origin dall'API.
 - Autenticazione: backend locale, sessioni email+password via cookie `HttpOnly` e passkey WebAuthn (migrazione 035).
 - Allegati: storage S3-compatibile, client firmato lato server; le credenziali non vanno mai al browser.
@@ -31,9 +32,9 @@ npm run test:browser:c03     # regressione C03 (Playwright + Chromium)
 npm run seed && npm run seed:demo    # dati sintetici; poi server/seed-northline.mjs --apply
 ```
 
-Numeri di riferimento, misurati il 22/11/2026: SQLite/PGlite 1384 test (1372 passati, 8 saltati); PostgreSQL reale 1389 test (1382 passati, 7 saltati); schema 9/9.
+Numeri di riferimento, misurati dalla CI su `main` il 22/11/2026: SQLite/PGlite 1384 test (1376 passati, 8 saltati); PostgreSQL reale 1405 test (1398 passati, 7 saltati); schema 9/9.
 
-Nota CI: se la regressione browser C03 fallisce, la causa va cercata nella fixture o nel codice, non nel permesso. Il modulo `workforce_names` resta esplicito: non concederlo per ruolo e non indebolire il test per farlo passare.
+Nota CI: i tre job di `ci.yml` devono essere verdi. Se la regressione browser C03 fallisce, la causa va cercata nella fixture o nel codice: il modulo `workforce_names` resta esplicito e non si concede per ruolo per far passare il test.
 
 Deploy: la demo gira su Railway (app + PostgreSQL), con DNS non ancora commutato; `siteassistant.asassi.cloud` punta ancora al VPS Hostinger, che ospita la produzione storica con database Neon. Non avviare deploy, acquisti o scritture su sistemi esterni senza istruzione esplicita dell'utente; le autorizzazioni già date restano valide per il loro ambito.
 
