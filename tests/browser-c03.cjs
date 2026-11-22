@@ -8,6 +8,7 @@ const { randomUUID } = require('node:crypto');
 const ORIGIN = 'https://siteassistant.asassi.cloud';
 const API_ORIGIN = 'https://api.siteassistant.asassi.cloud';
 const STORY = 'C03 night installation';
+const CREW = 'Synthetic night crew';
 const SECTION = 'C03 night work section';
 const IMPEDIMENT = 'C03 access impediment';
 const DAY = '2026-11-18T12:00:00.000Z';
@@ -57,6 +58,7 @@ async function setup() {
   const { createServer } = await import('../server/http.mjs');
   const { seed } = await import('../server/seed.mjs');
   const { apply } = await import('../server/seed-demo.mjs');
+  const { saveModuleAccess } = await import('../server/module-access.mjs');
   const db = await openDb(':memory:', { driver: 'sqlite' });
   let server, browser;
   try {
@@ -65,6 +67,11 @@ async function setup() {
     await db.run("DELETE FROM diary WHERE site_id IN (SELECT id FROM sites WHERE code = 'FITT-01') AND operational_date = '2026-11-06'");
     await db.transaction(tx => apply(tx));
     const site = await db.get("SELECT * FROM sites WHERE code = 'FITT-03'");
+    const owner = await db.get('SELECT id FROM users WHERE email = ?', 'owner@example.invalid');
+    for (const role of ['editor', 'verifier']) {
+      const member = await db.get('SELECT id FROM users WHERE email = ?', `${role}@example.invalid`);
+      await saveModuleAccess(db, { siteId: site.id, memberId: member.id, module: 'workforce_names', allowed: true }, owner);
+    }
     const other = await db.get("SELECT * FROM sites WHERE code = 'FITT-05'");
     const task = await db.get('SELECT * FROM tasks WHERE site_id = ? AND title = ?', site.id, STORY);
     const progress = await db.get('SELECT * FROM site_progress_items WHERE site_id = ? AND description = ?', site.id, STORY);
@@ -223,7 +230,7 @@ async function readPath(s, env) {
   await openProgress(page, env); await noOverflow(page);
   await go(page, 'bookings');
   const booking = page.locator('#main tbody tr').filter({ hasText: STORY });
-  await hasText(booking, 'Synthetic night crew');
+  await hasText(booking, CREW);
   assert.equal((await booking.locator('td').nth(2).textContent()).trim(), '6,0');
   await noOverflow(page);
   await readDiary(page); await noOverflow(page);
@@ -282,7 +289,21 @@ async function online(env) {
         await closeModal(s.page);
       }
       await go(s.page, 'bookings');
-      await hasText(s.page.locator('#main tbody tr').filter({ hasText: STORY }), STORY);
+      const rows = s.page.locator('#main tbody tr');
+      if (role === 'viewer') {
+        const denied = await s.page.evaluate(async url => {
+          const response = await fetch(url, { credentials: 'include' });
+          return { status: response.status, code: (await response.json()).code };
+        }, `${API_ORIGIN}/api/time-bookings?site_id=${env.site.id}`);
+        assert.deepEqual(denied, { status: 403, code: 'MODULE_FORBIDDEN' });
+        await s.page.locator('#workforce-summary-form').waitFor({ state: 'visible' });
+        await s.page.locator('#main .core-view').waitFor({ state: 'visible' });
+        await absent(s.page.locator('#main .core-day'));
+        await absent(rows.filter({ hasText: STORY }));
+        await absent(rows.filter({ hasText: CREW }));
+      } else {
+        await hasText(rows.filter({ hasText: STORY }), CREW);
+      }
       assert.equal(await s.page.locator('#booking-form').count(), writable ? 1 : 0);
       if (writable) assert.ok(await s.page.locator('#booking-form [name=hours]').isEditable());
       await go(s.page, 'diary'); await setDiaryDate(s.page, '2026-11-16');
@@ -291,7 +312,7 @@ async function online(env) {
       s.check();
     } finally { await s.context.close(); }
   }
-  console.log('PASS online: C03 cold Today → deviation/task → WBS → progress → bookings → night diary; reload, site isolation, 1440×900/390×844, owner/editor/verifier/viewer');
+  console.log('PASS online: C03 cold Today → deviation/task → WBS → progress → bookings → night diary; reload, site isolation, 1440×900/390×844; named bookings visible to owner/editor/verifier; viewer sees summary and gets 403 MODULE_FORBIDDEN from bookings API');
 }
 
 async function pending(page) {
