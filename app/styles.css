@@ -387,6 +387,7 @@ footer{font-size:11px}
 .ai-bot p{margin:0 0 8px}
 .ai-cites{display:flex;flex-wrap:wrap;gap:6px}
 .ai-suggestions{display:flex;flex-wrap:wrap;gap:8px;padding:0 14px 12px}
+#ai-error { margin: 0 14px 12px; }
 .ai-chip{border:1px solid var(--rule);background:var(--surface);border-radius:var(--radius);padding:8px 12px;font-size:12px;font-weight:500;color:var(--ink)}
 .ai-form{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--rule);background:var(--paper)}
 .ai-form input{flex:1;min-width:0;border:1px solid var(--rule);padding:10px 12px;border-radius:var(--radius);background:var(--surface);color:var(--ink);font-size:13px}

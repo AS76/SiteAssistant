@@ -48,7 +48,7 @@ function ui({ language = 'it', width = 1440, tasks = [], diary = [], reconciliat
       matches: query.includes('1180') ? (query.startsWith('(min-width') ? width >= 1180 : width < 1180) : width <= 520,
     }) },
     syncBadge: () => '', icon: () => '', taskRow: () => '', renderOffline() {}, render() {},
-    document: { documentElement: {} }, sessionStorage: { getItem: () => null },
+    document: { documentElement: {} }, sessionStorage: { getItem: () => null }, localStorage: { getItem: () => '1' },
     visibleModules: items => items, moduleVisible: () => true, currentModules: () => [], headerNavItems: () => ['bookings'], canWriteTask: () => true,
     desktopNavigation: link => link('bookings'), bindDesktopNavigation() {}, $: node,
   });
@@ -74,6 +74,11 @@ test('41.01 A2 — desktop floating assistant moves to the top bar on phones', (
   for (const id of ['ai-fab', 'ai-top']) assert.match(shell, new RegExp(`<button id="${id}"[^>]*data-command="ai-open"[^>]*aria-expanded="false" aria-controls="ai-panel"`));
   for (const width of [390, 800, 1440]) {
     const app = ui({ width }); app.context.renderAssistant = () => {};
+    app.run('renderChrome()');
+    for (const id of ['ai-fab', 'ai-top', 'ai-panel']) assert.equal(app.node(`#${id}`).hidden, true);
+    app.context.state.sites[0].assistant_enabled = true;
+    app.run('renderChrome()');
+    for (const id of ['ai-fab', 'ai-top']) assert.equal(app.node(`#${id}`).hidden, false);
     for (const command of ['ai-open', 'ai-close']) {
       const line = source.split('\n').find(line => line.includes(`'${command}':`));
       app.run(`(${line.slice(line.indexOf('() =>'), line.lastIndexOf(','))})()`);

@@ -43,6 +43,7 @@ import './xlsx.test.mjs';
 import './xlsx-write.test.mjs';
 import './import-template.test.mjs';
 import './assistant.test.mjs';
+import './assistant-toggle.test.mjs';
 import './assistant-suggestions.test.mjs';
 import './planning-import.test.mjs';
 import './planning-import-retention.test.mjs';
