@@ -86,7 +86,7 @@ function section(start, end) { return source.slice(source.indexOf(start), source
 test('login renders password fallback and both passkey choices in IT and EN', () => {
   for (const language of ['it', 'en']) {
     const main = { setAttribute() {} };
-    const context = createContext({ session: null, loadError: null, view: 'overview', document: { body: { classList: { toggle() {} } } }, loading: false, renderChrome() {}, renderOffline() {}, $: () => main,
+    const context = createContext({ session: null, loadError: null, view: 'overview', loginRetryUntil: 0, document: { body: { classList: { toggle() {} } } }, loading: false, renderChrome() {}, renderOffline() {}, $: () => main,
       t: key => { assert.ok(messages[language][key], key); return messages[language][key]; },
       button: (key, command) => `<button data-command="${command}">${messages[language][key]}</button>`, supportsPasskeys: () => true });
     runInContext(section('function render() {', 'function showModal('), context);
@@ -129,15 +129,18 @@ test('every new passkey translation is present in both languages', () => {
 });
 
 test('passkey login validates email only, reuses session loading, and restores controls after errors', async () => {
-  const controls = [{ disabled: false }, { disabled: false }], calls = [];
+  const submit = { disabled: false }, passkey = { disabled: false }, notice = { hidden: true };
+  const controls = [submit, passkey], calls = [];
   let valid = false, failure = false, reported;
-  const form = { dataset: {}, isConnected: true, elements: { email: { value: ' user@example.invalid ', reportValidity: () => valid } }, querySelectorAll: () => controls };
+  const form = { dataset: {}, isConnected: true, elements: { email: { value: ' user@example.invalid ', reportValidity: () => valid } },
+    querySelectorAll: () => controls, querySelector: selector => selector === '[type=submit]' ? submit : notice };
   const context = createContext({ $: () => form, api: {}, accountLock: async run => run(),
+    Date: { now: () => 0 }, clearTimeout() {}, setTimeout() {}, t: key => messages.en[key],
     runPasskey: async (_api, kind, input) => { calls.push([kind, input]); if (failure) throw new Error('passkeyCancelled'); },
     forgetActive: async () => calls.push('forget'), clearSession: () => calls.push('clear'),
     accountChannel: { postMessage: value => calls.push(value) }, loadData: async () => calls.push('load'), syncQueue: async () => calls.push('sync'),
     passkeyFormError: (_form, error) => { reported = error.message; } });
-  runInContext(section('async function passkeyLogin(', 'async function showPasskeySecurity()'), context);
+  runInContext(section('let loginRetryUntil', 'async function showPasskeySecurity()'), context);
   await runInContext('passkeyLogin(false)', context);
   assert.deepEqual(calls, []);
   valid = true;
@@ -151,6 +154,9 @@ test('passkey login validates email only, reuses session loading, and restores c
   assert.equal(reported, 'passkeyCancelled');
   assert.ok(controls.every(control => !control.disabled));
   assert.equal(form.dataset.saving, undefined);
+  await runInContext('loginRetryUntil = 60_000; passkeyLogin(true)', context);
+  assert.equal(submit.disabled, true);
+  assert.equal(passkey.disabled, false);
 });
 
 test('management submits rename/delete/register, confirms deletion, and displays server conflicts', async () => {

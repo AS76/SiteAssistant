@@ -25,46 +25,78 @@ export async function verifyPassword(password, encoded) {
   return timingSafeEqual(actual, Buffer.from(parts[5], 'hex'));
 }
 
+const loginKey = (ip, email) => `${ip}|${email}`;
+
 export function createLoginLimiter({ now = Date.now } = {}) {
-  const attempts = new Map();
-  const window = 15 * 60 * 1000;
+  const failures = new Map();
+  const windowMs = 15 * 60 * 1000;
+  let lastSweep;
   return {
-    reset: () => attempts.clear(),
-    attempt(ip, email) {
-      const at = now();
-      // Opportunistic cleanup avoids retaining inactive keys indefinitely.
-      for (const [key, times] of attempts) {
-        const recent = times.filter(time => time > at - window);
-        if (recent.length) attempts.set(key, recent); else attempts.delete(key);
+    check(ip, email) {
+      const at = now(), cutoff = at - windowMs;
+      // Retire idle keys without scanning the map on each login.
+      if (lastSweep === undefined || at - lastSweep >= windowMs) {
+        for (const [key, times] of failures) {
+          if (times.at(-1) <= cutoff) failures.delete(key);
+        }
+        lastSweep = at;
       }
-      const key = `${ip}|${email}`;
-      const times = attempts.get(key) || [];
-      if (times.length >= 10) {
-        const error = new RepositoryError(429, 'Too many login attempts.', 'RATE_LIMITED');
-        error.retryAfter = Math.max(1, Math.ceil((times[0] + window - at) / 1000));
+      const oldestOfTen = failures.get(loginKey(ip, email))?.at(-10);
+      if (oldestOfTen > cutoff) {
+        const retryAfter = Math.max(1, Math.ceil((oldestOfTen + windowMs - at) / 1000));
+        const minutes = Math.max(1, Math.ceil(retryAfter / 60));
+        const error = new RepositoryError(429, `Troppi tentativi di accesso. Riprova tra ${minutes} minuti.`, 'RATE_LIMITED');
+        error.retryAfter = retryAfter;
         throw error;
       }
-      times.push(at);
-      attempts.set(key, times);
     },
+    fail(ip, email) {
+      const key = loginKey(ip, email), at = now();
+      const recent = (failures.get(key) || []).filter(time => time > at - windowMs);
+      failures.set(key, [...recent.slice(-9), at]);
+    },
+    succeed(ip, email) { failures.delete(loginKey(ip, email)); },
   };
+}
+
+const pendingLogins = new WeakMap();
+async function withLoginTurn(limiter, key, run) {
+  let pending = pendingLogins.get(limiter);
+  if (!pending) pendingLogins.set(limiter, pending = new Map());
+  const previous = pending.get(key);
+  const { promise, resolve } = Promise.withResolvers();
+  pending.set(key, promise);
+  try {
+    // Each check sees the recorded outcome of the previous login for this key.
+    await previous;
+    return await run();
+  } finally {
+    if (pending.get(key) === promise) pending.delete(key);
+    resolve();
+  }
 }
 
 export async function login(db, input, { ip = '', userAgent = '', limiter }) {
   const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : '';
-  if (!email || email.length > 254 || typeof input.password !== 'string' ||
-      !input.password || input.password.length > 1024) {
+  const password = input.password;
+  if (!email || email.length > 254 || typeof password !== 'string' || !password || password.length > 1024) {
     throw new RepositoryError(400, 'Valid email and password are required.', 'VALIDATION_ERROR');
   }
-  limiter.attempt(ip, email);
+  return withLoginTurn(limiter, loginKey(ip, email), () => verifyLogin(db, email, password, { ip, userAgent, limiter }));
+}
+
+async function verifyLogin(db, email, password, { ip, userAgent, limiter }) {
+  limiter.check(ip, email);
+  const invalid = () => {
+    limiter.fail(ip, email);
+    return new RepositoryError(401, 'Invalid email or password.', 'INVALID_CREDENTIALS');
+  };
   const user = await db.get('SELECT * FROM users WHERE lower(email) = ?', email);
   // Unknown accounts still incur one scrypt calculation, without creating a user.
   const encoded = user?.password_algo === 'scrypt' ? user.password_hash
     : `scrypt$${N}$${r}$${p}$${'0'.repeat(32)}$${'0'.repeat(128)}`;
-  const valid = await verifyPassword(input.password, encoded);
-  if (!valid || !user || user.disabled_at) {
-    throw new RepositoryError(401, 'Invalid email or password.', 'INVALID_CREDENTIALS');
-  }
+  const valid = await verifyPassword(password, encoded);
+  if (!valid || !user || user.disabled_at) throw invalid();
   const token = randomBytes(32).toString('base64url');
   const at = new Date();
   await db.transaction(async tx => {
@@ -72,11 +104,12 @@ export async function login(db, input, { ip = '', userAgent = '', limiter }) {
     // password writers so an old credential cannot resurrect a revoked login.
     const current = await tx.get(`UPDATE users SET id = id
       WHERE id = ? AND password_hash = ? AND disabled_at IS NULL RETURNING id`, user.id, user.password_hash);
-    if (!current) throw new RepositoryError(401, 'Invalid email or password.', 'INVALID_CREDENTIALS');
+    if (!current) throw invalid();
     await tx.run(`INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, user_agent, ip)
       VALUES (?, ?, ?, ?, ?, ?, ?)`, randomUUID(), user.id, tokenHash(token), at.toISOString(),
     new Date(at.getTime() + SESSION_TTL).toISOString(), userAgent.slice(0, 1000), ip);
   });
+  limiter.succeed(ip, email);
   return { token, user: publicUser(user) };
 }
 

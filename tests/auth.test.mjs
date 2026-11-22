@@ -76,7 +76,7 @@ test('public health, protected routes, expiry, disabled users and revocation', a
   t.assert.strictEqual((await as('owner', '/api/auth/me')).status, 401);
 });
 
-test('login limiter counts ten attempts, isolates IP/email and slides its window', async t => {
+test('login limiter isolates failures by IP/email and slides its window', async t => {
   let now = 0;
   const limiter = createLoginLimiter({ now: () => now });
   const { request } = await fixture(t, { limiter });
@@ -92,7 +92,8 @@ test('login limiter counts ten attempts, isolates IP/email and slides its window
   now = 900000;
   t.assert.strictEqual((await attempt()).status, 401);
   t.assert.strictEqual((await attempt()).status, 429);
-  limiter.reset(); t.assert.strictEqual((await attempt()).status, 401);
+  limiter.succeed('127.0.0.1', 'missing@example.invalid');
+  t.assert.strictEqual((await attempt()).status, 401);
 });
 
 test('site isolation covers lists, details, diary, creation and idempotency replay', async t => {

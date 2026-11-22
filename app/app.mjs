@@ -2770,6 +2770,29 @@ function passkeyFormError(form, error) {
   const target = form.querySelector('.form-error');
   target.textContent = passkeyError(error); target.hidden = false; target.focus();
 }
+
+let loginRetryUntil = 0, loginRetryTimer;
+function updateLoginRetry(form = $('#login-form')) {
+  clearTimeout(loginRetryTimer);
+  if (!form) return;
+  const submit = form.querySelector('[type=submit]');
+  const notice = form.querySelector('#login-rate-limit');
+  const remainingMs = loginRetryUntil - Date.now();
+  const remaining = Math.max(0, Math.ceil(remainingMs / 1000));
+  submit.disabled = Boolean(form.dataset.saving) || remaining > 0;
+  notice.hidden = remaining === 0;
+  if (!remaining) {
+    submit.textContent = t('login');
+    return;
+  }
+  const minutes = Math.ceil(remaining / 60);
+  const message = t(minutes === 1 ? 'loginRetryMinute' : 'loginRetryMinutes').replace('{minutes}', minutes);
+  if (notice.textContent !== message) notice.textContent = message;
+  const time = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`;
+  submit.textContent = `${t('login')} (${time})`;
+  loginRetryTimer = setTimeout(updateLoginRetry, remainingMs % 1000 || 1000);
+}
+
 async function passkeyLogin(discoverable) {
   const form = $('#login-form');
   if (!form || form.dataset.saving) return;
@@ -2785,7 +2808,11 @@ async function passkeyLogin(discoverable) {
     });
     await loadData(); await syncQueue();
   } catch (error) { if (form.isConnected) passkeyFormError(form, error); }
-  finally { delete form.dataset.saving; controls.forEach(control => { control.disabled = false; }); }
+  finally {
+    delete form.dataset.saving;
+    controls.forEach(control => { control.disabled = false; });
+    if (form.isConnected) updateLoginRetry(form);
+  }
 }
 async function showPasskeySecurity() {
   if (!session) return;
@@ -3201,7 +3228,8 @@ function render() {
   $('#main').setAttribute('aria-busy', String(loading));
   if (loading) { $('#main').innerHTML = `<p role="status">${t('loading')}</p>`; return; }
   if (!session && (!loadError || loadError.status === 401)) {
-    $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<span class="password-row"><input name="password" type="password" autocomplete="current-password" required maxlength="1024"><button type="button" class="text-button password-toggle" data-command="toggle-password" aria-label="${t('showPassword')}">◉</button></span></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button>${button('passkeyLogin', 'passkey-login', supportsPasskeys() ? '' : 'disabled')}</div>${button('passkeyDiscoverable', 'passkey-discoverable', supportsPasskeys() ? '' : 'disabled')}${!supportsPasskeys() ? `<p class="note">${t('passkeyUnsupported')}</p>` : ''}</form><div class="heading-actions">${button('requestAccess', 'request-access')}${button('forgotPassword', 'forgot-password')}</div></div></section>`;
+    $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div id="login-rate-limit" class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<span class="password-row"><input name="password" type="password" autocomplete="current-password" required maxlength="1024"><button type="button" class="text-button password-toggle" data-command="toggle-password" aria-label="${t('showPassword')}">◉</button></span></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button>${button('passkeyLogin', 'passkey-login', supportsPasskeys() ? '' : 'disabled')}</div>${button('passkeyDiscoverable', 'passkey-discoverable', supportsPasskeys() ? '' : 'disabled')}${!supportsPasskeys() ? `<p class="note">${t('passkeyUnsupported')}</p>` : ''}</form><div class="heading-actions">${button('requestAccess', 'request-access')}${button('forgotPassword', 'forgot-password')}</div></div></section>`;
+    if (loginRetryUntil > Date.now()) updateLoginRetry();
     return;
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
@@ -3775,6 +3803,7 @@ document.addEventListener('submit', async event => {
   if (!['deviation-owner-form', 'deviation-attribution-form', 'deviation-import-form', 'task-acceptance-form', 'wbs-form', 'task-wbs-form', 'saved-view-form', 'site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'progress-hours-form', 'tool-form', 'tool-delete-form', 'cert-form', 'cert-delete-form', 'hse-asset-form', 'hse-form', 'hse-delete-form', 'import-form', 'settings-form', 'site-settings-form', 'shp-form', 'shp-status-form', 'shp-receipt-form', 'pkg-form', 'pkg-close-form', 'po-form', 'po-item-form', 'po-status-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
+  if (form.id === 'login-form' && loginRetryUntil > Date.now()) return;
   const data = typeof dateFormData === 'function' ? dateFormData(form) : Object.fromEntries(new FormData(form));
   if (!data) return;
   form.dataset.saving = 'true';
@@ -3922,12 +3951,25 @@ document.addEventListener('submit', async event => {
     }
     toast(t(message));
   } catch (error) {
-    if (version === modalVersion && form.isConnected) {
+    if (form.id === 'login-form' && error.status === 429 && error.retryAfter) {
+      loginRetryUntil = Math.max(loginRetryUntil, Date.now() + error.retryAfter * 1000);
+      const loginForm = $('#login-form');
+      if (loginForm) {
+        loginForm.querySelector('.form-error').hidden = true;
+        updateLoginRetry(loginForm);
+        loginForm.querySelector('#login-rate-limit').focus();
+      }
+    } else if (version === modalVersion && form.isConnected) {
       if (form.id === 'hse-asset-form') hseAssetFormError(form, error);
       else formError(form, error);
     }
     else toast(errorMessage(error));
-  } finally { delete form.dataset.saving; submit.disabled = form.id === 'import-form' && (!form.importMappings || form.mappingDirty); }
+  } finally {
+    delete form.dataset.saving;
+    if (form.id === 'login-form') {
+      if (form.isConnected) updateLoginRetry(form);
+    } else submit.disabled = form.id === 'import-form' && (!form.importMappings || form.mappingDirty);
+  }
 });
 $('#modal').addEventListener('cancel', event => {
   if (modalFormState() !== $('#modal').initialFormState) { event.preventDefault(); return; }

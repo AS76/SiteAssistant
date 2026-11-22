@@ -140,11 +140,24 @@ function siteFromQuery(url, allowed) {
   return url.searchParams.get('site_id') ?? url.searchParams.get('siteId');
 }
 
+function createAuthRequestLimiter() {
+  const limiter = createRateLimiter({ max: 10, windowMs: 15 * 60 * 1000 });
+  return {
+    attempt(ip, key) {
+      const { allowed, retryAfter } = limiter.attempt(`${ip}|${key}`);
+      if (allowed) return;
+      const error = new RepositoryError(429, 'Too many login attempts.', 'RATE_LIMITED');
+      error.retryAfter = retryAfter;
+      throw error;
+    },
+  };
+}
+
 export function createServer(db, { limiter = createLoginLimiter(), production = process.env.NODE_ENV === 'production',
   authBypassUser = process.env.AUTH_BYPASS_USER || '',
   mailer = sendMail, ownerEmail = process.env.OWNER_EMAIL,
   publicUrl = process.env.PUBLIC_URL || 'https://api.siteassistant.asassi.cloud',
-  requestLimiter = createLoginLimiter(), forgotLimiter = createLoginLimiter(), passwordLimiter = createLoginLimiter(),
+  requestLimiter = createAuthRequestLimiter(), forgotLimiter = createAuthRequestLimiter(), passwordLimiter = createAuthRequestLimiter(),
   userLimiter = createRateLimiter({ max: Number(process.env.RATE_LIMIT_USER_PER_MIN ?? 600) }),
   anonLimiter = createRateLimiter({ max: Number(process.env.RATE_LIMIT_ANON_PER_MIN ?? 60) }),
   storage = new S3Storage(),
@@ -154,6 +167,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   staticDir = process.env.SERVE_APP === '1' ? new URL('../app/', import.meta.url).pathname : null,
 } = {}) {
   const passkeys = createWebAuthn(db, webauthn);
+  const passkeyLimiter = createAuthRequestLimiter();
   const serveStatic = staticDir ? createStaticHandler(staticDir) : null;
   const authBypassEmail = authBypassUser.trim().toLowerCase();
   let authBypassCount = 0, lastAuthBypassLog = -Infinity;
@@ -172,7 +186,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       response.end();
       return;
     }
-    let isDecision = false;
+    let path, isDecision = false;
     try {
       let url;
       try {
@@ -180,7 +194,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       } catch {
         throw new RepositoryError(400, 'Invalid request URL.', 'VALIDATION_ERROR');
       }
-      let path = url.pathname;
+      path = url.pathname;
       const method = request.method;
       if (serveStatic && !path.startsWith('/api/')) {
         if (await serveStatic(request, response, url)) return;
@@ -260,11 +274,11 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       const passkeyContext = { ip: request.socket?.remoteAddress || '', userAgent: request.headers['user-agent'] || '' };
       if (path === '/api/auth/webauthn/login/options' && method === 'POST') {
         const input = await readJson(request);
-        limiter.attempt(passkeyContext.ip, typeof input.email === 'string' ? input.email.trim().toLowerCase() : '');
+        passkeyLimiter.attempt(passkeyContext.ip, typeof input.email === 'string' ? input.email.trim().toLowerCase() : '');
         return json(response, 200, await passkeys.loginOptions(input));
       }
       if (path === '/api/auth/webauthn/login/verify' && method === 'POST') {
-        limiter.attempt(passkeyContext.ip, 'webauthn-verify');
+        passkeyLimiter.attempt(passkeyContext.ip, 'webauthn-verify');
         const result = await passkeys.loginVerify(await readJson(request), passkeyContext);
         response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user, assurance: result.assurance });
@@ -875,7 +889,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (isDecision && error instanceof RepositoryError && error.code !== 'INVALID_FORM') return html(response, error.status, error.message);
       if (error instanceof RepositoryError) {
         if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
-        json(response, error.status, { error: error.message, code: error.code });
+        json(response, error.status, { error: error.message, code: error.code,
+          ...(path === '/api/auth/login' && error.retryAfter ? { retry_after: error.retryAfter } : {}),
+        });
       } else {
         console.error('Backend request failed.');
         json(response, 500, { error: 'Internal server error.', code: 'INTERNAL_ERROR' });

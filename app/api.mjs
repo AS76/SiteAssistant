@@ -62,11 +62,17 @@ async function base64File(blob) {
 }
 
 export class ApiError extends Error {
-  constructor(message, { status = 0, code = 'NETWORK_ERROR' } = {}) {
+  constructor(message, { status = 0, code = 'NETWORK_ERROR', retryAfter } = {}) {
     super(message);
     this.status = status;
     this.code = code;
+    if (retryAfter !== undefined) this.retryAfter = retryAfter;
   }
+}
+
+function retrySeconds(value) {
+  const seconds = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+  return Number.isSafeInteger(seconds) && seconds > 0 ? seconds : undefined;
 }
 
 // Override via <meta name="siteassistant-api-base" content="…"> or createApi({ baseUrl }).
@@ -86,11 +92,14 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
       const blob = await response.blob();
       return binary === 'evidence' ? { blob, sha256: response.headers.get('X-Content-SHA256') } : blob;
     }
+    const retryAfter = response.status === 429 ? retrySeconds(response.headers.get('Retry-After')) : undefined;
     let data;
     try { data = await response.json(); }
-    catch { throw new ApiError('apiError', { status: response.status, code: 'INVALID_RESPONSE' }); }
+    catch { throw new ApiError('apiError', { status: response.status, code: 'INVALID_RESPONSE', retryAfter }); }
     if (response.status === 401 && path !== '/api/auth/login' && !path.startsWith('/api/auth/webauthn/login/') && path !== '/api/auth/webauthn/register/verify' && !(path === '/api/auth/password' && data.code === 'INVALID_CREDENTIALS')) onUnauthorized();
-    if (!response.ok) throw new ApiError(data.error || 'apiError', { status: response.status, code: data.code || 'API_ERROR' });
+    if (!response.ok) throw new ApiError(data.error || 'apiError', { status: response.status, code: data.code || 'API_ERROR',
+      retryAfter: retryAfter ?? (response.status === 429 ? retrySeconds(data.retry_after) : undefined),
+    });
     return data;
   }
   const query = filters => {

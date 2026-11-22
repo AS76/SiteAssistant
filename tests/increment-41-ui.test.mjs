@@ -379,6 +379,7 @@ test('bilingual demo legend renders before sign-in and above overview cards in I
     const app = ui({ language, width }), inserted = [];
     app.context.session = null;
     app.context.loadError = null;
+    app.context.loginRetryUntil = 0;
     app.context.document.body = { classList: { toggle() {} } };
     let legendExists = false;
     app.context.$ = selector => selector === '#login-demo-language' && !legendExists ? null : app.node(selector);
