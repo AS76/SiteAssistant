@@ -21,8 +21,10 @@ server.once('error', (error) => {
   void closeConnection();
   process.exitCode = 1;
 });
-server.listen(Number(rawPort), '127.0.0.1', () => {
-  console.log(`SiteAssistant API listening at http://127.0.0.1:${server.address().port}`);
+server.listen(Number(rawPort), process.env.HOST || '127.0.0.1', () => {
+  const { address, family, port } = server.address();
+  const host = family === 'IPv6' ? `[${address}]` : address;
+  console.log(`SiteAssistant API listening at http://${host}:${port}`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
