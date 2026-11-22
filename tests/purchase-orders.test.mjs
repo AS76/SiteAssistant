@@ -417,7 +417,9 @@ for (const driver of ['sqlite', 'pg']) test(`032 preserves populated audit histo
     await applyMigration(tx, file, { driver });
     await tx.run('INSERT INTO schema_migrations VALUES (?, ?)', file.slice(0, 3), new Date().toISOString());
   });
-  const site = await createSite(db, { code: randomUUID(), name: 'Synthetic migration site' });
+  const site = { id: randomUUID() };
+  await db.run('INSERT INTO sites (id, code, name, created_at) VALUES (?, ?, ?, ?)',
+    site.id, randomUUID(), 'Synthetic migration site', new Date().toISOString());
   const insertAudit = (entityType, action = 'create') => db.run(`INSERT INTO audit_events
     (id, site_id, entity_type, entity_id, action, at, actor, changes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   randomUUID(), site.id, entityType, randomUUID(), action, '2026-01-15T00:00:00.000Z', randomUUID(), '{}');
@@ -425,7 +427,7 @@ for (const driver of ['sqlite', 'pg']) test(`032 preserves populated audit histo
   await insertAudit('hse_inspection', 'read');
   const before = await db.all('SELECT * FROM audit_events ORDER BY id');
   await t.assert.rejects(() => insertAudit('purchase_order'), /check/i);
-  t.assert.strictEqual(await migrate(db, { driver }), 7);
+  t.assert.strictEqual(await migrate(db, { driver }), 8);
   t.assert.deepStrictEqual(await db.all('SELECT * FROM audit_events ORDER BY id'), before);
   for (const type of ['purchase_order', 'purchase_order_item']) await insertAudit(type);
   await t.assert.rejects(() => insertAudit('invalid'), /check/i);

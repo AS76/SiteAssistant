@@ -110,7 +110,8 @@ export function createOfflineStore({ indexedDB = globalThis.indexedDB, name = DB
       };
     });
   }
-  async function resolveId(scope, id) { return (await read('mappings', `${scope}:${id}`))?.value.id || id; }
+  async function confirmedCreation(scope, id) { return (await read('mappings', `${scope}:${id}`))?.value; }
+  async function resolveId(scope, id) { return (await confirmedCreation(scope, id))?.id || id; }
   async function reconcile(api, op, payload) {
     if (op.op_type === 'create_diary') {
       return (await api.listDiary({ siteId: payload.siteId })).find(entry =>
@@ -129,7 +130,7 @@ export function createOfflineStore({ indexedDB = globalThis.indexedDB, name = DB
       return event ? task : undefined;
     }
   }
-  async function replayOps(api, { scope, userId } = {}) {
+  async function replayOps(api, { scope, userId, currentDiaryId } = {}) {
     return withSyncLock(async () => {
       const summary = { confirmed: 0, failed: 0, pending: 0 };
       const active = await getMirror('active');
@@ -166,7 +167,11 @@ export function createOfflineStore({ indexedDB = globalThis.indexedDB, name = DB
           let result;
           if (op.op_type === 'create_task') result = await api.createTask(payload, options);
           if (op.op_type === 'transition_task') result = await api.transitionTask(payload.task, payload.input, options);
-          if (op.op_type === 'create_diary') result = await api.createDiary(payload, options);
+          if (op.op_type === 'create_diary') {
+            // A delayed replay keeps the date and shift captured when the entry was drafted.
+            if (op.id !== currentDiaryId) delete payload.useServerDay;
+            result = await api.createDiary(payload, options);
+          }
           if (op.op_type === 'create_attachment') result = await api.createAttachment(payload, options);
           await confirm(op, result); summary.confirmed++;
         } catch (error) {
@@ -182,7 +187,7 @@ export function createOfflineStore({ indexedDB = globalThis.indexedDB, name = DB
       return summary;
     });
   }
-  return { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, withSyncLock };
+  return { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, withSyncLock, confirmedCreation };
 }
 
 // Overlay only queued local creations. A proposed transition never replaces the authoritative status.
@@ -204,7 +209,7 @@ export function overlayPending(state, ops) {
 }
 
 const defaultStore = createOfflineStore();
-export const { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, withSyncLock } = defaultStore;
+export const { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, withSyncLock, confirmedCreation } = defaultStore;
 export async function registerSync(registration) {
   try { await registration?.sync?.register(SYNC_TAG); } catch { /* The page's online/visibility/retry hooks remain available. */ }
 }

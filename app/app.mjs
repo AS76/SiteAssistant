@@ -5,7 +5,7 @@ import { messages } from './i18n.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
 import { INSPECTION_STATUSES, inspectionStatusLabelKey, filterHseAssets, sortHseAssets, hseAssetCounts, inspectionOutcomeLabelKey, inspectionModeLabelKey, inspectionItemResultLabelKey, inspectionTally, sortInspections, inspectionSuggestion, inspectionProgress, inspectionPayload } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
-import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock } from './offline.mjs';
+import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
 
 const api = createApi({ baseUrl: new URL(document.querySelector('meta[name=siteassistant-api-base]')?.content || DEFAULT_BASE_URL, location.href).href, onUnauthorized: () => clearSession(true) });
 const freshApi = createApi({ baseUrl: api.baseUrl, fresh: true, onUnauthorized: () => clearSession(true) });
@@ -41,7 +41,7 @@ let taskSort = defaultViewState().sort, taskColumns = [...TASK_COLUMNS];
 let selectedViewId = '', savedViewsCache = null;
 let wbsView = 'tree', wbsLoad = null;
 const wbsCache = new Map();
-let reportDate = operationalDay().date;
+let reportDate = operationalDay(new Date(), null).date;
 let reportPrintIntent = null, lastReport = null;
 const evidenceLabels = {
   evidenceExport: ['Esporta registro delle prove', 'Export evidence register'],
@@ -113,18 +113,22 @@ const siteTasks = () => state.tasks.filter(task => task.siteId === siteId);
 const dateLabel = value => value && validDate(value) ? new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T12:00:00`)) : t('noDue');
 const coreDate = value => value == null || value === '' ? t('coreUnknown') : esc(dateLabel(String(value).slice(0, 10)));
 const timeLabel = value => new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
-function operationalDay(instant = new Date()) {
-  // Use the application's diary defaults until a site supplies its own shift policy.
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
-  }).formatToParts(instant);
-  const { year, month, day, hour } = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  const date = new Date(`${year}-${month}-${day}T12:00:00Z`);
-  const localHour = Number(hour);
-  if (localHour < 6) date.setUTCDate(date.getUTCDate() - 1);
-  return { date: date.toISOString().slice(0, 10), shift: localHour >= 6 && localHour < 18 ? 'day' : 'night' };
+function timeZoneForSite(site) {
+  return site?.time_zone ?? (site?.jurisdiction === 'UK' ? 'Europe/London' : 'Europe/Rome');
 }
-function notebookTime(value, timeZone) {
+function operationalDay(instant = new Date(), site = currentSite()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timeZoneForSite(site),
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(instant);
+  const { year, month, day, hour, minute } = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  const date = new Date(`${year}-${month}-${day}T12:00:00Z`);
+  const clock = `${hour}:${minute}`, cutoff = site?.day_cutoff_time ?? '06:00', nightStart = '18:00';
+  if (clock < cutoff) date.setUTCDate(date.getUTCDate() - 1);
+  const isDay = cutoff <= nightStart ? clock >= cutoff && clock < nightStart : clock >= cutoff || clock < nightStart;
+  return { date: date.toISOString().slice(0, 10), shift: isDay ? 'day' : 'night' };
+}
+function notebookTime(value, timeZone = timeZoneForSite(currentSite())) {
   if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) return '';
   const format = zone => new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', {
     hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone,
@@ -255,16 +259,18 @@ async function loadData() {
         }
       }
       await refreshPending();
-      if (!state.sites.some(site => site.id === siteId)) { resetSavedViews(); siteId = state.sites[0]?.id; }
+      if (!state.sites.some(site => site.id === siteId)) {
+        resetSavedViews(); siteId = state.sites[0]?.id; reportDate = operationalDay().date;
+      }
     });
   } catch (error) { loadError = error; }
   loading = false; render();
 }
-async function syncQueue() {
+async function syncQueue(currentDiaryId) {
   if (syncRun || !navigator.onLine || !session || !storageReady) return syncRun;
   syncRun = (async () => {
     try {
-      await replayOps(freshApi, { scope: offlineScope, userId: session.user.id });
+      await replayOps(freshApi, { scope: offlineScope, userId: session.user.id, currentDiaryId });
       await loadData();
     } catch (error) {
       if (error.code === 'NETWORK_ERROR') offline = true;
@@ -287,10 +293,11 @@ async function writeOperation(op_type, payload, entity_id) {
   }
   const op = await enqueue({ op_type, payload, entity_id, scope: offlineScope });
   await refreshPending();
-  if (navigator.onLine && !offline) await syncQueue();
+  if (navigator.onLine && !offline) await syncQueue(op_type === 'create_diary' ? op.id : undefined);
   if (pendingOps.some(item => item.status !== 'failed')) await registerSync(swRegistration);
   const current = pendingOps.find(item => item.id === op.id);
   if (current?.status === 'failed') throw Object.assign(new Error('syncFailed'), current.error);
+  if (op_type === 'create_diary') return confirmedCreation(op.scope, op.entity_id);
   return op;
 }
 const syncBadge = entity => entity?.syncStatus ? `<span class="badge sync-${entity.syncStatus}">${t(entity.syncStatus === 'failed' ? 'syncFailed' : 'syncPending')}</span>` : '';
@@ -615,7 +622,8 @@ function localOverviewWidgets() {
     const score = task => (task.status === 'blocked' ? 10 : task.status === 'to_verify' ? 6 : 0) + (task.due && task.due < today() ? 12 : 0) + PRIORITIES.indexOf(task.priority);
     return score(b) - score(a) || (a.due || '9999').localeCompare(b.due || '9999');
   }).slice(0, 5);
-  const lastEntry = state.diary.filter(item => item.siteId === siteId && item.date === today()).at(-1);
+  const diaryDate = operationalDay().date;
+  const lastEntry = state.diary.filter(item => item.siteId === siteId && item.date === diaryDate).at(-1);
   return {
     priority_work: `<section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section>`,
     daily_pulse: `<section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack">${!count.blocked && !count.review ? `<p class="note">${t('pulseClear')}</p>` : `<div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div>`}${count.review ? `<div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div>` : ''}</div></div></section>`,
@@ -1139,8 +1147,8 @@ function renderDiary() {
     if (file.entity_type === 'diary') filesByEntry.get(file.entity_id)?.push(file);
   }
   const fileCount = [...filesByEntry.values()].reduce((total, files) => total + files.length, 0);
-  const availableShifts = ['day', 'night'].filter(shift => !shifts.includes(shift));
   const current = operationalDay();
+  const availableShifts = ['day', 'night'].filter(shift => !shifts.includes(shift));
   const shownShifts = shifts.length || current.date !== reportDate ? shifts : [current.shift];
   const canWrite = canWriteTask() && availableShifts.length > 0;
   const canAttach = ['owner', 'editor'].includes(role());
@@ -2816,7 +2824,16 @@ function showSettingsForm() {
       <div class="account-actions">${button('changePassword', 'change-password')}${button('passkeySecurity', 'passkey-security')}</div>
     </section>`;
   }
-  showModal(t('settingsTitle'), `${account}<form id="settings-form"><p class="note">${t('settingsHint')}</p><div class="form-grid">
+  const site = currentSite();
+  const siteSettings = site && role() === 'owner' ? `<form id="site-settings-form" data-site="${esc(site.id)}">
+    <h3>${t('siteSettings')} · ${esc(site.name)}</h3>
+    <div class="form-error" role="alert" tabindex="-1" hidden></div>
+    <div class="form-grid">
+      <label class="field">${t('siteTimeZone')}<input name="time_zone" list="site-time-zones" value="${esc(timeZoneForSite(site))}" required ${offline ? 'disabled' : ''}></label>
+      <datalist id="site-time-zones"><option value="Europe/Rome">${t('siteZoneRome')}</option><option value="Europe/London">${t('siteZoneLondon')}</option><option value="UTC"></option></datalist>
+      <label class="field">${t('siteDayCutoff')}<input type="time" name="day_cutoff_time" value="${esc(site.day_cutoff_time ?? '06:00')}" required ${offline ? 'disabled' : ''}></label>
+    </div><div class="form-actions"><button type="submit" class="primary" ${offline ? 'disabled' : ''}>${t('siteSettingsSave')}</button></div></form>` : '';
+  showModal(t('settingsTitle'), `${account}${siteSettings}<form id="settings-form"><p class="note">${t('settingsHint')}</p><div class="form-grid">
     <label class="field">${t('settingsCurrency')}<select name="currency">${['EUR', 'USD', 'GBP', 'CHF'].map(code => `<option value="${code}" ${prefs.currency === code ? 'selected' : ''}>${code}</option>`).join('')}</select></label>
     <label class="field">${t('settingsSeparators')}<select name="separators"><option value="auto" ${prefs.separators === 'auto' ? 'selected' : ''}>${t('settingsSeparatorsAuto')}</option><option value="it" ${prefs.separators === 'it' ? 'selected' : ''}>1.234,56 (IT)</option><option value="en" ${prefs.separators === 'en' ? 'selected' : ''}>1,234.56 (EN)</option></select></label>
     </div>${formActions()}</form>`);
@@ -3180,7 +3197,8 @@ function selectSite(id) {
   reportPrintIntent = null;
   if (!state.sites.some(site => site.id === id)) return;
   wbsLoad = null; wbsCache.clear(); resetCore(); resetSavedViews(); closeModal();
-  siteId = id; filters = { search: '', status: '', person: '', priority: '', kind: '' }; render();
+  siteId = id; reportDate = operationalDay().date;
+  filters = { search: '', status: '', person: '', priority: '', kind: '' }; render();
   if (!offline) void loadData();
 }
 function showModal(title, content, { notebook = false } = {}) {
@@ -3438,7 +3456,11 @@ async function runStatusTransition(taskId, to) {
 function showEntryForm(preferredShift = '') {
   const current = operationalDay();
   const shift = preferredShift || (reportDate === current.date ? current.shift : 'day');
-  showModal(t(view === 'diary' ? 'diaryCloseShift' : 'newEntry'), `<form id="entry-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${field('shift', 'shift', '', { required: true, options: ['day', 'night'].map(value => `<option value="${value}"${value === shift ? ' selected' : ''}>${t(value)}</option>`).join('') })}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}</div>
+  const isCurrent = !offline && reportDate === current.date && shift === current.shift;
+  const shiftField = isCurrent ? `<input type="hidden" name="shift" value="${shift}">` : field('shift', 'shift', '', {
+    required: true, options: ['day', 'night'].map(value => `<option value="${value}"${value === shift ? ' selected' : ''}>${t(value)}</option>`).join(''),
+  });
+  showModal(t(view === 'diary' ? 'diaryCloseShift' : 'newEntry'), `<form id="entry-form" data-date="${esc(reportDate)}" data-current="${isCurrent}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}${isCurrent ? ` · ${t(shift)}` : ''}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${shiftField}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}</div>
       <label class="dropzone" id="entry-drop" for="entry-photos"><strong>${t('diaryPhotos')}</strong><span>${t('diaryPhotosHint')}</span>
         <input id="entry-photos" name="photos" type="file" accept="image/*,application/pdf" multiple hidden></label>
       <p class="note" id="entry-photos-count" hidden></p>${formActions()}</form>`);
@@ -3574,7 +3596,7 @@ document.addEventListener('click', event => {
   const target = event.target.closest('[data-command]'); if (!target) return;
   const command = target.dataset.command, id = target.dataset.id;
   const commands = {
-    'go-diary': () => { reportDate = today(); go('diary'); },
+    'go-diary': () => { reportDate = operationalDay().date; go('diary'); },
     'today-open': () => openTodayAction(target),
     'today-diary': () => { if (moduleVisible('diary')) { reportDate = operationalDay().date; go('diary'); } },
     'task-history': () => showDetail(id, { history: true }),
@@ -3733,7 +3755,7 @@ document.addEventListener('submit', async event => {
     void askAssistant(text);
     return;
   }
-  if (!['deviation-owner-form', 'deviation-attribution-form', 'deviation-import-form', 'task-acceptance-form', 'wbs-form', 'task-wbs-form', 'saved-view-form', 'site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'progress-hours-form', 'tool-form', 'tool-delete-form', 'cert-form', 'cert-delete-form', 'hse-asset-form', 'hse-form', 'hse-delete-form', 'import-form', 'settings-form', 'shp-form', 'shp-status-form', 'shp-receipt-form', 'pkg-form', 'pkg-close-form', 'po-form', 'po-item-form', 'po-status-form'].includes(form.id)) return;
+  if (!['deviation-owner-form', 'deviation-attribution-form', 'deviation-import-form', 'task-acceptance-form', 'wbs-form', 'task-wbs-form', 'saved-view-form', 'site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'progress-hours-form', 'tool-form', 'tool-delete-form', 'cert-form', 'cert-delete-form', 'hse-asset-form', 'hse-form', 'hse-delete-form', 'import-form', 'settings-form', 'site-settings-form', 'shp-form', 'shp-status-form', 'shp-receipt-form', 'pkg-form', 'pkg-close-form', 'po-form', 'po-item-form', 'po-status-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   const data = typeof dateFormData === 'function' ? dateFormData(form) : Object.fromEntries(new FormData(form));
@@ -3742,7 +3764,7 @@ document.addEventListener('submit', async event => {
   const submit = form.querySelector('[type=submit]'); submit.disabled = true;
   const version = modalVersion;
   // Capture the selected context before waiting for the server.
-  const selectedSite = siteId, selectedDate = reportDate;
+  const selectedSite = siteId;
   try {
     if (form.id === 'deviation-owner-form' || form.id === 'deviation-attribution-form') {
       if (!deviationWrite()) throw new Error('forbidden');
@@ -3791,6 +3813,21 @@ document.addEventListener('submit', async event => {
       prefs = { version: 2, currency: String(data2.currency || 'EUR'), separators: ['it', 'en'].includes(data2.separators) ? data2.separators : 'auto' };
       savePrefs(); closeModal(); render(); toast(t('settingsSaved')); return;
     }
+    if (form.id === 'site-settings-form') {
+      if (role() !== 'owner' || offline || form.dataset.site !== selectedSite) throw new Error('forbidden');
+      const user = session.user.id;
+      const site = await api.updateSite(selectedSite, {
+        time_zone: data.time_zone, day_cutoff_time: data.day_cutoff_time,
+      });
+      if (session?.user.id !== user) return;
+      const wasCurrentDay = siteId === selectedSite && reportDate === operationalDay().date;
+      state.sites = state.sites.map(item => item.id === site.id ? site : item);
+      if (wasCurrentDay) reportDate = operationalDay().date;
+      coreCache.delete(site.id); overviewCache.delete(site.id);
+      try { await accountLock(persistState); } catch { storageError = true; }
+      if (version === modalVersion) closeModal();
+      render(); toast(t('settingsSaved')); return;
+    }
     if (form.id === 'import-form') { await handleImport(form); return; }
     if (['booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'progress-hours-form'].includes(form.id)) { await submitCore(form, data); return; }
     if (['tool-form', 'tool-delete-form'].includes(form.id)) { await submitTool(form, data); return; }
@@ -3821,10 +3858,12 @@ document.addEventListener('submit', async event => {
     if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); resetSavedViews(); siteId = site.id; filters = { search: '', status: '', person: '', priority: '', kind: '' }; message = 'siteCreated'; }
     if (form.id === 'task-form') { const payload = { ...data, siteId: selectedSite }; taskPayload(payload); await writeOperation('create_task', payload); message = 'taskCreated'; }
     if (form.id === 'entry-form') {
-      const payload = { ...data, siteId: selectedSite, date: selectedDate };
+      const payload = { ...data, siteId: selectedSite, date: form.dataset.date,
+        useServerDay: form.dataset.current === 'true' && !offline };
       delete payload.photos;
       diaryPayload(payload);
       const entry = await writeOperation('create_diary', payload);
+      if (entry?.date && siteId === selectedSite && version === modalVersion) reportDate = entry.date;
       const photos = [...(form.querySelector('[name=photos]')?.files || [])];
       for (const file of photos) {
         if (!file.size || file.size > 15 * 1024 * 1024 || !/^(image\/[a-z0-9.+-]+|application\/pdf)$/i.test(file.type)) throw new Error('attachmentInvalid');

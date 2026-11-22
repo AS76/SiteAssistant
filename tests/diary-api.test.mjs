@@ -2,6 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApi } from '../app/api.mjs';
 
+test('the current diary entry sends content and displays the server day and shift', async () => {
+  const api = createApi({ baseUrl: '/', fetchImpl: async (url, options) => {
+    assert.equal(url, '/api/diary');
+    assert.deepEqual(JSON.parse(options.body), {
+      siteId: 'site-1', plan: 'Synthetic shift plan', actual: '', impediments: '', next_step: '',
+    });
+    return Response.json({ site_id: 'site-1', operational_date: '2026-12-21', shift: 'day' });
+  } });
+  const entry = await api.createDiary({
+    siteId: 'site-1', date: '2026-12-20', shift: 'night', plan: 'Synthetic shift plan', useServerDay: true,
+  });
+  assert.equal(entry.date, '2026-12-21');
+  assert.equal(entry.shift, 'day');
+});
+
 test('diary client combines a full page and a short page across sites', async () => {
   const rows = Array.from({ length: 202 }, (_, index) => ({
     id: `entry-${index}`,

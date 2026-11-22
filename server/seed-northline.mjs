@@ -243,7 +243,8 @@ function buildDataset() {
   };
   for (const site of SITES) {
     add('sites', { id: id(site.code), code: site.code, name: site.name, location: site.location,
-      jurisdiction: site.jurisdiction, start_date: site.start, end_date: site.finish, created_at: at(site.start) });
+      jurisdiction: site.jurisdiction, time_zone: site.timeZone,
+      start_date: site.start, end_date: site.finish, created_at: at(site.start) });
   }
   for (const user of ACCOUNTS) {
     add('users', { id: user.id, email: user.email, name: user.name, password_algo: 'scrypt', created_at: at(SITES[0].start) });

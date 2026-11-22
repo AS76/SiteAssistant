@@ -17,6 +17,7 @@ const settingsSource = [
   section('const esc =', 'let session ='),
   section('const button =', 'function toast('),
   section('const role =', 'const currentModules ='),
+  section('function timeZoneForSite(', 'function operationalDay('),
   section('const formActions =', 'function formError('),
   section('function showSettingsForm()', 'async function showImportForm()'),
   'showSettingsForm();',
@@ -30,7 +31,8 @@ function renderSettings(language, session, siteId = 'owner-site') {
   const misses = [];
   let html;
   const context = createContext({
-    session, siteId, prefs: { currency: 'CHF', separators: 'auto' },
+    session, siteId, offline: false, prefs: { currency: 'CHF', separators: 'auto' },
+    currentSite: () => ({ id: siteId, name: 'Synthetic site', time_zone: 'Europe/London', day_cutoff_time: '06:30' }),
     t(key) {
       if (Object.hasOwn(labels, key)) return labels[key];
       misses.push(key);
@@ -58,7 +60,7 @@ for (const language of ['it', 'en']) {
 
   test(`${language}: Settings starts with the signed-in account and selected-site role`, () => {
     const html = renderSettings(language, { user, roles });
-    const account = html.match(/^<section class="account-summary"[^>]*>([\s\S]*?)<\/section>\s*<form id="settings-form">/);
+    const account = html.match(/^<section class="account-summary"[^>]*>([\s\S]*?)<\/section>\s*<form id="site-settings-form"/);
     assert.ok(account);
     const summary = account[1];
     for (const value of [labels.accountSection, 'Synthetic &lt;Owner&gt; &amp; &quot;Crew&quot;', 'synthetic&amp;owner@example.invalid',
@@ -73,12 +75,16 @@ for (const language of ['it', 'en']) {
       assert.equal(html.split(attribute).length - 1, 1, command);
     }
     assertPreferences(html);
+    assert.ok(html.includes(labels.siteTimeZone));
+    assert.match(html, /name="time_zone"[^>]*value="Europe\/London"/);
+    assert.match(html, /name="day_cutoff_time"[^>]*value="06:30"/);
   });
 
   test(`${language}: Settings shows a fallback when the user has no role at the selected site`, () => {
     const html = renderSettings(language, { user, roles }, 'unassigned-site');
     assert.match(html, /class="account-summary"/);
     assert.ok(html.includes(labels.accountNoRole));
+    assert.doesNotMatch(html, /id="site-settings-form"/);
   });
 
   test(`${language}: Settings shows only preferences without a session`, () => {
@@ -89,8 +95,8 @@ for (const language of ['it', 'en']) {
   });
 }
 
-test('service worker activates the account update without waiting for old tabs', async () => {
+test('service worker activates the settings update without waiting for old tabs', async () => {
   const worker = await readFile(new URL('../app/sw.js', import.meta.url), 'utf8');
-  assert.match(worker, /const VERSION = 'siteassistant-v15-44'/);
+  assert.match(worker, /const VERSION = 'siteassistant-v15-45'/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });

@@ -64,7 +64,9 @@ export async function auditUpgrade(t, driver, file, oldType, newTypes) {
     await applyMigration(tx, name, { driver });
     await tx.run('INSERT INTO schema_migrations VALUES (?, ?)', name.slice(0, 3), new Date().toISOString());
   });
-  const site = await createSite(db, { code: randomUUID(), name: 'Synthetic upgrade site' });
+  const site = { id: randomUUID() };
+  await db.run('INSERT INTO sites (id, code, name, created_at) VALUES (?, ?, ?, ?)',
+    site.id, randomUUID(), 'Synthetic upgrade site', new Date().toISOString());
   const insert = (type, action = 'create') => db.run(`INSERT INTO audit_events
     (id, site_id, entity_type, entity_id, action, at, actor, changes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   randomUUID(), site.id, type, randomUUID(), action, new Date().toISOString(), randomUUID(), '{}');

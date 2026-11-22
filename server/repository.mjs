@@ -1,6 +1,6 @@
 import { moduleAllowed, requireModule } from './module-access.mjs';
 import { createHash, randomUUID } from 'node:crypto';
-import { operationalDate } from './operational-day.mjs';
+import { operationalDate, shiftOf } from './operational-day.mjs';
 import { ObjectStorageError, S3Storage } from './s3.mjs';
 import { appendAuditEvent } from './audit.mjs';
 
@@ -140,9 +140,32 @@ function siteJurisdiction(value) {
   return value;
 }
 
+function siteTimeZone(value) {
+  const zone = text(value, 'time_zone', true);
+  try {
+    if (/^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+)*$/.test(zone)) {
+      new Intl.DateTimeFormat('en', { timeZone: zone });
+      return zone;
+    }
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+  }
+  fail(400, 'time_zone must be a valid IANA time zone.', 'VALIDATION_ERROR');
+}
+
+function siteDayCutoff(value) {
+  if (typeof value !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+    fail(400, 'day_cutoff_time must be a valid HH:MM time.', 'VALIDATION_ERROR');
+  }
+  return value;
+}
+
 export async function createSite(db, input) {
   object(input);
   const jurisdiction = siteJurisdiction(input.jurisdiction === undefined ? 'IT' : input.jurisdiction);
+  const timeZone = input.time_zone === undefined
+    ? (jurisdiction === 'UK' ? 'Europe/London' : 'Europe/Rome') : siteTimeZone(input.time_zone);
+  const cutoff = input.day_cutoff_time === undefined ? '06:00' : siteDayCutoff(input.day_cutoff_time);
   const code = text(input.code, 'code', true);
   const name = text(input.name, 'name', true);
   const location = text(input.location, 'location');
@@ -153,9 +176,9 @@ export async function createSite(db, input) {
   }
   const id = randomUUID();
   await uniqueWrite(db, () => db.run(`
-    INSERT INTO sites (id, code, name, location, start_date, end_date, created_at, jurisdiction)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `, id, code, name, location, start, end, new Date().toISOString(), jurisdiction),
+    INSERT INTO sites (id, code, name, location, start_date, end_date, created_at, jurisdiction, time_zone, day_cutoff_time)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, id, code, name, location, start, end, new Date().toISOString(), jurisdiction, timeZone, cutoff),
   'Site code already exists.', 'DUPLICATE_SITE_CODE');
   return await getSite(db, id);
 }
@@ -167,12 +190,15 @@ export async function updateSite(db, id, input, user) {
     // Share the site lock with membership changes and serialize audit snapshots.
     await tx.run('UPDATE sites SET id = id WHERE id = ?', id);
     await requireRole(tx, id, user, ['owner']);
-    if (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'jurisdiction')) {
-      fail(400, 'Only jurisdiction may be updated.', 'VALIDATION_ERROR');
+    const keys = Object.keys(input);
+    if (!keys.length || keys.some(key => !['jurisdiction', 'time_zone', 'day_cutoff_time'].includes(key))) {
+      fail(400, 'Only jurisdiction, time_zone and day_cutoff_time may be updated.', 'VALIDATION_ERROR');
     }
-    const jurisdiction = siteJurisdiction(input.jurisdiction);
     const before = await getSite(tx, id);
-    await tx.run('UPDATE sites SET jurisdiction = ? WHERE id = ?', jurisdiction, id);
+    const jurisdiction = Object.hasOwn(input, 'jurisdiction') ? siteJurisdiction(input.jurisdiction) : before.jurisdiction;
+    const timeZone = Object.hasOwn(input, 'time_zone') ? siteTimeZone(input.time_zone) : before.time_zone;
+    const cutoff = Object.hasOwn(input, 'day_cutoff_time') ? siteDayCutoff(input.day_cutoff_time) : before.day_cutoff_time;
+    await tx.run('UPDATE sites SET jurisdiction = ?, time_zone = ?, day_cutoff_time = ? WHERE id = ?', jurisdiction, timeZone, cutoff, id);
     const after = await getSite(tx, id);
     await appendAuditEvent(tx, {
       entityType: 'site', action: 'update', before, after, actor: user.id,
@@ -470,30 +496,33 @@ export async function countDiary(db, filters = {}, user) {
 export async function createDiary(db, input) {
   object(input);
   const siteId = text(input.siteId, 'siteId', true);
-  const createdAt = new Date().toISOString();
-  const timeZone = input.time_zone === undefined ? 'Europe/Rome' : text(input.time_zone, 'time_zone', true);
-  const cutoff = input.day_cutoff_time === undefined ? '06:00' : text(input.day_cutoff_time, 'day_cutoff_time', true);
-  let derivedDate;
-  try { derivedDate = operationalDate(createdAt, { timeZone, cutoff }); }
-  catch (error) {
-    if (error instanceof RangeError) fail(400, error.message, 'VALIDATION_ERROR');
-    throw error;
+  const { time_zone: timeZone, day_cutoff_time: dayStart } = await getSite(db, siteId);
+  if (input.time_zone !== undefined && input.time_zone !== timeZone) {
+    fail(400, 'time_zone must match the site time zone.', 'VALIDATION_ERROR');
   }
+  if (input.day_cutoff_time !== undefined && input.day_cutoff_time !== dayStart) {
+    fail(400, 'day_cutoff_time must match the site cutoff.', 'VALIDATION_ERROR');
+  }
+  const createdAt = new Date().toISOString();
+  const options = { timeZone, dayStart };
   const entryDate = input.operational_date === undefined
-    ? derivedDate : date(input.operational_date, 'operational_date', true);
-  const shift = text(input.shift, 'shift', true);
-  if (!['day', 'night'].includes(shift)) fail(400, 'shift must be day or night.', 'VALIDATION_ERROR');
+    ? operationalDate(createdAt, options) : date(input.operational_date, 'operational_date', true);
+  const requestedShift = input.shift === undefined ? undefined : text(input.shift, 'shift', true);
+  if (requestedShift !== undefined && !['day', 'night'].includes(requestedShift)) {
+    fail(400, 'shift must be day or night.', 'VALIDATION_ERROR');
+  }
+  const shift = input.operational_date === undefined
+    ? shiftOf(createdAt, options) : requestedShift ?? shiftOf(createdAt, options);
   const plan = text(input.plan, 'plan');
   const actual = text(input.actual, 'actual');
   const impediments = text(input.impediments, 'impediments');
   const nextStep = text(input.next_step, 'next_step');
-  await getSite(db, siteId);
   const id = randomUUID();
   await uniqueWrite(db, () => db.run(`
     INSERT INTO diary (id, site_id, operational_date, shift, plan, actual,
       impediments, next_step, created_at, time_zone, day_cutoff_time)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, id, siteId, entryDate, shift, plan, actual, impediments, nextStep, createdAt, timeZone, cutoff),
+  `, id, siteId, entryDate, shift, plan, actual, impediments, nextStep, createdAt, timeZone, dayStart),
   'A diary entry already exists for this site, date and shift.', 'DUPLICATE_DIARY');
   return await db.get('SELECT * FROM diary WHERE id = ?', id);
 }

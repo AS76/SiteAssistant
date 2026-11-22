@@ -30,7 +30,8 @@ for (const driver of ['sqlite', 'pg']) {
     for (const file of ['036_wbs_operational.sql', '037_wbs_source_scope_backfill.sql']) {
       await db.transaction(tx => applyMigration(tx, file, { driver }));
     }
-    const site = await createSite(db, { code: 'SYN-UPGRADE', name: 'Synthetic upgrade' });
+    const site = { id: randomUUID() };
+    await db.run("INSERT INTO sites (id, code, name, created_at) VALUES (?, 'SYN-UPGRADE', 'Synthetic upgrade', ?)", site.id, at);
     const { users } = await authFixture(db, site);
     const deviation = randomUUID(), hse = randomUUID(), impact = randomUUID();
     const task = await createTask(db, taskInput(site.id));

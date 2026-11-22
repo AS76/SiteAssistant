@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { RepositoryError, requireRole } from './repository.mjs';
+import { RepositoryError, getSite, requireRole } from './repository.mjs';
 import { requireModule } from './module-access.mjs';
-import { shiftOf } from './operational-day.mjs';
+import { shiftForLocalTime } from './operational-day.mjs';
 
 const fail = (status, message, code = 'HR_RECONCILIATION_REQUIRED') => { throw new RepositoryError(status, message, code); };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -140,6 +140,7 @@ export async function importEmployees(db, inputSite, user) {
   return db.transaction(async tx => {
     await requireRole(tx, site, user, ['owner']);
     await tx.run('UPDATE sites SET id = id WHERE id = ?', site);
+    const { day_cutoff_time: dayStart } = await getSite(tx, site);
     const config = await tx.get('SELECT * FROM hr_import_sources WHERE site_id = ?', site);
     if (!config) fail(409, 'Configure an explicit source scope and completed import run for this site.', 'HR_SOURCE_NOT_CONFIGURED');
     let batches, employees, workDays;
@@ -177,10 +178,9 @@ export async function importEmployees(db, inputSite, user) {
       if (row.employee_id === undefined) fail(409, 'Employee reference is absent from the selected Employees snapshot.');
       date(row.operational_date);
       time(row.start_time); time(row.finish_time);
-      // Anchor the clock value in UTC only to use shiftOf without converting source wall time.
-      // This synthetic instant never changes the source operational_date or stored times.
+      // The source date and times are already local calendar values.
       const clock = row.start_time?.slice(0, 5).replace('24:00', '00:00');
-      row.shift = clock == null ? null : shiftOf(`2000-01-01T${clock}:00Z`, { timeZone: 'UTC', dayStart: '06:00', nightStart: '18:00' });
+      row.shift = clock == null ? null : shiftForLocalTime(clock, { dayStart });
       for (const field of ['work_time', 'open_hours', 'booked_hours']) row[field] = row[`${field}_source`];
     }
     const at = new Date().toISOString();

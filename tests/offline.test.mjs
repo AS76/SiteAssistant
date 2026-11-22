@@ -57,6 +57,22 @@ test('lost task response retries with the same key and creates no duplicate, pre
   assert.equal(server.size, 1); assert.equal(keys[0], keys[1]); assert.equal(diaryCalls, 1);
 });
 
+test('only the immediate diary submission delegates the slot to the server', async () => {
+  const f = await fixture(), calls = [];
+  await f.enqueue('create_diary', { ...diary, useServerDay: true });
+  const current = await f.enqueue('create_diary', { ...diary, date: '2026-01-03', useServerDay: true });
+  f.api.createDiary = async payload => {
+    calls.push(payload);
+    return { ...payload, date: payload.useServerDay ? '2026-01-04' : payload.date, id: payload.date };
+  };
+
+  await f.store.replayOps(f.api, { scope, userId, currentDiaryId: current.id });
+  assert.deepEqual(calls.map(payload => [payload.date, payload.useServerDay ?? false]), [
+    ['2026-01-02', false], ['2026-01-03', true],
+  ]);
+  assert.equal((await f.store.confirmedCreation(scope, current.entity_id)).date, '2026-01-04');
+});
+
 test('two tabs and a worker serialize replay and do not send an operation twice', async () => {
   const f = await fixture(); await f.enqueue('create_task', task);
   let calls = 0;

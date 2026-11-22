@@ -5,7 +5,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { SqliteStorage } from '../server/storage/sqlite.mjs';
 import { translatePlaceholders } from '../server/storage/pg.mjs';
 import { applyMigration, migrate } from '../server/migrations/index.mjs';
-import { createTask, createDiary, createAttachment, listAttachments, deleteAttachment } from '../server/repository.mjs';
+import { createTask, createAttachment, listAttachments, deleteAttachment } from '../server/repository.mjs';
 import { MemoryObjectStorage } from './helpers/object-storage.mjs';
 
 // Le prove di aggiornamento partono da uno schema vecchio: il sito si inserisce con le sole colonne
@@ -46,14 +46,16 @@ for (const driver of ['sqlite', 'pg']) {
     }
     const site = await legacySite(db, 'SYNTHETIC', 'Synthetic upgrade site');
     const task = await createTask(db, { siteId: site.id, title: 'Synthetic upgrade task', executor: 'A', verifier: 'B' });
-    const diary = await createDiary(db, { siteId: site.id, shift: 'day' });
+    const diary = { id: randomUUID() };
+    await db.run(`INSERT INTO diary (id, site_id, operational_date, shift, created_at)
+      VALUES (?, ?, '2026-01-01', 'day', '2026-01-01T08:00:00Z')`, diary.id, site.id);
     const user = { id: randomUUID() };
     await db.run(`INSERT INTO users (id, email, name, password_hash, password_algo, created_at)
       VALUES (?, 'synthetic@example.invalid', 'Synthetic', 'unused', 'scrypt', ?)`, user.id, new Date().toISOString());
     await db.run("INSERT INTO site_members VALUES (?, ?, 'owner')", site.id, user.id);
     const tables = ['sites', 'tasks', 'task_events', 'diary', 'users', 'site_members'];
     const before = await Promise.all(tables.map(table => db.all(`SELECT * FROM ${table}`)));
-    t.assert.strictEqual(await migrate(db, { driver }), 32);
+    t.assert.strictEqual(await migrate(db, { driver }), 33);
     // Account for columns added since 006 while comparing every pre-existing value.
     for (const row of before[tables.indexOf('tasks')]) Object.assign(row, {
       kind: null, wbs_id: null, declared_at: null, verified_at: null,
@@ -62,7 +64,9 @@ for (const driver of ['sqlite', 'pg']) {
     for (const row of before[tables.indexOf('task_events')]) Object.assign(row, {
       waiver: driver === 'pg' ? false : 0, evidence_attachment_id: null,
     });
-    for (const row of before[tables.indexOf('sites')]) row.jurisdiction = 'IT';
+    for (const row of before[tables.indexOf('sites')]) Object.assign(row, {
+      jurisdiction: 'IT', time_zone: 'Europe/Rome', day_cutoff_time: '06:00',
+    });
     for (const row of before[tables.indexOf('users')]) row.email_verified_at = null;
     t.assert.deepStrictEqual(await Promise.all(tables.map(table => db.all(`SELECT * FROM ${table}`))), before);
     const storage = new MemoryObjectStorage();
@@ -135,7 +139,7 @@ for (const driver of ['sqlite', 'pg']) {
     t.assert.deepStrictEqual(await db.all('SELECT * FROM schema_migrations ORDER BY version'), versions);
     await t.assert.rejects(() => db.run("UPDATE attachments SET entity_type = 'hse_event'"), /check/i);
 
-    t.assert.strictEqual(await migrate(db, { driver }), 12);
+    t.assert.strictEqual(await migrate(db, { driver }), 13);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM attachments ORDER BY id'), before);
     await db.run(`INSERT INTO attachments (id, site_id, entity_type, entity_id, filename, mime, size,
       content_sha256, storage_locator, created_at) VALUES (?, ?, 'hse_event', ?, 'Synthetic condition.png',
@@ -164,7 +168,7 @@ for (const driver of ['sqlite', 'pg']) {
     }
     const after = await db.all('SELECT * FROM attachments ORDER BY id');
     const applied = await db.all('SELECT * FROM schema_migrations ORDER BY version');
-    t.assert.strictEqual(applied.at(-1).version, '038');
+    t.assert.strictEqual(applied.at(-1).version, '040');
     t.assert.strictEqual(await migrate(db, { driver }), 0);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM attachments ORDER BY id'), after);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM schema_migrations ORDER BY version'), applied);

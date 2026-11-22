@@ -63,25 +63,22 @@ async function fixture(t, { race = false } = {}) {
 test('POST diary derives its date from one server instant and stores zone and cutoff', async t => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-03-29T03:59:00.000Z') });
   const { post, site } = await fixture(t);
-  const input = { siteId: site.id, shift: 'night' };
+  const input = { siteId: site.id };
   const entry = await post('/api/diary', input);
   t.assert.strictEqual(entry.status, 201);
   t.assert.strictEqual(entry.body.operational_date, '2026-03-28');
+  t.assert.strictEqual(entry.body.shift, 'night');
   t.assert.strictEqual(entry.body.created_at, '2026-03-29T03:59:00.000Z');
   t.assert.strictEqual(entry.body.time_zone, 'Europe/Rome');
   t.assert.strictEqual(entry.body.day_cutoff_time, '06:00');
-  const backdated = await post('/api/diary', { ...input, operational_date: '2026-01-01' });
+  const backdated = await post('/api/diary', { ...input, operational_date: '2026-01-01', shift: 'day', time_zone: 'Europe/Rome' });
   t.assert.strictEqual(backdated.status, 201);
   t.assert.strictEqual(backdated.body.operational_date, '2026-01-01');
+  t.assert.strictEqual(backdated.body.shift, 'day');
   t.assert.strictEqual(backdated.body.time_zone, 'Europe/Rome');
   t.assert.strictEqual(backdated.body.day_cutoff_time, '06:00');
-  const custom = await post('/api/diary', { ...input, time_zone: 'UTC', day_cutoff_time: '03:00' });
-  t.assert.strictEqual(custom.status, 201);
-  t.assert.strictEqual(custom.body.operational_date, '2026-03-29');
-  t.assert.strictEqual(custom.body.time_zone, 'UTC');
-  t.assert.strictEqual(custom.body.day_cutoff_time, '03:00');
   for (const extra of [
-    { time_zone: 'Invalid/Zone' }, { day_cutoff_time: '24:00' },
+    { time_zone: 'Invalid/Zone' }, { time_zone: 'UTC' }, { day_cutoff_time: '03:00' },
     { operational_date: '' }, { operational_date: null },
   ]) {
     const error = await post('/api/diary', { ...input, ...extra });
@@ -93,9 +90,10 @@ test('POST diary derives its date from one server instant and stores zone and cu
 test('POST diary derives the date after the autumn cutoff', async t => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-25T05:00:00.000Z') });
   const { post, site } = await fixture(t);
-  const result = await post('/api/diary', { siteId: site.id, shift: 'day' });
+  const result = await post('/api/diary', { siteId: site.id });
   t.assert.strictEqual(result.status, 201);
   t.assert.strictEqual(result.body.operational_date, '2026-10-25');
+  t.assert.strictEqual(result.body.shift, 'day');
 });
 
 test('double POST with one key replays the saved status and exact body, including after a task changes', async t => {

@@ -1,5 +1,6 @@
 import { requireModule } from './module-access.mjs';
-import { RepositoryError, requireRole } from './repository.mjs';
+import { RepositoryError, getSite, requireRole } from './repository.mjs';
+import { calendarDateFormatter } from './operational-day.mjs';
 
 const DAY = 86_400_000;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -16,11 +17,15 @@ function validDate(value, field) {
   return time;
 }
 
-function plannedDay(value) {
-  // Stored app timestamps carry a zone; Date objects are also returned by PGlite.
+function calendarDay(value, localDate) {
+  // Keep calendar-only values and convert instants to the site's calendar.
   if (value == null) return null;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const time = Date.parse(value);
+    return Number.isFinite(time) && dateString(time) === value ? time : null;
+  }
   const time = new Date(value).getTime();
-  return Number.isFinite(time) ? Math.floor(time / DAY) * DAY : null;
+  return Number.isFinite(time) ? Date.parse(localDate(time)) : null;
 }
 
 function plannedValue(item, day) {
@@ -37,8 +42,10 @@ export async function progressCurve(db, { siteId, user, from, to } = {}) {
   const site = siteId.toLowerCase();
   await requireRole(db, site, user);
   await requireModule(db, site, user, 'progress');
+  const { time_zone: timeZone } = await getSite(db, site);
+  const localDate = calendarDateFormatter(timeZone);
 
-  const end = validDate(to ?? dateString(Date.now()), 'to');
+  const end = validDate(to ?? localDate(Date.now()), 'to');
   const start = validDate(from ?? dateString(end - 89 * DAY), 'from');
   if (start > end) fail('from must be on or before to.');
   if ((end - start) / DAY + 1 > 400) fail('The range must contain at most 400 calendar days (inclusive).');
@@ -60,7 +67,7 @@ export async function progressCurve(db, { siteId, user, from, to } = {}) {
   const items = new Map(), sections = new Map(), history = [];
   for (const row of rows) {
     if (!items.has(row.id)) {
-      const item = { start: plannedDay(row.planned_start), finish: plannedDay(row.planned_finish),
+      const item = { start: calendarDay(row.planned_start, localDate), finish: calendarDay(row.planned_finish, localDate),
         target: Number(row.planned_progress_pct ?? 100), steps: new Map(), weighted: 0, weight: 0 };
       items.set(row.id, item);
       if (!sections.has(row.section)) sections.set(row.section, []);
@@ -68,19 +75,20 @@ export async function progressCurve(db, { siteId, user, from, to } = {}) {
     }
     if (row.entry_id != null) {
       const at = new Date(row.recorded_at).getTime();
-      if (Number.isFinite(at) && at < end + DAY) history.push({ id: row.entry_id, at,
+      const day = Number.isFinite(at) ? Date.parse(localDate(at)) : NaN;
+      if (day <= end) history.push({ id: row.entry_id, at, day,
         item: items.get(row.id), step: row.progress_type_step_id,
         percent: Number(row.percent), weight: Number(row.weight) });
     }
   }
   // Normalize timestamps before ordering, including SQLite strings with explicit offsets.
   // Equal timestamps have no insertion sequence in 016: the larger UUID wins deterministically.
-  history.sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  history.sort((a, b) => a.day - b.day || a.at - b.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const series = [...sections.keys()].sort().map(section => ({ section, points: [] }));
   let cursor = 0;
   for (let day = start; day <= end; day += DAY) {
     // Replay pre-range history too, carrying each last value forward through empty days.
-    while (cursor < history.length && history[cursor].at < day + DAY) {
+    while (cursor < history.length && history[cursor].day <= day) {
       const entry = history[cursor++], item = entry.item;
       const previous = item.steps.get(entry.step);
       if (previous === undefined) item.weight += entry.weight;

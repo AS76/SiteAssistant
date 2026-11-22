@@ -1,6 +1,6 @@
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { createSite } from '../server/repository.mjs';
+import { createSite, updateSite } from '../server/repository.mjs';
 import { listEmployees, getEmployee, listWorkDays, importEmployees } from '../server/hr.mjs';
 import { createServer } from '../server/http.mjs';
 import { applyMigration } from '../server/migrations/index.mjs';
@@ -57,6 +57,17 @@ for (const driver of ['sqlite', 'pg']) test(`HR ${driver}: Employees and Work Da
     }
     t.assert.deepStrictEqual(await state(site), before);
     t.assert.deepStrictEqual(await db.get('SELECT * FROM hr_import_sources WHERE site_id = ?', site.id), config);
+  });
+
+  await t.test('a site cutoff changes shift classification while keeping the source calendar date', async t => {
+    const f = await fixture();
+    await updateSite(db, f.site.id, { time_zone: 'Europe/London', day_cutoff_time: '07:00' }, owner);
+    await promote(f.site);
+    const { workDays } = await state(f.site);
+    const source = f.workDays.find(row => row.start_time === '06:00:00');
+    const day = workDays.find(row => row.start_time === source.start_time);
+    t.assert.strictEqual(day.operational_date, source.operational_date);
+    t.assert.strictEqual(day.shift, 'night');
   });
 
   await t.test('employee numbers are unique per site, with isolated identities and lists across sites', async t => {

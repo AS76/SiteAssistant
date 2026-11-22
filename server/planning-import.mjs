@@ -2,7 +2,7 @@ import { requireModule } from './module-access.mjs';
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { deviationImportMeta, recordDeviationImportEvent, registeredDeviationExport, storeDeviationExport } from './deviations.mjs';
 import { readWorkbook } from './xlsx.mjs';
-import { RepositoryError, requireRole } from './repository.mjs';
+import { RepositoryError, getSite, requireRole } from './repository.mjs';
 import { sourceTimestamp, stableId, reconcileWbsSource, reconcileWbsMissing } from './wbs.mjs';
 
 const fail = (code, message, status = 400) => { throw new RepositoryError(status, message, code); };
@@ -351,7 +351,8 @@ async function context(db, siteId, family, rows, resolved) {
   const mapping = { ...familyOf(family), ...(resolved ?? await loadMapping(db, siteId, family)) }, existing = new Map(), ids = new Map(), employees = new Map(), bindings = new Map(), uniqueTargets = new Map();
   const fieldSet = new Set();
   for (const row of rows) for (const field of Object.keys(row.values)) fieldSet.add(field);
-  const fields = [...fieldSet].filter(f => f !== 'employee_no' || family === 'employees');
+  const fields = [...fieldSet].filter(field => (field !== 'employee_no' || family === 'employees') &&
+    (field !== 'time_zone' || family !== 'daily_log'));
   if (family === 'work_days') fields.push('employee_id');
   if (family === 'time_schedule') fields.push('parent_id');
   if (family === 'work_days') {
@@ -449,8 +450,11 @@ export async function applyFamily(db, { siteId, family, rows, rejected = [], use
     if (familyModule(family)) await requireModule(tx, siteId, user, familyModule(family));
     const currentMapping = await loadMapping(tx, siteId, family);
     if (mapping && mappingDigest(mapping) !== mappingDigest(currentMapping)) fail('PREVIEW_MISMATCH', 'Mapping changed; request a new preview.', 409);
-    if (preview_token) verifyPreviewToken(preview_token, { buffer, family, siteId, rows, rejected, timeZone, mapping: currentMapping, completeVerified });
-    if (['time_schedule', 'deviations'].includes(family)) await tx.run('UPDATE sites SET id = id WHERE id = ?', siteId);
+    if (['time_schedule', 'deviations', 'daily_log'].includes(family)) await tx.run('UPDATE sites SET id = id WHERE id = ?', siteId);
+    const diarySite = family === 'daily_log' ? await getSite(tx, siteId) : null;
+    if (preview_token) verifyPreviewToken(preview_token, {
+      buffer, family, siteId, rows, rejected, timeZone: diarySite?.time_zone ?? timeZone, mapping: currentMapping, completeVerified,
+    });
     const runId = randomUUID(), at = new Date().toISOString(), keys = [], seenWbs = [];
     const wbsScope = family === 'time_schedule' ? (await tx.get('SELECT scope_id FROM wbs_import_sources WHERE site_id = ?', siteId))?.scope_id || 'planning-upload' : null;
     await tx.run(`INSERT INTO planning_import_runs (id, site_id, family, filename, file_sha256, file_data, created_by, created_at)
@@ -462,6 +466,14 @@ export async function applyFamily(db, { siteId, family, rows, rejected = [], use
         if (category !== 'unchanged') keys.push(row.key);
       } else if (category !== 'unchanged') {
         if (category === 'added' && family === 'site_progress_items') values.source_row = ++ctx.maxSourceRow;
+        if (diarySite) {
+          // A diary entry retains the settings recorded when it was first added.
+          delete values.time_zone;
+          if (category === 'added') {
+            values.time_zone = diarySite.time_zone;
+            values.day_cutoff_time = diarySite.day_cutoff_time;
+          }
+        }
         const before = family === 'deviations' && category === 'updated'
           ? await tx.get('SELECT * FROM deviations WHERE id = ?', id) : null;
         const columns = Object.keys(values);
@@ -535,8 +547,8 @@ export async function importRequest(db, input, user, { apply = false } = {}) {
   familyOf(family);
   if (familyModule(family)) await requireModule(db, siteId, user, familyModule(family));
   const buffer = workbookFile(input);
-  // Diary entries use the application timezone for the fixed day shift.
-  const timeZone = 'Europe/Rome', mapping = await loadMapping(db, siteId, family), binding = { buffer, family, siteId, timeZone, mapping, completeVerified: input.complete_verified === true };
+  const timeZone = family === 'daily_log' ? (await getSite(db, siteId)).time_zone : undefined;
+  const mapping = await loadMapping(db, siteId, family), binding = { buffer, family, siteId, timeZone, mapping, completeVerified: input.complete_verified === true };
   if (apply) verifyPreviewToken(input.preview_token, binding);
   const parsed = parseFamily(buffer, family, { timeZone, mapping });
   if (apply) {

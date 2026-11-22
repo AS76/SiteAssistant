@@ -10,7 +10,7 @@ import { openDb, closeDb } from '../server/db.mjs';
 import { migrate } from '../server/migrations/index.mjs';
 import { isPg, openTestDb } from './helpers/db.mjs';
 
-const versions = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020', '021', '022', '023', '024', '025', '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038'];
+const versions = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020', '021', '022', '023', '024', '025', '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '040'];
 
 async function temporarySqlite(t) {
   const directory = await mkdtemp(join(tmpdir(), 'siteassistant-migrations-'));
@@ -51,7 +51,8 @@ test('migrations adopt populated SQLite databases without changing existing reco
   const before = await db.all('SELECT * FROM sites');
   const diaryBefore = await db.get('SELECT * FROM diary');
   await migrate(db, { driver: 'sqlite' });
-  t.assert.deepStrictEqual((await db.all('SELECT * FROM sites')).map(row => ({ ...row })), before.map(row => ({ ...row, jurisdiction: 'IT' })));
+  t.assert.deepStrictEqual((await db.all('SELECT * FROM sites')).map(row => ({ ...row })),
+    before.map(row => ({ ...row, jurisdiction: 'IT', time_zone: 'Europe/Rome', day_cutoff_time: '06:00' })));
   t.assert.deepStrictEqual({ ...await db.get('SELECT * FROM diary') }, {
     ...diaryBefore, time_zone: 'Europe/Rome', day_cutoff_time: '06:00',
   });

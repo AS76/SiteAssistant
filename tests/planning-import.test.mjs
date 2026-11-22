@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
-import { createSite } from '../server/repository.mjs';
+import { createSite, updateSite } from '../server/repository.mjs';
 import { createServer } from '../server/http.mjs';
 import { parseFamily, diffFamily, applyFamily, previewToken, verifyPreviewToken, MAX_IMPORT_BYTES, resolveMapping, DEFAULT_IDENTITIES, importRequest, saveImportMapping } from '../server/planning-import.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
@@ -227,6 +227,22 @@ for (const driver of ['sqlite', 'pg']) test(`planning import ${driver}: preview,
     assert.equal(result.status, 200, JSON.stringify(result.body));
     return { preview: preview.body, result: result.body };
   };
+
+  await t.test('daily log keeps its source date and snapshots settings on insert', async () => {
+    const site = await fixture();
+    const update = settings => updateSite(db, site.id, settings, auth.users.owner);
+    await update({ time_zone: 'Europe/London', day_cutoff_time: '07:00' });
+    const sample = { header: ['log_date'], rows: [['2026-12-20']] };
+    assert.equal((await apply(site, 'daily_log', sample)).result.counts.added, 1);
+    const row = () => db.get('SELECT CAST(operational_date AS TEXT) AS operational_date, time_zone, day_cutoff_time FROM diary WHERE site_id = ?', site.id);
+    assert.deepEqual({ ...await row() }, {
+      operational_date: '2026-12-20', time_zone: 'Europe/London', day_cutoff_time: '07:00',
+    });
+    const before = await row();
+    await update({ time_zone: 'Europe/Rome', day_cutoff_time: '06:00' });
+    assert.equal((await apply(site, 'daily_log', sample)).result.counts.unchanged, 1);
+    assert.deepEqual(await row(), before);
+  });
 
   await t.test('optional progress planned hours and delay import, repeat without duplication and preserve absent hours', async () => {
     const site = await fixture(), sample = { ...samples.site_progress_items,

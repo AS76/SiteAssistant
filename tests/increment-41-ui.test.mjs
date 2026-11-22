@@ -194,6 +194,7 @@ test('41.08 M4 — today diary has exactly one invitation: a button when empty, 
   for (const language of ['it', 'en']) {
     const app = ui({ language, diary: [{ siteId: 'other-site', date: '2026-11-14', actual: 'Other synthetic entry' },
       { siteId: 'site-1', date: '2026-11-13', actual: 'Previous synthetic entry' }] });
+    app.context.operationalDay = () => ({ date: '2026-11-14' });
     const empty = app.run('localOverviewWidgets().journal_today');
     assert.equal((empty.match(/data-command="go-diary"/g) || []).length, 1);
     assert.equal((empty.match(/<button/g) || []).length, 1);
@@ -203,7 +204,7 @@ test('41.08 M4 — today diary has exactly one invitation: a button when empty, 
     assert.equal((filled.match(/href="#diary"/g) || []).length, 1);
     assert.doesNotMatch(filled, /<button/); assert.match(filled, /Synthetic work completed/);
   }
-  assert.match(source, /'go-diary': \(\) => \{ reportDate = today\(\); go\('diary'\); \}/);
+  assert.match(source, /'go-diary': \(\) => \{ reportDate = operationalDay\(\).date; go\('diary'\); \}/);
 });
 
 test('41.09 M5 — person is plain text populated from the signed-in identity', () => {

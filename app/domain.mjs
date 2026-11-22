@@ -148,7 +148,9 @@ export function taskPayload(input) {
 }
 export function diaryPayload(input) {
   if (!['day', 'night'].includes(input.shift)) fail('invalidData');
-  return { siteId: text(input.siteId, true), operational_date: date(input.date, true), shift: input.shift,
+  const operationalDate = date(input.date, true);
+  return { siteId: text(input.siteId, true),
+    ...(input.useServerDay ? {} : { operational_date: operationalDate, shift: input.shift }),
     plan: text(input.plan), actual: text(input.actual), impediments: text(input.blockers), next_step: text(input.next) };
 }
 export function allowedTransitions(task) {

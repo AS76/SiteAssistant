@@ -73,19 +73,19 @@ for (const driver of ['sqlite', 'pg']) test(`Progress curve ${driver}`, async t 
     ]);
   });
 
-  await t.test('UTC planned calendar days, same-day milestone and reversed dates', async t => {
+  await t.test('site-local planned calendar days and reversed dates', async t => {
     const f = await fixture();
     await f.item({ planned_start: '2026-01-01T23:00:00-02:00', planned_finish: '2026-01-03T01:00:00+02:00' });
     await f.item({ section: 'Reversed', planned_start: '2026-01-03', planned_finish: '2026-01-01' });
     const result = await f.curve({ to: '2026-01-03' });
     t.assert.deepStrictEqual(result.series, [
       { section: 'Linea A', points: [{ date: '2026-01-01', planned: 0 },
-        { date: '2026-01-02', planned: 100 }, { date: '2026-01-03', planned: 100 }] },
+        { date: '2026-01-02', planned: 0 }, { date: '2026-01-03', planned: 100 }] },
       { section: 'Reversed', points: [{ date: '2026-01-01' }, { date: '2026-01-02' }, { date: '2026-01-03' }] },
     ]);
   });
 
-  await t.test('last recorded step values win, unequal weights, missing data and UTC end of day', async t => {
+  await t.test('last recorded step values win, unequal weights, missing data and local end of day', async t => {
     const f = await fixture(), type = await f.type();
     const item = await f.item({ progress_type_id: type.id });
     const empty = await f.item({ progress_type_id: type.id });
@@ -103,7 +103,7 @@ for (const driver of ['sqlite', 'pg']) test(`Progress curve ${driver}`, async t 
     const result = await f.curve();
     t.assert.deepStrictEqual(result.series.find(row => row.section === 'Linea A').points, [
       { date: '2026-01-01' }, { date: '2026-01-02', actual: 40 },
-      { date: '2026-01-03', actual: 35 }, { date: '2026-01-04', actual: 40 },
+      { date: '2026-01-03', actual: 25 }, { date: '2026-01-04', actual: 40 },
       { date: '2026-01-05', actual: 40 },
     ]);
     t.assert.ok(result.series.find(row => row.section === 'Empty').points.every(point => !('actual' in point)));
@@ -162,16 +162,16 @@ for (const driver of ['sqlite', 'pg']) test(`Progress curve ${driver}`, async t 
     t.assert.strictEqual((await f.curve({ from: '2028-02-28', to: '2028-03-01' })).series[0].points.length, 3);
   });
 
-  await t.test('default is 90 inclusive days ending today UTC; partial bounds and empty site', async t => {
+  await t.test('default is 90 inclusive days ending on the local calendar day', async t => {
     const f = await fixture();
     t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2028-03-01T23:59:00Z') });
     t.assert.deepStrictEqual(await f.curve({ from: undefined, to: undefined }),
-      { from: '2027-12-03', to: '2028-03-01', series: [] });
+      { from: '2027-12-04', to: '2028-03-02', series: [] });
     await f.item();
     const defaulted = await f.curve({ from: undefined, to: undefined });
     t.assert.strictEqual(defaulted.series[0].points.length, 90);
     t.assert.strictEqual((await f.curve({ from: undefined, to: '2026-03-31' })).from, '2026-01-01');
-    t.assert.strictEqual((await f.curve({ from: '2028-03-01', to: undefined })).series[0].points.length, 1);
+    t.assert.strictEqual((await f.curve({ from: '2028-03-01', to: undefined })).series[0].points.length, 2);
   });
 
   await t.test('HTTP route allows viewers, requires authentication and membership, validates UUID and range', async t => {

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { hashPassword } from './auth.mjs';
 import { openDb, closeDb } from './db.mjs';
-import { listSites, createTask, createDiary } from './repository.mjs';
+import { listSites, createTask } from './repository.mjs';
 
 // All labels and identities below are invented demo data, not real entities.
 export async function seed(db, { reset = false, environment = process.env.NODE_ENV || 'development' } = {}) {
@@ -53,11 +53,10 @@ export async function seed(db, { reset = false, environment = process.env.NODE_E
         executor_id: users.editor.id, verifier_id: users.verifier.id, actor: users.owner.name, due_date: '2026-11-20',
       });
     }
-    await createDiary(tx, {
-      siteId: first.id, operational_date: '2026-11-06', shift: 'day',
-      plan: 'Preparare il percorso di prova.', actual: 'Percorso dimostrativo predisposto.',
-      impediments: 'Nessun impedimento nella simulazione.', next_step: 'Controllare il supporto campione.',
-    });
+    await tx.run(`INSERT INTO diary (id, site_id, operational_date, shift, plan, actual, impediments, next_step, created_at)
+      VALUES (?, ?, '2026-11-06', 'day', ?, ?, ?, ?, ?)`, randomUUID(), first.id,
+    'Preparare il percorso di prova.', 'Percorso dimostrativo predisposto.', 'Nessun impedimento nella simulazione.',
+    'Controllare il supporto campione.', new Date().toISOString());
     return true;
   });
 }
