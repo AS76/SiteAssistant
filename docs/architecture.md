@@ -1,12 +1,12 @@
 # Architecture — SiteAssistant (current state)
 
-Status: **site-manager core implemented and in production** (migrations 001–013). Actual stack verified; no framework, no ORM. Document aligned with the code on 2026-11-10.
+Status: **full application implemented and running** (migrations 001–045 and 047; 046 reserved, does not exist yet). Actual stack verified; no framework, no ORM. Document aligned with the code on 2026-11-22.
 
 ## What it is
 
 Webapp for the site manager: connects planning, work performed, verification and the site diary, usable from a phone in the field. Not an ERP: the layer between the plan (SAP/P6/Excel) and the site's daily reality.
 
-**Current scope (site-manager core):** WBS, attendance, progress, deviations, time bookings, cost impacts. **Materials logistics and procurement = next milestone.**
+**Current scope:** site-manager core (WBS, attendance, progress, deviations, time bookings, cost impacts), plus compliance (tools, certifications, HSE), procurement and materials logistics, versioned diary, granular per-module access, local auth with passkeys, S3 attachments and an optional server-side AI assistant per site (increment 47).
 
 ## Actual stack
 
@@ -14,13 +14,13 @@ Webapp for the site manager: connects planning, work performed, verification and
 | --- | --- | --- |
 | Frontend | Static SPA in `app/` (native HTML/CSS/JS, no framework) | views: Overview, Sites, Tasks (board/list), Project structure (tree), Diary; IT/EN |
 | Backend | **Node.js 24 + `node:http`** (no framework) | `server/http.mjs`, `repository.mjs`, domain modules |
-| Data access | **Plain `pg`** (only runtime dependency, no ORM) + `Storage` abstraction (SQLite/pg drivers) | explicit SQL queries, versioned migrations |
+| Data access | **Plain `pg`** + `Storage` abstraction (SQLite/pg drivers, PGlite in tests, no ORM) | explicit SQL queries, versioned migrations 001–045 + 047 (046 reserved) |
 | Database | **PostgreSQL (Neon, `eu-central-1`)** in production; **SQLite** in development/tests | same contract via `Storage` |
-| Identity | **Local**: email+password (`scrypt`), `HttpOnly` cookie sessions, site roles (owner/editor/verifier/viewer), self-service signup with approval | no OIDC provider for now |
+| Identity | **Local**: email+password (`scrypt`), `HttpOnly` cookie sessions, **WebAuthn passkeys** (035), site roles (owner/editor/verifier/viewer), **per-module access per member** (023), self-service signup with approval | no OIDC provider for now |
 | Files | **iDrive e2 S3**, `siteassistant` bucket | hand-rolled SigV4 client (`node:crypto`), SHA-256 readback |
-| Checks | Domain + integration tests (SQLite and pg) + parity | `npm test`, `npm run test:pg`, `npm run test:schema` |
+| Checks | Domain + integration tests (SQLite/PGlite and real pg), schema checks, browser regression | `npm test`, `npm run test:pg`, `npm run test:schema`, `npm run test:browser:c03` |
 
-**No runtime dependency beyond `pg`.** The backend deliberately has no framework/ORM.
+**Runtime dependencies: `pg` and `@simplewebauthn/server` only.** The backend deliberately has no framework/ORM.
 
 ## Flow
 
@@ -56,6 +56,8 @@ The backend checks identity, site, role and module before every operation; DB an
 | Time bookings | `time_bookings` | 012 | ✅ UI (source and app hours, variance) |
 | Cost impacts | `cost_impacts`, `cost_impact_deviations` | 013 | ✅ UI |
 
+**Beyond the core (later increments):** tools (018), certifications (019), dashboard layouts (022), **granular per-module access per member (023)** — `logistics`, `workforce_names` and `workforce_presence` are *strict* modules, visible only when explicitly granted — HSE events/assets/inspections (024–031), audit trail (025–026), procurement and logistics: purchase orders, packages, shipments (032–034), WebAuthn passkeys (035), operational WBS (036–037), identity evidence (038), site time zone (040), **versioned diary (045)**, and the **optional server-side AI assistant per site** (increment 47, migration 047): read-only proxy to the model, site-scoped, key never reaches the browser.
+
 **Current UI:** Overview (widgets configurable per user), Sites, Tasks (board, list, lightweight view), Project structure (WBS), Diary, Progress, Deviations (with reconciliation panel), Time bookings, Cost impacts, Equipment, Fitness for work, HSE, Printable report. The frontend also exposes the manual link and works offline for tasks and diary, with a write queue synchronized when the network returns.
 
 ## Operational-day rule
@@ -77,11 +79,13 @@ of the repository.
 
 ## Hosting and deployment
 
-- **Backend**: systemd `siteassistant-api` on the Hostinger VPS, behind Traefik (`api.siteassistant.asassi.cloud`). Restart = migrations applied to Neon.
-- **Database**: **Neon** (`eu-central-1`), TLS; local PostgreSQL 18 only for tests (`test:pg`).
+- **Demo**: **Railway** (app + PostgreSQL in the same project). DNS not switched yet: `siteassistant.asassi.cloud` still points to the VPS.
+- **Backend (historical production)**: systemd `siteassistant-api` on the Hostinger VPS, behind Traefik (`api.siteassistant.asassi.cloud`). Restart = migrations applied to Neon.
+- **Database**: **Neon** (`eu-central-1`), TLS, for the VPS production; the Railway demo uses its own PostgreSQL; local PostgreSQL only for tests (`test:pg`).
 - **Frontend**: nginx (`siteassistant-demo` container), `siteassistant.asassi.cloud` with basic auth.
 - **Files**: iDrive e2 S3, `siteassistant` bucket (dedicated `S3_*` env, not the backup bucket).
 - **Manual**: `docs-site/` (Astro+Starlight) → GitHub Pages (`as76.github.io/SiteAssistant`), updated automatically by the docs job.
+- **CI**: four workflows — `ci.yml` (jobs: SQLite/PGlite, real PostgreSQL, browser C03), `content-scan.yml`, `docs-freshness.yml` (weekly), `docs.yml`. The C03 browser job is currently red for an obsolete fixture on the `workforce_names` permission (fix in progress, not intended behavior).
 
 Development/staging/production have separate databases, credentials and buckets. Only synthetic data in the public repo.
 
@@ -91,9 +95,9 @@ Development/staging/production have separate databases, credentials and buckets.
   can be verified **only by an owner**: the typed name is not an identity, so it cannot
   authorize anyone. The interface allows members to be selected to avoid this case; for
   subcontractors without an account the name remains the only option, and verification goes through the owner.
-- **Deviations without status history.** They are an import projection: there is no
-  internal status-change path, so reconciliation compares only the official dates
-  (`closed_without_date`, `close_before_approval`).
+- **Deviations reconciliation is read-only.** It compares the official dates
+  (`closed_without_date`, `close_before_approval`); status changes keep an append-only
+  history with provenance, they do not rewrite imported state.
 - **No real ingest.** Import uses manually uploaded exports, not a connection to the
   planning system.
 
@@ -101,7 +105,7 @@ Development/staging/production have separate databases, credentials and buckets.
 
 1. **Real ingest** (#5) and, afterwards, reporting views (#6) and area scope (#48).
 2. **UX review** of mobile/desktop flows (#7) after the first weeks of use.
-3. Logistics/procurement (#30) = next milestone.
+3. Logistics/procurement (#30): implemented (032–034); mobile UX review and real ingest remain open.
 4. Corporate access: possible OIDC/SAML SSO, not a second OAuth provider (#1 closed).
 
 Scope decisions remain documented in the vault (blueprint/kanban), not here.
