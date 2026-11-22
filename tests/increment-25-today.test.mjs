@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { validDate, initialView, todayActions, recentActions, visibleModules, filterSortRecords, corePermissions, allowedTransitions, defaultViewState, navGroups } from '../app/domain.mjs';
+import { validDate, initialView, todayActions, todayBlockedTaskMeta, recentActions, visibleModules, filterSortRecords, corePermissions, allowedTransitions, defaultViewState, navGroups } from '../app/domain.mjs';
 import { messages } from '../app/i18n.mjs';
 import { createOfflineStore, overlayPending } from '../app/offline.mjs';
 import { mockIndexedDB, mockLocks } from './helpers/indexeddb.mjs';
@@ -35,7 +35,7 @@ test('five-row budget applies across personal, progress, diary and read-only dev
   assert.equal(todayActions(input({ tasks: Array.from({ length: 8 }, (_, i) => task(`t${i}`)) })).length, 5);
 });
 
-test('only the latest operational diary entry can add a next-step row, even with five task rows', () => {
+test('the latest operational diary entry with a next step adds a row even with five task rows', () => {
   const tasks = Array.from({ length: 5 }, (_, index) => task(`task-${index}`));
   const diary = [
     { date: '2026-04-14', shift: 'night', createdAt: '2026-04-16T01:00:00Z', next: 'Older operational day' },
@@ -50,8 +50,9 @@ test('only the latest operational diary entry can add a next-step row, even with
   });
   for (const next of [null, '', ' \t ']) {
     const entries = diary.map(entry => entry === diary[1] ? { ...entry, next } : entry);
-    assert.equal(todayActions(input({ tasks, diary: entries })).some(row => row.kind === 'diary-next'), false);
+    assert.equal(todayActions(input({ tasks, diary: entries })).at(-1).title, 'Earlier shift');
   }
+  assert.equal(todayActions(input({ tasks, diary: diary.map(entry => ({ ...entry, next: '' })) })).some(row => row.kind === 'diary-next'), false);
   assert.equal(todayActions(input({ diary, modules: { diary: false } })).some(row => row.kind === 'diary-next'), false);
 });
 
@@ -134,7 +135,7 @@ const section = (start, end) => {
   return source.slice(first, last);
 };
 const plain = value => JSON.parse(JSON.stringify(value));
-function todayUi({ tasks = [], diary = [], snapshots = {}, modules = {}, memberRole = 'verifier', offline = false, load = async () => [] } = {}) {
+function todayUi({ tasks = [], diary = [], snapshots = {}, modules = {}, memberRole = 'verifier', language = 'it', offline = false, load = async () => [] } = {}) {
   const nodes = { '#main': { innerHTML: '' }, '#attachment-form [name=file]': { click: () => clicks.push('file') } };
   const dialogs = [], routes = [], clicks = [], writes = [], requests = [];
   const read = name => options => { requests.push([name, options.siteId]); return load(name, options.siteId); };
@@ -147,9 +148,9 @@ function todayUi({ tasks = [], diary = [], snapshots = {}, modules = {}, memberR
     coreCache: new Map(), role: () => memberRole, canWriteTask: () => ['owner', 'editor', 'verifier'].includes(memberRole),
     permissions: () => corePermissions(memberRole), currentModules: () => modules,
     moduleVisible: module => visibleModules([module], modules).length > 0,
-    todayActions, recentActions, filterSortRecords, allowedTransitions,
+    todayActions, todayBlockedTaskMeta, recentActions, filterSortRecords, allowedTransitions,
     today: () => day, operationalDay: () => ({ date: day, shift: 'day' }), validDate, notebookTime: () => '',
-    t: key => messages.it[key], dateLabel: value => value, timeLabel: value => value, icon: () => '',
+    language, t: key => messages[context.language][key], timeLabel: value => value,
     siteTasks: () => context.state.tasks.filter(row => row.siteId === context.siteId),
     heading: title => `<h1>${messages.it[title]}</h1>`, $: selector => nodes[selector],
     showModal: (title, html) => dialogs.push({ title, html }), formActions: () => '',
@@ -160,6 +161,7 @@ function todayUi({ tasks = [], diary = [], snapshots = {}, modules = {}, memberR
   };
   runInNewContext([
     section('const esc =', 'let session ='), section('const button =', 'function toast('),
+    section('const dateLabel =', 'const coreDate ='), section('const paths =', 'const button ='),
     section('async function loadPages(', 'async function loadData('),
     section('function coreResource(', 'const coreData ='),
     section('function todayResource(', 'function renderOverview()'),
@@ -172,6 +174,13 @@ function todayUi({ tasks = [], diary = [], snapshots = {}, modules = {}, memberR
   context.render = () => context.renderToday();
   return { context, nodes, dialogs, routes, clicks, writes, requests,
     async settle() { await Promise.all([...context.coreCache.values()].flatMap(cache => [...cache.values()].map(entry => entry.promise))); } };
+}
+function todayClick(context, dataset) {
+  let click;
+  context.document = { addEventListener: (_event, handler) => { click = handler; } };
+  for (const [, name] of source.matchAll(/(?:async )?function (\w+)\(/g)) if (!(name in context)) context[name] = () => {};
+  runInNewContext(section("document.addEventListener('click',", "document.addEventListener('submit',"), context);
+  click({ target: { closest: () => ({ dataset }) } });
 }
 
 test('Today renderer scopes to active site, escapes titles and shows resource loading', () => {
@@ -192,28 +201,61 @@ test('Today renderer scopes to active site, escapes titles and shows resource lo
   assert.equal(writes.length, 0);
 });
 
-test('Today shows the latest block reason and opens the handover diary on its operational day', () => {
-  const diaryDate = '2026-04-14';
-  const { context, nodes, routes } = todayUi({
-    tasks: [task('blocked', { status: 'blocked', due: diaryDate, last_block_note: 'Crew deferred · <guard> missing' }),
-      task('unassigned', { executor_id: null, due: diaryDate })],
-    diary: [{ siteId: 'site-b', date: day, shift: 'day', next: 'Other site handover' },
-      { siteId: 'site-a', date: diaryDate, shift: 'night', next: 'Check <guard>' }],
-    snapshots: { 'site-a': { deviations: [{ id: 'd', title: 'Synthetic deviation', status: 'open' }] } },
+const contextLabels = {
+  it: { blocked: 'Bloccata', reason: 'Motivo', one: '1 giorno di ritardo', three: '3 giorni di ritardo', zero: '0 giorni di ritardo',
+    date: '14 apr 2026', history: 'Cronologia', next: 'Prossimo passo', shift: 'Turno notturno' },
+  en: { blocked: 'Blocked', reason: 'Reason', one: '1 day overdue', three: '3 days overdue', zero: '0 days overdue',
+    date: '14 Apr 2026', history: 'History', next: 'Next step', shift: 'Night shift' },
+};
+const rowMarkup = (html, id) => [...html.matchAll(/<li>([\s\S]*?)<\/li>/g)].find(([, row]) => row.includes(`data-id="${id}"`))?.[1];
+
+for (const [language, labels] of Object.entries(contextLabels)) {
+  test(`Today renders blocked context in Now and Work and dispatches detail and history (${language})`, () => {
+    const { context, nodes } = todayUi({ language, tasks: [
+      task('known', { status: 'blocked', due: '2026-04-12', last_block_note: 'Missing <guard>' }),
+      task('unknown', { status: 'blocked', due: '2026-04-14', last_block_note: '  ', executor_id: 'other' }),
+      task('due-today', { status: 'blocked', events: [{ to_status: 'blocked', reason: 'Synthetic event reason' }] }),
+    ] });
+    context.renderToday();
+    const html = nodes['#main'].innerHTML;
+    const known = rowMarkup(html, 'known'), unknown = rowMarkup(html, 'unknown'), dueToday = rowMarkup(html, 'due-today');
+    assert.ok(html.indexOf('id="today-now"') < html.indexOf(known));
+    assert.ok(html.indexOf(known) < html.indexOf('id="today-work"'));
+    assert.ok(html.indexOf('id="today-work"') < html.indexOf(unknown));
+    assert.match(known, new RegExp(`▲</span> ${labels.blocked}</span>\\s*<strong>Synthetic known</strong>\\s*<time[^>]*overdue[^>]*>`));
+    assert.ok(known.includes(`<span class="today-row-sub"><span class="today-row-clamp">${labels.reason}: Missing &lt;guard&gt;</span><span class="num"> · ${labels.three}</span></span>`));
+    assert.ok(unknown.includes(`<span class="today-row-sub"><span class="num">${labels.one}</span></span>`));
+    assert.ok(dueToday.includes(`${labels.reason}: Synthetic event reason</span><span class="num"> · ${labels.zero}`));
+    assert.doesNotMatch(dueToday, /class="[^"]*\boverdue\b/);
+    assert.match(known, new RegExp(`data-command="task-history" data-id="known">${labels.history}</button>`));
+    const details = [];
+    context.showDetail = (id, options) => details.push([id, options?.history ?? false]);
+    for (const [, command, id] of known.matchAll(/data-command="([^"]+)"[^>]*data-id="([^"]+)"/g)) todayClick(context, { command, id });
+    assert.deepEqual(details, [['known', false], ['known', true]]);
   });
-  context.renderToday();
-  const html = nodes['#main'].innerHTML;
-  assert.match(html, /Scadenza 2026-04-14[\s\S]*▲<\/span> Bloccata/);
-  assert.match(html, /Crew deferred · &lt;guard&gt; missing/);
-  assert.match(html, /data-command="task-history" data-id="blocked"/);
-  assert.match(html, /data-kind="diary-next" data-id="2026-04-14"[\s\S]*<strong>Check &lt;guard&gt;<\/strong>[\s\S]*Prossimo passo · 2026-04-14 · Turno notturno/);
-  assert.doesNotMatch(html, /Other site handover/);
-  assert.ok(html.indexOf('data-id="unassigned"') < html.indexOf('data-kind="diary-next"'));
-  assert.ok(html.indexOf('data-kind="diary-next"') < html.indexOf('data-kind="deviation"'));
-  context.openTodayAction({ dataset: { kind: 'diary-next', id: diaryDate } });
-  assert.equal(context.reportDate, diaryDate);
-  assert.deepEqual(routes, ['diary']);
-});
+
+  test(`Today shows the latest nonblank next step and opens its diary date (${language})`, () => {
+    const diaryDate = '2026-04-14';
+    const { context, nodes, routes } = todayUi({ language, diary: [
+      { siteId: 'site-b', date: day, shift: 'night', next: 'Other site handover' },
+      { siteId: 'site-a', date: day, shift: 'day', next: ' \t ' },
+      { siteId: 'site-a', date: diaryDate, shift: 'day', createdAt: '2026-04-14T16:00:00Z', next: 'Earlier shift' },
+      { siteId: 'site-a', date: diaryDate, shift: 'night', createdAt: '2026-04-15T01:00:00Z', next: 'Check <guard>' },
+    ] });
+    context.renderToday();
+    const html = nodes['#main'].innerHTML;
+    const next = rowMarkup(html, diaryDate);
+    assert.match(next, /data-kind="diary-next"[^>]*>\s*<span[^>]*><svg[\s\S]*<strong class="today-row-clamp">Check &lt;guard&gt;<\/strong>/);
+    assert.ok(next.includes(`${labels.next} · ${labels.date} · ${labels.shift}`));
+    assert.doesNotMatch(html, /Other site handover|Earlier shift/);
+    todayClick(context, { command: 'today-open', kind: 'diary-next', id: diaryDate });
+    assert.equal(context.reportDate, diaryDate);
+    assert.deepEqual(routes, ['diary']);
+    context.state.diary = context.state.diary.map(entry => ({ ...entry, next: null }));
+    context.renderToday();
+    assert.doesNotMatch(nodes['#main'].innerHTML, /data-kind="diary-next"/);
+  });
+}
 
 test('denied task module hides tasks, recent closures and task photo destinations, even on direct commands', () => {
   const { context, nodes, routes } = todayUi({ tasks: [task('mine'), task('closed', { status: 'closed' })], modules: { tasks: false } });
@@ -363,6 +405,7 @@ test('cold Today loads progress and deviations itself, reuses each site cache, a
   ui.context.renderToday();
   assert.deepEqual(ui.requests, [['progress', 'site-a'], ['deviations', 'site-a']]);
   assert.match(ui.nodes['#main'].innerHTML, /Avanzamento · Caricamento/);
+  assert.match(ui.nodes['#main'].innerHTML, /class="skeleton-list" aria-hidden="true"/);
   ui.context.siteId = 'site-b'; ui.context.renderToday();
   resolveA([progress('progress-site-a')]); await ui.settle();
   assert.match(ui.nodes['#main'].innerHTML, /progress-site-b|deviation-site-b/);
@@ -373,7 +416,7 @@ test('cold Today loads progress and deviations itself, reuses each site cache, a
   assert.ok(ui.context.state.todayResources['site-a'].progress.length);
 });
 
-test('unavailable resources show an error and retry while successful empty resources have an explicit state', async () => {
+test('failed resources retain loaded rows with inline retry while successful empty resources have an explicit state', async () => {
   const ui = todayUi({ snapshots: { 'site-a': { progress: [progress('stale')] } }, load: async name => {
     if (name === 'progress') throw new Error('Synthetic hidden detail');
     return [];
@@ -382,14 +425,11 @@ test('unavailable resources show an error and retry while successful empty resou
   const html = ui.nodes['#main'].innerHTML;
   assert.match(html, /role="alert"/); assert.match(html, /data-command="today-retry" data-resource="progress"/);
   assert.ok(html.includes(messages.it.todayResourceEmpty));
-  assert.doesNotMatch(html, /hidden detail|data-id="stale"/);
+  assert.doesNotMatch(html, /hidden detail/);
+  assert.match(html, /data-id="stale"/);
   ui.context.freshApi.listProgress = async () => [progress('recovered')];
-  // Exercise the delegated retry command with the production handler.
-  let click;
-  ui.context.document = { addEventListener: (_event, handler) => { click = handler; } };
-  for (const [, name] of source.matchAll(/(?:async )?function (\w+)\(/g)) if (!(name in ui.context)) ui.context[name] = () => {};
-  runInNewContext(section("document.addEventListener('click',", "document.addEventListener('submit',"), ui.context);
-  click({ target: { closest: () => ({ dataset: { command: 'today-retry', resource: 'progress' } }) } });
+  todayClick(ui.context, { command: 'today-retry', resource: 'progress' });
+  assert.match(ui.nodes['#main'].innerHTML, /data-id="stale"/);
   await ui.settle(); assert.match(ui.nodes['#main'].innerHTML, /data-id="recovered"/);
 });
 

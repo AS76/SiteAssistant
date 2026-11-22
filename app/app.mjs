@@ -1,4 +1,4 @@
-import { formatDisplayNumber, formatDateInput, parseDateInput, initialView, todayActions, recentActions, defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, groupDeviationRows, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_MANUAL_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
+import { formatDisplayNumber, formatDateInput, parseDateInput, initialView, todayActions, todayBlockedTaskMeta, recentActions, defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, groupDeviationRows, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_MANUAL_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
 import { messages } from './i18n.mjs';
@@ -428,7 +428,7 @@ function taskRow(task) {
 }
 function todayResource(name) {
   const entry = coreCache.get(siteId)?.get(name);
-  if (!offline && entry?.error) return [];
+  if (!offline && [401, 403].includes(entry?.error?.status)) return [];
   return entry?.data ?? state.todayResources?.[siteId]?.[name] ?? [];
 }
 function rememberTodayResource(name, data, selected = siteId) {
@@ -476,20 +476,35 @@ function todayTaskItem(task, day) {
   const status = task.status;
   const event = task.events?.findLast(event => event.to_status === status);
   const time = status === 'to_verify' ? task.declared_at || event?.at : event?.at;
+  const block = status === 'blocked' ? todayBlockedTaskMeta(task, day) : null;
   return {
-    kind: 'task', id: task.id, title: task.title, status, time, due: task.due,
+    kind: 'task', id: task.id, title: task.title, status, time, due: task.due, block,
     meta: [task.area, task.company, task.wbsCode, task.assignee,
       status === 'to_verify' && task.submitted_by,
       validDate(task.due) && task.due <= day && `${t('due')} ${dateLabel(task.due)}`,
       task.executor_id === session?.user.id && t('todayMine'),
-      status === 'blocked' && validDate(task.due) && task.due < day && t('overdue'),
       task.syncStatus && t(task.syncStatus === 'failed' ? 'syncFailed' : 'syncPending')],
-    note: status === 'blocked' ? task.last_block_note || event?.reason : event?.note,
+    note: block ? block.blockNote : event?.note,
     canVerify: status === 'to_verify' && taskTransitions(task).includes('closed'),
   };
 }
+function todayBlockedRow(item) {
+  const { blockNote, overdueDays } = item.block;
+  const delay = t(overdueDays === 1 ? 'todayLateDay' : 'todayLateDays').replace('{days}', overdueDays);
+  return `<li><button type="button" class="today-row today-row-blocked" data-command="detail" data-kind="task" data-id="${esc(item.id)}">
+    ${notebookState(item.status)}
+    <strong>${esc(item.title)}</strong>
+    <time class="num today-row-time due${overdueDays > 0 ? ' overdue' : ''}" datetime="${esc(item.due)}">${esc(dateLabel(item.due))}</time>
+    <span class="today-row-sub">${blockNote ? `<span class="today-row-clamp">${esc(t('todayBlockReason').replace('{text}', () => blockNote))}</span>` : ''}<span class="num">${blockNote ? ' · ' : ''}${esc(delay)}</span></span>
+  </button>${button('history', 'task-history', `data-id="${esc(item.id)}"`, 'small today-history')}</li>`;
+}
 function notebookRow(item, upcoming = false) {
-  const type = ({ task: 'tasks', recent: 'tasks', progress: 'progress', deviation: 'deviations', diary: 'diary', 'diary-next': 'diary-next' })[item.kind];
+  if (item.status === 'blocked') return todayBlockedRow(item);
+  if (item.kind === 'diary-next') return `<li><button type="button" class="today-row today-row-diary-next" data-command="today-open" data-kind="diary-next" data-id="${esc(item.id)}">
+    <span class="today-row-mark" aria-hidden="true">${icon('diary-next')}</span><span class="today-row-main"><strong class="today-row-clamp">${esc(item.title)}</strong>
+    <span class="notebook-meta">${esc(item.meta.filter(Boolean).join(' · '))}</span></span>
+  </button></li>`;
+  const type = ({ task: 'tasks', recent: 'tasks', progress: 'progress', deviation: 'deviations', diary: 'diary' })[item.kind];
   const column = upcoming ? `<time class="num" datetime="${esc(item.due)}">${esc(dateLabel(item.due))}</time>`
     : notebookTime(item.time) || '<span aria-hidden="true">—</span>';
   return `<li><button type="button" class="today-row" data-command="today-open" data-kind="${item.kind}" data-id="${esc(item.id)}">
@@ -497,8 +512,9 @@ function notebookRow(item, upcoming = false) {
       <span class="notebook-meta">${esc([...new Set(item.meta.filter(Boolean))].join(' · '))}</span>
       ${item.note ? `<span class="notebook-meta prewrap">${esc(item.note)}</span>` : ''}</span>
     ${notebookState(item.status)}<span class="today-row-mark" aria-hidden="true">${icon(type)}<span>›</span></span>
-  </button>${item.status === 'blocked' ? button('history', 'task-history', `data-id="${esc(item.id)}"`, 'small today-history') : ''}</li>`;
+  </button></li>`;
 }
+const todaySkeleton = (lines = 1) => `<span class="skeleton-list" aria-hidden="true">${'<span></span>'.repeat(lines)}</span>`;
 function renderToday() {
   const day = operationalDay().date;
   const resources = ['progress', 'deviations'].filter(moduleVisible).map(name => {
@@ -509,8 +525,10 @@ function renderToday() {
     return { name, entry, status };
   });
   const incomplete = resources.some(({ entry, status }) => entry?.pending || entry?.error || status === 'todayUnavailableOffline');
-  const resourceStates = resources.filter(row => row.status).map(({ name, entry, status }) =>
-    `<p class="notebook-meta" role="${entry?.error ? 'alert' : 'status'}">${t(name)} · ${t(status)}${entry?.error ? ` ${button('retry', 'today-retry', `data-resource="${name}"`)}` : ''}</p>`).join('');
+  const resourceStates = resources.filter(row => row.status).map(({ name, entry, status }) => {
+    const label = `${t(name)} · ${t(status)}`;
+    return `<p class="notebook-meta" role="${entry?.error ? 'alert' : 'status'}">${label}${entry?.pending ? todaySkeleton() : ''}${entry?.error ? ` ${button('retry', 'today-retry', `data-resource="${name}"`)}` : ''}</p>`;
+  }).join('');
   const tasksVisible = moduleVisible('tasks');
   const diaryVisible = moduleVisible('diary');
   const tasks = tasksVisible ? filterSortRecords(siteTasks().filter(task => task.status !== 'closed'), {},
@@ -526,6 +544,7 @@ function renderToday() {
       item.meta.date && dateLabel(item.meta.date), item.meta.shift && t(item.meta.shift)],
   }));
   const now = verify.find(item => item.canVerify) || work.find(item => item.status !== 'blocked') || verify[0] || work[0] || other[0];
+  const nowIsContextRow = now?.status === 'blocked' || now?.kind === 'diary-next';
   const recent = tasksVisible ? recentActions({ tasks: siteTasks() }).map(item => ({
     ...item, kind: 'recent', status: 'closed', time: item.date,
     meta: [item.date ? timeLabel(item.date) : t('todayClosureUnknown')],
@@ -549,7 +568,7 @@ function renderToday() {
       ${now && openDiary ? `<div class="notebook-actions">${openDiary}</div>` : ''}</header>
     <section class="today-section" aria-labelledby="today-now">
       <div class="notebook-section-head"><h2 id="today-now">${t('todayNow')}</h2></div>
-      ${now ? `<article class="today-next">
+      ${nowIsContextRow ? `<ul class="today-list">${notebookRow(now)}</ul>` : now ? `<article class="today-next">
         <div class="today-next-top">${notebookState(now.status)}${notebookTime(now.time)}</div>
         <h3>${esc(now.title)}</h3><p class="notebook-meta">${esc(now.meta.filter(Boolean).join(' · '))}</p>
         ${now.note ? `<p class="today-next-note prewrap">${esc(now.note)}</p>` : ''}
@@ -3226,7 +3245,10 @@ function render() {
   document.body.classList.toggle('report-view', view === 'report');
   renderChrome();
   $('#main').setAttribute('aria-busy', String(loading));
-  if (loading) { $('#main').innerHTML = `<p role="status">${t('loading')}</p>`; return; }
+  if (loading) {
+    $('#main').innerHTML = view === 'today' ? `<div role="status" aria-label="${t('loading')}">${todaySkeleton(3)}</div>` : `<p role="status">${t('loading')}</p>`;
+    return;
+  }
   if (!session && (!loadError || loadError.status === 401)) {
     $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div id="login-rate-limit" class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<span class="password-row"><input name="password" type="password" autocomplete="current-password" required maxlength="1024"><button type="button" class="text-button password-toggle" data-command="toggle-password" aria-label="${t('showPassword')}">◉</button></span></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button>${button('passkeyLogin', 'passkey-login', supportsPasskeys() ? '' : 'disabled')}</div>${button('passkeyDiscoverable', 'passkey-discoverable', supportsPasskeys() ? '' : 'disabled')}${!supportsPasskeys() ? `<p class="note">${t('passkeyUnsupported')}</p>` : ''}</form><div class="heading-actions">${button('requestAccess', 'request-access')}${button('forgotPassword', 'forgot-password')}</div></div></section>`;
     if (loginRetryUntil > Date.now()) updateLoginRetry();

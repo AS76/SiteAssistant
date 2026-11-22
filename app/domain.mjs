@@ -188,6 +188,13 @@ export function initialView({ width, hash = '' }) {
   return APP_VIEWS.includes(name) ? name : 'overview';
 }
 
+export function todayBlockedTaskMeta(task, day) {
+  return {
+    blockNote: task.last_block_note?.trim() || task.events?.findLast(event => event.to_status === 'blocked')?.reason?.trim() || null,
+    overdueDays: validDate(task.due) && task.due < day ? (Date.parse(day) - Date.parse(task.due)) / 86_400_000 : 0,
+  };
+}
+
 // Targets and metadata contain contract fields and translation keys, never UI text.
 export function todayActions({ tasks = [], progress = [], diary = [], deviations = [], userId, today: day, modules = {} }) {
   const rows = [], seen = new Set();
@@ -196,10 +203,7 @@ export function todayActions({ tasks = [], progress = [], diary = [], deviations
     if (seen.has(task.id)) return;
     seen.add(task.id);
     const meta = { label, status: task.status, due: task.due ?? null };
-    if (task.status === 'blocked') {
-      meta.blockNote = task.last_block_note ?? null;
-      meta.overdueDays = validDate(task.due) && task.due < day ? (Date.parse(day) - Date.parse(task.due)) / 86_400_000 : 0;
-    }
+    if (task.status === 'blocked') Object.assign(meta, todayBlockedTaskMeta(task, day));
     rows.push({ kind: 'task', id: task.id, title: task.title, meta,
       target: { view: 'tasks', filters: { id: task.id } } });
   };
@@ -231,16 +235,15 @@ export function todayActions({ tasks = [], progress = [], diary = [], deviations
   }
   const selected = rows.slice(0, 5);
   if (!visibleModules(['diary'], modules).length) return selected;
-  const diaryByTime = diary.map(entry => {
+  const diaryByTime = diary.filter(entry => entry.next?.trim()).map(entry => {
     const createdTime = Date.parse(entry.createdAt);
     return { ...entry, createdTime: Number.isFinite(createdTime) ? createdTime : null };
   });
   const latest = filterSortRecords(diaryByTime, {}, [{ key: 'date', descending: true },
     { key: 'createdTime', descending: true }, { key: 'shift', descending: true }])[0];
-  const next = latest?.next?.trim();
-  if (!next) return selected;
+  if (!latest) return selected;
   const tasksInView = selected.filter(row => row.kind === 'task');
-  const nextRow = { kind: 'diary-next', id: latest.date, title: next, meta: { label: 'next', date: latest.date, shift: latest.shift },
+  const nextRow = { kind: 'diary-next', id: latest.date, title: latest.next.trim(), meta: { label: 'next', date: latest.date, shift: latest.shift },
     target: { view: 'diary', date: latest.date } };
   return [...tasksInView, nextRow, ...rows.filter(row => row.kind !== 'task')].slice(0, Math.max(5, tasksInView.length + 1));
 }
