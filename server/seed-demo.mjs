@@ -1021,15 +1021,18 @@ export async function apply(db) {
       const itemId = id(`${code}:item:${index + 1}`);
       itemIds.push(itemId);
       const typeCode = index % 3 === 0 ? TYPES[code][0].code : index % 3 === 1 ? TYPES[code][TYPES[code].length - 1].code : null;
+      // Use SQL boolean literals for compatibility with SQLite drivers that cannot bind JS booleans.
       await db.run(`INSERT INTO site_progress_items (id, site_id, wbs_id, description, section, plc_area, progress_pct,
           planned_progress_pct, assigned_to, planned_start, planned_finish, has_files, has_notes, has_deviations, source_row, created_at, progress_type_id, planned_hours)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          ${index % 5 === 0 ? 'TRUE' : 'FALSE'}, ${index % 7 === 0 ? 'TRUE' : 'FALSE'}, ${index % 6 === 0 ? 'TRUE' : 'FALSE'},
+          ?, ?, ?, ?)
         ON CONFLICT (id) DO UPDATE SET description = excluded.description, progress_pct = excluded.progress_pct,
           wbs_id = excluded.wbs_id, progress_type_id = excluded.progress_type_id, planned_hours = excluded.planned_hours,
           section = excluded.section, plc_area = excluded.plc_area, assigned_to = excluded.assigned_to,
           planned_start = excluded.planned_start, planned_finish = excluded.planned_finish, planned_progress_pct = excluded.planned_progress_pct`,
       itemId, siteId, wbsCode ? wbsIds.get(wbsCode) ?? null : null, description, section, area, progress,
-      Math.min(100, progress + 10), textFor(code, 'Squadra dimostrativa', 'Demonstration crew'), meta.start, meta.end, index % 5 === 0, index % 7 === 0, index % 6 === 0,
+      Math.min(100, progress + 10), textFor(code, 'Squadra dimostrativa', 'Demonstration crew'), meta.start, meta.end,
       index + 1, at2, typeCode ? typeIds[typeCode].id : null, 40 * (1 + index % 10));
       bump('items');
       if (typeCode) {
