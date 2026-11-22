@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createApi, deviationFromApi, progressFromApi, bookingFromApi, impactFromApi } from '../app/api.mjs';
 import { offlineBannerState, DEVIATION_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, progressWithHours, flattenWbs, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, transitionRequirements, allowedTransitions, transitionPayload, counts, STATUSES, PRIORITIES, TASK_KINDS, taskKindLabelKey } from '../app/domain.mjs';
 import { messages } from '../app/i18n.mjs';
+import './task-verification-ui.test.mjs';
 
 test('deviation wire mapping preserves nulls, source timestamps and raw content', () => {
   const wire = { id: 'dev-a', site_id: 'site-a', deviation_no: 'DEMO-01', problem_description: '<b>Example</b>', creation_date: '2026-01-01T01:02:03.123456Z', due_date: null, completed_tasks_pct: '0.000', actual_cost: '9007199254740993.01', raw: { original_key: null }, links: [{ entity_type: 'task', entity_id: 'task-a' }] };
@@ -378,18 +379,13 @@ test('task detail offers resume and editing to the editor and keeps viewer comma
     assert.match(html, /id="task-history"/);
     assert.match(html, /data-command="open-attachment"/);
     assert.doesNotMatch(html, /task-acceptance-form|data-to="closed"/);
-    for (const command of ['transition', 'task-wbs', 'new-attachment']) {
+    for (const command of ['status-transition', 'task-wbs', 'new-attachment']) {
       assert.equal(html.includes(`data-command="${command}"`), role === 'editor', command);
     }
     const before = dialogs.length;
     context.showTransition(task.id, 'to_verify');
-    if (role === 'editor') {
-      assert.match(html, /data-to="to_verify">Riprendi/);
-      assert.equal(dialogs.at(-1).title, 'Riprendi');
-      assert.doesNotMatch(dialogs.at(-1).html, /<textarea[^>]*required/);
-    } else {
-      assert.equal(dialogs.length, before);
-    }
+    if (role === 'editor') assert.match(html, /data-to="to_verify" data-task-detail="true">Riprendi/);
+    assert.equal(dialogs.length, before);
     await context.runStatusTransition(task.id, 'to_verify');
     assert.deepEqual(writes.map(([operation, payload]) => [operation, payload.input.to]),
       role === 'editor' ? [['transition_task', 'to_verify']] : []);

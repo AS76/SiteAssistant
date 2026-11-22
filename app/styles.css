@@ -604,15 +604,16 @@ footer{font-size:11px}
 .notebook button:hover { background: var(--surface-2); }
 :is(body:has(.notebook) #modal, #modal.notebook-detail) :is(button, input, select, textarea, .form-error) { border-radius: var(--radius); }
 :is(body:has(.notebook) #modal, #modal.notebook-detail) .form-error { color: var(--ink); background: var(--surface-2); }
-:is(body:has(.notebook) #modal, #modal.notebook-detail) button:not(.text-button, .close) { border-color: var(--rule-2); background: var(--surface); color: var(--ink); }
-:is(body:has(.notebook) #modal, #modal.notebook-detail) button:not(.text-button, .close):hover { background: var(--surface-2); }
+:is(body:has(.notebook) #modal, #modal.notebook-detail) button:not(.text-button, .close, .notebook-primary) { border-color: var(--rule-2); background: var(--surface); color: var(--ink); }
+:is(body:has(.notebook) #modal, #modal.notebook-detail) button:not(.text-button, .close, .notebook-primary):hover { background: var(--surface-2); }
 .notebook-actions > *, .notebook .today-history { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 12px; }
-.notebook button.notebook-primary {
+#modal.notebook-detail :is(.notebook-outline, #transition-form:not([data-to="blocked"]) .form-actions button) { min-width: 44px; min-height: 44px; }
+:is(.notebook, #modal.notebook-detail) button.notebook-primary {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
   min-height: 48px; padding: 8px 14px; border-color: var(--brick);
   background: var(--brick); color: var(--surface);
 }
-.notebook button.notebook-primary:hover { border-color: var(--brick-deep); background: var(--brick-deep); }
+:is(.notebook, #modal.notebook-detail) button.notebook-primary:hover { border-color: var(--brick-deep); background: var(--brick-deep); }
 .notebook-state {
   display: inline-flex; align-items: baseline; gap: 5px; color: var(--ink-2); font-size: 11px;
   font-weight: 700; letter-spacing: .075em; font-variant-caps: all-small-caps; font-synthesis: small-caps; white-space: nowrap;
@@ -726,6 +727,7 @@ footer{font-size:11px}
 .today-next-note { padding-top: 8px; border-top: 1px solid var(--rule); }
 .today-next .notebook-actions { margin-top: 4px; }
 .today-next .notebook-primary { width: 100%; }
+.today-list :is(.today-review-actions, .today-review-note) { margin: 0 0 8px 64px; }
 .today-list > li + li { border-top: 1px solid var(--rule); }
 .notebook .today-row {
   display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 3px 8px; align-items: start;

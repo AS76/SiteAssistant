@@ -16,7 +16,7 @@ test('site and task validation respects API requirements with free-text people',
   assert.equal(taskPayload({ ...input, company: '', priority: 'custom' }).priority, 'custom');
 });
 test('transitions match the backend map for every status without mutating helpers', () => {
-  const expected = { todo: ['in_progress', 'blocked'], in_progress: ['to_verify', 'blocked'], to_verify: ['closed', 'blocked'], closed: ['in_progress'], blocked: [] };
+  const expected = { todo: ['in_progress', 'blocked'], in_progress: ['to_verify', 'blocked'], to_verify: ['closed', 'in_progress', 'blocked'], closed: ['in_progress'], blocked: [] };
   assert.deepEqual(STATUSES, Object.keys(expected));
   for (const status of STATUSES) {
     assert.deepEqual(allowedTransitions({ status }), expected[status]);
@@ -48,6 +48,7 @@ test('transitions require note and reason; the server authorizes the session ide
   assert.deepEqual(transitionRequirements(task, 'to_verify'), { note: true, reason: false });
   assert.throws(() => transitionPayload(task, { to: 'to_verify', actor: 'Any person' }), /noteRequired/);
   assert.throws(() => transitionPayload(task, { to: 'blocked', actor: 'Any person', note: 'A note' }), /reasonRequired/);
+  assert.throws(() => transitionPayload({ ...task, status: 'to_verify' }, { to: 'in_progress', actor: 'Any person', note: '  ' }), /noteRequired/);
   assert.throws(() => transitionPayload({ ...task, status: 'closed' }, { to: 'in_progress', actor: 'Any person' }), /reasonRequired/);
   assert.equal(transitionPayload({ ...task, status: 'to_verify' }, { to: 'closed', actor: 'Other person', note: 'Checked' }).to, 'closed');
   assert.equal(transitionPayload(task, { to: 'to_verify', actor: 'Any person', note: 'Done' }).actor, 'Any person');

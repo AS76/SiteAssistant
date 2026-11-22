@@ -87,7 +87,7 @@ export function transitionNeedsDialog(requirements) {
 const transitions = {
   todo: ['in_progress', 'blocked'],
   in_progress: ['to_verify', 'blocked'],
-  to_verify: ['closed', 'blocked'],
+  to_verify: ['closed', 'in_progress', 'blocked'],
   closed: ['in_progress'],
 };
 const fail = code => { throw new Error(code); };
@@ -160,7 +160,10 @@ export function allowedTransitions(task) {
   return [...(transitions[task.status] || [])];
 }
 export function transitionRequirements(task, to) {
-  return { note: task.status !== 'blocked' && ['to_verify', 'closed'].includes(to), reason: to === 'blocked' || task.status === 'closed' };
+  return {
+    note: task.status !== 'blocked' && (['to_verify', 'closed'].includes(to) || (task.status === 'to_verify' && to === 'in_progress')),
+    reason: to === 'blocked' || task.status === 'closed',
+  };
 }
 export function transitionPayload(task, input) {
   if (!allowedTransitions(task).includes(input.to)) fail('actionDenied');

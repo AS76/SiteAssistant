@@ -476,30 +476,45 @@ function todayTaskItem(task, day) {
   const status = task.status;
   const event = task.events?.findLast(event => event.to_status === status);
   const time = status === 'to_verify' ? task.declared_at || event?.at : event?.at;
-  const block = status === 'blocked' ? todayBlockedTaskMeta(task, day) : null;
+  const hasDue = validDate(task.due), dueTodayOrPast = hasDue && task.due <= day;
+  const block = status === 'blocked' ? { ...todayBlockedTaskMeta(task, day), hasDue, dueTodayOrPast } : null;
+  const resumeReview = status === 'blocked' && task.blocked_from === 'to_verify';
+  const transitions = status === 'to_verify' || resumeReview ? taskTransitions(task) : [];
+  const canVerify = transitions.includes('closed');
+  const canResume = resumeReview && transitions.includes('to_verify');
   return {
     kind: 'task', id: task.id, title: task.title, status, time, due: task.due, block,
     meta: [task.area, task.company, task.wbsCode, task.assignee,
       status === 'to_verify' && task.submitted_by,
-      validDate(task.due) && task.due <= day && `${t('due')} ${dateLabel(task.due)}`,
+      dueTodayOrPast && `${t('due')} ${dateLabel(task.due)}`,
       task.executor_id === session?.user.id && t('todayMine'),
       task.syncStatus && t(task.syncStatus === 'failed' ? 'syncFailed' : 'syncPending')],
     note: block ? block.blockNote : event?.note,
-    canVerify: status === 'to_verify' && taskTransitions(task).includes('closed'),
+    canVerify, canResume,
+    inVerification: (status === 'to_verify' || resumeReview) && (canVerify || canResume || !hasDue || dueTodayOrPast),
+    reviewDenied: status === 'to_verify' && !canReviewTask(task),
   };
 }
-function todayBlockedRow(item) {
-  const { blockNote, overdueDays } = item.block;
-  const delay = t(overdueDays === 1 ? 'todayLateDay' : 'todayLateDays').replace('{days}', overdueDays);
+function todayReviewActions(item, primary = false) {
+  const options = { todayReview: true };
+  const actions = item.canVerify
+    ? taskActionButton(item.id, 'closed', t('taskVerify'), { ...options, primary }) + taskActionButton(item.id, 'in_progress', t('taskReject'), options)
+    : item.canResume ? taskActionButton(item.id, 'to_verify', t('taskResume'), { ...options, resume: true }) : '';
+  return actions ? `<div class="notebook-actions today-review-actions">${actions}</div>`
+    : item.reviewDenied ? `<p class="note today-review-note">${t('verifyNoPermission')}</p>` : '';
+}
+function todayBlockedRow(item, actions) {
+  const { blockNote, overdueDays, hasDue, dueTodayOrPast } = item.block;
+  const delay = dueTodayOrPast ? t(overdueDays === 1 ? 'todayLateDay' : 'todayLateDays').replace('{days}', overdueDays) : '';
   return `<li><button type="button" class="today-row today-row-blocked" data-command="detail" data-kind="task" data-id="${esc(item.id)}">
     ${notebookState(item.status)}
     <strong>${esc(item.title)}</strong>
-    <time class="num today-row-time due${overdueDays > 0 ? ' overdue' : ''}" datetime="${esc(item.due)}">${esc(dateLabel(item.due))}</time>
-    <span class="today-row-sub">${blockNote ? `<span class="today-row-clamp">${esc(t('todayBlockReason').replace('{text}', () => blockNote))}</span>` : ''}<span class="num">${blockNote ? ' · ' : ''}${esc(delay)}</span></span>
-  </button>${button('history', 'task-history', `data-id="${esc(item.id)}"`, 'small today-history')}</li>`;
+    ${hasDue ? `<time class="num today-row-time due${overdueDays > 0 ? ' overdue' : ''}" datetime="${esc(item.due)}">${esc(dateLabel(item.due))}</time>` : `<span class="today-row-time">${t('noDue')}</span>`}
+    ${blockNote || delay ? `<span class="today-row-sub">${blockNote ? `<span class="today-row-clamp">${esc(t('todayBlockReason').replace('{text}', () => blockNote))}</span>` : ''}${delay ? `<span class="num">${blockNote ? ' · ' : ''}${esc(delay)}</span>` : ''}</span>` : ''}
+  </button>${button('history', 'task-history', `data-id="${esc(item.id)}"`, 'small today-history')}${actions}</li>`;
 }
-function notebookRow(item, upcoming = false) {
-  if (item.status === 'blocked') return todayBlockedRow(item);
+function notebookRow(item, upcoming = false, actions = '') {
+  if (item.status === 'blocked') return todayBlockedRow(item, actions);
   if (item.kind === 'diary-next') return `<li><button type="button" class="today-row today-row-diary-next" data-command="today-open" data-kind="diary-next" data-id="${esc(item.id)}">
     <span class="today-row-mark" aria-hidden="true">${icon('diary-next')}</span><span class="today-row-main"><strong class="today-row-clamp">${esc(item.title)}</strong>
     <span class="notebook-meta">${esc(item.meta.filter(Boolean).join(' · '))}</span></span>
@@ -512,7 +527,7 @@ function notebookRow(item, upcoming = false) {
       <span class="notebook-meta">${esc([...new Set(item.meta.filter(Boolean))].join(' · '))}</span>
       ${item.note ? `<span class="notebook-meta prewrap">${esc(item.note)}</span>` : ''}</span>
     ${notebookState(item.status)}<span class="today-row-mark" aria-hidden="true">${icon(type)}<span>›</span></span>
-  </button></li>`;
+  </button>${actions}</li>`;
 }
 const todaySkeleton = (lines = 1) => `<span class="skeleton-list" aria-hidden="true">${'<span></span>'.repeat(lines)}</span>`;
 function renderToday() {
@@ -533,9 +548,10 @@ function renderToday() {
   const diaryVisible = moduleVisible('diary');
   const tasks = tasksVisible ? filterSortRecords(siteTasks().filter(task => task.status !== 'closed'), {},
     [{ key: 'due' }, { key: 'title' }, { key: 'id' }]).map(task => todayTaskItem(task, day)) : [];
-  const verify = tasks.filter(item => item.status === 'to_verify' && (item.canVerify || !validDate(item.due) || item.due <= day));
-  const work = tasks.filter(item => item.status !== 'to_verify' && validDate(item.due) && item.due <= day);
-  const upcoming = tasks.filter(item => !item.canVerify && validDate(item.due) && item.due > day)
+  const review = tasks.filter(item => item.inVerification);
+  const verify = review.filter(item => item.status === 'to_verify');
+  const work = tasks.filter(item => item.status !== 'to_verify' && !item.inVerification && validDate(item.due) && item.due <= day);
+  const upcoming = tasks.filter(item => !item.inVerification && validDate(item.due) && item.due > day)
     .map(item => ({ ...item, status: 'upcoming' }));
   const other = currentTodayActions(day).filter(item => item.meta.label !== 'todayDiaryMissing').map(item => ({
     kind: item.kind, id: item.id, title: item.title || t('journalToday'),
@@ -543,7 +559,7 @@ function renderToday() {
     meta: [t(item.meta.label), item.meta.status && !Object.hasOwn(notebookStates, item.meta.status) && t(item.meta.status),
       item.meta.date && dateLabel(item.meta.date), item.meta.shift && t(item.meta.shift)],
   }));
-  const now = verify.find(item => item.canVerify) || work.find(item => item.status !== 'blocked') || verify[0] || work[0] || other[0];
+  const now = verify.find(item => item.canVerify) || work.find(item => item.status !== 'blocked') || verify[0] || work[0] || other[0] || review[0];
   const nowIsContextRow = now?.status === 'blocked' || now?.kind === 'diary-next';
   const recent = tasksVisible ? recentActions({ tasks: siteTasks() }).map(item => ({
     ...item, kind: 'recent', status: 'closed', time: item.date,
@@ -551,11 +567,9 @@ function renderToday() {
   })) : [];
   const section = (id, title, rows) => rows.length ? `<section aria-labelledby="${id}">
     <div class="notebook-section-head"><h2 id="${id}">${t(title)}</h2><span class="num">${rows.length}</span></div>
-    <ul class="today-list">${rows.map(item => notebookRow(item)).join('')}</ul></section>` : '';
+    <ul class="today-list">${rows.map(item => notebookRow(item, false, id === 'today-verify' ? todayReviewActions(item) : '')).join('')}</ul></section>` : '';
   const openDiary = diaryVisible ? button('openDiary', 'today-diary') : '';
-  const primary = now?.canVerify
-    ? `<button type="button" class="notebook-primary" data-command="transition" data-id="${esc(now.id)}" data-to="closed">${t('todayVerifyTasks')}<span aria-hidden="true">→</span></button>`
-    : now ? button('details', 'today-open', `data-id="${esc(now.id)}" data-kind="${now.kind}"`, 'notebook-primary') : '';
+  const primary = now && !now.canVerify ? button('details', 'today-open', `data-id="${esc(now.id)}" data-kind="${now.kind}"`, 'notebook-primary') : '';
   const quick = (label, action, enabled) => button(label, 'today-quick', `data-action="${action}"${enabled ? '' : ' disabled'}`);
   const quickActions = [
     tasksVisible && verify.length && canTransitionTask() ? quick('todayVerificationList', 'verify', true) : '',
@@ -568,17 +582,17 @@ function renderToday() {
       ${now && openDiary ? `<div class="notebook-actions">${openDiary}</div>` : ''}</header>
     <section class="today-section" aria-labelledby="today-now">
       <div class="notebook-section-head"><h2 id="today-now">${t('todayNow')}</h2></div>
-      ${nowIsContextRow ? `<ul class="today-list">${notebookRow(now)}</ul>` : now ? `<article class="today-next">
+      ${nowIsContextRow ? `<ul class="today-list">${notebookRow(now, false, todayReviewActions(now))}</ul>` : now ? `<article class="today-next">
         <div class="today-next-top">${notebookState(now.status)}${notebookTime(now.time)}</div>
         <h3>${esc(now.title)}</h3><p class="notebook-meta">${esc(now.meta.filter(Boolean).join(' · '))}</p>
         ${now.note ? `<p class="today-next-note prewrap">${esc(now.note)}</p>` : ''}
-        <div class="notebook-actions">${primary}</div>
+        ${todayReviewActions(now, true)}${primary ? `<div class="notebook-actions">${primary}</div>` : ''}
       </article>` : `<div class="today-empty">${icon('today')}<h3>${t(incomplete ? 'todayIncompleteTitle' : 'todayEmptyTitle')}</h3>
         <p class="notebook-meta">${t(incomplete ? 'todayIncomplete' : 'todayEmpty')}</p>
         <div class="notebook-actions">${openDiary}${tasksVisible ? `<button type="button" data-command="today-see-upcoming">${t('todaySeeUpcoming')} <span aria-hidden="true">→</span></button>` : ''}</div>
       </div>`}
     </section>
-    ${section('today-verify', 'to_verify', verify.filter(item => item !== now))}
+    ${section('today-verify', 'to_verify', review.filter(item => item !== now))}
     ${section('today-work', 'todayWork', [...work, ...other].filter(item => item !== now))}
     ${tasksVisible ? `<section id="today-upcoming" class="today-upcoming" aria-labelledby="today-upcoming-title">
       <div class="notebook-section-head"><h2 id="today-upcoming-title" tabindex="-1">${t('todayUpcoming')}</h2><span>${t('todayOutsideDay')}</span></div>
@@ -945,18 +959,31 @@ const canCreateView = () => ['owner', 'editor', 'verifier'].includes(role());
 const canWriteTask = () => ['owner', 'editor', 'verifier'].includes(role());
 const canEditTask = () => canWriteTask() && ['owner', 'editor'].includes(role()) && moduleVisible('tasks');
 const canTransitionTask = () => canWriteTask() && moduleVisible('tasks');
+const savingTaskTransitions = new Set();
+function canReviewTask(task) {
+  if (!canTransitionTask() || (role() !== 'owner' && task.verifier_id !== session?.user.id)) return false;
+  const submitter = task.submitted_by_id ?? task.submitted_by;
+  return Boolean(submitter) && submitter !== (task.submitted_by_id ? session?.user.id : actor);
+}
 function taskTransitions(task) {
   if (!task || !canTransitionTask() || pendingOps.some(op => op.entity_id === task.id
     && (op.op_type === 'transition_task' || op.status === 'failed'))) return [];
   return allowedTransitions(task).filter(to => {
-    if (to !== 'closed' && task.status !== 'closed') return true;
-    if (role() !== 'owner' && task.verifier_id !== session?.user.id) return false;
-    if (task.status === 'closed') return true;
-    const submitter = task.submitted_by_id ?? task.submitted_by;
-    return Boolean(submitter) && submitter !== (task.submitted_by_id ? session?.user.id : actor);
+    if (task.status === 'to_verify' && (to === 'closed' || to === 'in_progress')) return canReviewTask(task);
+    return task.status !== 'closed' || role() === 'owner' || task.verifier_id === session?.user.id;
   });
 }
-const taskTransitionLabel = (task, to) => task.status === 'blocked' ? t('taskResume') : `${t('transitionTo')} ${t(to)}`;
+function taskTransitionLabel(task, to) {
+  if (task.status === 'blocked') return t('taskResume');
+  if (task.status === 'to_verify' && to === 'in_progress') return t('taskReject');
+  if (to === 'closed') return t('taskVerify');
+  return `${t('transitionTo')} ${t(to)}`;
+}
+function taskActionButton(id, to, label, { primary = false, resume = false, todayReview = false } = {}) {
+  const origin = todayReview ? ' data-today-review="true"' : resume ? ' data-task-detail="true"' : '';
+  const busy = savingTaskTransitions.has(id) ? ' disabled aria-busy="true"' : '';
+  return `<button type="button" class="${primary ? 'notebook-primary' : 'notebook-outline'}" data-command="${resume ? 'status-transition' : 'transition'}" data-id="${esc(id)}" data-to="${to}"${origin}${busy}>${esc(label)}</button>`;
+}
 const canCreateSite = () => role() === 'owner';
 const canEditView = item => Boolean(item && session && (item.owner_id === session.user.id || role() === 'owner'));
 function applyViewState(payload) {
@@ -3326,7 +3353,7 @@ function dateFormData(form) {
   }
   return data;
 }
-const formActions = () => `<div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="primary">${t('save')}</button></div>`;
+const formActions = (label = 'save') => `<div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="primary">${t(label)}</button></div>`;
 function formError(form, error) {
   const target = form.querySelector('.form-error');
   target.textContent = errorMessage(error); target.hidden = false; target.focus();
@@ -3467,11 +3494,15 @@ async function showDetail(taskId, { history = false } = {}) {
       if (saved) { saved.tasks = saved.tasks.map(item => item.id === task.id ? task : item); await setMirror(`state:${offlineScope}`, saved); }
     });
     render();
-    const actions = taskTransitions(task);
+    const reviewDenied = task.status === 'to_verify' && !canReviewTask(task);
+    const actions = reviewDenied ? [] : taskTransitions(task);
     showModal(task.title, `<p class="notebook-card-meta">${notebookState(task.status)}${notebookPriority(task.priority)}${notebookSync(task)}</p>
       <dl class="detail-grid"><div><dt>${t('wbs')}</dt><dd>${esc(taskWbsText(task))}${canEditTask() && moduleVisible('wbs') && !offline && !task.localOnly ? button('wbsAssociate', 'task-wbs', `data-id="${esc(task.id)}"`, 'small') : ''}</dd></div>${['area', 'company', 'assignee', 'reviewer', 'due', 'priority'].map(key => `<div><dt>${t(key)}</dt><dd>${['assignee', 'reviewer'].includes(key) ? personName(task[key]) : key === 'due' ? dateLabel(task[key]) : key === 'priority' ? esc(t(task[key])) : esc(task[key] || '—')}</dd></div>`).join('')}</dl>
-      <div class="detail-actions">${actions.map(to => `<button type="button" data-command="transition" data-id="${esc(task.id)}" data-to="${to}">${esc(taskTransitionLabel(task, to))}</button>`).join('')}</div>
-      ${canTransitionTask() && !actions.length ? `<p class="note">${t('noTransitions')}</p>` : ''}${taskEvidence(task)}
+      ${actions.length ? `<div class="detail-actions">${actions.map(to => taskActionButton(task.id, to, taskTransitionLabel(task, to), {
+        primary: to === 'closed', resume: task.status === 'blocked',
+      })).join('')}</div>` : ''}
+      ${task.status === 'blocked' && actions.length ? '<div id="task-transition-error" class="form-error" role="alert" tabindex="-1" hidden></div>' : ''}
+      ${reviewDenied ? `<p class="note">${t('verifyNoPermission')}</p>` : canTransitionTask() && !actions.length ? `<p class="note">${t('noTransitions')}</p>` : ''}${taskEvidence(task)}
       <section class="timeline"><h3 id="task-history" tabindex="-1">${t('history')}</h3>${[...(task.events || [])].reverse().map(event => `<div class="event"><strong>${event.from_status ? `${notebookState(event.from_status)} → ` : ''}${notebookState(event.to_status)}${event.waiver ? ` · ${t('evidenceWaiver')}` : ''}</strong><div class="event-meta num">${personName(event.actor)} · ${timeLabel(event.at)}</div>${event.note ? `<p>${t('note')}: ${esc(event.note)}</p>` : ''}${event.reason ? `<p>${t('reason')}: ${esc(event.reason)}</p>` : ''}${event.evidence_attachment_id &&
       state.attachments.some(file => file.id === event.evidence_attachment_id)
       ? button('openAttachment', 'open-attachment', `data-id="${esc(event.evidence_attachment_id)}"`) : ''}</div>`).join('')}</section>${attachmentSection('task', task.id)}`, modalStyle);
@@ -3480,21 +3511,24 @@ async function showDetail(taskId, { history = false } = {}) {
     if (version === modalVersion && $('#modal').open) showModal(t('details'), `<p role="alert">${esc(errorMessage(error))}</p>${button('retry', 'detail', `data-id="${esc(taskId)}"`)}`, modalStyle);
   }
 }
-function showTransition(taskId, to) {
+function showTransition(taskId, to, { todayReview = false } = {}) {
   const task = state.tasks.find(item => item.id === taskId);
-  if (!taskTransitions(task).includes(to)) return;
+  if (savingTaskTransitions.has(taskId) || !taskTransitions(task).includes(to) || task.status === 'blocked') return;
   const required = transitionRequirements(task, to);
   const hasAttachment = state.attachments.some(file => file.entity_type === 'task' && file.entity_id === taskId
     && file.syncStatus !== 'failed');
   const closing = to === 'closed';
-  showModal(taskTransitionLabel(task, to), `<form id="transition-form" data-task-id="${esc(taskId)}" data-to="${to}">
+  const rejecting = task.status === 'to_verify' && to === 'in_progress';
+  const label = taskTransitionLabel(task, to);
+  showModal(rejecting ? `${label} · ${task.title}` : label, `<form id="transition-form" data-task-id="${esc(taskId)}" data-to="${to}"${todayReview ? ' data-today-review="true"' : ''}>
     <div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('actor')}: ${esc(actor)}</p>
     <input type="hidden" name="actor" value="${esc(actor)}">
+    ${rejecting ? `<p class="note">${t('taskRejectHint')}</p>` : ''}
     ${closing ? `<p class="note">${t('taskEvidenceRequired')}</p><label class="field"><span>
       <input type="checkbox" name="waiver" ${hasAttachment ? '' : 'checked'}> ${t('evidenceWaiver')}</span></label>` : ''}
     ${field('note', 'note', '', { type: 'textarea', required: closing ? hasAttachment : required.note })}
-    ${field(closing ? 'evidenceWaiverReason' : 'reason', 'reason', '',
-      { type: 'textarea', required: closing ? !hasAttachment : required.reason })}${formActions()}</form>`, { notebook: true });
+    ${rejecting ? '' : field(closing ? 'evidenceWaiverReason' : 'reason', 'reason', '',
+      { type: 'textarea', required: closing ? !hasAttachment : required.reason })}${formActions(rejecting ? 'taskReject' : 'save')}</form>`, { notebook: true });
   if (closing) updateClosureForm($('#transition-form'));
 }
 function updateClosureForm(form) {
@@ -3511,14 +3545,34 @@ function showTaskStatusMenu(taskId) {
     ? `<div class="detail-actions">${targets.map(to => button(taskTransitionLabel(task, to), 'status-transition', `data-id="${esc(task.id)}" data-to="${to}"`)).join('')}</div>`
     : `<p class="note">${t('noTransitions')}</p>`}`, { notebook: true });
 }
-async function runStatusTransition(taskId, to) {
+async function runStatusTransition(taskId, to, control) {
   const task = state.tasks.find(item => item.id === taskId);
-  if (!taskTransitions(task).includes(to)) return;
+  if (savingTaskTransitions.has(taskId) || !taskTransitions(task).includes(to)) return;
   if (transitionNeedsDialog(transitionRequirements(task, to))) { showTransition(taskId, to); return; }
+  const fromDetail = control?.dataset.taskDetail === 'true';
+  const fromToday = control?.dataset.todayReview === 'true';
+  const version = fromDetail || fromToday ? modalVersion : null;
+  const alert = fromDetail ? $('#task-transition-error') : null;
+  if (alert) alert.hidden = true;
+  savingTaskTransitions.add(taskId);
+  if (control) { control.disabled = true; control.setAttribute('aria-busy', 'true'); }
   try {
     await writeOperation('transition_task', { task, input: transitionPayload(task, { to, actor }) }, task.id);
     toast(t('actionSaved'));
-  } catch (error) { toast(errorMessage(error)); }
+  } catch (error) {
+    if (alert && version === modalVersion) {
+      alert.textContent = errorMessage(error); alert.hidden = false; alert.focus();
+    } else if (fromToday && version === modalVersion && siteId === task.siteId) {
+      showModal(t('taskResume'), `<p id="task-transition-error" class="form-error" role="alert" tabindex="-1">${esc(errorMessage(error))}</p>`, { notebook: true });
+      $('#task-transition-error').focus();
+    } else toast(errorMessage(error));
+    return;
+  } finally {
+    savingTaskTransitions.delete(taskId);
+    if (control) { control.disabled = false; control.removeAttribute('aria-busy'); }
+  }
+  if (fromDetail || fromToday) render();
+  if (fromDetail && version === modalVersion && siteId === task.siteId) await showDetail(taskId);
 }
 function showEntryForm(preferredShift = '') {
   const current = operationalDay();
@@ -3747,7 +3801,9 @@ document.addEventListener('click', event => {
     'change-password': showPasswordForm, 'request-access': () => showEmailForm('request'), 'forgot-password': () => showEmailForm('forgot'),
     logout, 'new-site': showSiteForm, 'new-task': showTaskForm, reload: loadData,
     'select-site': () => { selectSite(id); go('overview'); }, detail: () => showDetail(id),
-    transition: () => showTransition(id, target.dataset.to), 'status-transition': () => runStatusTransition(id, target.dataset.to), 'task-status-menu': () => showTaskStatusMenu(id), 'light-transition': () => runLightTransition(id), 'new-entry': () => showEntryForm(target.dataset.shift),
+    transition: () => showTransition(id, target.dataset.to, { todayReview: target.dataset.todayReview === 'true' }),
+    'status-transition': () => runStatusTransition(id, target.dataset.to, target),
+    'task-status-menu': () => showTaskStatusMenu(id), 'light-transition': () => runLightTransition(id), 'new-entry': () => showEntryForm(target.dataset.shift),
     'view-create': () => showSavedViewForm('create'), 'view-rename': () => showSavedViewForm('rename'),
     'view-delete': () => showSavedViewForm('delete'), 'view-update': updateSelectedView,
     'views-retry': () => { savedViewsCache = null; selectedViewId = ''; renderTasks(); },
@@ -3949,10 +4005,20 @@ document.addEventListener('submit', async event => {
     if (form.id === 'transition-form') {
       const task = state.tasks.find(item => item.id === form.dataset.taskId);
       const input = { ...data, to: form.dataset.to, waiver: data.waiver === 'on' };
+      if (savingTaskTransitions.has(form.dataset.taskId)) return;
       if (!taskTransitions(task).includes(input.to)) throw new Error('forbidden');
       transitionPayload(task, input);
-      await writeOperation('transition_task', { task, input }, task.id);
-      detail = state.tasks.find(item => item.id === task.id); message = 'actionSaved';
+      savingTaskTransitions.add(task.id);
+      if (input.to !== 'blocked') submit.setAttribute('aria-busy', 'true');
+      form.querySelector('.form-error').hidden = true;
+      try {
+        await writeOperation('transition_task', { task, input }, task.id);
+      } finally {
+        savingTaskTransitions.delete(task.id);
+        if (input.to !== 'blocked') submit.removeAttribute('aria-busy');
+      }
+      if (form.dataset.todayReview !== 'true') detail = state.tasks.find(item => item.id === task.id);
+      message = 'actionSaved';
     }
     if (form.id === 'attachment-form') {
       if ((form.dataset.entityType === 'task' && !canEditTask()) || (form.dataset.entityType === 'hse_inspection' && !permissions().hseWrite) ||

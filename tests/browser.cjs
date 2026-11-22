@@ -372,16 +372,20 @@ async function run() {
     await page.locator('#filter-person').selectOption('Example executor & crew');
     await page.locator('.task-card').click();
     await page.waitForSelector('.timeline');
+    const { messages } = await import('../app/i18n.mjs');
+    const detailStatus = page.locator('#modal .modal-body > .notebook-card-meta .notebook-state');
     async function transition(to, note = '', reason = '') {
       await page.locator(`[data-command="transition"][data-to="${to}"]`).click();
       if (note) await page.locator('[name="note"]').fill(note);
       if (reason) await page.locator('[name="reason"]').fill(reason);
       await page.getByRole('button', { name: 'Salva', exact: true }).click();
-      await page.waitForSelector(`.modal-body > p .badge.${to}`);
+      await contains(detailStatus, messages.it[to === 'closed' ? 'notebookClosed' : to]);
     }
     await transition('in_progress');
     await transition('to_verify', 'Evidence DEMO-01');
     assert.equal(await page.locator('#modal [data-to="closed"]').count(), 0);
+    assert.equal(await page.locator('#modal [data-to="in_progress"]').count(), 0);
+    await contains(page.locator('#modal .note'), messages.it.verifyNoPermission);
     await page.keyboard.press('Escape');
     await page.locator('#logout').click();
     await page.waitForSelector('#login-form');
@@ -392,12 +396,14 @@ async function run() {
     await transition('closed', 'Checked', 'Synthetic exception for missing evidence');
     await transition('in_progress', '', 'Follow-up correction');
     await transition('blocked', '', 'Waiting for material');
-    assert.equal(await page.locator('#modal [data-command="transition"]').count(), 1);
-    await contains(page.locator('#modal [data-command="transition"][data-to="in_progress"]'), 'Riprendi');
+    const resume = page.locator('#modal').getByRole('button', { name: messages.it.taskResume, exact: true });
+    assert.equal(await resume.getAttribute('data-to'), 'in_progress');
     await contains(page.locator('.timeline'), 'Evidence DEMO-01');
     await contains(page.locator('.timeline'), 'Follow-up correction');
     await contains(page.locator('.timeline'), 'Waiting for material');
-    await transition('in_progress');
+    await resume.click();
+    await contains(detailStatus, messages.it.in_progress);
+    assert.equal(await page.locator('#transition-form').count(), 0);
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Elenco', exact: true }).click();
     const csvEvent = page.waitForEvent('download');
