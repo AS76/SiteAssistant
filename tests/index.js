@@ -14,6 +14,7 @@ import './server.test.mjs';
 import './schema.test.mjs';
 
 import './auth.test.mjs';
+import './login-rate-limit.test.mjs';
 import './responsibles.test.mjs';
 import './limits.test.mjs';
 import './auth-schema.test.mjs';
