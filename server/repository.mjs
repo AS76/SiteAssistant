@@ -1,6 +1,6 @@
 import { moduleAllowed, requireModule } from './module-access.mjs';
 import { createHash, randomUUID } from 'node:crypto';
-import { operationalDate, shiftOf } from './operational-day.mjs';
+import { calendarDateFormatter, calendarDayAge, operationalDate, shiftOf } from './operational-day.mjs';
 import { ObjectStorageError, S3Storage } from './s3.mjs';
 import { appendAuditEvent } from './audit.mjs';
 
@@ -481,10 +481,25 @@ function diaryFilters({ siteId }, user) {
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', values };
 }
 
+const diaryFields = ['plan', 'actual', 'impediments', 'next_step'];
+const diaryRow = ({ event_day, ...row }) => ({
+  ...row, operational_date: event_day, recorded_late: Boolean(row.recorded_late),
+});
+
+function diaryMotivation(input, required) {
+  const value = text(input.motivation, 'motivation');
+  if (required && value.length < 10) {
+    fail(400, 'Motivation must have at least 10 characters.', 'MOTIVATION_REQUIRED');
+  }
+  return value || null;
+}
+
 export async function listDiary(db, { limit = 50, offset = 0, ...filters } = {}, user) {
   const { where, values } = diaryFilters(filters, user);
-  return await idLookup(() => db.all(`SELECT * FROM diary ${where}
+  const rows = await idLookup(() => db.all(`SELECT diary.*, CAST(operational_date AS TEXT) AS event_day,
+    (SELECT name FROM users WHERE id = diary.updated_by) AS updated_by_name FROM diary ${where}
     ORDER BY operational_date, shift, created_at, id LIMIT ? OFFSET ?`, ...values, limit, offset), []);
+  return rows.map(diaryRow);
 }
 
 export async function countDiary(db, filters = {}, user) {
@@ -493,10 +508,12 @@ export async function countDiary(db, filters = {}, user) {
   return Number(row.total);
 }
 
-export async function createDiary(db, input) {
+export async function createDiary(db, input, user) {
   object(input);
   const siteId = text(input.siteId, 'siteId', true);
   const { time_zone: timeZone, day_cutoff_time: dayStart } = await getSite(db, siteId);
+  const role = user ? await requireRole(db, siteId, user, WRITE_ROLES) : null;
+  if (user) await requireModule(db, siteId, user, 'diary');
   if (input.time_zone !== undefined && input.time_zone !== timeZone) {
     fail(400, 'time_zone must match the site time zone.', 'VALIDATION_ERROR');
   }
@@ -507,6 +524,11 @@ export async function createDiary(db, input) {
   const options = { timeZone, dayStart };
   const entryDate = input.operational_date === undefined
     ? operationalDate(createdAt, options) : date(input.operational_date, 'operational_date', true);
+  const age = calendarDayAge(entryDate, calendarDateFormatter(timeZone)(createdAt));
+  if (age < 0) fail(400, 'operational_date cannot be in the future.', 'VALIDATION_ERROR');
+  const recordedLate = age > 7;
+  if (user && recordedLate && role !== 'owner') fail(403, 'Insufficient site role.', 'FORBIDDEN');
+  const motivation = diaryMotivation(input, Boolean(user && recordedLate));
   const requestedShift = input.shift === undefined ? undefined : text(input.shift, 'shift', true);
   if (requestedShift !== undefined && !['day', 'night'].includes(requestedShift)) {
     fail(400, 'shift must be day or night.', 'VALIDATION_ERROR');
@@ -520,11 +542,73 @@ export async function createDiary(db, input) {
   const id = randomUUID();
   await uniqueWrite(db, () => db.run(`
     INSERT INTO diary (id, site_id, operational_date, shift, plan, actual,
-      impediments, next_step, created_at, time_zone, day_cutoff_time)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, id, siteId, entryDate, shift, plan, actual, impediments, nextStep, createdAt, timeZone, dayStart),
+      impediments, next_step, created_at, time_zone, day_cutoff_time, author_id, recorded_late, recording_motivation)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, id, siteId, entryDate, shift, plan, actual, impediments, nextStep, createdAt, timeZone, dayStart,
+    user?.id ?? null, recordedLate ? 1 : 0, motivation),
   'A diary entry already exists for this site, date and shift.', 'DUPLICATE_DIARY');
-  return await db.get('SELECT * FROM diary WHERE id = ?', id);
+  return await getDiary(db, id);
+}
+
+async function getDiary(db, id) {
+  const row = uuid.test(id) && await db.get(`SELECT diary.*, CAST(operational_date AS TEXT) AS event_day,
+    (SELECT name FROM users WHERE id = diary.updated_by) AS updated_by_name FROM diary WHERE id = ?`, id);
+  if (!row) fail(404, 'Diary entry not found.', 'NOT_FOUND');
+  return diaryRow(row);
+}
+
+export async function updateDiary(db, id, input, user) {
+  object(input);
+  if (Object.keys(input).some(key => ![...diaryFields, 'operational_date', 'motivation'].includes(key))) {
+    fail(400, 'Unsupported diary field.', 'VALIDATION_ERROR');
+  }
+  if (!uuid.test(id)) fail(404, 'Diary entry not found.', 'NOT_FOUND');
+  const fields = diaryFields.filter(key => Object.hasOwn(input, key));
+  return await db.transaction(async tx => {
+    while (true) {
+      // Read the version first. If a writer commits before we archive the
+      // snapshot, the unique version key forces us to reread the current row.
+      const { version } = await tx.get(
+        'SELECT COALESCE(MAX(version), 0) + 1 AS version FROM diary_entry_versions WHERE diary_id = ?', id);
+      const { updated_by_name, ...before } = await getDiary(tx, id);
+      const role = await requireRole(tx, before.site_id, user);
+      await requireModule(tx, before.site_id, user, 'diary');
+      const { time_zone: zone } = await getSite(tx, before.site_id);
+      const updatedAt = new Date().toISOString();
+      const authorInWindow = before.author_id === user.id &&
+        calendarDayAge(before.operational_date, calendarDateFormatter(zone)(updatedAt)) <= 7;
+      if (!authorInWindow && role !== 'owner') fail(403, 'Insufficient site role.', 'FORBIDDEN');
+      if (Object.hasOwn(input, 'operational_date') && input.operational_date !== before.operational_date) {
+        fail(400, 'operational_date cannot be changed.', 'VALIDATION_ERROR');
+      }
+      if (!fields.length) fail(400, 'A diary content field is required.', 'VALIDATION_ERROR');
+      const values = fields.map(key => {
+        if (typeof input[key] !== 'string') fail(400, `${key} must be a string.`, 'VALIDATION_ERROR');
+        return text(input[key], key);
+      });
+      const motivation = diaryMotivation(input, !authorInWindow);
+      const archived = await tx.run(`INSERT INTO diary_entry_versions
+        (id, diary_id, version, snapshot, author_id, created_at, motivation)
+        VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (diary_id, version) DO NOTHING`,
+      randomUUID(), id, version, JSON.stringify(before), user.id, updatedAt, motivation);
+      if (!archived.rowCount) continue;
+      await tx.run(`UPDATE diary SET ${fields.map(key => `${key} = ?`).join(', ')},
+        updated_at = ?, updated_by = ? WHERE id = ?`, ...values, updatedAt, user.id, id);
+      return getDiary(tx, id);
+    }
+  });
+}
+
+export async function listDiaryVersions(db, id, user) {
+  const entry = await getDiary(db, id);
+  await requireRole(db, entry.site_id, user);
+  await requireModule(db, entry.site_id, user, 'diary');
+  const versions = await db.all(`SELECT v.*, u.name AS author_name
+    FROM diary_entry_versions v JOIN users u ON u.id = v.author_id
+    WHERE v.diary_id = ? ORDER BY v.version DESC`, id);
+  return versions.map(row => ({
+    ...row, snapshot: typeof row.snapshot === 'string' ? JSON.parse(row.snapshot) : row.snapshot,
+  }));
 }
 
 export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;

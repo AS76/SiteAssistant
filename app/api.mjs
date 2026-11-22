@@ -257,6 +257,8 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     updateWbs: (id, input) => request(`/api/wbs/${encodeURIComponent(id)}`, input, { method: 'PATCH' }),
     updateTaskWbs: async (id, wbsId) => taskFromApi(await request(`/api/tasks/${encodeURIComponent(id)}`, { wbsId }, { method: 'PATCH' })),
     listDiary: filters => listAll('/api/diary', filters, diaryFromApi, 'Diary'),
+    updateDiary: async (id, input) => diaryFromApi(await request(`/api/diary/${encodeURIComponent(id)}`, input, { method: 'PATCH' })),
+    listDiaryVersions: id => request(`/api/diary/${encodeURIComponent(id)}/versions`),
     createDiary: async (input, options) => diaryFromApi(await request('/api/diary', diaryPayload(input), options)),
     listAttachments: (filters = {}) => request(`/api/attachments${query(filters)}`),
     createAttachment: async ({ blob, ...input }, options) => request('/api/attachments', {

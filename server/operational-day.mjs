@@ -27,6 +27,10 @@ export function calendarDateFormatter(timeZone) {
   return instant => localParts(instant, formatter).date;
 }
 
+export function calendarDayAge(eventDay, today) {
+  return (Date.parse(today) - Date.parse(eventDay)) / 86_400_000;
+}
+
 export function operationalDate(instant, { timeZone = 'Europe/Rome', cutoff = '06:00', dayStart = cutoff } = {}) {
   time(dayStart);
   const local = localParts(instant, localFormatter(timeZone));

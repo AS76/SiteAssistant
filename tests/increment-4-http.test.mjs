@@ -71,7 +71,7 @@ test('POST diary derives its date from one server instant and stores zone and cu
   t.assert.strictEqual(entry.body.created_at, '2026-03-29T03:59:00.000Z');
   t.assert.strictEqual(entry.body.time_zone, 'Europe/Rome');
   t.assert.strictEqual(entry.body.day_cutoff_time, '06:00');
-  const backdated = await post('/api/diary', { ...input, operational_date: '2026-01-01', shift: 'day', time_zone: 'Europe/Rome' });
+  const backdated = await post('/api/diary', { ...input, operational_date: '2026-01-01', shift: 'day', time_zone: 'Europe/Rome', motivation: 'Synthetic shift log review' });
   t.assert.strictEqual(backdated.status, 201);
   t.assert.strictEqual(backdated.body.operational_date, '2026-01-01');
   t.assert.strictEqual(backdated.body.shift, 'day');

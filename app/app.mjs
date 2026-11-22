@@ -174,6 +174,7 @@ function toast(message) {
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
 const errorKeys = {
+  MOTIVATION_REQUIRED: 'diaryMotivationHint',
   TASK_CLOSURE_EVIDENCE_REQUIRED: 'taskEvidenceRequired', TASK_ACCEPTANCE_EVIDENCE_REQUIRED: 'evidenceAcceptanceMissing',
   DEVIATION_OWNER_INVALID: 'evidenceOwnerError', DEVIATION_IDENTITY_UNRESOLVED: 'evidenceIdentityError',
   DEVIATION_EXPORT_META_INVALID: 'evidenceImportError', DEVIATION_EXPORT_INVALID: 'evidenceImportError',
@@ -1192,6 +1193,21 @@ function renderTaskResults() {
   renderViewDirty();
   $('#task-results').innerHTML = html;
 }
+const diaryContentFields = { plan: 'plan', actual: 'actual', blockers: 'impediments', next: 'next_step' };
+function diaryDayAge(day) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timeZoneForSite(currentSite()), year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const { year, month, day: localDay } = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return (Date.parse(`${year}-${month}-${localDay}`) - Date.parse(day)) / 86_400_000;
+}
+const diaryAuthorInWindow = entry => entry.author_id === session?.user.id && diaryDayAge(entry.date) <= 7;
+const canCorrectDiary = entry => !offline && !entry.syncStatus && moduleVisible('diary') &&
+  (role() === 'owner' || (role() && diaryAuthorInWindow(entry)));
+const diaryTimestamp = (instant, entry) => new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', {
+  dateStyle: 'medium', timeStyle: 'short', timeZone: entry.time_zone || timeZoneForSite(currentSite()),
+}).format(new Date(instant));
+
 function renderDiary() {
   const recordedAt = entry => {
     const timestamp = Date.parse(entry.createdAt);
@@ -1208,7 +1224,8 @@ function renderDiary() {
   const current = operationalDay();
   const availableShifts = ['day', 'night'].filter(shift => !shifts.includes(shift));
   const shownShifts = shifts.length || current.date !== reportDate ? shifts : [current.shift];
-  const canWrite = canWriteTask() && availableShifts.length > 0;
+  const age = diaryDayAge(reportDate);
+  const canWrite = canWriteTask() && availableShifts.length > 0 && age >= 0 && (age <= 7 || role() === 'owner');
   const canAttach = ['owner', 'editor'].includes(role());
   const count = (number, single, multiple) => `<span class="num">${number} ${t(number === 1 ? single : multiple)}</span>`;
   $('#main').innerHTML = `<div class="notebook diary-notebook">
@@ -1236,8 +1253,13 @@ function renderDiary() {
           <span class="diary-entry-time">${clock || '<span aria-hidden="true">—</span>'}</span>
           <div class="diary-entry-context">${t(entry.shift)}${entry.syncStatus ? `<span class="notebook-meta sync-${esc(entry.syncStatus)}">${t(entry.syncStatus === 'failed' ? 'syncFailed' : 'syncPending')}</span>` : ''}</div>
           <div class="diary-entry-text">
+            ${entry.recorded_late ? `<p class="notebook-meta">${esc(t('diaryRecordedLate').replace('{date}', diaryTimestamp(entry.createdAt, entry)))}</p>` : ''}
+            ${entry.updated_at ? `<p class="notebook-meta">${esc(t('diaryCorrected').replace('{date}', diaryTimestamp(entry.updated_at, entry))
+              .replace('{author}', () => entry.updated_by_name || entry.updated_by))}</p>` : ''}
             ${['plan', 'actual', 'blockers', 'next'].filter(key => entry[key]).map(key =>
               `<section><h3>${t(key)}</h3><p class="prewrap">${esc(entry[key])}</p></section>`).join('')}
+            ${canCorrectDiary(entry) ? button('diaryCorrect', 'diary-correct', `data-id="${esc(entry.id)}"`) : ''}
+            ${entry.updated_at && !offline ? button('diaryVersions', 'diary-versions', `data-id="${esc(entry.id)}"`) : ''}
             ${files.length || canAttach ? `<div class="diary-attachments">${files.map(diaryAttachment).join('')}
               ${canAttach ? button('addAttachment', 'new-attachment', `data-entity-type="diary" data-id="${esc(entry.id)}"`) : ''}</div>` : ''}
           </div>
@@ -3574,14 +3596,51 @@ async function runStatusTransition(taskId, to, control) {
   if (fromDetail || fromToday) render();
   if (fromDetail && version === modalVersion && siteId === task.siteId) await showDetail(taskId);
 }
+function diaryMotivationField() {
+  return field('diaryMotivation', 'motivation', '', { type: 'textarea', required: true, full: true, hint: t('diaryMotivationHint') });
+}
+function showDiaryCorrection(id) {
+  const entry = state.diary.find(item => item.id === id && item.siteId === siteId);
+  if (!entry || !canCorrectDiary(entry)) return;
+  showModal(t('diaryCorrect'), `<form id="diary-correction-form">
+    <div class="form-error" role="alert" tabindex="-1" hidden></div>
+    <p class="note">${esc(t('diaryCorrectionGuide'))}</p>
+    <div class="form-grid">${Object.keys(diaryContentFields).map(key =>
+      field(key, key, entry[key], { type: 'textarea', full: true, max: 10000 })).join('')}
+      ${diaryAuthorInWindow(entry) ? '' : diaryMotivationField()}</div>${formActions()}</form>`, { notebook: true });
+  $('#diary-correction-form').originalEntry = entry;
+}
+async function showDiaryVersions(id) {
+  const entry = state.diary.find(item => item.id === id && item.siteId === siteId);
+  if (!entry || offline) return;
+  const selected = siteId, user = session?.user.id;
+  showModal(t('diaryVersions'), `<p role="status">${t('loading')}</p>`, { notebook: true });
+  const version = modalVersion;
+  const current = () => version === modalVersion && selected === siteId && user === session?.user.id;
+  try {
+    const versions = await api.listDiaryVersions(id);
+    if (!current()) return;
+    showModal(t('diaryVersions'), `<p class="note">${t('diaryVersionsGuide')}</p><ol>${versions.map(item => `<li>
+      <h3>${esc(t('diaryVersion').replace('{version}', item.version))}</h3>
+      <p>${esc(t('diaryCorrected').replace('{date}', diaryTimestamp(item.created_at, entry))
+        .replace('{author}', () => item.author_name))}</p>
+      ${item.motivation ? `<p class="prewrap"><strong>${t('diaryMotivation')}</strong><br>${esc(item.motivation)}</p>` : ''}
+      ${Object.entries(diaryContentFields).map(([label, key]) => `<p class="prewrap"><strong>${t(label)}</strong><br>${esc(item.snapshot[key] || '—')}</p>`).join('')}
+    </li>`).join('')}</ol>`, { notebook: true });
+  } catch (error) {
+    if (current()) showModal(t('diaryVersions'), `<p role="alert">${esc(errorMessage(error))}</p>`, { notebook: true });
+  }
+}
 function showEntryForm(preferredShift = '') {
+  const age = diaryDayAge(reportDate);
+  if (age < 0 || (age > 7 && role() !== 'owner')) return;
   const current = operationalDay();
   const shift = preferredShift || (reportDate === current.date ? current.shift : 'day');
   const isCurrent = !offline && reportDate === current.date && shift === current.shift;
   const shiftField = isCurrent ? `<input type="hidden" name="shift" value="${shift}">` : field('shift', 'shift', '', {
     required: true, options: ['day', 'night'].map(value => `<option value="${value}"${value === shift ? ' selected' : ''}>${t(value)}</option>`).join(''),
   });
-  showModal(t(view === 'diary' ? 'diaryCloseShift' : 'newEntry'), `<form id="entry-form" data-date="${esc(reportDate)}" data-current="${isCurrent}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}${isCurrent ? ` · ${t(shift)}` : ''}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${shiftField}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}</div>
+  showModal(t(view === 'diary' ? 'diaryCloseShift' : 'newEntry'), `<form id="entry-form" data-date="${esc(reportDate)}" data-current="${isCurrent}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}${isCurrent ? ` · ${t(shift)}` : ''}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${shiftField}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}${age > 7 ? diaryMotivationField() : ''}</div>
       <label class="dropzone" id="entry-drop" for="entry-photos"><strong>${t('diaryPhotos')}</strong><span>${t('diaryPhotosHint')}</span>
         <input id="entry-photos" name="photos" type="file" accept="image/*,application/pdf" multiple hidden></label>
       <p class="note" id="entry-photos-count" hidden></p>${formActions()}</form>`);
@@ -3803,6 +3862,7 @@ document.addEventListener('click', event => {
     'select-site': () => { selectSite(id); go('overview'); }, detail: () => showDetail(id),
     transition: () => showTransition(id, target.dataset.to, { todayReview: target.dataset.todayReview === 'true' }),
     'status-transition': () => runStatusTransition(id, target.dataset.to, target),
+    'diary-correct': () => showDiaryCorrection(id), 'diary-versions': () => showDiaryVersions(id),
     'task-status-menu': () => showTaskStatusMenu(id), 'light-transition': () => runLightTransition(id), 'new-entry': () => showEntryForm(target.dataset.shift),
     'view-create': () => showSavedViewForm('create'), 'view-rename': () => showSavedViewForm('rename'),
     'view-delete': () => showSavedViewForm('delete'), 'view-update': updateSelectedView,
@@ -3878,7 +3938,7 @@ document.addEventListener('submit', async event => {
     void askAssistant(text);
     return;
   }
-  if (!['deviation-owner-form', 'deviation-attribution-form', 'deviation-import-form', 'task-acceptance-form', 'wbs-form', 'task-wbs-form', 'saved-view-form', 'site-form', 'task-form', 'entry-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'progress-hours-form', 'tool-form', 'tool-delete-form', 'cert-form', 'cert-delete-form', 'hse-asset-form', 'hse-form', 'hse-delete-form', 'import-form', 'settings-form', 'site-settings-form', 'shp-form', 'shp-status-form', 'shp-receipt-form', 'pkg-form', 'pkg-close-form', 'po-form', 'po-item-form', 'po-status-form'].includes(form.id)) return;
+  if (!['deviation-owner-form', 'deviation-attribution-form', 'deviation-import-form', 'task-acceptance-form', 'wbs-form', 'task-wbs-form', 'saved-view-form', 'site-form', 'task-form', 'entry-form', 'diary-correction-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'progress-hours-form', 'tool-form', 'tool-delete-form', 'cert-form', 'cert-delete-form', 'hse-asset-form', 'hse-form', 'hse-delete-form', 'import-form', 'settings-form', 'site-settings-form', 'shp-form', 'shp-status-form', 'shp-receipt-form', 'pkg-form', 'pkg-close-form', 'po-form', 'po-item-form', 'po-status-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   if (form.id === 'login-form' && loginRetryUntil > Date.now()) return;
@@ -3890,6 +3950,10 @@ document.addEventListener('submit', async event => {
   // Capture the selected context before waiting for the server.
   const selectedSite = siteId;
   try {
+    if (['entry-form', 'diary-correction-form'].includes(form.id) &&
+        data.motivation !== undefined && data.motivation.trim().length < 10) {
+      throw new Error('diaryMotivationHint');
+    }
     if (form.id === 'deviation-owner-form' || form.id === 'deviation-attribution-form') {
       if (!deviationWrite()) throw new Error('forbidden');
       const id = form.dataset.id;
@@ -3981,6 +4045,28 @@ document.addEventListener('submit', async event => {
     let message, detail;
     if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); resetSavedViews(); siteId = site.id; filters = { search: '', status: '', person: '', priority: '', kind: '' }; message = 'siteCreated'; }
     if (form.id === 'task-form') { const payload = { ...data, siteId: selectedSite }; taskPayload(payload); await writeOperation('create_task', payload); message = 'taskCreated'; }
+    if (form.id === 'diary-correction-form') {
+      const original = form.originalEntry;
+      if (original.siteId !== selectedSite || !canCorrectDiary(original)) throw new Error('forbidden');
+      const changes = Object.fromEntries(Object.entries(diaryContentFields)
+        .filter(([label]) => data[label].trim() !== (original[label] ?? ''))
+        .map(([label, key]) => [key, data[label]]));
+      if (!Object.keys(changes).length) {
+        closeModal();
+        return;
+      }
+      if (data.motivation !== undefined) changes.motivation = data.motivation;
+      const user = session?.user.id;
+      const entry = await api.updateDiary(original.id, changes);
+      if (user !== session?.user.id) return;
+      await accountLock(async () => {
+        if (user !== session?.user.id) return;
+        state.diary = state.diary.map(item => item.id === entry.id ? entry : item);
+        try { await persistState(); } catch { storageError = true; }
+      });
+      if (user !== session?.user.id) return;
+      message = 'entrySaved';
+    }
     if (form.id === 'entry-form') {
       const payload = { ...data, siteId: selectedSite, date: form.dataset.date,
         useServerDay: form.dataset.current === 'true' && !offline };

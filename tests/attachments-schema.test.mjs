@@ -48,14 +48,14 @@ for (const driver of ['sqlite', 'pg']) {
     const task = await createTask(db, { siteId: site.id, title: 'Synthetic upgrade task', executor: 'A', verifier: 'B' });
     const diary = { id: randomUUID() };
     await db.run(`INSERT INTO diary (id, site_id, operational_date, shift, created_at)
-      VALUES (?, ?, '2026-01-01', 'day', '2026-01-01T08:00:00Z')`, diary.id, site.id);
+      VALUES (?, ?, '2026-01-01', 'day', '2026-01-31T08:00:00Z')`, diary.id, site.id);
     const user = { id: randomUUID() };
     await db.run(`INSERT INTO users (id, email, name, password_hash, password_algo, created_at)
       VALUES (?, 'synthetic@example.invalid', 'Synthetic', 'unused', 'scrypt', ?)`, user.id, new Date().toISOString());
     await db.run("INSERT INTO site_members VALUES (?, ?, 'owner')", site.id, user.id);
     const tables = ['sites', 'tasks', 'task_events', 'diary', 'users', 'site_members'];
     const before = await Promise.all(tables.map(table => db.all(`SELECT * FROM ${table}`)));
-    t.assert.strictEqual(await migrate(db, { driver }), 33);
+    t.assert.strictEqual(await migrate(db, { driver }), 34);
     // Account for columns added since 006 while comparing every pre-existing value.
     for (const row of before[tables.indexOf('tasks')]) Object.assign(row, {
       kind: null, wbs_id: null, declared_at: null, verified_at: null,
@@ -66,6 +66,10 @@ for (const driver of ['sqlite', 'pg']) {
     });
     for (const row of before[tables.indexOf('sites')]) Object.assign(row, {
       jurisdiction: 'IT', time_zone: 'Europe/Rome', day_cutoff_time: '06:00',
+    });
+    for (const row of before[tables.indexOf('diary')]) Object.assign(row, {
+      author_id: null, recording_motivation: null, recorded_late: driver === 'pg' ? true : 1,
+      updated_at: null, updated_by: null,
     });
     for (const row of before[tables.indexOf('users')]) row.email_verified_at = null;
     t.assert.deepStrictEqual(await Promise.all(tables.map(table => db.all(`SELECT * FROM ${table}`))), before);
@@ -139,7 +143,7 @@ for (const driver of ['sqlite', 'pg']) {
     t.assert.deepStrictEqual(await db.all('SELECT * FROM schema_migrations ORDER BY version'), versions);
     await t.assert.rejects(() => db.run("UPDATE attachments SET entity_type = 'hse_event'"), /check/i);
 
-    t.assert.strictEqual(await migrate(db, { driver }), 13);
+    t.assert.strictEqual(await migrate(db, { driver }), 14);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM attachments ORDER BY id'), before);
     await db.run(`INSERT INTO attachments (id, site_id, entity_type, entity_id, filename, mime, size,
       content_sha256, storage_locator, created_at) VALUES (?, ?, 'hse_event', ?, 'Synthetic condition.png',
@@ -168,7 +172,7 @@ for (const driver of ['sqlite', 'pg']) {
     }
     const after = await db.all('SELECT * FROM attachments ORDER BY id');
     const applied = await db.all('SELECT * FROM schema_migrations ORDER BY version');
-    t.assert.strictEqual(applied.at(-1).version, '040');
+    t.assert.strictEqual(applied.at(-1).version, '045');
     t.assert.strictEqual(await migrate(db, { driver }), 0);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM attachments ORDER BY id'), after);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM schema_migrations ORDER BY version'), applied);

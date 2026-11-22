@@ -50,7 +50,7 @@ import { importRequest, MAX_IMPORT_BYTES, importDeviationWorkbook, listImportMap
 import { importTemplate } from './import-template.mjs';
 import {
   RepositoryError, listSites, createSite, getSite, updateSite, updateTaskWbs, listTasks, countTasks, getTask,
-  transitionTask, acceptTask, listDiary, countDiary, createDiary, requireRole, WRITE_ROLES, listMembers, setMember, listAssignable,
+  transitionTask, acceptTask, listDiary, countDiary, createDiary, updateDiary, listDiaryVersions, requireRole, WRITE_ROLES, listMembers, setMember, listAssignable,
   createAttachment, listAttachments, getAttachment, deleteAttachment, MAX_ATTACHMENT_BYTES,
 } from './repository.mjs';
 
@@ -870,11 +870,15 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return await paginatedJson(response, url, db, listDiary, countDiary, { siteId }, user);
       }
       if (path === '/api/diary' && method === 'POST') {
-        const input = await readJson(request);
-        if (typeof input.siteId !== 'string' || !input.siteId.trim()) throw new RepositoryError(400, 'siteId is required.', 'VALIDATION_ERROR');
-        await requireRole(db, input.siteId.trim(), user, WRITE_ROLES);
-        await requireModule(db, input.siteId.trim(), user, 'diary');
-        return json(response, 201, await createDiary(db, input));
+        return json(response, 201, await createDiary(db, await readJson(request), user));
+      }
+      const diaryEntry = /^\/api\/diary\/([^/]+)$/.exec(path);
+      if (diaryEntry && method === 'PATCH') {
+        return json(response, 200, await updateDiary(db, diaryEntry[1], await readJson(request), user));
+      }
+      const diaryVersions = /^\/api\/diary\/([^/]+)\/versions$/.exec(path);
+      if (diaryVersions && method === 'GET') {
+        return json(response, 200, await listDiaryVersions(db, diaryVersions[1], user));
       }
       json(response, 404, { error: 'Route not found.', code: 'NOT_FOUND' });
     } catch (error) {

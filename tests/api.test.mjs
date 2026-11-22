@@ -61,10 +61,11 @@ test('API client round-trip: sites, tasks, transitions/events and diary against 
   assert.equal(updated.events.at(-1).to_status, 'in_progress');
   assert.equal(updated.events.at(-1).reason, 'Follow-up');
   assert.deepEqual(await api.getTask(task.id), updated);
-  const diary = await api.createDiary({ siteId: site.id, date: '2026-01-01', shift: 'night', plan: 'Plan', actual: 'Actual', blockers: 'Delay', next: 'Next' });
+  const diaryDate = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const diary = await api.createDiary({ siteId: site.id, date: diaryDate, shift: 'night', plan: 'Plan', actual: 'Actual', blockers: 'Delay', next: 'Next' });
   assert.equal(diary.blockers, 'Delay');
   assert.equal(diary.next, 'Next');
-  assert.equal(diary.date, '2026-01-01');
+  assert.equal(diary.date, diaryDate);
   assert.ok(diary.createdAt);
   assert.deepEqual(await api.listDiary({ siteId: site.id }), [diary]);
   await assert.rejects(api.createDiary({ siteId: site.id, date: diary.date, shift: diary.shift }), error => error.status === 409 && error.code === 'DUPLICATE_DIARY');

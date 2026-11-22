@@ -149,7 +149,7 @@ function todayUi({ tasks = [], diary = [], snapshots = {}, modules = {}, memberR
     permissions: () => corePermissions(memberRole), currentModules: () => modules,
     moduleVisible: module => visibleModules([module], modules).length > 0,
     todayActions, todayBlockedTaskMeta, recentActions, filterSortRecords, allowedTransitions,
-    today: () => day, operationalDay: () => ({ date: day, shift: 'day' }), validDate, notebookTime: () => '',
+    today: () => day, diaryDayAge: () => 0, operationalDay: () => ({ date: day, shift: 'day' }), validDate, notebookTime: () => '',
     language, t: key => messages[context.language][key], timeLabel: value => value,
     siteTasks: () => context.state.tasks.filter(row => row.siteId === context.siteId),
     heading: title => `<h1>${messages.it[title]}</h1>`, $: selector => nodes[selector],

@@ -218,6 +218,7 @@ test('every unspecified state-machine edge returns 409 without writing', async t
 });
 
 test('diary uniqueness uses site, operational date and shift; filters stay isolated', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-08T12:00:00.000Z') });
   const api = await fixture(t);
   const first = await api.site();
   const second = await api.site();

@@ -458,11 +458,14 @@ test('money preferences migrate old separators once while preserving currency an
   }
 });
 
-test('diary shows the selected date, chronological contributions and localized counts', () => {
+test('diary shows the selected date, chronological contributions and localized counts', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-21T12:00:00Z') });
   for (const language of ['it', 'en']) {
     const app = ui({ language });
-    app.context.reportDate = '2026-11-14'; app.context.role = () => 'editor';
-    app.run(section('function renderDiary()', 'async function loadWbs()'));
+    app.context.reportDate = '2026-11-14';
+    app.context.session.roles[0].role = 'editor';
+    app.context.Date = Date;
+    app.run(section('const diaryContentFields =', 'async function loadWbs()'));
     app.run('renderDiary()');
     const html = app.node('#main').innerHTML;
     assert.ok(html.includes(`value="${language === 'it' ? '14/11/2026' : '11/14/2026'}"`));
@@ -470,16 +473,30 @@ test('diary shows the selected date, chronological contributions and localized c
     assert.ok(html.includes(`0 ${messages[language].entries}`));
     assert.ok(html.includes(messages[language].diaryLimit));
     app.context.state.diary.push({ id: 'later', siteId: 'site-1', date: app.context.reportDate, shift: 'night',
-      createdAt: '2026-11-14T19:00:00Z', actual: 'Synthetic later entry' });
+      createdAt: '2026-11-20T19:00:00Z', actual: 'Synthetic later entry', author_id: 'other-user',
+      updated_at: '2026-11-21T10:00:00Z', updated_by_name: 'Synthetic editor' });
     app.run('renderDiary()');
     assert.ok(app.node('#main').innerHTML.includes(`1 ${messages[language].entriesOne}`));
     app.context.state.diary.push({ ...app.context.state.diary[0], id: 'earlier', shift: 'day',
-      createdAt: '2026-11-14T13:00:00Z', actual: 'Synthetic earlier entry' });
+      createdAt: '2026-11-20T13:00:00Z', actual: 'Synthetic earlier entry', author_id: 'user-1',
+      updated_at: null, updated_by_name: null });
     app.run('renderDiary()');
     const register = app.node('#main').innerHTML;
     assert.ok(register.includes(`2 ${messages[language].entries}`));
     assert.ok(register.indexOf('Synthetic earlier entry') < register.indexOf('Synthetic later entry'));
     assert.doesNotMatch(register, /data-command="new-entry"/);
+    assert.match(register, /data-command="diary-correct" data-id="earlier"/);
+    assert.doesNotMatch(register, /data-command="diary-correct" data-id="later"/);
+    assert.match(register, /data-command="diary-versions" data-id="later"/);
+    assert.ok(register.includes('Synthetic editor'));
+    t.mock.timers.setTime(Date.parse('2026-11-22T12:00:00Z'));
+    app.run('renderDiary()');
+    assert.doesNotMatch(app.node('#main').innerHTML, /data-command="diary-correct"/);
+    app.context.state.diary[0].recorded_late = true;
+    app.context.state.diary[0].createdAt = '2026-11-22T11:00:00Z';
+    app.run('renderDiary()');
+    assert.ok(app.node('#main').innerHTML.includes(messages[language].diaryRecordedLate.split('{date}')[0]));
+    t.mock.timers.setTime(Date.parse('2026-11-21T12:00:00Z'));
   }
 });
 

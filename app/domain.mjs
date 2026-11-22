@@ -151,6 +151,7 @@ export function diaryPayload(input) {
   const operationalDate = date(input.date, true);
   return { siteId: text(input.siteId, true),
     ...(input.useServerDay ? {} : { operational_date: operationalDate, shift: input.shift }),
+    ...(input.motivation === undefined ? {} : { motivation: text(input.motivation) }),
     plan: text(input.plan), actual: text(input.actual), impediments: text(input.blockers), next_step: text(input.next) };
 }
 export function allowedTransitions(task) {
