@@ -29,7 +29,7 @@ Deviations with links and a read-only reconciliation panel for inconsistent chro
 Tools register per contractor, with status and location · Employee fitness: certifications, medical visits and training, with expiry and computed status · HSE register: near misses, injuries and observations, with severity, location and a count of people involved — no names, no health data
 
 **Administration**
-E-mail and password sessions, self-service sign-up with owner approval, password reset · Per-module access per member, independent of role · Import of planning exports with preview, confirmation and per-site column mapping · REST API with pagination and per-user rate limits · Read-only data assistant with record citations
+E-mail and password sessions with WebAuthn passkeys, self-service sign-up with owner approval, password reset · Per-module access per member, independent of role · Import of planning exports with preview, confirmation and per-site column mapping · REST API with pagination and per-user rate limits · Read-only data assistant with record citations
 
 **Field use**
 Installable PWA, Italian and English interface, mobile bottom navigation, sortable tables, optional column filters · Tasks and diary work offline: writes are queued and synchronised when the network returns
@@ -81,7 +81,9 @@ npm run test:schema
 node tests/browser.cjs # optional, needs Playwright and Chromium
 ```
 
-The suite currently runs 734 tests, 730 passing and 4 skipped, in about two and a half minutes. The same suite runs on every push and pull request through GitHub Actions, against SQLite and against a real PostgreSQL service, and `main` requires both checks to be green.
+As measured on 2026-11-22: the SQLite/PGlite suite runs 1384 tests, 1372 passing and 8 skipped; against a real PostgreSQL service, 1389 tests, 1382 passing and 7 skipped. Schema checks: 9/9.
+
+The same suites run on every push and pull request through GitHub Actions, against SQLite/PGlite and against a real PostgreSQL service, and `main` requires both checks to be green. `ci.yml` also carries a browser regression job (C03) over the synthetic fixture; when it fails, the cause belongs to the fixture or the code — the `workforce_names` permission stays explicit and is never granted by role to make the test pass.
 
 ## Documentation
 

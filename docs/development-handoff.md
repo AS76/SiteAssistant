@@ -1,6 +1,6 @@
 # Resuming development with Codex
 
-> ⚠️ **SUPERSEDED (2026-11-10).** Describes the initial state (localStorage demo, no backend). The actual state is in [architecture.md](architecture.md): `node:http` + `pg` + Neon backend, 6 core modules, migrations 001–013, local auth, S3 attachments.
+> ⚠️ **ARCHIVIO STORICO — non usare come istruzioni (refresh 2026-11-22).** Le fonti correnti sono `AGENTS.md` (radice del repo) e [architecture.md](architecture.md). Questo documento descrive la fase demo iniziale (localStorage, senza backend) e lo stato al 2026-11-10 (migrazioni 001–013): è conservato solo come archivio superato. L'allineamento operativo degli agenti è definito in `AGENTS.md`.
 
 ## Repository state
 
