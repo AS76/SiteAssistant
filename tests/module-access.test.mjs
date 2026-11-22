@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createServer } from '../server/http.mjs';
-import { createSite, createTask, createDiary } from '../server/repository.mjs';
+import { createSite, createTask, createDiary, updateSiteAssistant } from '../server/repository.mjs';
 import { MODULES, moduleAllowed, listModuleAccess } from '../server/module-access.mjs';
 import { createTool } from '../server/tools.mjs';
 import { createCertification } from '../server/certifications.mjs';
@@ -221,6 +221,8 @@ test('member module access: repository and HTTP', async t => {
 
   await t.test('assistant tools never return a denied module to the model', async () => {
     const f = await fixture(); await save(f, 'tasks');
+    // The assistant is off by default (increment 47): enable it explicitly for this site.
+    await updateSiteAssistant(db, f.site.id, { enabled: true }, users.owner);
     let calls = 0;
     await chat(db, { siteId: f.site.id, user: users.editor, messages: [{ role: 'user', content: 'Synthetic task count?' }] }, {
       apiKey: 'synthetic-key', fetchImpl: async (_url, options) => {

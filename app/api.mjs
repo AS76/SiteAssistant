@@ -142,6 +142,7 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     listAssignable: (siteId, purpose) => request(`/api/sites/${encodeURIComponent(siteId)}/assignable${query({ purpose })}`),
     createSite: async input => siteFromApi(await request('/api/sites', sitePayload(input))),
     updateSite: async (siteId, input) => siteFromApi(await request(`/api/sites/${encodeURIComponent(siteId)}`, input, { method: 'PATCH' })),
+    updateSiteAssistant: (siteId, input) => request(`/api/sites/${encodeURIComponent(siteId)}/assistant`, input, { method: 'PATCH' }),
     listTasks: filters => listAll('/api/tasks', filters, taskFromApi, 'Task'),
     listViews: (siteId, module) => request(`/api/views${query({ site_id: siteId, module })}`),
     createView: input => request('/api/views', input),

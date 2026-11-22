@@ -32,7 +32,8 @@ function renderSettings(language, session, siteId = 'owner-site') {
   let html;
   const context = createContext({
     session, siteId, offline: false, prefs: { currency: 'CHF', separators: 'auto' },
-    currentSite: () => ({ id: siteId, name: 'Synthetic site', time_zone: 'Europe/London', day_cutoff_time: '06:30' }),
+    currentSite: () => ({ id: siteId, name: 'Synthetic site', time_zone: 'Europe/London', day_cutoff_time: '06:30',
+      assistant_enabled: siteId === 'owner-site', assistant_timeout_ms: 15000 }),
     t(key) {
       if (Object.hasOwn(labels, key)) return labels[key];
       misses.push(key);
@@ -78,6 +79,15 @@ for (const language of ['it', 'en']) {
     assert.ok(html.includes(labels.siteTimeZone));
     assert.match(html, /name="time_zone"[^>]*value="Europe\/London"/);
     assert.match(html, /name="day_cutoff_time"[^>]*value="06:30"/);
+    assert.ok(html.includes(labels.aiTimeoutSetting));
+    assert.match(html, /name="enabled" role="switch" checked/);
+    assert.match(html, /name="timeout_ms" min="5000" max="60000" step="1" value="15000"/);
+  });
+
+  test(`${language}: Settings gives an editor the assistant state`, () => {
+    const html = renderSettings(language, { user, roles }, 'other-site');
+    assert.ok(html.includes(`<p>${labels.aiDisabled}</p>`));
+    assert.doesNotMatch(html, /id="site-assistant-form"|name="timeout_ms"/);
   });
 
   test(`${language}: Settings shows a fallback when the user has no role at the selected site`, () => {

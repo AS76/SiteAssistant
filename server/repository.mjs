@@ -78,9 +78,12 @@ async function uniqueWrite(db, write, message, code) {
   }
 }
 
+const publicSite = site => ({ ...site, assistant_enabled: site.assistant_enabled === true || site.assistant_enabled === 1 });
+
 export async function listSites(db, user) {
-  return await db.all(`SELECT * FROM sites ${user ? 'WHERE id IN (SELECT site_id FROM site_members WHERE user_id = ?)' : ''}
+  const sites = await db.all(`SELECT * FROM sites ${user ? 'WHERE id IN (SELECT site_id FROM site_members WHERE user_id = ?)' : ''}
     ORDER BY created_at, id`, ...(user ? [user.id] : []));
+  return sites.map(publicSite);
 }
 
 export const WRITE_ROLES = ['owner', 'editor', 'verifier'];
@@ -132,7 +135,7 @@ export async function setMember(db, siteId, input, user) {
 export async function getSite(db, id) {
   const site = await idLookup(() => db.get('SELECT * FROM sites WHERE id = ?', id));
   if (!site) fail(404, 'Site not found.', 'SITE_NOT_FOUND');
-  return site;
+  return publicSite(site);
 }
 
 function siteJurisdiction(value) {
@@ -203,6 +206,28 @@ export async function updateSite(db, id, input, user) {
     await appendAuditEvent(tx, {
       entityType: 'site', action: 'update', before, after, actor: user.id,
     });
+    return after;
+  });
+}
+
+export async function updateSiteAssistant(db, id, input, user) {
+  return await db.transaction(async tx => {
+    await requireRole(tx, id, user, ['owner']);
+    // Serialize the update with site settings and membership changes.
+    await tx.run('UPDATE sites SET id = id WHERE id = ?', id);
+    await requireRole(tx, id, user, ['owner']);
+    object(input);
+    const { enabled, timeout_ms } = input;
+    if (Object.keys(input).some(key => key !== 'enabled' && key !== 'timeout_ms') || typeof enabled !== 'boolean' ||
+      (timeout_ms !== undefined && (!Number.isInteger(timeout_ms) || timeout_ms < 5000 || timeout_ms > 60000))) {
+      fail(400, 'Expected a boolean enabled and an optional integer timeout_ms between 5000 and 60000.', 'VALIDATION_ERROR');
+    }
+    const before = await getSite(tx, id);
+    const timeout = timeout_ms ?? before.assistant_timeout_ms;
+    if (enabled === before.assistant_enabled && timeout === before.assistant_timeout_ms) return before;
+    await tx.run(`UPDATE sites SET assistant_enabled = ${enabled ? 'TRUE' : 'FALSE'}, assistant_timeout_ms = ? WHERE id = ?`, timeout, id);
+    const after = await getSite(tx, id);
+    await appendAuditEvent(tx, { entityType: 'site', action: 'update', before, after, actor: user.id });
     return after;
   });
 }

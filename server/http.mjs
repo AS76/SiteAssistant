@@ -49,7 +49,7 @@ import { createInspection, listInspections, getInspection } from './hse-inspecti
 import { importRequest, MAX_IMPORT_BYTES, importDeviationWorkbook, listImportMappings, saveImportMapping, deleteImportMapping } from './planning-import.mjs';
 import { importTemplate } from './import-template.mjs';
 import {
-  RepositoryError, listSites, createSite, getSite, updateSite, updateTaskWbs, listTasks, countTasks, getTask,
+  RepositoryError, listSites, createSite, getSite, updateSite, updateSiteAssistant, updateTaskWbs, listTasks, countTasks, getTask,
   transitionTask, acceptTask, listDiary, countDiary, createDiary, updateDiary, listDiaryVersions, requireRole, WRITE_ROLES, listMembers, setMember, listAssignable,
   createAttachment, listAttachments, getAttachment, deleteAttachment, MAX_ATTACHMENT_BYTES,
 } from './repository.mjs';
@@ -162,6 +162,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   anonLimiter = createRateLimiter({ max: Number(process.env.RATE_LIMIT_ANON_PER_MIN ?? 60) }),
   storage = new S3Storage(),
   reporting = reportingOverview,
+  assistant = {},
   webauthn = {},
   // Development only: serve the browser client from the same origin as the API.
   staticDir = process.env.SERVE_APP === '1' ? new URL('../app/', import.meta.url).pathname : null,
@@ -463,7 +464,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
         }
         return json(response, 200, await assistantChat(db, { siteId: siteId.toLowerCase(), user,
-          messages: input.messages, view: input.view, language: input.language }));
+          messages: input.messages, view: input.view, language: input.language }, assistant));
       }
       if (path === '/api/import-mappings' && method === 'GET') {
         return json(response, 200, await listImportMappings(db, url.searchParams.get('site_id'), user));
@@ -818,6 +819,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, await getSite(db, site[1]));
       }
       if (site && method === 'PATCH') return json(response, 200, await updateSite(db, site[1], await readJson(request), user));
+      const siteAssistant = /^\/api\/sites\/([^/]+)\/assistant$/.exec(path);
+      if (siteAssistant && method === 'PATCH') {
+        return json(response, 200, await updateSiteAssistant(db, siteAssistant[1].toLowerCase(), await readJson(request), user));
+      }
       const members = /^\/api\/sites\/([^/]+)\/members$/.exec(path);
       const assignable = /^\/api\/sites\/([^/]+)\/assignable$/.exec(path);
       if (assignable && method === 'GET') return json(response, 200, await listAssignable(db, assignable[1], user, { forDeviation: url.searchParams.get('purpose') === 'deviation' }));

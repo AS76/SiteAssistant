@@ -380,13 +380,7 @@ function renderChrome() {
   renderOffline();
   document.documentElement.lang = language;
   document.title = `SiteAssistant · ${t(view)}`;
-  // The assistant only exists for a signed-in user: no fab, no panel on the login screen.
-  const fab = $('#ai-fab'), top = $('#ai-top'), aiPanel = $('#ai-panel');
-  for (const trigger of [fab, top]) if (trigger) {
-    trigger.hidden = !session;
-    if (!session) trigger.setAttribute('aria-expanded', 'false');
-  }
-  if (aiPanel && !session) aiPanel.hidden = true;
+  renderAssistantChrome();
   const nav = $('#navigation');
   const rail = window.matchMedia('(min-width: 1180px)').matches;
   const destinations = rail ? [] : visibleModules(headerNavItems(), currentModules());
@@ -458,6 +452,40 @@ function renderChrome() {
   loginLegend.hidden = Boolean(session);
   loginLegend.innerHTML = !session ? demoLanguageLegend() : '';
   $('#footer-note').textContent = t('footer');
+}
+let aiScope = null, aiMessages = [], aiBusy = false, aiError = null;
+const aiNoticedSites = new Set();
+const assistantAvailable = () => Boolean(session && currentSite()?.assistant_enabled === true);
+function renderAssistantChrome() {
+  const scope = assistantAvailable() ? `${session.user.id}:${siteId}` : null;
+  const panel = $('#ai-panel');
+  if (aiScope !== scope) {
+    aiScope = scope;
+    aiMessages = [];
+    aiBusy = false;
+    aiError = null;
+    $('#ai-form [name=message]').value = '';
+    $('#ai-log').innerHTML = '';
+    $('#ai-suggestions').innerHTML = '';
+    $('#ai-error').textContent = '';
+    panel.hidden = true;
+  }
+  if (!scope) panel.hidden = true;
+  for (const selector of ['#ai-fab', '#ai-top']) {
+    const trigger = $(selector);
+    trigger.hidden = !scope;
+    trigger.setAttribute('aria-expanded', String(!panel.hidden));
+    trigger.setAttribute('aria-label', t('aiTitle'));
+  }
+  if (!panel.hidden) renderAssistant();
+  if (!scope || loading || aiNoticedSites.has(siteId)) return;
+  aiNoticedSites.add(siteId);
+  const key = `sa-assistant-demo-notice:${siteId}`;
+  try {
+    if (localStorage.getItem(key) === '1') return;
+    localStorage.setItem(key, '1');
+  } catch { /* the in-memory record covers unavailable storage */ }
+  toast(t('aiDemoNotice'));
 }
 function dueMarkup(task) { return `<span class="due ${task.status !== 'closed' && task.due && task.due < today() ? 'overdue' : ''}">${dateLabel(task.due)}</span>`; }
 function taskRow(task) {
@@ -2800,7 +2828,6 @@ function progressStepsSection(row) {
   return html;
 }
 // Assistant: one conversation at a time, kept in memory for the session.
-let aiMessages = [], aiBusy = false;
 const AI_SUGGESTIONS = {
   overview: ['aiSuggestOverview', 'aiSuggestOverviewHours', 'aiSuggestOverviewClaims'],
   tasks: ['aiSuggestTasks', 'aiSuggestTasksDue', 'aiSuggestTasksBlocked'],
@@ -2811,12 +2838,23 @@ const AI_SUGGESTIONS = {
   diary: ['aiSuggestDiary', 'aiSuggestDiaryBlockers', 'aiSuggestDiaryWeek'],
 };
 const AI_MODULES = { deviations: 'deviations', site_progress_items: 'progress', cost_impacts: 'impacts' };
+const assistantErrorKeys = {
+  ASSISTANT_DISABLED: 'aiErrorDisabled', ASSISTANT_TIMEOUT: 'aiErrorTimeout',
+  ASSISTANT_AUTH: 'aiErrorAuth', ASSISTANT_RATE_LIMITED: 'aiErrorRate',
+  ASSISTANT_UNAVAILABLE: 'aiErrorUnavailable', ASSISTANT_NOT_CONFIGURED: 'aiErrorUnavailable', NETWORK_ERROR: 'aiErrorUnavailable',
+};
 function renderAssistant() {
   const panel = $('#ai-panel');
-  if (!panel) return;
+  panel.setAttribute('aria-label', t('aiTitle'));
   $('#ai-title').textContent = t('aiTitle');
+  $('[data-command="ai-close"]').setAttribute('aria-label', t('close'));
   $('#ai-form [name=message]').placeholder = t('aiPlaceholder');
-  $('#ai-form button').textContent = t('aiSend');
+  const send = $('#ai-form button');
+  send.textContent = t('aiSend');
+  send.disabled = aiBusy;
+  const error = $('#ai-error');
+  error.hidden = !aiError;
+  error.textContent = aiError ? (assistantErrorKeys[aiError.code] ? t(assistantErrorKeys[aiError.code]) : errorMessage(aiError)) : '';
   $('#ai-log').innerHTML = aiMessages.map(message => message.role === 'user'
     ? `<p class="ai-msg ai-user">${esc(message.content)}</p>`
     : `<div class="ai-msg ai-bot"><p>${esc(message.content).replace(/\n/g, '<br>')}</p>${
@@ -2829,16 +2867,27 @@ function renderAssistant() {
     : (aiMessages.length ? '' : suggestions.map(text => `<button type="button" class="ai-chip" data-command="ai-suggest" data-text="${esc(text)}">${esc(text)}</button>`).join(''));
 }
 async function askAssistant(text) {
-  if (!text || aiBusy) return;
-  aiMessages.push({ role: 'user', content: text });
+  if (!text || aiBusy || !assistantAvailable()) return;
+  const transcript = aiMessages, selected = siteId, user = session.user.id;
+  const isCurrent = () => transcript === aiMessages && selected === siteId && user === session?.user.id && assistantAvailable();
+  transcript.push({ role: 'user', content: text });
+  aiError = null;
   aiBusy = true; renderAssistant();
   try {
-    const result = await api.assistantChat({ site_id: siteId, view, language, messages: aiMessages.slice(-6) });
-    aiMessages.push({ role: 'assistant', content: result.reply, citations: result.citations });
+    const result = await api.assistantChat({ site_id: selected, view, language, messages: transcript.slice(-6) });
+    if (isCurrent()) transcript.push({ role: 'assistant', content: result.reply, citations: result.citations });
   } catch (error) {
-    aiMessages.push({ role: 'assistant', content: errorMessage(error) });
+    if (!isCurrent()) return;
+    if (error.code === 'ASSISTANT_DISABLED') {
+      currentSite().assistant_enabled = false;
+      renderAssistantChrome();
+      toast(t('aiErrorDisabled'));
+      return;
+    }
+    aiError = error;
+  } finally {
+    if (isCurrent()) { aiBusy = false; renderAssistant(); }
   }
-  aiBusy = false; renderAssistant();
 }
 
 // Import runs in two steps: a preview that writes nothing, then a confirmation bound to that preview.
@@ -2981,7 +3030,17 @@ function showSettingsForm() {
       <datalist id="site-time-zones"><option value="Europe/Rome">${t('siteZoneRome')}</option><option value="Europe/London">${t('siteZoneLondon')}</option><option value="UTC"></option></datalist>
       <label class="field">${t('siteDayCutoff')}<input type="time" name="day_cutoff_time" value="${esc(site.day_cutoff_time ?? '06:00')}" required ${offline ? 'disabled' : ''}></label>
     </div><div class="form-actions"><button type="submit" class="primary" ${offline ? 'disabled' : ''}>${t('siteSettingsSave')}</button></div></form>` : '';
-  showModal(t('settingsTitle'), `${account}${siteSettings}<form id="settings-form"><p class="note">${t('settingsHint')}</p><div class="form-grid">
+  const assistantSettings = site && role() ? `<section aria-labelledby="ai-settings-heading">
+    <h3 id="ai-settings-heading">${t('aiSettings')} · ${esc(site.name)}</h3>
+    ${role() === 'owner' ? `<form id="site-assistant-form" data-site="${esc(site.id)}">
+      <div class="form-error" role="alert" tabindex="-1" hidden></div>
+      <div class="form-grid">
+        <label class="view-checkbox"><input type="checkbox" name="enabled" role="switch" ${site.assistant_enabled === true ? 'checked' : ''} ${offline ? 'disabled' : ''}>${t('aiEnable')}</label>
+        <label class="field">${t('aiTimeoutSetting')}<input type="number" name="timeout_ms" min="5000" max="60000" step="1" value="${esc(site.assistant_timeout_ms ?? 20000)}" required ${offline ? 'disabled' : ''}></label>
+      </div><div class="form-actions"><button type="submit" class="primary" ${offline ? 'disabled' : ''}>${t('aiSettingsSave')}</button></div></form>`
+    : `<p>${t(site.assistant_enabled === true ? 'aiEnabled' : 'aiDisabled')}</p>`}
+    </section>` : '';
+  showModal(t('settingsTitle'), `${account}${siteSettings}${assistantSettings}<form id="settings-form"><p class="note">${t('settingsHint')}</p><div class="form-grid">
     <label class="field">${t('settingsCurrency')}<select name="currency">${['EUR', 'USD', 'GBP', 'CHF'].map(code => `<option value="${code}" ${prefs.currency === code ? 'selected' : ''}>${code}</option>`).join('')}</select></label>
     <label class="field">${t('settingsSeparators')}<select name="separators"><option value="auto" ${prefs.separators === 'auto' ? 'selected' : ''}>${t('settingsSeparatorsAuto')}</option><option value="it" ${prefs.separators === 'it' ? 'selected' : ''}>1.234,56 (IT)</option><option value="en" ${prefs.separators === 'en' ? 'selected' : ''}>1,234.56 (EN)</option></select></label>
     </div>${formActions()}</form>`);
@@ -3942,7 +4001,7 @@ document.addEventListener('click', event => {
     'passkey-discoverable': () => passkeyLogin(true),
     'passkey-security': showPasskeySecurity,
     'passkey-refresh': showPasskeySecurity,
-    'ai-open': () => { const panel = $('#ai-panel'); panel.hidden = false; for (const selector of ['#ai-fab', '#ai-top']) $(selector).setAttribute('aria-expanded', 'true'); renderAssistant(); $('#ai-form [name=message]').focus(); },
+    'ai-open': () => { if (!assistantAvailable()) return; const panel = $('#ai-panel'); panel.hidden = false; for (const selector of ['#ai-fab', '#ai-top']) $(selector).setAttribute('aria-expanded', 'true'); renderAssistant(); $('#ai-form [name=message]').focus(); },
     'ai-close': () => { $('#ai-panel').hidden = true; for (const selector of ['#ai-fab', '#ai-top']) $(selector).setAttribute('aria-expanded', 'false'); $(window.matchMedia('(width < 1180px)').matches ? '#ai-top' : '#ai-fab').focus(); },
     'ai-suggest': () => { askAssistant(target.dataset.text); },
     'more-nav': () => {
@@ -3976,7 +4035,7 @@ document.addEventListener('submit', async event => {
     void askAssistant(text);
     return;
   }
-  if (!['deviation-owner-form', 'deviation-attribution-form', 'deviation-import-form', 'task-acceptance-form', 'wbs-form', 'task-wbs-form', 'saved-view-form', 'site-form', 'task-form', 'entry-form', 'diary-correction-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'progress-hours-form', 'tool-form', 'tool-delete-form', 'cert-form', 'cert-delete-form', 'hse-asset-form', 'hse-form', 'hse-delete-form', 'import-form', 'settings-form', 'site-settings-form', 'shp-form', 'shp-status-form', 'shp-receipt-form', 'pkg-form', 'pkg-close-form', 'po-form', 'po-item-form', 'po-status-form'].includes(form.id)) return;
+  if (!['deviation-owner-form', 'deviation-attribution-form', 'deviation-import-form', 'task-acceptance-form', 'wbs-form', 'task-wbs-form', 'saved-view-form', 'site-form', 'task-form', 'entry-form', 'diary-correction-form', 'transition-form', 'login-form', 'password-form', 'request-form', 'forgot-form', 'attachment-form', 'booking-form', 'booking-delete-form', 'impact-transition-form', 'progress-steps-form', 'progress-type-form', 'progress-hours-form', 'tool-form', 'tool-delete-form', 'cert-form', 'cert-delete-form', 'hse-asset-form', 'hse-form', 'hse-delete-form', 'import-form', 'settings-form', 'site-settings-form', 'site-assistant-form', 'shp-form', 'shp-status-form', 'shp-receipt-form', 'pkg-form', 'pkg-close-form', 'po-form', 'po-item-form', 'po-status-form'].includes(form.id)) return;
   event.preventDefault();
   if (form.dataset.saving) return;
   if (form.id === 'login-form' && loginRetryUntil > Date.now()) return;
@@ -4039,6 +4098,20 @@ document.addEventListener('submit', async event => {
       prefs = { version: 2, currency: String(data2.currency || 'EUR'), separators: ['it', 'en'].includes(data2.separators) ? data2.separators : 'auto' };
       savePrefs(); closeModal(); render(); toast(t('settingsSaved')); return;
     }
+    if (form.id === 'site-assistant-form') {
+      if (role() !== 'owner' || offline || form.dataset.site !== selectedSite) throw new Error('forbidden');
+      const user = session.user.id;
+      const site = await api.updateSiteAssistant(selectedSite, {
+        enabled: form.elements.enabled.checked, timeout_ms: Number(data.timeout_ms),
+      });
+      if (session?.user.id !== user) return;
+      state.sites = state.sites.map(item => item.id === site.id ? {
+        ...item, assistant_enabled: site.assistant_enabled, assistant_timeout_ms: site.assistant_timeout_ms,
+      } : item);
+      try { await accountLock(persistState); } catch { storageError = true; }
+      if (version === modalVersion) closeModal();
+      toast(t('settingsSaved')); render(); return;
+    }
     if (form.id === 'site-settings-form') {
       if (role() !== 'owner' || offline || form.dataset.site !== selectedSite) throw new Error('forbidden');
       const user = session.user.id;
@@ -4047,7 +4120,9 @@ document.addEventListener('submit', async event => {
       });
       if (session?.user.id !== user) return;
       const wasCurrentDay = siteId === selectedSite && reportDate === operationalDay().date;
-      state.sites = state.sites.map(item => item.id === site.id ? site : item);
+      state.sites = state.sites.map(item => item.id === site.id ? {
+        ...item, time_zone: site.time_zone, day_cutoff_time: site.day_cutoff_time,
+      } : item);
       if (wasCurrentDay) reportDate = operationalDay().date;
       coreCache.delete(site.id); overviewCache.delete(site.id);
       try { await accountLock(persistState); } catch { storageError = true; }
