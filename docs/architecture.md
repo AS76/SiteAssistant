@@ -79,10 +79,10 @@ of the repository.
 
 ## Hosting and deployment
 
-- **Demo**: **Railway** (app + PostgreSQL in the same project). DNS not switched yet: `siteassistant.asassi.cloud` still points to the VPS.
-- **Backend (historical production)**: systemd `siteassistant-api` on the Hostinger VPS, behind Traefik (`api.siteassistant.asassi.cloud`). Restart = migrations applied to Neon.
+- **Demo**: **Railway** (app + PostgreSQL in the same project), served on the provider's own hostname. DNS for the custom domain is not switched yet: it still points to the VPS.
+- **Backend (historical production)**: systemd `siteassistant-api` on the VPS, behind Traefik on a `api.<domain>` host. Restart = migrations applied to Neon.
 - **Database**: **Neon** (`eu-central-1`), TLS, for the VPS production; the Railway demo uses its own PostgreSQL; local PostgreSQL only for tests (`test:pg`).
-- **Frontend**: nginx (`siteassistant-demo` container), `siteassistant.asassi.cloud` with basic auth.
+- **Frontend**: nginx container, `<domain>` host with basic auth.
 - **Files**: iDrive e2 S3, `siteassistant` bucket (dedicated `S3_*` env, not the backup bucket).
 - **Manual**: `docs-site/` (Astro+Starlight) → GitHub Pages (`as76.github.io/SiteAssistant`), rebuilt and published by the docs workflow on every change to `main`; the content itself is edited by hand.
 - **CI**: four workflows — `ci.yml` (jobs: SQLite/PGlite, real PostgreSQL, browser C03), `content-scan.yml`, `docs-freshness.yml` (weekly), `docs.yml`. All three `ci.yml` jobs must be green; the C03 fixture grants `workforce_names` explicitly to the roles that need named hours, and the viewer asserts the 403 denial.
