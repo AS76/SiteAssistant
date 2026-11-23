@@ -1,16 +1,32 @@
 ---
 title: Prenotazioni ore
-description: Prenotare in app le ore di un dipendente su un elemento di avanzamento e confrontarle con i totali della sorgente.
+description: Consultare i riepiloghi delle ore e le presenze previste, e prenotare ore su un elemento di avanzamento.
 ---
 
 import Shot from '../../../components/Shot.astro';
 
-La vista **Prenotazioni ore** raccoglie le ore registrate sulle presenze del cantiere, raggruppate per **giorno operativo e dipendente**. Le presenze e gli elementi di avanzamento arrivano dall'import di pianificazione; le ore si prenotano qui.
+La vista **Prenotazioni ore** (**Ore** nella navigazione) mostra il riepilogo delle ore importate; la schermata qui sotto mostra questo riepilogo. Con l'accesso **Nominativi e ore individuali** si apre invece il dettaglio per **giorno operativo e dipendente**. Le presenze e gli elementi di avanzamento arrivano dall'import di pianificazione.
 
 <Shot
   src="/images/2026-11/bookings-desktop.png"
   alt="Prenotazioni ore con il riepilogo del giorno: ore lavorate 8 (sorgente), ore prenotate 7,5 (sorgente), ore prenotate in app 4, ore non coperte 0,5 (sorgente) e scostamento -3,5 in rosso"
-  caption="Quattro cifre etichettate per fonte e uno scostamento con segno. Le ore lavorate e quelle prenotate dalla sorgente sono in sola lettura; solo le prenotazioni in app si modificano." width="1440" height="1000" />
+  caption="Riepilogo delle ore: quattro cifre etichettate per fonte e uno scostamento con segno. Le ore lavorate e quelle prenotate dalla sorgente sono in sola lettura; solo le prenotazioni in app si modificano." width="1440" height="1000" />
+
+## Consultare il riepilogo delle ore
+
+Se hai accesso a **Prenotazioni ore** senza il permesso **Nominativi e ore individuali**, la vista si apre con il riepilogo per giorno, sugli ultimi 30 giorni incluso il giorno operativo corrente.
+
+1. In **Raggruppa per**, scegli **Impresa**, **Giorno** o **Periodo**. **Periodo** mostra un unico totale per l'intervallo.
+2. Imposta **Dal** e **Al**. L'intervallo include entrambe le date e può coprire da 1 a 366 giorni.
+3. Premi **Mostra riepilogo** per leggere le **Ore lavorate (sorgente)**, le **Ore non coperte (sorgente)** e le **Ore prenotate (sorgente)**.
+
+Il riepilogo contiene solo totali della sorgente, senza nominativi. Se un valore manca su una delle giornate del gruppo, il totale di quella colonna risulta non disponibile.
+
+## Presenze in cantiere
+
+Apri **Presenze in cantiere** dal gruppo **Cantiere**, oppure da **Altro** su telefono. La vista mostra le persone previste per il giorno operativo corrente del cantiere selezionato, con nome, impresa, turno e orari di inizio e fine previsti. La tabella è in sola lettura e contiene solo i dati di turno e di orario previsto, oltre ai nominativi e alle imprese.
+
+La vista richiede il permesso **Presenze in cantiere**, indipendente da **Prenotazioni ore** e **Nominativi e ore individuali**. Per aprire la vista serve la connessione.
 
 ## Le ore della sorgente e le ore dell'app
 
@@ -41,7 +57,7 @@ A cosa serve: attribuire a un elemento di avanzamento le ore lavorate da un dipe
 Il menu **Giorno operativo** filtra l'elenco su un solo giorno; **Tutti i giorni operativi** mostra i gruppi dalla data più recente. L'elenco carica tutte le prenotazioni del cantiere, non solo la prima pagina.
 
 :::caution[Se non puoi prenotare]
-- **Nessun modulo in cima alla pagina:** il tuo ruolo è `verifier` o `viewer`, oppure mancano i prerequisiti. Prenotare ore è riservato a **owner** ed **editor**.
+- **Nessun modulo in cima alla pagina:** controlla di essere owner o editor con accesso a **Prenotazioni ore** e **Nominativi e ore individuali**. Servono anche presenze ed elementi di avanzamento importati.
 - **Messaggio sui prerequisiti:** servono presenze ed elementi di avanzamento importati nel cantiere. Un amministratore deve completare l'import.
 - **Prenotazione duplicata:** esiste già una prenotazione per quella presenza e quello stesso elemento. Modifica le ore della prenotazione esistente invece di crearne una seconda.
 - **Presenza ed elemento di cantieri diversi:** scegli una presenza e un elemento dello stesso cantiere.
@@ -73,10 +89,13 @@ La Panoramica conta le **ore prenotate in app nelle ultime sei settimane** e il 
 
 ## Chi può fare cosa
 
-| Azione | Ruolo |
-| :-- | :-- |
-| Consultare prenotazioni e totali | Tutti i membri del cantiere |
-| Prenotare ore in app | owner, editor |
-| Eliminare una prenotazione | owner, editor |
+| Azione | Ruolo | Accesso per modulo |
+| :-- | :-- | :-- |
+| Consultare il riepilogo delle ore della sorgente | Tutti i membri del cantiere | **Prenotazioni ore**. La vista mostra il riepilogo quando manca **Nominativi e ore individuali** |
+| Consultare giornate e prenotazioni individuali | Tutti i membri del cantiere | **Prenotazioni ore** e **Nominativi e ore individuali** |
+| Prenotare ore in app o eliminare una prenotazione | owner, editor | **Prenotazioni ore** e **Nominativi e ore individuali** |
+| Consultare le presenze previste | Tutti i membri del cantiere | **Presenze in cantiere** |
+
+Gli owner hanno già questi accessi. Per gli altri membri, l'owner concede i permessi da [Accessi per modulo](../../amministrazione/utenti-e-ruoli/#accessi-per-modulo).
 
 I dati di presenze e dipendenti arrivano dall'import: per il formato vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/).
