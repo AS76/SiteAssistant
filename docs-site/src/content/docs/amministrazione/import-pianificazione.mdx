@@ -28,6 +28,8 @@ L'import è riservato a **owner** ed **editor** del cantiere. Il pulsante **Impo
 | Deviazioni | Deviazioni con stato, priorità, date e importi |
 | Diario | Voci di diario |
 
+L'import del Diario conserva la data `log_date` del file e assegna il turno diurno. Le nuove voci salvano il fuso e l'ora di taglio del cantiere al momento della conferma. Le voci aggiornate conservano i valori salvati alla creazione.
+
 ## Come preparare il foglio
 
 Non serve indovinare le intestazioni: l'applicazione te le dà già scritte.
@@ -99,6 +101,7 @@ Esempio: una riga di presenza con un numero dipendente che non esiste nel cantie
 - **«Il file supera i 20 MiB»:** riduci l'export o dividilo per famiglia.
 - **Anteprima scaduta:** vale **15 minuti**. Ripeti l'anteprima prima di confermare.
 - **Anteprima non più valida:** se cambi file o mappatura dopo l'anteprima, l'anteprima decade e il pulsante torna a **Anteprima**; richiedi una nuova anteprima.
+- **Fuso orario cambiato:** per il Diario, ripeti l'anteprima se il fuso del cantiere cambia prima della conferma.
 - **Mappatura non salvata:** salva la mappatura o ripristina i default prima di chiedere l'anteprima.
 - **Righe rifiutate:** correggi l'export e ripeti l'import; le righe rifiutate non vengono applicate.
 - **Numeri diversi dal previsto:** le righe assenti non vengono cancellate, quindi il conteggio delle rimosse resta zero. Controlla le chiavi di riconoscimento prima di confermare.

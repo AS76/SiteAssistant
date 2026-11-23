@@ -5,6 +5,10 @@ description: Le modifiche a SiteAssistant che cambiano il prodotto o il modo di 
 
 Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è un changelog tecnico: per quello vale la cronologia dei commit nel repository.
 
+## 22 novembre 2026
+
+- **Giorno operativo per cantiere.** I proprietari possono impostare il fuso orario del cantiere e l'ora di inizio del giorno operativo. Diario e Presenze in cantiere seguono il giorno operativo locale. La curva di avanzamento usa i giorni di calendario del cantiere. Vedi [Impostazioni cantiere](../../guida/impostazioni/#impostazioni-cantiere) e [Diario di cantiere](../../moduli/diario/#il-giorno-operativo).
+
 ## 21 novembre 2026
 
 - **Permessi distinti per ore individuali e presenze.** **Prenotazioni ore** mostra i totali della sorgente per impresa, giorno o periodo ai membri senza **Nominativi e ore individuali**. La vista **Presenze in cantiere** mostra nominativi, turni e orari previsti per il giorno operativo corrente. Gli owner possono concedere entrambi i permessi da **Accessi per modulo**. Vedi [Prenotazioni ore](../../moduli/prenotazioni-ore/) e [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/#accessi-per-modulo).

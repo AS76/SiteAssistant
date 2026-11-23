@@ -9,7 +9,7 @@ The **diary** tells the story of every shift: what was planned, what was actuall
 
 ## Where it is
 
-The **Diary** view shows the entries of the selected site for the chosen **operational day**. From here you open the **Close shift** form.
+The **Diary** view shows the entries of the selected site for the chosen **operational day**. From here you open the **Close the shift** form.
 
 <Shot
   src="/images/2026-11/en/diary-desktop.png"
@@ -21,36 +21,36 @@ The **Diary** view shows the entries of the selected site for the chosen **opera
 What it is for: leaving the next shift the plan, the results and what is still open.
 
 1. Choose the **operational day** with the date field: the field shows it according to the browser language, while the saved value stays in ISO format (`YYYY-MM-DD`). Next to the field the date appears in full in the interface language, for example “10 Nov 2026”.
-2. Press **Close shift**.
-3. Choose the **shift**: day or night.
+2. Press **Close the shift**.
+3. If you are recording the current shift online, the form shows the date and shift. For another day or shift, or when working offline, choose **Day shift** or **Night shift** in the form.
 4. Fill in **shift plan**, **actual results**, **blockers** and **next step**. The text fields are optional, but a contribution without results tells very little.
 5. Attach photos if you need them (see the next section).
-6. Press **Save**. The contribution appears in the day with the time it was recorded.
+6. Press **Save**. For the current shift online, the server assigns the day and shift when it records the entry. If the operational day changes in the meantime, the Diary opens on the recorded date.
 
 | Field | Required | Notes |
 | :-- | :-- | :-- |
-| Shift | Yes | `day` or `night` |
+| Shift | Yes | Automatic for the current shift online. Otherwise, choose it in the form. |
 | Plan | No | What was planned for the shift |
 | Actual results | No | What was actually executed |
 | Blockers | No | Impediments, interferences, variances |
 | Next step | No | What is handed over to the next shift |
 
-The operational day is computed by the application from the site and the time. There is **one entry per site, day and shift**: a second entry on the same combination is rejected.
+There is **one entry per site, day and shift**: a second entry on the same combination is rejected.
 
-Recording a contribution is reserved to **owners**, **editors** and **verifiers**. Users with the `viewer` role read the diary but do not see the **Close shift** button.
+Recording a contribution is reserved to **owners**, **editors** and **verifiers**. Users with the `viewer` role read the diary but do not see the **Close the shift** button.
 
 :::caution[If the contribution is not saved]
-- **The Close shift button is missing:** your role is `viewer`. Ask an owner to record the contribution or to change your role on the site.
+- **Missing button:** your role is `viewer`. Ask an owner to record the contribution or to change your role on the site.
 - **Duplicate contribution:** an entry already exists for that day and shift. Choose the other shift or open the existing entry.
-- **Wrong day:** the date field decides the operational day; a night shift belongs to the day it started on.
-- **Saving offline:** the contribution stays queued on the device and is sent when the network returns; the status is visible next to the entry.
+- **Wrong day:** to record a past shift, select its operational day before opening the form.
+- **Saving offline:** the contribution stays queued on the device with the selected date and shift. It keeps both when sent after the connection returns. The status is visible next to the entry.
 :::
 
 ## Adding photos to the diary
 
 What it is for: attaching to the shift the images that document the work and the PDFs that go with it.
 
-1. In the **Close shift** form, find the **Photos or documents** box.
+1. In the **Close the shift** form, find the **Photos or documents** box.
 2. Drag the files from the desktop into the box, or tap the box and pick files from the device.
 3. You can select several files: images or PDFs, up to **15 MiB** each.
 4. Check the count of selected files under the box.
@@ -68,13 +68,9 @@ Uploading attachments is reserved to **owners** and **editors**.
 
 ## The operational day
 
-The operational day does not start at midnight:
+The operational day begins at the site's local cutoff time and lasts until the next cutoff. Before that time, the previous operational day still applies. With the default cutoff of **06:00**, the day shift runs from 06:00 to 18:00 and the night shift from 18:00 to 06:00. The night shift boundary is fixed at 18:00.
 
-- it starts at the configured cutoff time, by default **06:00** in the **Europe/Rome** timezone;
-- it ends at 05:59:59 of the following day;
-- a night shift belongs to the day it started on.
-
-Example: a night shift starting on 12 November at 22:00 and ending on the 13th at 06:00 is recorded on **12 November**.
+For example, with a 06:00 cutoff, a contribution recorded at 02:00 on 13 November belongs to the night shift of **12 November**. The Diary displays the recording time in the time zone saved with that entry. See [Site settings](../../guida/impostazioni/#site-settings).
 
 The rule also sits on the diary page, below the entries, in the collapsible **One operational day, two shifts** panel.
 
@@ -87,4 +83,4 @@ The **Print diary** button uses the browser's print dialog. There is no server-g
 - Editing or deleting an entry after saving.
 - Linking a diary entry to a task.
 - Removing an attachment from the interface: removal is available via API only.
-- Closing or formally signing the diary: **Close shift** records a contribution, not a signature; contributions stay open and are saved on the server.
+- Closing or formally signing the diary: **Close the shift** records a contribution, not a signature; contributions stay open and are saved on the server.

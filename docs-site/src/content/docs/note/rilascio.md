@@ -28,7 +28,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Panoramica con quattro indicatori, ciambella delle deviazioni, avanzamento per sezione, ore per settimana e pannello **Lavoro prodotto**.
 - Import degli export di pianificazione dall'interfaccia, con anteprima e conferma, per sei famiglie di dati e con mappatura delle colonne per cantiere.
 - Assistente dati in sola lettura, con citazioni dei record.
-- Impostazioni di valuta, decimali e separatori per gli importi.
+- Impostazioni di valuta, decimali e separatori per gli importi. Gli owner possono impostare anche il fuso e l'inizio del giorno operativo del cantiere.
 - Tabelle ordinabili, filtri per colonna opzionali e card su telefono.
 - Navigazione mobile con barra in basso.
 - Navigazione desktop raggruppata in **Operazioni**, **Cantiere** e **Gestione**.
@@ -47,7 +47,8 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 
 ## Non disponibile
 
-- Modifica o eliminazione di cantieri, attività e voci di diario.
+- Eliminazione dei cantieri e modifica di nome, date o ubicazione.
+- Modifica o eliminazione di attività e voci di diario.
 - Modifica o eliminazione dei dati importati: avanzamento, deviazioni e presenze restano in sola lettura, salvo le ore pianificate delle voci di avanzamento.
 - Eliminazione di ordini di acquisto, colli, spedizioni e ricezioni.
 - Criteri di accettazione, descrizioni lunghe, checklist.
@@ -62,7 +63,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - L'evidenza di completamento è una **nota testuale**, non un allegato.
 - Esecutore e verificatore sono inseriti come **nomi liberi**, non collegati agli account.
 - Le date dei cantieri sono descrittive: non impediscono inserimenti fuori intervallo.
-- Il fuso orario e l'ora di taglio sono attributi della singola voce di diario; l'interfaccia usa i valori predefiniti.
+- Ogni voce di diario conserva il fuso orario e l'ora di taglio del cantiere registrati alla sua creazione.
 - La stampa usa il browser: l'aspetto dipende dal browser e dai margini scelti.
 - La lingua traduce l'interfaccia, non i contenuti inseriti.
 - Gli allegati nell'interfaccia e via API sono limitati a **15 MiB** e ai soli formati immagine e PDF.

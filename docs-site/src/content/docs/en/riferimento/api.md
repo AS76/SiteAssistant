@@ -49,16 +49,18 @@ Registration and sign-in options return the browser options plus a server-genera
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/sites` | authenticated | Only the sites you belong to |
-| POST | `/api/sites` | owner | `code`, `name`, `location`, `start_date`, `end_date`, `jurisdiction` |
+| POST | `/api/sites` | owner | `code`, `name`, `location`, `start_date`, `end_date`, `jurisdiction`, `time_zone`, `day_cutoff_time` |
 | GET | `/api/sites/{id}` | member | Site detail |
-| PATCH | `/api/sites/{id}` | owner | `{ jurisdiction }`: changes the jurisdiction only, `IT` or `UK` |
+| PATCH | `/api/sites/{id}` | owner | Updates one or more of `jurisdiction`, `time_zone` and `day_cutoff_time` |
 | GET | `/api/sites/{id}/members` | owner | Members and roles, with emails |
 | POST | `/api/sites/{id}/members` | owner | `{ user_id, role }`; `role: null` removes |
 | GET | `/api/sites/{id}/assignable` | owner/editor/verifier | Active members with `user_id`, `name` and `role`, without emails |
 | GET | `/api/member-access?site_id=` | member | Effective module access matrix, per member |
 | PUT | `/api/member-access` | owner | `{ site_id, member_id, module, allowed }`; updates one access row |
 
-Every site declares a **jurisdiction**, `IT` or `UK`: it is the law that applies to the site and does not depend on the interface language. If `POST /api/sites` omits it the value is `IT`, which is also the value of rows created before the field existed; `GET /api/sites` and `GET /api/sites/{id}` return it. `PATCH /api/sites/{id}` accepts only `{ jurisdiction }`, from owners only: any other field, or a value other than `IT` and `UK`, is rejected with `400 VALIDATION_ERROR`. The change writes an `update` row in the audit register with `entity_type` `site`. The jurisdiction cannot be set from the interface yet.
+Every site declares a **jurisdiction**, `IT` or `UK`: it is the law that applies to the site and does not depend on the interface language. If `POST /api/sites` omits it the value is `IT`, which is also the value of rows created before the field existed. `GET /api/sites` and `GET /api/sites/{id}` return `jurisdiction`, `time_zone` and `day_cutoff_time`. Both are optional on creation. The default time zone is `Europe/Rome` for `IT` and `Europe/London` for `UK`. The default cutoff is `06:00`.
+
+`PATCH /api/sites/{id}` is restricted to owners and accepts one or more of `jurisdiction` (`IT` or `UK`), `time_zone` (IANA identifier) and `day_cutoff_time` (local time in `HH:MM` format). Omitted fields keep their current values. An empty body, unknown field or invalid value returns `400 VALIDATION_ERROR`. Saving writes an `update` event with `entity_type` `site` to the audit log. The jurisdiction is set through the API.
 
 `GET /api/member-access` returns `members`, each with `user_id`, `email`, `name`, `role` and `modules`, the map of modules with the effective value. `PUT` accepts the modules `overview`, `tasks`, `deviations`, `diary`, `progress`, `bookings`, `wbs`, `impacts`, `tools`, `certifications`, `hse`, `sites`, `logistics`, `reporting`, `workforce_names` and `workforce_presence`; `overview` and `sites` stay always allowed and an owner cannot exclude themselves, otherwise the answer is `400 ACCESS_INVALID`. An excluded module answers `403 MODULE_FORBIDDEN` on reads and writes; the Overview, the report and the assistant do not read excluded modules.
 
@@ -82,6 +84,8 @@ Every site declares a **jurisdiction**, `IT` or `UK`: it is the law that applies
 | GET | `/api/diary?site_id=` | member | Site entries; `siteId` is accepted too |
 | POST | `/api/diary` | owner/editor/verifier | One entry per site/date/shift |
 
+`POST /api/diary` uses the site's time zone and cutoff. Omit `operational_date` and `shift` to have the server assign both when it records the entry. If you supply a date and omit the shift, the server assigns the current shift. To record a specific date and shift, send `operational_date` in `YYYY-MM-DD` format and `shift` as `day` or `night`. Any supplied `time_zone` and `day_cutoff_time` must match the site settings, otherwise the response is `400 VALIDATION_ERROR`. The entry records both settings when it is created.
+
 Both lists accept `site_id` and `siteId`, because tasks and diary historically used the second name. An unexpected query parameter is rejected with `400 VALIDATION_ERROR` instead of being ignored: a mistyped filter never returns an unfiltered list.
 
 ## Project structure (WBS) and attendance (HR)
@@ -98,6 +102,8 @@ These areas are exposed **read-only**. Importing snapshots through dedicated end
 | GET | `/api/employees/{id}` | member with `workforce_names` | Employee with their work days |
 | GET | `/api/work-days?site_id=&employee_id=&from=&to=` | member with `workforce_names` | Attendance filtered by range |
 | POST | `/api/employees/import` | owner | Promotes an attendance snapshot |
+
+The snapshot import through `POST /api/employees/import` classifies the shift using the local start time and the site's cutoff. The operational date and times are kept as supplied by the source.
 
 ### Hours summary and site attendance
 
@@ -127,10 +133,13 @@ Progress items imported from the site system are visible in the **Site progress*
 | DELETE | `/api/progress-types/{id}` | owner | Deletes an unassigned type |
 | PATCH | `/api/site-progress/{id}/progress-type` | owner | Assigns or removes a type (`progress_type_id`) |
 | PUT | `/api/site-progress/{id}/steps` | owner/editor | `{ steps: [{ step_id, percent }] }`; appends a history record |
+| GET | `/api/progress/curve?site_id=&from=&to=` | member with `progress` | Curve by section and calendar day |
 
 Each item reports description, PLC area, section, progress and planned progress, delta, assignee, planned and actual dates, expected delay, `planned_hours`, `booked_hours` and the `has_files`, `has_notes`, `has_deviations` flags. When the item is linked to a WBS node, the response also includes the node's `wbs_code` and `wbs_description`; without a link both fields are `null`. The item is linked to a WBS node only when PLC area and section identify **a single** node; in every other case the item stays unlinked. `planned_hours` is a number or `null`; when it is `null`, earned value uses the hours of the linked WBS node, when present.
 
 A progress type is a list of steps with a weight. The weights must total **100**, otherwise creation is rejected with `WEIGHTS_NOT_100`. When an item has a type assigned, the returned progress is `computed` (weighted average of the steps); with no recorded step it is `0`, not the imported value. Every `PUT` inserts a row in `progress_entries`: the history is never rewritten and the curves are calculated from it.
+
+`GET /api/progress/curve` groups recordings and timestamped planned dates by calendar day in the site's time zone. A value stored as a date alone keeps its original day. If `to` is omitted, the range ends on the current local date. If `from` is omitted, the range covers 90 days inclusive. The range can cover up to 400 days. Supply date bounds in `YYYY-MM-DD` format.
 
 `PATCH /api/site-progress/{id}` accepts only `{ planned_hours }`, with a number between **0** and **1000000** or `null` to fall back to the WBS node hours. Any other field is rejected with `VALIDATION_ERROR`; access is reserved to site owners and editors.
 

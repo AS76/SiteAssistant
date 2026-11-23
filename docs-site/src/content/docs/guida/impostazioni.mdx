@@ -1,11 +1,11 @@
 ---
 title: Impostazioni
-description: Account, cambio password, passkey, valuta e separatori.
+description: Account, cambio password, passkey, giorno operativo del cantiere, valuta e separatori.
 ---
 
 import Shot from '../../../components/Shot.astro';
 
-L'ingranaggio in alto a destra apre le **Impostazioni**. In cima trovi il tuo account; sotto, le preferenze di visualizzazione.
+L'ingranaggio in alto a destra apre le **Impostazioni**. In cima trovi il tuo account. Sotto trovi le preferenze di visualizzazione e, se sei proprietario del cantiere selezionato, le impostazioni del cantiere.
 
 ## Il tuo account
 
@@ -21,6 +21,17 @@ La sezione **Il tuo account** mostra:
 Il tipo di utente è quello del cantiere scelto nel selettore in alto: lo stesso account può essere Proprietario in un cantiere e Lettore in un altro. Se nel cantiere selezionato non hai un ruolo, la finestra lo dice.
 
 Per cambiare la password servono la password attuale e una nuova password, diversa e di almeno **12 caratteri**. Al salvataggio le altre sessioni vengono chiuse. Se stai usando una password temporanea, l'avviso in alto resta un accesso rapido allo stesso modulo; se lo chiudi, il pulsante resta qui.
+
+## Impostazioni cantiere
+
+Per modificare il fuso orario e l'inizio del giorno operativo serve una connessione e il ruolo **Proprietario** nel cantiere selezionato.
+
+1. Seleziona il cantiere e apri l'**ingranaggio** in alto a destra.
+2. In **Impostazioni cantiere**, scegli un **Fuso orario del cantiere** dall'elenco oppure digita un identificatore IANA, per esempio `Europe/London`.
+3. Imposta **Inizio del giorno operativo** con l'ora locale del cantiere.
+4. Premi **Salva impostazioni cantiere**.
+
+Il salvataggio vale per tutti i membri del cantiere. Vedi [Il giorno operativo](../../amministrazione/configurare-cantiere/#il-giorno-operativo).
 
 ## Impostare valuta e formato
 
