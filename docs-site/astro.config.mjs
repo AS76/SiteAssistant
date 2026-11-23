@@ -33,6 +33,7 @@ export default defineConfig({
       customCss: ['./src/styles/brand.css'],
       sidebar: [
         { label: 'Benvenuto', translations: { en: 'Welcome' }, link: '/' },
+        { label: 'Supporto', translations: { en: 'Support' }, slug: 'supporto' },
         {
           label: 'Guida',
           translations: { en: 'Guide' },
