@@ -149,6 +149,12 @@ In a task detail you can attach photos or PDFs, up to **15 MiB** per file; uploa
 
 The **board** groups tasks by status, the **list** orders them by due date and priority, and the **Light tasks** view is a bare table for closing or reopening in a hurry. From the board and the list you open the detail with the fields and the full history. The filters (text, status, executor, priority, type) apply to all three views and to the CSV export.
 
+## Progress at 100% with open verifications
+
+If you have access to **Site progress**, **To verify** tasks show any progress items at 100% on the same WBS node, with a warning that counts all tasks awaiting verification on the node. The warning appears on the board, in the list and in **Light tasks**. Select the item name to open its detail. Offline, when the warning is available in the data saved on the device, the item name appears as text. Use the usual verification action to close the task. See [Site progress](../avanzamento/).
+
+Verification closes the task; formal acceptance is a separate record with a document and a date, and it is not the criterion for the warning.
+
 ## Light tasks
 
 What it is for: closing or reopening ordinary tasks that go through a review, without opening the detail.
@@ -161,7 +167,7 @@ What it is for: closing or reopening ordinary tasks that go through a review, wi
 
 The view shows **ordinary** tasks only: corrective ones stay on the board and in the list. The order puts open tasks first and closed ones after; within each group, tasks with a due date come first, from the nearest, then those without a due date, then by title.
 
-The button is the only command in the row and does not bypass the flow rules: closing stays reserved to the assigned reviewer or an owner, and reopening requires the reason. It stays disabled when the status does not allow the transition — for example a **To do** or **In progress** task cannot be closed with one click, it must be submitted for review first — and while a change on the same task is still queued or has failed. The `viewer` role sees a dash instead of the button.
+Closing is reserved to the assigned reviewer or an owner, and reopening requires a reason. The button stays disabled when the status does not allow the transition — for example a **To do** or **In progress** task cannot be closed with one click, it must be submitted for review first — and while a change on the same task is still queued or has failed. The `viewer` role sees a dash instead of the button.
 
 On a phone, below 800 px wide, the table becomes one **card per task**: every field has its own label beside it and the **Close** or **Reopen** command fills the last row, at least 44 px tall. The data and the rules do not change, only the shape. See [Mobile quick guide](../../guida/mobile/#cards-instead-of-tables).
 

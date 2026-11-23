@@ -137,6 +137,14 @@ Le voci di avanzamento importate dal sistema di cantiere sono visibili nella vis
 
 Ogni voce riporta descrizione, area PLC, sezione, avanzamento e avanzamento pianificato, scostamento, assegnatario, date pianificate ed effettive, ritardo atteso, `planned_hours`, `booked_hours` e i contrassegni `has_files`, `has_notes`, `has_deviations`. Quando la voce è collegata a un nodo WBS, la risposta include anche `wbs_code` e `wbs_description` del nodo; senza collegamento i due campi sono `null`. Il collegamento alla voce WBS avviene solo quando area PLC e sezione individuano **un solo** nodo; in tutti gli altri casi la voce resta senza collegamento. `planned_hours` è un numero o `null`; se è `null`, l'earned value usa le ore del nodo WBS collegato, quando presenti.
 
+L'elenco e il dettaglio delle voci restituiscono anche i campi di verifica. I conteggi riguardano lo stesso cantiere e lo stesso nodo WBS della voce e valgono `0` per una voce senza nodo.
+
+- `verification_open_tasks` conta le attività con stato `to_verify`.
+- `verification_conflict` vale `true` quando il valore effettivo `progress_pct` è esattamente `100` e `verification_open_tasks` è maggiore di `0`.
+- `open_verifications` è il conteggio precedente, che include anche le attività con `acceptance_state = 'declared'`.
+
+Il conflitto dipende dallo stato `to_verify`: un'accettazione formale (`acceptance_state = 'accepted'`) è un dato separato e non è il criterio dell'avviso. `open_verifications` non è un conteggio delle accettazioni formali.
+
 Un tipo di avanzamento è un elenco di step con un peso. La somma dei pesi deve essere **100**, altrimenti la creazione è rifiutata con `WEIGHTS_NOT_100`. Se una voce ha un tipo assegnato, l'avanzamento restituito è `computed` (media pesata degli step); senza step registrati vale `0`, non il valore importato. Ogni `PUT` inserisce una riga in `progress_entries`: lo storico non viene riscritto e le curve si calcolano da lì.
 
 `GET /api/progress/curve` raggruppa le registrazioni e le date pianificate con orario per giorno di calendario nel fuso del cantiere. Un valore salvato come sola data conserva il giorno originario. Se `to` è omesso, l'intervallo termina alla data locale corrente. Se `from` è omesso, l'intervallo copre 90 giorni inclusi gli estremi. L'intervallo può coprire fino a 400 giorni. I limiti si indicano in formato `YYYY-MM-DD`.

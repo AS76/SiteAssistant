@@ -45,6 +45,14 @@ Il dettaglio mostra:
 
 I campi importati sono in sola lettura, tranne le **ore pianificate**, che owner ed editor possono impostare. Il completamento degli step resta l'altro dato che scrivi.
 
+## Verifiche aperte al 100%
+
+L'elenco e il dettaglio mostrano **Avanzamento dichiarato 100%, verifica aperta** con il numero di attività **Da verificare** sullo stesso nodo WBS del cantiere. L'avviso compare quando la percentuale effettiva è esattamente **100%**, sia per il valore importato sia per quello calcolato dagli step.
+
+L'avviso riguarda le attività in stato `to_verify`: non è l'accettazione formale, che viene registrata separatamente nell'attività con documento e data. La verifica operativa e l'accettazione formale restano due passaggi distinti.
+
+Se hai accesso al modulo **Attività**, seleziona l'avviso per aprire l'elenco filtrato sulle sole attività **Da verificare** di quel nodo. L'avviso scompare quando l'ultima attività esce da quello stato, anche se la voce resta al 100%. Vedi [Attività e verifiche](../attivita/).
+
 ## Tipi di avanzamento e pesi
 
 Un **tipo di avanzamento** descrive come si misura il lavoro di una voce: un elenco di step, ognuno con un peso. I pesi sono percentuali della voce e devono sommare **100**.

@@ -137,6 +137,14 @@ Progress items imported from the site system are visible in the **Site progress*
 
 Each item reports description, PLC area, section, progress and planned progress, delta, assignee, planned and actual dates, expected delay, `planned_hours`, `booked_hours` and the `has_files`, `has_notes`, `has_deviations` flags. When the item is linked to a WBS node, the response also includes the node's `wbs_code` and `wbs_description`; without a link both fields are `null`. The item is linked to a WBS node only when PLC area and section identify **a single** node; in every other case the item stays unlinked. `planned_hours` is a number or `null`; when it is `null`, earned value uses the hours of the linked WBS node, when present.
 
+The list and item detail also return verification fields. Both counts cover the item's site and WBS node and are `0` for an item without a node.
+
+- `verification_open_tasks` counts tasks with status `to_verify`.
+- `verification_conflict` is `true` when the effective `progress_pct` is exactly `100` and `verification_open_tasks` is greater than `0`.
+- `open_verifications` is the legacy count, which also includes tasks with `acceptance_state = 'declared'`.
+
+The conflict depends on the `to_verify` status: formal acceptance (`acceptance_state = 'accepted'`) is a separate record and is not the criterion for the warning. `open_verifications` is not a count of formal acceptances.
+
 A progress type is a list of steps with a weight. The weights must total **100**, otherwise creation is rejected with `WEIGHTS_NOT_100`. When an item has a type assigned, the returned progress is `computed` (weighted average of the steps); with no recorded step it is `0`, not the imported value. Every `PUT` inserts a row in `progress_entries`: the history is never rewritten and the curves are calculated from it.
 
 `GET /api/progress/curve` groups recordings and timestamped planned dates by calendar day in the site's time zone. A value stored as a date alone keeps its original day. If `to` is omitted, the range ends on the current local date. If `from` is omitted, the range covers 90 days inclusive. The range can cover up to 400 days. Supply date bounds in `YYYY-MM-DD` format.

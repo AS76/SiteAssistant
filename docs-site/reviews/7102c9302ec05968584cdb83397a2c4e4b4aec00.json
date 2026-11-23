@@ -1,0 +1,15 @@
+{
+  "code_commit": "7102c9302ec05968584cdb83397a2c4e4b4aec00",
+  "reviewed_at": "2026-11-23",
+  "documentation_required": true,
+  "pages": [
+    "docs-site/src/content/docs/en/moduli/attivita.mdx",
+    "docs-site/src/content/docs/en/moduli/avanzamento.mdx",
+    "docs-site/src/content/docs/en/note/novita.md",
+    "docs-site/src/content/docs/en/riferimento/api.md",
+    "docs-site/src/content/docs/moduli/attivita.mdx",
+    "docs-site/src/content/docs/moduli/avanzamento.mdx",
+    "docs-site/src/content/docs/note/novita.md",
+    "docs-site/src/content/docs/riferimento/api.md"
+  ]
+}

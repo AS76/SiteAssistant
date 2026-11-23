@@ -45,6 +45,14 @@ The detail shows:
 
 Imported fields are read-only, except **planned hours**, which owners and editors can set. Step completion remains the other data you write.
 
+## Open verifications at 100%
+
+The list and item detail show **Progress reported at 100%, verification open** with the number of **To verify** tasks on the same WBS node in the site. The warning appears when actual progress is exactly **100%**, whether the value comes from the import or is computed from steps.
+
+The warning concerns tasks in `to_verify`: it is not formal acceptance, which is recorded separately on the task with a document and a date. Operational verification and formal acceptance remain distinct steps.
+
+If you have access to **Tasks**, select the warning to open the list filtered to **To verify** tasks on that node. The warning clears when the last task leaves that status, even if the item stays at 100%. See [Tasks and verification](../attivita/).
+
 ## Progress types and weights
 
 A **progress type** describes how the work of an item is measured: a list of steps, each with a weight. Weights are percentages of the item and must add up to **100**.
