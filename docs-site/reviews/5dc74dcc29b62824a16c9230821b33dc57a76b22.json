@@ -1,0 +1,23 @@
+{
+  "code_commit": "5dc74dcc29b62824a16c9230821b33dc57a76b22",
+  "reviewed_at": "2026-11-23",
+  "documentation_required": true,
+  "pages": [
+    "docs-site/src/content/docs/amministrazione/utenti-e-ruoli.md",
+    "docs-site/src/content/docs/en/amministrazione/utenti-e-ruoli.md",
+    "docs-site/src/content/docs/en/guida/assistente-ai.mdx",
+    "docs-site/src/content/docs/en/guida/funzioni-comuni.mdx",
+    "docs-site/src/content/docs/en/guida/mobile.mdx",
+    "docs-site/src/content/docs/en/moduli/idoneita.mdx",
+    "docs-site/src/content/docs/en/moduli/prenotazioni-ore.mdx",
+    "docs-site/src/content/docs/en/note/novita.md",
+    "docs-site/src/content/docs/en/riferimento/api.md",
+    "docs-site/src/content/docs/guida/assistente-ai.mdx",
+    "docs-site/src/content/docs/guida/funzioni-comuni.mdx",
+    "docs-site/src/content/docs/guida/mobile.mdx",
+    "docs-site/src/content/docs/moduli/idoneita.mdx",
+    "docs-site/src/content/docs/moduli/prenotazioni-ore.mdx",
+    "docs-site/src/content/docs/note/novita.md",
+    "docs-site/src/content/docs/riferimento/api.md"
+  ]
+}

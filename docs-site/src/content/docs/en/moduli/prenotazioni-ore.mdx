@@ -1,16 +1,32 @@
 ---
 title: Time bookings
-description: Book an employee's hours on a progress item in the app and compare them with the source totals.
+description: View hours summaries and scheduled attendance, and book hours against a progress item.
 ---
 
 import Shot from '../../../../components/Shot.astro';
 
-The **Time bookings** view collects the hours recorded on the site's work days, grouped by **operational day and employee**. Work days and progress items come from the planning import; hours are booked here.
+The **Time bookings** view (**Hours** in the navigation) shows a summary of imported hours; the screenshot below shows that summary. With **Worker names and individual hours** access, it opens the detailed view by **operational day and employee**. Work days and progress items come from the planning import.
 
 <Shot
   src="/images/2026-11/en/bookings-desktop.png"
   alt="Time bookings with the day summary: worked hours Not available (source), source-booked hours Not available, hours booked in the app 6.0, uncovered hours Not available (source) and variance Not calculable"
-  caption="Four figures labelled by origin and one signed variance. Worked hours and source-booked hours are read-only; only hours booked in the app can be edited." width="1440" height="1000" />
+  caption="Hours summary: four figures labelled by origin and one signed variance. Worked hours and source-booked hours are read-only; only hours booked in the app can be edited." width="1440" height="1000" />
+
+## Viewing the hours summary
+
+If you have access to **Time bookings** without the **Worker names and individual hours** permission, the view opens with a daily summary covering the last 30 days, including the current operational day.
+
+1. Under **Group by**, choose **Company**, **Day** or **Period**. **Period** shows a single total for the range.
+2. Set **From** and **To**. The range includes both dates and can cover 1 to 366 days.
+3. Press **Show summary** to read **Hours worked (source)**, **Uncovered hours (source)** and **Hours booked (source)**.
+
+The summary contains source totals only, with no worker names. If a value is missing from any work day in a group, the total for that column is unavailable.
+
+## Site attendance
+
+Open **Site attendance** from the **Site** group, or from **More** on a phone. The view shows workers scheduled for the selected site's current operational day, with their names, companies, shifts, and scheduled start and finish times. The table is read-only and shows scheduled times without worked hours.
+
+The view requires the **Site attendance** permission, which is independent of **Time bookings** and **Worker names and individual hours**. The view requires a connection.
 
 ## Source hours and app hours
 
@@ -41,7 +57,7 @@ What it is for: attributing the hours an employee worked on a given day to a pro
 The **Operational day** menu filters the list to a single day; **All operational days** shows the groups from the most recent date. The list loads every booking of the site, not just the first page.
 
 :::caution[If you cannot book]
-- **No form at the top of the page:** your role is `verifier` or `viewer`, or the prerequisites are missing. Booking hours is reserved to **owners** and **editors**.
+- **No form at the top of the page:** check that you are an owner or editor with access to **Time bookings** and **Worker names and individual hours**. The site also needs imported work days and progress items.
 - **Message about prerequisites:** imported work days and progress items are required. An administrator must complete the import.
 - **Duplicate booking:** a booking already exists for that work day and that same item. Change the hours on the existing booking instead of creating a second one.
 - **Work day and item from different sites:** pick a work day and an item from the same site.
@@ -73,10 +89,13 @@ The Overview counts the **hours booked in app over the last six weeks**, and the
 
 ## Who can do what
 
-| Action | Role |
-| :-- | :-- |
-| View bookings and totals | Every site member |
-| Book hours in app | owner, editor |
-| Delete a booking | owner, editor |
+| Action | Role | Module access |
+| :-- | :-- | :-- |
+| View the summary of source hours | Every site member | **Time bookings**. The view shows the summary when **Worker names and individual hours** is off |
+| View individual work days and bookings | Every site member | **Time bookings** and **Worker names and individual hours** |
+| Book hours in app or delete a booking | owner, editor | **Time bookings** and **Worker names and individual hours** |
+| View scheduled attendance | Every site member | **Site attendance** |
+
+Owners already have these permissions. For other members, an owner grants them from [Module access](../../amministrazione/utenti-e-ruoli/#module-access).
 
 Work day and employee data come from the import: for the format see [Import a planning export](../../amministrazione/import-pianificazione/).

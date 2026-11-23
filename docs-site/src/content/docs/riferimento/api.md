@@ -60,9 +60,9 @@ Le opzioni di registrazione e di accesso restituiscono le opzioni per il browser
 
 Ogni cantiere dichiara una **giurisdizione**, `IT` o `UK`: è il diritto che si applica al cantiere e non dipende dalla lingua dell'interfaccia. Se `POST /api/sites` non la indica vale `IT`, che è anche il valore delle righe create prima dell'introduzione del campo; `GET /api/sites` e `GET /api/sites/{id}` la restituiscono. `PATCH /api/sites/{id}` accetta solo `{ jurisdiction }`, solo dagli owner: qualsiasi altro campo, o un valore diverso da `IT` e `UK`, è rifiutato con `400 VALIDATION_ERROR`. Il cambio scrive una riga `update` nel registro di audit con `entity_type` `site`. La giurisdizione non è ancora impostabile dall'interfaccia.
 
-`GET /api/member-access` restituisce `members`, ognuno con `user_id`, `email`, `name`, `role` e `modules`, la mappa dei moduli con il valore effettivo. `PUT` accetta i moduli `overview`, `tasks`, `deviations`, `diary`, `progress`, `bookings`, `wbs`, `impacts`, `tools`, `certifications`, `hse`, `sites` e `logistics`; `overview` e `sites` restano sempre consentiti e un owner non può escludere se stesso, altrimenti la risposta è `400 ACCESS_INVALID`. Un modulo escluso risponde `403 MODULE_FORBIDDEN` in lettura e in scrittura; Panoramica, report e assistente non leggono i moduli esclusi.
+`GET /api/member-access` restituisce `members`, ognuno con `user_id`, `email`, `name`, `role` e `modules`, la mappa dei moduli con il valore effettivo. `PUT` accetta i moduli `overview`, `tasks`, `deviations`, `diary`, `progress`, `bookings`, `wbs`, `impacts`, `tools`, `certifications`, `hse`, `sites`, `logistics`, `reporting`, `workforce_names` e `workforce_presence`; `overview` e `sites` restano sempre consentiti e un owner non può escludere se stesso, altrimenti la risposta è `400 ACCESS_INVALID`. Un modulo escluso risponde `403 MODULE_FORBIDDEN` in lettura e in scrittura; Panoramica, report e assistente non leggono i moduli esclusi.
 
-`logistics` è l'unico modulo che **non** è consentito quando non esiste una riga salvata: vale `true` solo se un owner lo concede con `allowed: true`, mentre per gli altri moduli l'assenza di riga vale «consentito». È la voce **Logistica** della navigazione e ha la sua colonna nella tabella **Accessi per modulo** dell'interfaccia; la concessione si fa da lì oppure via API. Serve agli endpoint di [ordini di acquisto](#ordini-di-acquisto), [colli](#colli) e [spedizioni](#spedizioni). Gli owner del cantiere lo hanno sempre, come per gli altri moduli.
+`logistics`, `workforce_names` e `workforce_presence` richiedono un'autorizzazione esplicita con `allowed: true` per i membri che non sono owner. Gli altri moduli sono consentiti per impostazione predefinita. Gli owner del cantiere hanno sempre accesso a tutti i moduli. Un owner può concedere l'accesso da [Accessi per modulo](../../amministrazione/utenti-e-ruoli/#accessi-per-modulo) o via API.
 
 ## Attività
 
@@ -94,10 +94,23 @@ Queste aree sono esposte in **sola lettura**. L'import degli snapshot tramite en
 | GET | `/api/wbs?site_id=&flat=1` | membro | Tabella piatta |
 | GET | `/api/wbs/{id}` | membro | Nodo con figli immediati |
 | POST | `/api/wbs/import` | owner | Promuove uno snapshot Time Schedule |
-| GET | `/api/employees?site_id=` | membro | Dipendenti del cantiere |
-| GET | `/api/employees/{id}` | membro | Dipendente con i suoi work days |
-| GET | `/api/work-days?site_id=&employee_id=&from=&to=` | membro | Presenze filtrate per intervallo |
+| GET | `/api/employees?site_id=` | membro con `workforce_names` | Dipendenti del cantiere |
+| GET | `/api/employees/{id}` | membro con `workforce_names` | Dipendente con i suoi work days |
+| GET | `/api/work-days?site_id=&employee_id=&from=&to=` | membro con `workforce_names` | Presenze filtrate per intervallo |
 | POST | `/api/employees/import` | owner | Promuove uno snapshot presenze |
+
+### Riepilogo ore e presenze in cantiere
+
+| Metodo | Percorso | Accesso | Note |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/workforce/summary?site_id=&group_by=&from=&to=` | membro con `bookings` | Ore della sorgente raggruppate per `company`, `day` o `period` |
+| GET | `/api/workforce/presence?site_id=&date=` | membro con `workforce_presence` | Presenze previste per un giorno operativo |
+
+Entrambe le rotte richiedono `site_id` come UUID e date valide nel formato `YYYY-MM-DD`. Il riepilogo richiede `group_by`, `from` e `to`. L'intervallo include entrambe le date e deve coprire da 1 a 366 giorni. I parametri non validi restituiscono `400 VALIDATION_ERROR`.
+
+Il riepilogo restituisce un array con `group_key`, `work_time`, `open_hours` e `booked_hours`. La chiave è l'impresa (o `null` se manca), la data operativa o l'intervallo `from/to`. Un totale della sorgente vale `null` se il dato manca in almeno una giornata del gruppo. Un intervallo senza giornate restituisce un array vuoto.
+
+Le presenze richiedono `date` e restituiscono `first_name`, `last_name`, `company`, `shift`, `start_time` e `finish_time` per le giornate associate a un dipendente. La risposta omette gli identificativi dei dipendenti e i totali delle ore lavorate.
 
 ## Avanzamento di cantiere
 
@@ -138,7 +151,7 @@ Gli stati ammessi sono `open`, `approved`, `in_progress`, `work_completed`, `clo
 
 ## Prenotazioni ore
 
-Le prenotazioni si registrano anche dalla vista **Prenotazioni ore**.
+Le prenotazioni si registrano anche dalla vista **Prenotazioni ore**. Tutte e tre le rotte richiedono sia `bookings` sia `workforce_names`, oltre ai ruoli sul cantiere indicati sotto.
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |

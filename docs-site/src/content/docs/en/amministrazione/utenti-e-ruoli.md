@@ -20,7 +20,7 @@ Permissions in SiteAssistant are **per site**, not global: the same person can b
 | Assign a progress type to an item | Yes | No | No | No |
 | Record step completion | Yes | Yes | No | No |
 | Create or delete progress types — API only | Yes | No | No | No |
-| Book hours on attendance and progress items | Yes | Yes | No | No |
+| Book hours on attendance and progress items | Yes | With Time bookings and Worker names and individual hours access | No | No |
 | Manage the tools register | Yes | Yes | Yes | No |
 | Read the HSE register | Yes | Yes | Yes | No |
 | Add, edit or delete HSE events | Yes | Yes | No | No |
@@ -92,9 +92,11 @@ What it is for: limiting what a member sees without changing their role.
 
 In the **Sites** view, below the site cards, an owner finds the **Module access** table for the selected site: one row per member and one column per module. Clear the tick to exclude that member from the module. The change is saved immediately and applies to that site only.
 
-- **No configuration, no change.** Until a row is saved, modules stay allowed: restrictions exist only where an owner clears a tick. The one exception is `logistics`, off by default (see below).
+- **Default access.** Most modules are on by default. **Procurement**, **Worker names and individual hours** and **Site attendance** require an explicit grant for each member who is not an owner.
 - **Always allowed.** **Overview** and **Sites** stay available to every member. Owner rows are locked, so no owner can lock themselves out of a module. **Today**, the first screen on a phone, has no checkbox either: it only shows the modules you are allowed.
 - **Procurement (`logistics`).** It is the **Procurement** entry in the **Management** group and it has its own column in the table. It stays off by default: a member sees it only when an owner ticks it, from the table or with `PUT /api/member-access`, while a site owner always sees it. It serves the procurement view, with its orders and packages, and the order, package and shipment endpoints. See [Procurement](../../moduli/logistica/) and [REST API](../../riferimento/api/#purchase-orders).
+- **Worker names and individual hours (`workforce_names`).** This checkbox grants access to employee records and individual work days. With **Time bookings** enabled, it opens the booking detail. With the checkbox cleared, **Time bookings** shows imported hours summarised by company, day or period. It also enables employee selection in **Fitness**. See [Time bookings](../../moduli/prenotazioni-ore/) and [Fitness](../../moduli/idoneita/).
+- **Site attendance (`workforce_presence`).** This checkbox opens a read-only view of worker names, companies, shifts and scheduled times for the current operational day. Grant it independently of the hours permissions. See [Site attendance](../../moduli/prenotazioni-ore/#site-attendance).
 - **Import status (`reporting`).** It is the **Import status** entry in the **Management** group and it has its own column in the table. It is on by default: an owner clears it like the other modules. It serves the view that summarises the latest complete bundle per scope, with counts by family; it is read-only and needs the reporting database connection configured on the server. See [Import status](../../moduli/reporting/) and [REST API](../../riferimento/api/#import-status).
 - **What changes for the member.** The module entry disappears from the navigation and a direct link shows **Module unavailable**. API requests answer `403 MODULE_FORBIDDEN`, on reads and writes alike.
 - **Aggregate data.** The Overview reads deviations, progress, hours, project structure and impacts; the report reads deviations, progress, hours and project structure. If you exclude one of these modules from a member, their Overview cannot show the aggregate data. Reporting reads a separate database, not the site modules: excluding a module does not change its counts.

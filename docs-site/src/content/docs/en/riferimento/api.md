@@ -60,9 +60,9 @@ Registration and sign-in options return the browser options plus a server-genera
 
 Every site declares a **jurisdiction**, `IT` or `UK`: it is the law that applies to the site and does not depend on the interface language. If `POST /api/sites` omits it the value is `IT`, which is also the value of rows created before the field existed; `GET /api/sites` and `GET /api/sites/{id}` return it. `PATCH /api/sites/{id}` accepts only `{ jurisdiction }`, from owners only: any other field, or a value other than `IT` and `UK`, is rejected with `400 VALIDATION_ERROR`. The change writes an `update` row in the audit register with `entity_type` `site`. The jurisdiction cannot be set from the interface yet.
 
-`GET /api/member-access` returns `members`, each with `user_id`, `email`, `name`, `role` and `modules`, the map of modules with the effective value. `PUT` accepts the modules `overview`, `tasks`, `deviations`, `diary`, `progress`, `bookings`, `wbs`, `impacts`, `tools`, `certifications`, `hse`, `sites` and `logistics`; `overview` and `sites` stay always allowed and an owner cannot exclude themselves, otherwise the answer is `400 ACCESS_INVALID`. An excluded module answers `403 MODULE_FORBIDDEN` on reads and writes; the Overview, the report and the assistant do not read excluded modules.
+`GET /api/member-access` returns `members`, each with `user_id`, `email`, `name`, `role` and `modules`, the map of modules with the effective value. `PUT` accepts the modules `overview`, `tasks`, `deviations`, `diary`, `progress`, `bookings`, `wbs`, `impacts`, `tools`, `certifications`, `hse`, `sites`, `logistics`, `reporting`, `workforce_names` and `workforce_presence`; `overview` and `sites` stay always allowed and an owner cannot exclude themselves, otherwise the answer is `400 ACCESS_INVALID`. An excluded module answers `403 MODULE_FORBIDDEN` on reads and writes; the Overview, the report and the assistant do not read excluded modules.
 
-`logistics` is the only module that is **not** allowed when no row is saved: it is `true` only when an owner grants it with `allowed: true`, while for the other modules a missing row means “allowed”. It is the **Procurement** entry in the navigation and it has its own column in the interface's **Module access** table; granting happens there or through the API. It serves the [purchase orders](#purchase-orders), [packages](#packages) and [shipments](#shipments) endpoints. Site owners always have it, as for the other modules.
+`logistics`, `workforce_names` and `workforce_presence` require an explicit grant with `allowed: true` for a member who is not an owner. Other modules are allowed by default. Site owners always have access to all modules. An owner can grant access in [Module access](../../amministrazione/utenti-e-ruoli/#module-access) or through the API.
 
 ## Tasks
 
@@ -94,10 +94,23 @@ These areas are exposed **read-only**. Importing snapshots through dedicated end
 | GET | `/api/wbs?site_id=&flat=1` | member | Flat table |
 | GET | `/api/wbs/{id}` | member | Node with immediate children |
 | POST | `/api/wbs/import` | owner | Promotes a Time Schedule snapshot |
-| GET | `/api/employees?site_id=` | member | Site employees |
-| GET | `/api/employees/{id}` | member | Employee with their work days |
-| GET | `/api/work-days?site_id=&employee_id=&from=&to=` | member | Attendance filtered by range |
+| GET | `/api/employees?site_id=` | member with `workforce_names` | Site employees |
+| GET | `/api/employees/{id}` | member with `workforce_names` | Employee with their work days |
+| GET | `/api/work-days?site_id=&employee_id=&from=&to=` | member with `workforce_names` | Attendance filtered by range |
 | POST | `/api/employees/import` | owner | Promotes an attendance snapshot |
+
+### Hours summary and site attendance
+
+| Method | Path | Access | Notes |
+| :-- | :-- | :-- | :-- |
+| GET | `/api/workforce/summary?site_id=&group_by=&from=&to=` | member with `bookings` | Source hours grouped by `company`, `day` or `period` |
+| GET | `/api/workforce/presence?site_id=&date=` | member with `workforce_presence` | Scheduled attendance for one operational day |
+
+Both endpoints require `site_id` as a UUID and valid dates in `YYYY-MM-DD` format. The summary requires `group_by`, `from` and `to`. The inclusive range must span 1 to 366 days. Invalid parameters return `400 VALIDATION_ERROR`.
+
+The summary returns an array of `group_key`, `work_time`, `open_hours` and `booked_hours` values. The key is the company (or `null` if unavailable), operational date or `from/to` range. A source total is `null` if any work day in the group lacks that value. An empty range returns an empty array.
+
+Attendance requires `date` and returns `first_name`, `last_name`, `company`, `shift`, `start_time` and `finish_time` for work days linked to employees. The response contains no employee IDs or worked-hour totals.
 
 ## Site progress
 
@@ -138,7 +151,7 @@ The allowed statuses are `open`, `approved`, `in_progress`, `work_completed`, `c
 
 ## Time bookings
 
-Bookings are also recorded from the **Time bookings** view.
+Bookings are also recorded from the **Time bookings** view. All three endpoints require both `bookings` and `workforce_names` in addition to the site roles below.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |

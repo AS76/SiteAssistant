@@ -20,7 +20,7 @@ I permessi in SiteAssistant sono **per cantiere**, non globali: la stessa person
 | Assegnare un tipo di avanzamento a una voce | Sì | No | No | No |
 | Registrare il completamento degli step | Sì | Sì | No | No |
 | Creare o eliminare tipi di avanzamento — solo API | Sì | No | No | No |
-| Prenotare ore su presenze e avanzamento | Sì | Sì | No | No |
+| Prenotare ore su presenze e avanzamento | Sì | Con accesso a Prenotazioni ore e Nominativi e ore individuali | No | No |
 | Gestire il registro delle attrezzature | Sì | Sì | Sì | No |
 | Consultare il registro HSE | Sì | Sì | Sì | No |
 | Inserire, modificare o eliminare eventi HSE | Sì | Sì | No | No |
@@ -92,9 +92,11 @@ A cosa serve: limitare ciò che un membro vede senza cambiargli il ruolo.
 
 Nella vista **Cantieri**, sotto le schede dei cantieri, un owner trova la tabella **Accessi per modulo** per il cantiere selezionato: una riga per membro e una colonna per modulo. Togli la spunta per escludere quel membro dal modulo. La modifica viene salvata subito e vale solo per quel cantiere.
 
-- **Nessuna configurazione, nessun cambiamento.** Finché non esiste una riga salvata, i moduli restano consentiti: le restrizioni esistono solo dove un owner toglie la spunta. L'unica eccezione è `logistics`, spento per impostazione predefinita (vedi sotto).
+- **Accessi predefiniti.** La maggior parte dei moduli è attiva per impostazione predefinita. **Logistica**, **Nominativi e ore individuali** e **Presenze in cantiere** richiedono una spunta esplicita per ogni membro che non è owner.
 - **Sempre consentiti.** **Panoramica** e **Cantieri** restano accessibili a ogni membro. Le caselle degli owner sono bloccate, così nessun owner può chiudersi fuori da un modulo. Anche **Oggi**, la prima schermata su telefono, non ha una casella: mostra solo i moduli consentiti.
 - **Logistica (`logistics`).** È la voce **Logistica** del gruppo **Gestione** e ha la sua colonna nella tabella. Resta spento per impostazione predefinita: un membro lo vede solo quando un owner mette la spunta, dalla tabella o con `PUT /api/member-access`, mentre un owner del cantiere lo vede sempre. Serve alla vista della logistica, con gli ordini e i pacchi, e agli endpoint di ordini, colli e spedizioni. Vedi [Logistica](../../moduli/logistica/) e [API REST](../../riferimento/api/#ordini-di-acquisto).
+- **Nominativi e ore individuali (`workforce_names`).** La colonna abilita la consultazione di dipendenti e giornate individuali. Con **Prenotazioni ore** attivo, abilita il dettaglio delle prenotazioni. Con la casella deselezionata, **Prenotazioni ore** mostra il riepilogo delle ore importate per impresa, giorno o periodo. La colonna abilita anche la selezione del dipendente in **Idoneità**. Vedi [Prenotazioni ore](../../moduli/prenotazioni-ore/) e [Idoneità](../../moduli/idoneita/).
+- **Presenze in cantiere (`workforce_presence`).** La colonna abilita una vista in sola lettura con nominativi, impresa, turno e orari previsti per il giorno operativo corrente. Si concede separatamente dagli accessi alle ore. Vedi [Presenze in cantiere](../../moduli/prenotazioni-ore/#presenze-in-cantiere).
 - **Stato importazioni (`reporting`).** È la voce **Stato importazioni** del gruppo **Gestione** e ha la sua colonna nella tabella. È attivo per impostazione predefinita: un owner lo toglie come gli altri moduli. Serve alla vista che riepiloga l'ultimo bundle completo per ambito, con i conteggi per famiglia; è in sola lettura e richiede la connessione a un database di reporting configurata sul server. Vedi [Stato importazioni](../../moduli/reporting/) e [API REST](../../riferimento/api/#stato-importazioni).
 - **Cosa cambia per il membro.** La voce del modulo sparisce dalla navigazione e un collegamento diretto mostra **Modulo non disponibile**. Le richieste via API rispondono `403 MODULE_FORBIDDEN`, sia in lettura sia in scrittura.
 - **Dati aggregati.** La Panoramica legge deviazioni, avanzamento, ore, struttura progetto e impatti; il report legge deviazioni, avanzamento, ore e struttura progetto. Se escludi uno di questi moduli a un membro, la sua Panoramica non riesce a mostrare i dati aggregati. Il reporting legge un database separato e non i moduli del cantiere: escludere un modulo non cambia i suoi conteggi.
