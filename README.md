@@ -8,7 +8,7 @@ It is **not an ERP or a replacement for project scheduling software**. It connec
 
 ![SiteAssistant desktop overview showing site indicators, deviations, progress and recorded hours](docs-site/public/images/2026-11/en/overview-desktop.png)
 
-**[Try the live demo](https://siteassistant.asassi.cloud/)** · **[English user manual](https://as76.github.io/SiteAssistant/en/)** · **[Manuale italiano](https://as76.github.io/SiteAssistant/)** · **[Report an issue](https://github.com/AS76/SiteAssistant/issues)**
+**[Try the live demo](https://app-production-8e41ddb3.up.railway.app/)** · **[English user manual](https://as76.github.io/SiteAssistant/en/)** · **[Manuale italiano](https://as76.github.io/SiteAssistant/)** · **[Report an issue](https://github.com/AS76/SiteAssistant/issues)**
 
 ## Why SiteAssistant exists
 
@@ -28,7 +28,7 @@ The primary focus is industrial automation and intralogistics, although some wor
 
 ## Try the live demo
 
-**[Open SiteAssistant](https://siteassistant.asassi.cloud/)**
+**[Open SiteAssistant](https://app-production-8e41ddb3.up.railway.app/)**
 
 The hosted application uses **fictional operational data**, including two Northline pilot sites:
 
@@ -43,7 +43,7 @@ The interface can be switched between Italian and English independently of the l
 
 The public demo does not provide unrestricted, immediate account creation.
 
-1. Open the [application](https://siteassistant.asassi.cloud/).
+1. Open the [application](https://app-production-8e41ddb3.up.railway.app/).
 2. Select **Request access** on the sign-in screen and enter your email address.
 3. An administrator reviews the request and may approve or reject it.
 4. If approved, you receive a temporary password by email.
