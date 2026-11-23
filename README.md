@@ -2,102 +2,252 @@
 
 **Built on site. For people working on site.**
 
-<img src="docs-site/public/images/2026-11/overview-desktop.png" alt="SiteAssistant overview: site KPIs, deviations by status, progress by section and hours per week" width="100%">
+SiteAssistant is an open-source web application for people managing industrial installation and intralogistics sites. It brings tasks and independent verification, the daily site diary, project structure, progress, deviations, hours, safety records and reporting into one operational workspace.
 
-SiteAssistant is a web app for the person running a construction or installation site. It keeps in one place what usually lives in five: the work to execute and to verify, the daily diary, the work breakdown structure, attendance, progress, deviations and hours.
+It is **not an ERP or a replacement for project scheduling software**. It connects the plan to what actually happens on site.
 
-It is not an ERP. It is the layer between the plan and what actually happens on site.
+![SiteAssistant desktop overview showing site indicators, deviations, progress and recorded hours](docs-site/public/images/2026-11/en/overview-desktop.png)
 
-It comes from direct experience managing industrial and intralogistics sites, where checks, evidence and reporting end up split across spreadsheets, e-mails and systems that do not talk to each other.
+**[Try the live demo](https://app-production-8e41ddb3.up.railway.app/)** · **[English user manual](https://as76.github.io/SiteAssistant/en/)** · **[Manuale italiano](https://as76.github.io/SiteAssistant/)** · **[Report an issue](https://github.com/AS76/SiteAssistant/issues)**
+
+## Why SiteAssistant exists
+
+On industrial sites, information is often scattered: schedules in one system, contractor hours in spreadsheets, deviations in email, and evidence across different files and applications. The person coordinating the site must reconstruct what was planned, what actually happened, who was responsible, and what has been verified.
+
+SiteAssistant comes from direct experience managing industrial automation and intralogistics sites. Its purpose is to make daily work **easier to coordinate, verify and reconstruct**, without pretending to replace engineering, purchasing, accounting or enterprise planning systems.
 
 ## Who it is for
 
-Site managers, installation managers, supervisors and verifiers working in industrial automation and intralogistics: people who have to chase contractors, prove that work was done, and reconstruct why a date slipped.
+- **Site Managers and Installation Managers:** coordinate contractors, priorities and site execution.
+- **Supervisors and Team Leaders:** follow work, capture updates and identify blockers.
+- **Verifiers and commissioning personnel:** check completed activities and preserve traceability.
+- **Project and Operations Managers:** review progress, delays and exceptions.
+- **Site administrators and authorised contractors:** work within the roles and modules assigned to them.
+
+The primary focus is industrial automation and intralogistics, although some workflows may apply to other installation environments.
+
+## Try the live demo
+
+**[Open SiteAssistant](https://app-production-8e41ddb3.up.railway.app/)**
+
+The hosted application uses **fictional operational data**, including two Northline pilot sites:
+
+| Site | Demonstration scenario | Record language |
+| --- | --- | --- |
+| `NL-IT-01` | Northline Piacenza — intralogistics plant | Italian |
+| `NL-UK-01` | Northline Midlands — intralogistics installation | English |
+
+The interface can be switched between Italian and English independently of the language of imported or entered records.
+
+### Request access
+
+The public demo does not provide unrestricted, immediate account creation.
+
+1. Open the [application](https://app-production-8e41ddb3.up.railway.app/).
+2. Select **Request access** on the sign-in screen and enter your email address.
+3. An administrator reviews the request and may approve or reject it.
+4. If approved, you receive a temporary password by email.
+5. Sign in and change that password.
+
+**Account approval and site access are separate steps.** Approval creates an account; a site owner must also assign a membership and role before that account can see a particular site. You may therefore be able to sign in without seeing demonstration sites. Access requests are not guaranteed to be approved.
+
+For password recovery, passkeys and sessions, see **[Sign in and account](https://as76.github.io/SiteAssistant/en/guida/accesso/)**.
+
+### Demo data and privacy
+
+Site records, people, companies and documents in the demonstration datasets are synthetic. However, the hosted service may process **real account, access-request, session and security-log data**; those are distinct from the fictional site records.
+
+**Do not put real project information, confidential documents, personal or health records, contractual terms, or third-party credentials into the demo.** It is for evaluation and feedback, not production operations. See [Demo data](https://as76.github.io/SiteAssistant/en/guida/dati-dimostrativi/) and the applicable service privacy information.
 
 ## What is inside
 
-**Operations**
-Sites and per-site roles (`owner`, `editor`, `verifier`, `viewer`) · Tasks with a separate executor and verifier, state transitions with notes and full history, ordinary or corrective type · Light task view with a single close/reopen command · Site diary by operational day and shift · Photos and PDFs attached to tasks and diary entries · Saved views: personal or shared filters, order and visible columns
+Features are subject to the selected site's roles, module permissions and deployment configuration.
 
-**Planning**
-WBS tree and flat table · Site progress with weighted steps that must sum to 100 · Planned hours per item, inherited from the linked WBS node when absent · Earned value — EV, PV, AC, CPI and SPI in hours · Progress curves from recorded entries
+### Operations
 
-**Control**
-Deviations with links and a read-only reconciliation panel for inconsistent chronologies · Cost impacts · Time bookings, separating hours worked, booked at source and booked in the app, with a signed variance · Printable site report with progress and deviations per macro-area, plus CSV export
+| Area | Current capabilities |
+| --- | --- |
+| **Sites and access** | Site-specific memberships and roles (`owner`, `editor`, `verifier`, `viewer`); per-member module access |
+| **Tasks and verification** | Executor and verifier kept separate; ordinary or corrective tasks; status transitions, notes and history |
+| **Light tasks** | Simplified ordinary-task view with close/reopen actions |
+| **Site diary** | Daily plan, actual work, impediments and next steps by operational day and shift |
+| **Evidence** | Images and PDFs attached to supported tasks, diary entries, deviations and HSE events |
+| **Views** | Personal or shared saved filters, sorting and visible columns |
 
-**Compliance**
-Tools register per contractor, with status and location · Employee fitness: certifications, medical visits and training, with expiry and computed status · HSE register: near misses, injuries and observations, with severity, location and a count of people involved — no names, no health data
+### Planning and progress
 
-**Administration**
-E-mail and password sessions with WebAuthn passkeys, self-service sign-up with owner approval, password reset · Per-module access per member, independent of role · Import of planning exports with preview, confirmation and per-site column mapping · REST API with pagination and per-user rate limits · Read-only data assistant with record citations
+| Area | Current capabilities |
+| --- | --- |
+| **WBS** | Hierarchical tree and flat table; operational edits with source provenance and reconciliation |
+| **Site progress** | Weighted completion steps and recorded progress; planned hours at item or linked-WBS level |
+| **Earned value** | EV, PV, AC, CPI and SPI expressed in hours |
+| **Progress views** | Curves and indicators derived from recorded site data |
 
-**Field use**
-Installable PWA, Italian and English interface, mobile bottom navigation, sortable tables, optional column filters · Tasks and diary work offline: writes are queued and synchronised when the network returns
+### Monitoring and control
 
-## What it is not
+| Area | Current capabilities |
+| --- | --- |
+| **Deviations** | Status, history, links and read-only checks for inconsistent source chronologies |
+| **Time bookings** | Worked, source-booked and app-booked hours with signed variance |
+| **Cost impacts** | Monitoring of cost effects and supported status/closure actions |
+| **Reports** | Printable site summary with progress and deviations; CSV exports |
+| **Import status** | Read-only summary of source bundles and quality issues, when the reporting service is configured |
 
-- **Not an ERP, not a planning system.** It stays complementary to time schedules, purchasing and accounting, and does not try to replace them.
-- **Not a copy of another product.** The application code was written for this project and contains no third-party source code. Its functional model was informed by the author's professional experience with construction site management and by the public behaviour of comparable tools. SiteAssistant is an independent project, not affiliated with, endorsed by, or supplied by any vendor.
-- **Not finished.** The [product status](https://as76.github.io/SiteAssistant/en/note/rilascio/) page lists what exists only via API and what does not exist yet. It is deliberately explicit.
+### Safety, people and equipment
 
-## Status
+| Area | Current capabilities |
+| --- | --- |
+| **HSE** | Near misses, accidents, observations, severity, location, measures and number of people involved |
+| **Fitness** | Training, certifications and medical-check validity, expiry and computed status |
+| **Tools** | Contractor equipment register with status and location |
+| **Audit trail** | Change history and logical deletion for supported records |
 
-Running on synthetic demo data. It is a working demo, not a product: do not put confidential data, credentials or contract terms into it.
+The HSE register's structured fields are not designed to collect names or medical diagnoses. **Free text and attachments can still contain sensitive information if users provide it.** SiteAssistant does not replace statutory HSE procedures, formal certification systems or professional judgement.
 
-Known gaps that matter before real use: imported rows are updated by re-import and only planned hours can be edited by hand; there is no PDF generation on the server (printing goes through the browser); and there is no connector to ERP or planning systems. HSE, certification, tool and inspection records keep an audit trail (#52), and deviations keep an append-only status history with provenance (#50).
+### Procurement and administration
+
+- **Procurement:** purchase orders, line items, packages, shipments and receipts; the module is optional and access-controlled.
+- **Authentication:** email/password sessions, optional WebAuthn passkeys, administrator-approved access requests and password recovery.
+- **Imports:** planning exports with preview, confirmation and per-site column mapping.
+- **API:** paginated REST endpoints with authorisation and rate limits.
+- **Data assistant:** read-only answers grounded in site records, with record citations.
+
+Some operations are exposed **only through the API**; a module being present does not imply that every create, edit, delete or approval flow is available in the interface. The [product status page](https://as76.github.io/SiteAssistant/en/note/rilascio/) describes the current boundaries.
+
+## Designed for work on site
+
+SiteAssistant has an Italian/English responsive interface, an installable Progressive Web App (PWA), mobile bottom navigation, touch-oriented views and a **Today** screen highlighting operational priorities.
+
+![SiteAssistant Today screen on a phone, with operational priorities and quick actions](docs-site/public/images/2026-11/en/today-mobile.png)
+
+**Offline support is limited to tasks and the site diary:** changes can be queued and synchronised when the connection returns. Other core modules require a network connection. Switching UI language does **not** translate user-entered or imported site records.
+
+For actual workflows and screenshots, use the [English user manual](https://as76.github.io/SiteAssistant/en/) or [manuale italiano](https://as76.github.io/SiteAssistant/).
+
+## Current status and limitations
+
+**SiteAssistant is a working demo, not a production-ready product.** Its functional modules and automated tests do not by themselves establish suitability for contractual, safety-critical or regulated use.
+
+Important limitations include:
+
+- It complements existing ERP and planning systems; there are **no built-in ERP or Primavera P6 connectors**.
+- Imported rows generally require re-import or reconciliation; they are not continuously synchronised with the source.
+- Editing, deletion and member-management capabilities vary by module; some are **API-only**.
+- Reports are printed through the browser; **server-generated PDFs are not available**.
+- Offline support is **not** universal.
+- Verification, HSE, fitness and compliance workflows must be assessed against the real organisation's procedures and legal responsibilities.
+- A change in display currency changes the symbol and formatting, **not** the underlying amount or exchange rate.
+
+For the complete list of what is available in the interface, available only through the API, or not yet implemented, consult **[Product status and known limitations](https://as76.github.io/SiteAssistant/en/note/rilascio/)**.
 
 ## Run it locally
 
-Node.js 24. SQLite is the default driver, no external database needed:
+### Requirements
+
+- **Node.js 24** and npm
+- SQLite is the default database; no external database is required for local development
+
+### Quick start
 
 ```sh
+git clone https://github.com/AS76/SiteAssistant.git
+cd SiteAssistant
 npm ci
-npm run seed        # 4 fictional users and 2 sites
-npm run seed:demo   # synthetic WBS, tasks, hours, deviations, HSE, tools
-node server/seed-northline.mjs --apply   # two pilot sites, NL-IT-01 and NL-UK-01
-npm run dev         # API and interface on http://localhost:8787
+npm run seed
+npm run dev
 ```
 
-`npm start` runs the API alone, which is what production does behind the reverse proxy. `npm run dev` also serves `app/` from the same origin, so the interface works without any proxy or CORS exception.
+Open **http://localhost:8787**. The basic seed creates **four fictional users and two sites** in non-production environments.
 
-Demo account: `owner@example.invalid`, password `Local-owner-5b!` (fictional, seeded only outside production). For PostgreSQL set `DB_DRIVER=pg` and `DATABASE_URL`.
+Local development account:
 
-The pilot dataset in `server/seed-northline.mjs` creates two synthetic sister sites, `NL-IT-01` (Italian content) and `NL-UK-01` (English content), with tasks, diary, attendance, progress, deviations, HSE, fitness, tools and logistics. It is idempotent; `--reset` removes only those two sites. Set `NORTHLINE_SEED_PASSWORD` before the first `--apply` to give the seven pilot accounts a known password; otherwise each receives a random password that is never printed. The CLI refuses `NODE_ENV=production`.
+| Field | Value |
+| --- | --- |
+| Email | `owner@example.invalid` |
+| Password | `Local-owner-5b!` |
 
-The interface is a static app in `app/`. It is meant to be served from the **same origin** as the API: `npm run dev` does that locally, the reverse proxy does it in production. The API answers CORS requests only from the published origin, so a UI served from a different port is refused; if you need one, point the app at another API with `<meta name="siteassistant-api-base" content="…">` in `app/index.html` and serve both from one host.
+These credentials belong to the **local seeded dataset only**, **not** to the public hosted demo.
 
-Full configuration is read from the environment: `PORT`, `DATA_DIR`, `DB_DRIVER`, `DATABASE_URL`, `PUBLIC_URL`, `OWNER_EMAIL`.
+`npm run dev` serves the interface and API on the same origin. `npm start` starts the API alone, as used behind a production reverse proxy.
 
-`AUTH_BYPASS_USER` optionally names an existing, enabled user's email. Requests without a valid session use that profile, with its current permissions; valid sessions take precedence. Unset, empty, unknown or disabled accounts grant no bypass access. All `/api/auth/*` routes retain normal authentication, including `/api/auth/me`, so the existing browser login screen is unchanged. No session or cookie is created. Restart the server after changing this variable.
+### Extended synthetic datasets
 
-`GET /api/health` includes `auth_bypass`, indicating whether a non-empty bypass email is configured (not whether that account exists or is enabled). Each bypass increments an in-memory counter per server. The first bypass and subsequent bypasses at least one minute after the previous log emit one `AUTH_BYPASS` JSON warning with method, path without query parameters and cumulative count.
+Load additional test data when needed:
 
-## Tests
+```sh
+npm run seed:demo
+node server/seed-northline.mjs --apply
+```
+
+The Northline dataset creates `NL-IT-01` and `NL-UK-01` and associated fictional records. Set `NORTHLINE_SEED_PASSWORD` **before the first** `--apply` if pilot accounts need a known password; otherwise random passwords are generated and not printed. Inspect seed and reset behaviour before running these commands against an existing development database. Synthetic seeding is refused in production.
+
+### Database and deployment
+
+PostgreSQL is supported by setting `DB_DRIVER=pg` and `DATABASE_URL`. The frontend is intended to share an origin with the API.
+
+Authentication bypass (`AUTH_BYPASS_USER`) is an advanced deployment feature, not part of the normal login workflow; it must not be enabled on a publicly reachable or production deployment without explicit security review.
+
+See [technical architecture](docs/architecture.md), the files under [`docs/`](docs/) and the API reference for implementation and deployment considerations.
+
+## Development and testing
 
 ```sh
 npm ci
-npm test              # SQLite and PostgreSQL suites
+npm test
 npm run test:schema
-node tests/browser.cjs # optional, needs Playwright and Chromium
 ```
 
-As measured by CI on `main` on 2026-11-22: the SQLite/PGlite suite runs 1384 tests, 1376 passing and 8 skipped; against a real PostgreSQL service, 1405 tests, 1398 passing and 7 skipped. Schema checks: 9/9.
+The browser regression test is available separately:
 
-The same suites run on every push and pull request through GitHub Actions, against SQLite/PGlite and against a real PostgreSQL service, and `main` requires both checks to be green. `ci.yml` also carries a browser regression job (C03) over the synthetic fixture. When it fails, the cause belongs to the fixture or the code: the `workforce_names` permission stays explicit and is never granted by role to make the test pass.
+```sh
+npm run test:browser:c03
+```
+
+Browser testing requires Playwright and Chromium dependencies. CI includes the SQLite/PGlite suite, a real PostgreSQL suite, the C03 browser regression job and a content scan. Check the **[latest GitHub Actions results](https://github.com/AS76/SiteAssistant/actions)** for current status rather than treating historical test counts as permanent.
+
+Successful tests provide evidence for the behaviours covered; they are **not** a certification of production readiness.
+
+### Repository structure
+
+| Path | Purpose |
+| --- | --- |
+| [`app/`](app/) | Static frontend, styles, localisation and offline support |
+| [`server/`](server/) | API, authentication and domain services |
+| [`database/`](database/) | Database resources |
+| [`tests/`](tests/) | Automated application and regression tests |
+| [`docs/`](docs/) | Technical architecture and development documentation |
+| [`docs-site/`](docs-site/) | Bilingual published user manual |
+| [`.github/workflows/`](.github/workflows/) | CI, publishing and repository automation |
+
+Repository and technical documentation are written in **English**. The published user manual is intentionally available in **English and Italian**.
 
 ## Documentation
 
-- User manual — English: <https://as76.github.io/SiteAssistant/en/>
-- Manuale utente — Italiano: <https://as76.github.io/SiteAssistant/>
-- REST API reference — English: <https://as76.github.io/SiteAssistant/en/riferimento/api/>
-- Riferimento API — Italiano: <https://as76.github.io/SiteAssistant/riferimento/api/>
-- Product status and known limitations — English: <https://as76.github.io/SiteAssistant/en/note/rilascio/>
-- Stato del prodotto e limiti noti — Italiano: <https://as76.github.io/SiteAssistant/note/rilascio/>
+| Resource | English | Italiano |
+| --- | --- | --- |
+| User manual | [Open](https://as76.github.io/SiteAssistant/en/) | [Apri](https://as76.github.io/SiteAssistant/) |
+| Sign in and account | [Open](https://as76.github.io/SiteAssistant/en/guida/accesso/) | [Apri](https://as76.github.io/SiteAssistant/guida/accesso/) |
+| REST API reference | [Open](https://as76.github.io/SiteAssistant/en/riferimento/api/) | [Apri](https://as76.github.io/SiteAssistant/riferimento/api/) |
+| Product status | [Open](https://as76.github.io/SiteAssistant/en/note/rilascio/) | [Apri](https://as76.github.io/SiteAssistant/note/rilascio/) |
+
+The user manual lives in `docs-site/`. Its content is reviewed through the repository workflow; GitHub Actions builds and publishes the documentation when relevant changes reach `main`.
 
 ## Contributing
 
-Contributing is not only writing code: a well-described report or a proposal about a real site workflow is worth as much as a pull request. Read [CONTRIBUTING.md](CONTRIBUTING.md) and open an [issue](https://github.com/AS76/SiteAssistant/issues).
+Contributions are welcome from **developers, site professionals, testers and technical writers**. A reproducible bug report, a clear account of a difficult site workflow, an accessibility finding or a tested improvement can be as useful as a code change.
+
+Please read **[CONTRIBUTING.md](CONTRIBUTING.md)**. Use [GitHub Issues](https://github.com/AS76/SiteAssistant/issues) for actionable problems and the repository's discussion and pull-request process for proposals and changes.
+
+SiteAssistant is an **independent project** and is not affiliated with, endorsed by or supplied by any industrial automation, ERP or project-management vendor.
 
 ## License
 
-**GNU Affero General Public License v3.0** (`AGPL-3.0-only`). If you modify SiteAssistant and make it available over a network, you must publish the modified source under the same terms. Full text in [LICENSE](LICENSE).
+SiteAssistant is licensed under the **GNU Affero General Public License v3.0 only** (`AGPL-3.0-only`).
+
+The license allows use, study, modification and redistribution subject to its terms. If you modify the program and make the modified version available for users to interact with over a network, AGPLv3 includes an obligation to offer those users the Corresponding Source of that version.
+
+Read the full terms in **[LICENSE](LICENSE)**.
+
+---
+
+**SiteAssistant — Built on site. For people working on site.**
