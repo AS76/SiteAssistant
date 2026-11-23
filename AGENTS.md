@@ -38,6 +38,12 @@ Nota CI: i tre job di `ci.yml` devono essere verdi. Se la regressione browser C0
 
 Deploy: la demo gira su Railway (app + PostgreSQL), con DNS non ancora commutato; `siteassistant.asassi.cloud` punta ancora al VPS Hostinger, che ospita la produzione storica con database Neon. Non avviare deploy, acquisti o scritture su sistemi esterni senza istruzione esplicita dell'utente; le autorizzazioni già date restano valide per il loro ambito.
 
+## Protezione del ramo `main`
+
+`main` è protetto: nessun push diretto, solo pull request. I controlli obbligatori sono quattro: `Test (SQLite e PGlite)`, `Test (PostgreSQL reale)`, `C03 browser regression`, `scan`. Servono tutti verdi e il ramo deve essere allineato a `main` (`strict`), con storia lineare, senza force push e senza cancellazione.
+
+L'unica eccezione è il bypass amministrativo, valido anche esso **solo attraverso una pull request** e da motivare nel messaggio di merge. Non è una via per aggirare i controlli: è una via per registrare che li si è saltati.
+
 ## Regole non negoziabili
 
 1. Le migrazioni già applicate (001–045, 047) sono immutabili. Ogni modifica al modello va in una nuova migrazione numerata (saltare 046) e nei due dialetti.
