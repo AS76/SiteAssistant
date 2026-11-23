@@ -84,7 +84,7 @@ of the repository.
 - **Database**: **Neon** (`eu-central-1`), TLS, for the VPS production; the Railway demo uses its own PostgreSQL; local PostgreSQL only for tests (`test:pg`).
 - **Frontend**: nginx (`siteassistant-demo` container), `siteassistant.asassi.cloud` with basic auth.
 - **Files**: iDrive e2 S3, `siteassistant` bucket (dedicated `S3_*` env, not the backup bucket).
-- **Manual**: `docs-site/` (Astro+Starlight) → GitHub Pages (`as76.github.io/SiteAssistant`), updated automatically by the docs job.
+- **Manual**: `docs-site/` (Astro+Starlight) → GitHub Pages (`as76.github.io/SiteAssistant`), rebuilt and published by the docs workflow on every change to `main`; the content itself is edited by hand.
 - **CI**: four workflows — `ci.yml` (jobs: SQLite/PGlite, real PostgreSQL, browser C03), `content-scan.yml`, `docs-freshness.yml` (weekly), `docs.yml`. All three `ci.yml` jobs must be green; the C03 fixture grants `workforce_names` explicitly to the roles that need named hours, and the viewer asserts the 403 denial.
 
 Development/staging/production have separate databases, credentials and buckets. Only synthetic data in the public repo.
