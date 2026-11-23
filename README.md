@@ -179,7 +179,7 @@ npm run seed:demo
 node server/seed-northline.mjs --apply
 ```
 
-The Northline dataset creates `NL-IT-01` and `NL-UK-01` and associated fictional records. Set `NORTHLINE_SEED_PASSWORD` **before the first** `--apply` if pilot accounts need a known password; otherwise random passwords are generated and not printed. Inspect seed and reset behaviour before running these commands against an existing development database. Synthetic seeding is refused in production.
+The Northline dataset creates `NL-IT-01` and `NL-UK-01` and associated fictional records. Set `NORTHLINE_SEED_PASSWORD` **before the first** `--apply` if pilot accounts need a known password; otherwise random passwords are generated and not printed. Inspect seed and reset behaviour before running these commands against an existing development database. `npm run seed` and `node server/seed-northline.mjs` refuse to run when `NODE_ENV=production`. `npm run seed:demo` has **no** production guard: it writes to whatever database the configuration points at, so check the target before running it.
 
 ### Database and deployment
 

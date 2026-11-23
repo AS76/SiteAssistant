@@ -36,7 +36,7 @@ Reference numbers, measured by CI on `main` on 2026-11-22: SQLite/PGlite 1384 te
 
 CI note: the three jobs of `ci.yml` must be green. If the C03 browser regression fails, the cause must be sought in the fixture or in the code: the `workforce_names` module stays explicit and is not granted by role to make the test pass.
 
-Deployment: the demo runs on Railway (app + PostgreSQL), with DNS not yet switched; `siteassistant.asassi.cloud` still points to the Hostinger VPS, which hosts the historical production with the Neon database. Do not start deployments, purchases, or writes to external systems without an explicit instruction from the user; authorizations already granted remain valid for their scope.
+Deployment: the demo runs on Railway (app + PostgreSQL), served on the provider's own hostname, because DNS for the custom domain has not been switched; the custom domain still resolves to the VPS that hosts the historical production with the Neon database. Real hostnames, IP addresses and provider resource names stay outside the checkout: this file describes the shape of the environment, not its addresses. Do not start deployments, purchases, or writes to external systems without an explicit instruction from the user; authorizations already granted remain valid for their scope.
 
 ## `main` branch protection
 
