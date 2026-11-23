@@ -40,17 +40,17 @@ Recommended roles on site:
 
 ## The operational day
 
-Timezone and cutoff time determine which operational day a diary entry belongs to.
+The site's time zone and cutoff determine which operational day a diary entry belongs to.
 
-| Setting | Default value | Where it is set |
-| :-- | :-- | :-- |
-| Timezone | `Europe/Rome` | Diary-entry attribute (via API) |
-| Cutoff time | `06:00` | Diary-entry attribute (via API) |
+| Setting | Default value |
+| :-- | :-- |
+| Site time zone | `Europe/Rome` for `IT`, `Europe/London` for `UK` |
+| Start of the operational day | `06:00` (local time) |
 
-They are not site settings and are not editable from the interface. Entries already saved keep the values they were recorded with.
+These initial values also apply to sites that existed when the settings were introduced. **Owners** can change both values for the selected site. Each save is recorded in the audit log. Saved diary entries keep the time zone and cutoff recorded when they were created. See [Site settings](../../guida/impostazioni/#site-settings).
 
 ## What is not configurable
 
 - Per-site logo, colours or domain.
 - Custom task or diary fields.
-- Shift times, holiday calendar, notifications.
+- Night shift start time, holiday calendar, notifications.

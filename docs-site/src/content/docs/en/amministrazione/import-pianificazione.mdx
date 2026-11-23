@@ -28,6 +28,8 @@ The import is reserved to site **owners** and **editors**. The **Import planning
 | Deviations | Deviations with status, priority, dates and amounts |
 | Daily log | Diary entries |
 
+The Daily log import keeps the file's `log_date` and assigns the day shift. New entries store the site's time zone and cutoff at confirmation. Updated entries keep the settings saved when they were created.
+
 ## Preparing the sheet
 
 You do not have to guess the headers: the application gives them to you.
@@ -96,6 +98,7 @@ Example: a work-day row with an employee number that does not exist in the site 
 - **“The file exceeds 20 MiB”:** reduce the export or split it by family.
 - **Preview expired:** it is valid for **15 minutes**. Repeat the preview before confirming.
 - **Preview no longer valid:** if you change the file or the mapping after the preview, the preview lapses and the button returns to **Preview**; request a new preview.
+- **Time zone changed:** for Daily log imports, repeat the preview if the site's time zone changes before confirmation.
 - **Mapping not saved:** save the mapping or restore the defaults before requesting the preview.
 - **Rejected rows:** fix the export and repeat the import; rejected rows are not applied.
 - **Unexpected numbers:** missing rows are not deleted, so the applied removed count stays zero. Check the matching keys before confirming.

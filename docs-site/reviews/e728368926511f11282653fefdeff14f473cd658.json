@@ -1,0 +1,29 @@
+{
+  "code_commit": "e728368926511f11282653fefdeff14f473cd658",
+  "reviewed_at": "2026-11-23",
+  "documentation_required": true,
+  "pages": [
+    "docs-site/src/content/docs/amministrazione/configurare-cantiere.md",
+    "docs-site/src/content/docs/amministrazione/import-pianificazione.mdx",
+    "docs-site/src/content/docs/en/amministrazione/configurare-cantiere.md",
+    "docs-site/src/content/docs/en/amministrazione/import-pianificazione.mdx",
+    "docs-site/src/content/docs/en/guida/funzioni-comuni.mdx",
+    "docs-site/src/content/docs/en/guida/impostazioni.mdx",
+    "docs-site/src/content/docs/en/moduli/avanzamento.mdx",
+    "docs-site/src/content/docs/en/moduli/cantieri.mdx",
+    "docs-site/src/content/docs/en/moduli/diario.mdx",
+    "docs-site/src/content/docs/en/moduli/prenotazioni-ore.mdx",
+    "docs-site/src/content/docs/en/note/novita.md",
+    "docs-site/src/content/docs/en/note/rilascio.md",
+    "docs-site/src/content/docs/en/riferimento/api.md",
+    "docs-site/src/content/docs/guida/funzioni-comuni.mdx",
+    "docs-site/src/content/docs/guida/impostazioni.mdx",
+    "docs-site/src/content/docs/moduli/avanzamento.mdx",
+    "docs-site/src/content/docs/moduli/cantieri.mdx",
+    "docs-site/src/content/docs/moduli/diario.mdx",
+    "docs-site/src/content/docs/moduli/prenotazioni-ore.mdx",
+    "docs-site/src/content/docs/note/novita.md",
+    "docs-site/src/content/docs/note/rilascio.md",
+    "docs-site/src/content/docs/riferimento/api.md"
+  ]
+}

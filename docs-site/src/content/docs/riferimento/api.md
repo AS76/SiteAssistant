@@ -49,16 +49,18 @@ Le opzioni di registrazione e di accesso restituiscono le opzioni per il browser
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/sites` | autenticato | Solo i cantieri di cui sei membro |
-| POST | `/api/sites` | owner | `code`, `name`, `location`, `start_date`, `end_date`, `jurisdiction` |
+| POST | `/api/sites` | owner | `code`, `name`, `location`, `start_date`, `end_date`, `jurisdiction`, `time_zone`, `day_cutoff_time` |
 | GET | `/api/sites/{id}` | membro | Dettaglio cantiere |
-| PATCH | `/api/sites/{id}` | owner | `{ jurisdiction }`: cambia solo la giurisdizione, `IT` o `UK` |
+| PATCH | `/api/sites/{id}` | owner | Aggiorna uno o più campi tra `jurisdiction`, `time_zone` e `day_cutoff_time` |
 | GET | `/api/sites/{id}/members` | owner | Elenco membri e ruoli, con le email |
 | POST | `/api/sites/{id}/members` | owner | `{ user_id, role }`; `role: null` rimuove |
 | GET | `/api/sites/{id}/assignable` | owner/editor/verifier | Membri attivi con `user_id`, `name` e `role`, senza email |
 | GET | `/api/member-access?site_id=` | membro | Matrice effettiva degli accessi per modulo, per membro |
 | PUT | `/api/member-access` | owner | `{ site_id, member_id, module, allowed }`; aggiorna un accesso |
 
-Ogni cantiere dichiara una **giurisdizione**, `IT` o `UK`: è il diritto che si applica al cantiere e non dipende dalla lingua dell'interfaccia. Se `POST /api/sites` non la indica vale `IT`, che è anche il valore delle righe create prima dell'introduzione del campo; `GET /api/sites` e `GET /api/sites/{id}` la restituiscono. `PATCH /api/sites/{id}` accetta solo `{ jurisdiction }`, solo dagli owner: qualsiasi altro campo, o un valore diverso da `IT` e `UK`, è rifiutato con `400 VALIDATION_ERROR`. Il cambio scrive una riga `update` nel registro di audit con `entity_type` `site`. La giurisdizione non è ancora impostabile dall'interfaccia.
+Ogni cantiere dichiara una **giurisdizione**, `IT` o `UK`: è il diritto che si applica al cantiere e non dipende dalla lingua dell'interfaccia. Se `POST /api/sites` non la indica vale `IT`, che è anche il valore delle righe create prima dell'introduzione del campo. `GET /api/sites` e `GET /api/sites/{id}` restituiscono `jurisdiction`, `time_zone` e `day_cutoff_time`. In creazione questi campi sono facoltativi. Il fuso predefinito è `Europe/Rome` per `IT` e `Europe/London` per `UK`. L'ora di taglio predefinita è `06:00`.
+
+`PATCH /api/sites/{id}` è riservato agli owner e accetta uno o più dei campi `jurisdiction` (`IT` o `UK`), `time_zone` (identificatore IANA) e `day_cutoff_time` (ora locale in formato `HH:MM`). I campi omessi conservano il valore corrente. Un corpo vuoto, un campo sconosciuto o un valore non valido restituisce `400 VALIDATION_ERROR`. Il salvataggio scrive un evento `update` con `entity_type` `site` nel registro di audit. La giurisdizione si imposta via API.
 
 `GET /api/member-access` restituisce `members`, ognuno con `user_id`, `email`, `name`, `role` e `modules`, la mappa dei moduli con il valore effettivo. `PUT` accetta i moduli `overview`, `tasks`, `deviations`, `diary`, `progress`, `bookings`, `wbs`, `impacts`, `tools`, `certifications`, `hse`, `sites`, `logistics`, `reporting`, `workforce_names` e `workforce_presence`; `overview` e `sites` restano sempre consentiti e un owner non può escludere se stesso, altrimenti la risposta è `400 ACCESS_INVALID`. Un modulo escluso risponde `403 MODULE_FORBIDDEN` in lettura e in scrittura; Panoramica, report e assistente non leggono i moduli esclusi.
 
@@ -82,6 +84,8 @@ Ogni cantiere dichiara una **giurisdizione**, `IT` o `UK`: è il diritto che si 
 | GET | `/api/diary?site_id=` | membro | Voci del cantiere; accetta anche `siteId` |
 | POST | `/api/diary` | owner/editor/verifier | Una voce per cantiere/data/turno |
 
+`POST /api/diary` usa il fuso e l'ora di taglio del cantiere. Ometti `operational_date` e `shift` per far assegnare entrambi dal server al salvataggio. Se invii la data senza il turno, il server assegna il turno corrente. Per registrare una data e un turno specifici, invia `operational_date` in formato `YYYY-MM-DD` e `shift` con valore `day` o `night`. Gli eventuali campi `time_zone` e `day_cutoff_time` devono coincidere con quelli del cantiere, altrimenti la risposta è `400 VALIDATION_ERROR`. La voce registra entrambi i valori alla creazione.
+
 Le due liste accettano sia `site_id` sia `siteId`, perché le attività e il diario usavano storicamente il secondo nome. Un parametro di query non previsto viene rifiutato con `400 VALIDATION_ERROR` invece di essere ignorato: un filtro scritto male non restituisce un elenco non filtrato.
 
 ## Struttura progetto (WBS) e presenze (HR)
@@ -98,6 +102,8 @@ Queste aree sono esposte in **sola lettura**. L'import degli snapshot tramite en
 | GET | `/api/employees/{id}` | membro con `workforce_names` | Dipendente con i suoi work days |
 | GET | `/api/work-days?site_id=&employee_id=&from=&to=` | membro con `workforce_names` | Presenze filtrate per intervallo |
 | POST | `/api/employees/import` | owner | Promuove uno snapshot presenze |
+
+L'import degli snapshot via `POST /api/employees/import` classifica il turno a partire dall'orario locale di inizio e dall'ora di taglio del cantiere. Data operativa e orari sono conservati come forniti dalla sorgente.
 
 ### Riepilogo ore e presenze in cantiere
 
@@ -127,10 +133,13 @@ Le voci di avanzamento importate dal sistema di cantiere sono visibili nella vis
 | DELETE | `/api/progress-types/{id}` | owner | Elimina un tipo non assegnato |
 | PATCH | `/api/site-progress/{id}/progress-type` | owner | Assegna o toglie un tipo (`progress_type_id`) |
 | PUT | `/api/site-progress/{id}/steps` | owner/editor | `{ steps: [{ step_id, percent }] }`; aggiunge una registrazione allo storico |
+| GET | `/api/progress/curve?site_id=&from=&to=` | membro con `progress` | Curva per sezione, per giorno di calendario |
 
 Ogni voce riporta descrizione, area PLC, sezione, avanzamento e avanzamento pianificato, scostamento, assegnatario, date pianificate ed effettive, ritardo atteso, `planned_hours`, `booked_hours` e i contrassegni `has_files`, `has_notes`, `has_deviations`. Quando la voce è collegata a un nodo WBS, la risposta include anche `wbs_code` e `wbs_description` del nodo; senza collegamento i due campi sono `null`. Il collegamento alla voce WBS avviene solo quando area PLC e sezione individuano **un solo** nodo; in tutti gli altri casi la voce resta senza collegamento. `planned_hours` è un numero o `null`; se è `null`, l'earned value usa le ore del nodo WBS collegato, quando presenti.
 
 Un tipo di avanzamento è un elenco di step con un peso. La somma dei pesi deve essere **100**, altrimenti la creazione è rifiutata con `WEIGHTS_NOT_100`. Se una voce ha un tipo assegnato, l'avanzamento restituito è `computed` (media pesata degli step); senza step registrati vale `0`, non il valore importato. Ogni `PUT` inserisce una riga in `progress_entries`: lo storico non viene riscritto e le curve si calcolano da lì.
+
+`GET /api/progress/curve` raggruppa le registrazioni e le date pianificate con orario per giorno di calendario nel fuso del cantiere. Un valore salvato come sola data conserva il giorno originario. Se `to` è omesso, l'intervallo termina alla data locale corrente. Se `from` è omesso, l'intervallo copre 90 giorni inclusi gli estremi. L'intervallo può coprire fino a 400 giorni. I limiti si indicano in formato `YYYY-MM-DD`.
 
 `PATCH /api/site-progress/{id}` accetta solo `{ planned_hours }`, con un numero tra **0** e **1000000** oppure `null` per tornare alle ore del nodo WBS. Qualsiasi altro campo è rifiutato con `VALIDATION_ERROR`; l'accesso è riservato a owner ed editor del cantiere.
 

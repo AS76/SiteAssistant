@@ -28,7 +28,7 @@ This page describes the currently published version. It is deliberately explicit
 - Overview with four indicators, a deviations donut, progress by section, hours per week and a **Work produced** panel.
 - planning export import from the interface, with preview and confirmation, for six data families and with per-site column mapping.
 - Read-only data assistant, with record citations.
-- Settings for currency, decimals and separators on amounts.
+- Settings for currency, decimals and separators on amounts. Owners can also set the site's time zone and operational day start.
 - Sortable tables, optional column filters and cards on phones.
 - Mobile navigation with a bottom bar.
 - Desktop navigation grouped in **Operations**, **Site** and **Management**.
@@ -47,7 +47,8 @@ This page describes the currently published version. It is deliberately explicit
 
 ## Not available
 
-- Editing or deleting sites, tasks and diary entries.
+- Deleting sites and editing their names, dates or locations.
+- Editing or deleting tasks and diary entries.
 - Editing or deleting imported data: progress, deviations and attendance stay read-only, except the planned hours of progress items.
 - Deleting purchase orders, packages, shipments and receipts.
 - Acceptance criteria, long descriptions, checklists.
@@ -62,7 +63,7 @@ This page describes the currently published version. It is deliberately explicit
 - The completion evidence is a **text note**, not an attachment.
 - The executor and reviewer are entered as **free-text names**, not linked to accounts.
 - Site dates are descriptive: they do not prevent entries outside the range.
-- Timezone and cutoff time are attributes of the individual diary entry; the interface uses the default values.
+- Each diary entry keeps the site's time zone and cutoff recorded when it was created.
 - Printing uses the browser: the appearance depends on the browser and the chosen margins.
 - The language switch translates the interface, not the entered content.
 - Attachments in the interface and via API are limited to **15 MiB** and to images and PDF only.

@@ -22,28 +22,28 @@ A cosa serve: lasciare al turno successivo il piano, il consuntivo e ciò che è
 
 1. Scegli il **giorno operativo** con il campo data: il campo lo mostra secondo la lingua del browser, mentre il valore salvato resta in formato ISO (`YYYY-MM-DD`). Accanto al campo la data compare per esteso nella lingua dell'interfaccia, per esempio «10 nov 2026».
 2. Premi **Chiudi il turno**.
-3. Scegli il **turno**: diurno o notturno.
+3. Se registri online il turno corrente, il modulo mostra data e turno. Per un altro giorno o turno, oppure se lavori offline, scegli **Turno diurno** o **Turno notturno** nel modulo.
 4. Compila **piano del turno**, **consuntivo**, **impedimenti** e **prossimo passo**. I campi testuali sono facoltativi, ma un contributo senza consuntivo racconta poco.
 5. Allega le foto, se servono (vedi il paragrafo seguente).
-6. Premi **Salva**. Il contributo compare nella giornata con l'ora di registrazione.
+6. Premi **Salva**. Per il turno corrente online, il server assegna giorno e turno al momento della registrazione. Se nel frattempo è cambiato il giorno operativo, il Diario si apre sulla data registrata.
 
 | Campo | Obbligatorio | Note |
 | :-- | :-- | :-- |
-| Turno | Sì | `day` (diurno) o `night` (notturno) |
+| Turno | Sì | Automatico per il turno corrente online. Negli altri casi si sceglie nel modulo. |
 | Piano | No | Cosa era previsto per il turno |
 | Consuntivo | No | Cosa è stato effettivamente eseguito |
 | Impedimenti | No | Blocchi, interferenze, scostamenti |
 | Prossimo passo | No | Cosa passa al turno successivo |
 
-Il giorno operativo è calcolato dall'applicazione in base al cantiere e all'orario. Esiste **una sola voce per cantiere, giorno e turno**: un secondo inserimento sulla stessa combinazione viene rifiutato.
+Esiste **una sola voce per cantiere, giorno e turno**: un secondo inserimento sulla stessa combinazione viene rifiutato.
 
 Registrare un contributo è riservato a **owner**, **editor** e **verificatori**. Chi ha il ruolo `viewer` consulta il diario ma non vede il pulsante **Chiudi il turno**.
 
 :::caution[Se il contributo non viene salvato]
 - **Il pulsante Chiudi il turno non c'è:** il tuo ruolo è `viewer`. Chiedi a un owner di registrare il contributo o di cambiare il tuo ruolo sul cantiere.
 - **Contributo duplicato:** per quel giorno e quel turno esiste già una voce. Scegli l'altro turno o apri la voce esistente.
-- **Giorno sbagliato:** il campo data decide il giorno operativo; un turno notturno appartiene al giorno in cui è iniziato.
-- **Salvataggio offline:** il contributo resta in coda sul dispositivo e viene inviato al ritorno della rete; lo stato è visibile accanto alla voce.
+- **Giorno sbagliato:** per registrare un turno passato, seleziona il giorno operativo a cui appartiene prima di aprire il modulo.
+- **Salvataggio offline:** il contributo resta in coda sul dispositivo con il giorno e il turno scelti. Li mantiene quando viene inviato al ritorno della rete. Lo stato è visibile accanto alla voce.
 :::
 
 ## Aggiungere foto al diario
@@ -68,13 +68,9 @@ Il caricamento degli allegati è riservato a **owner** ed **editor**.
 
 ## Il giorno operativo
 
-Il giorno operativo non coincide con la mezzanotte:
+Il giorno operativo inizia all'ora di taglio locale del cantiere e dura fino all'ora di taglio successiva. Prima di quell'ora si è ancora nel giorno operativo precedente. Con l'impostazione predefinita delle **06:00**, il turno diurno va dalle 06:00 alle 18:00 e quello notturno dalle 18:00 alle 06:00. Il passaggio al turno notturno è fissato alle 18:00.
 
-- inizia all'ora di taglio configurata, per impostazione predefinita **06:00** nel fuso **Europe/Rome**;
-- termina alle 05:59:59 del giorno successivo;
-- un turno notturno appartiene al giorno in cui è iniziato.
-
-Esempio: un turno notturno che inizia il 12 novembre alle 22:00 e finisce il 13 alle 06:00 viene registrato sul **12 novembre**.
+Per esempio, con l'ora di taglio alle 06:00, un contributo registrato alle 02:00 del 13 novembre appartiene al turno notturno del **12 novembre**. Il Diario mostra l'ora di registrazione nel fuso salvato con la voce. Vedi [Impostazioni cantiere](../../guida/impostazioni/#impostazioni-cantiere).
 
 La regola è anche nella pagina del diario: sotto le voci nel pannello **Un giorno operativo, due turni**, richiudibile a tutte le larghezze.
 

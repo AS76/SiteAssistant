@@ -1,11 +1,11 @@
 ---
 title: Settings
-description: Account, password change, passkeys, currency and separators.
+description: Account, password change, passkeys, the site's operational day, currency and separators.
 ---
 
 import Shot from '../../../../components/Shot.astro';
 
-The gear at the top right opens **Settings**. Your account is at the top; display preferences are below.
+The gear at the top right opens **Settings**. Your account is at the top. Below it are your display preferences and, if you own the selected site, the site settings.
 
 ## Your account
 
@@ -21,6 +21,17 @@ The **Your account** section shows:
 The user type is the one for the site chosen in the selector at the top: the same account can be Owner on one site and Viewer on another. If you have no role on the selected site, the window says so.
 
 To change the password you need the current password and a new password, different and at least **12 characters** long. Saving closes the other sessions. If you are using a temporary password, the banner at the top remains a quick route to the same form; if you close it, the button stays here.
+
+## Site settings
+
+To change the time zone and the start of the operational day, you need an internet connection and the **Owner** role on the selected site.
+
+1. Select the site and open the **gear** in the top right.
+2. In **Site settings**, choose a **Site time zone** from the list or enter an IANA identifier such as `Europe/London`.
+3. Set **Start of the operational day** using the site's local time.
+4. Press **Save site settings**.
+
+The saved settings apply to all members of the site. See [The operational day](../../amministrazione/configurare-cantiere/#the-operational-day).
 
 ## Setting currency and format
 

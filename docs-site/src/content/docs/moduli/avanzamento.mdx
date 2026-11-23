@@ -65,7 +65,7 @@ A cosa serve: aggiornare l'avanzamento di una voce senza toccare i dati importat
 
 L'avanzamento della voce viene ricalcolato come media pesata degli step. Se una voce ha un tipo assegnato ma nessuno step registrato, l'avanzamento calcolato è **0**: il valore importato non viene usato.
 
-Ogni salvataggio aggiunge una registrazione allo **storico**. Lo storico non viene riscritto e le curve di avanzamento si calcolano da lì, non dagli import.
+Ogni salvataggio aggiunge una registrazione allo **storico**. Lo storico alimenta il consuntivo della curva di avanzamento. L'[API della curva](../../riferimento/api/#avanzamento-di-cantiere) raggruppa le registrazioni e le date pianificate con orario per giorno di calendario nel fuso del cantiere. Ogni giorno di calendario inizia alla mezzanotte locale. I valori salvati come sole date conservano il giorno originario.
 
 :::caution[Se non puoi salvare gli step]
 - **Nessun tipo assegnato:** il modulo degli step non compare. Un owner deve assegnare un tipo dal dettaglio.

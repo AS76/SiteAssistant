@@ -5,6 +5,10 @@ description: Changes to SiteAssistant that change the product or how you use it.
 
 This page collects the changes visible to those who use the application. It is not a technical changelog: for that, see the commit history in the repository.
 
+## 22 November 2026
+
+- **Operational day per site.** Owners can set the site's time zone and operational day start. The Diary and Site attendance follow the local operational day. The progress curve uses the site's calendar days. See [Site settings](../../guida/impostazioni/#site-settings) and [Site diary](../../moduli/diario/#the-operational-day).
+
 ## 21 November 2026
 
 - **Separate permissions for individual hours and site attendance.** **Time bookings** shows source totals by company, day or period to members without **Worker names and individual hours** access. The separate **Site attendance** view shows names, shifts and scheduled times for the current operational day. Site owners can grant both permissions from **Module access**. See [Time bookings](../../moduli/prenotazioni-ore/) and [Users and roles](../../amministrazione/utenti-e-ruoli/#module-access).

@@ -40,17 +40,17 @@ Ruoli consigliati in cantiere:
 
 ## Il giorno operativo
 
-Fuso orario e ora di taglio determinano a quale giorno operativo appartiene una voce di diario.
+Fuso orario e ora di taglio del cantiere determinano a quale giorno operativo appartiene una voce di diario.
 
-| Impostazione | Valore predefinito | Dove si imposta |
-| :-- | :-- | :-- |
-| Fuso orario | `Europe/Rome` | Attributo della voce di diario (via API) |
-| Ora di taglio | `06:00` | Attributo della voce di diario (via API) |
+| Impostazione | Valore predefinito |
+| :-- | :-- |
+| Fuso orario del cantiere | `Europe/Rome` per `IT`, `Europe/London` per `UK` |
+| Inizio del giorno operativo | `06:00` (ora locale) |
 
-Non sono impostazioni del cantiere e non sono modificabili dall'interfaccia. Le voci già salvate mantengono i valori con cui sono state registrate.
+I valori iniziali valgono anche per i cantieri già esistenti al momento dell'introduzione di queste impostazioni. Gli **owner** possono modificare entrambi i valori per il cantiere selezionato. Ogni salvataggio viene registrato nell'audit. Le voci di diario già salvate mantengono il fuso e l'ora di taglio registrati alla creazione. Vedi [Impostazioni cantiere](../../guida/impostazioni/#impostazioni-cantiere).
 
 ## Cosa non è configurabile
 
 - Logo, colori o dominio per cantiere.
 - Campi personalizzati di attività o diario.
-- Orari di turno, calendario festivi, notifiche.
+- Ora di inizio del turno notturno, calendario festivi, notifiche.
