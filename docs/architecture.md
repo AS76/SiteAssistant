@@ -26,11 +26,11 @@ Webapp for the site manager: connects planning, work performed, verification and
 
 ```mermaid
 flowchart LR
-    U[Browser: interfaccia web] -->|HTTPS| A[API: node:http + pg]
+    U[Browser: web interface] -->|HTTPS| A[API: node:http + pg]
     U -->|Login| A
-    U -->|app shell + cache letture| SW[Service Worker]
-    U -->|coda scritture| IDB[(IndexedDB: coda + mirror offline)]
-    IDB -->|Background Sync (rete ok)| A
+    U -->|app shell + read cache| SW[Service Worker]
+    U -->|write queue| IDB[(IndexedDB: queue + offline mirror)]
+    IDB -->|Background Sync (network up)| A
     A --> P[(PostgreSQL / Neon)]
     A --> O[Object storage S3 iDrive e2]
 ```

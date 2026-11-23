@@ -87,9 +87,12 @@ The same suites run on every push and pull request through GitHub Actions, again
 
 ## Documentation
 
-- User manual, Italian and English: <https://as76.github.io/SiteAssistant/>
-- REST API reference: <https://as76.github.io/SiteAssistant/riferimento/api/>
-- Product status and known limits: <https://as76.github.io/SiteAssistant/note/rilascio/>
+- User manual — English: <https://as76.github.io/SiteAssistant/en/>
+- Manuale utente — Italiano: <https://as76.github.io/SiteAssistant/>
+- REST API reference — English: <https://as76.github.io/SiteAssistant/en/riferimento/api/>
+- Riferimento API — Italiano: <https://as76.github.io/SiteAssistant/riferimento/api/>
+- Product status and known limitations — English: <https://as76.github.io/SiteAssistant/en/note/rilascio/>
+- Stato del prodotto e limiti noti — Italiano: <https://as76.github.io/SiteAssistant/note/rilascio/>
 
 ## Contributing
 
