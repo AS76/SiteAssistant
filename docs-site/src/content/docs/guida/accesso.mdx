@@ -27,7 +27,8 @@ Nella demo, sotto la fascia **DEMO** compare una nota con le lingue dei dati: di
 
 :::caution[Se l'accesso non riesce]
 - Il messaggio di errore non rivela mai se a essere sbagliata è l'email o la password.
-- Dopo **10 tentativi** falliti nella stessa finestra di **15 minuti** (per la stessa email e lo stesso indirizzo di rete), l'accesso viene sospeso per un po': attendi qualche minuto e riprova.
+- Dopo **10 accessi con password falliti** in **15 minuti** per la stessa email e lo stesso indirizzo di rete, il tentativo successivo viene bloccato. Il modulo mostra un avviso con i minuti di attesa e disattiva **Accedi** con un conto alla rovescia. Il pulsante si riattiva allo scadere del tempo.
+- Un accesso riuscito con password azzera i tentativi falliti per quella email e quell'indirizzo di rete. Durante l'attesa puoi usare una passkey già registrata, se disponibile.
 - Se la sessione scade o viene revocata, l'applicazione ti riporta al modulo di accesso.
 :::
 

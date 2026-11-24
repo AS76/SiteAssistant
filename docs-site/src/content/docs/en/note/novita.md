@@ -7,6 +7,8 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 22 November 2026
 
+- **Password sign-in countdown.** The limit counts failed attempts only. If the limit is reached, **Sign in** displays the remaining wait and becomes available again when the countdown ends. See [Sign in and account](../../guida/accesso/#sign-in).
+
 - **Progress at 100% with open verifications.** The warning in **Site progress** counts **To verify** tasks on the same WBS node. If you can access **Tasks**, select the warning to open the filtered list. The board, list and **Light tasks** also show the warning beside the affected tasks. See [Site progress](../../moduli/avanzamento/).
 
 - **Operational day per site.** Owners can set the site's time zone and operational day start. The Diary and Site attendance follow the local operational day. The progress curve uses the site's calendar days. See [Site settings](../../guida/impostazioni/#site-settings) and [Site diary](../../moduli/diario/#the-operational-day).

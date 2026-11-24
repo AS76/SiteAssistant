@@ -1,0 +1,13 @@
+{
+  "code_commit": "edacd81ab639aef52606fba706ddc0ff950f6fc2",
+  "reviewed_at": "2026-11-24",
+  "documentation_required": true,
+  "pages": [
+    "docs-site/src/content/docs/en/guida/accesso.mdx",
+    "docs-site/src/content/docs/en/note/novita.md",
+    "docs-site/src/content/docs/en/riferimento/api.md",
+    "docs-site/src/content/docs/guida/accesso.mdx",
+    "docs-site/src/content/docs/note/novita.md",
+    "docs-site/src/content/docs/riferimento/api.md"
+  ]
+}

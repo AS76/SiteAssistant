@@ -27,7 +27,8 @@ In the demo, a note under the **DEMO** bar gives the data languages: which sites
 
 :::caution[If sign-in fails]
 - The error message never reveals whether the email or the password is wrong.
-- After **10 failed attempts** in the same **15-minute** window (for the same email and network address), sign-in is suspended for a while: wait a few minutes and try again.
+- After **10 failed password sign-ins** in **15 minutes** for the same email and network address, the next attempt is blocked. The form shows a notice with the wait in minutes and disables **Sign in** while the button counts down. The button becomes available again when the countdown ends.
+- A successful password sign-in clears the failed attempts for that email and network address. While you wait, you can use a registered passkey if one is available.
 - If the session expires or is revoked, the application takes you back to the sign-in form.
 :::
 
