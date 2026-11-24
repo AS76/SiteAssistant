@@ -488,3 +488,14 @@ test('task result counts use singular for one and plural for zero and two in bot
     }
   }
 });
+
+test('low priority participates in mixed task filters and the form keeps Normal as the default', async () => {
+  const tasks = ['low', 'normal', 'high'].map(priority => ({
+    id: priority, siteId: 'site-a', title: priority, status: 'todo', priority,
+  }));
+  const { context, section } = await lightUi(tasks);
+  context.filters.priority = 'low';
+  assert.deepEqual(Array.from(context.filteredTasks(), row => row.id), ['low']);
+  assert.ok(PRIORITIES.includes('low'));
+  assert.match(section('async function showTaskForm()', 'function taskEvidence('), /priority === 'normal' \? ' selected'/);
+});

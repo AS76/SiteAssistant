@@ -34,6 +34,7 @@ function dateUi(language) {
     ['const button =', 'function toast('],
     ['function field(', 'function formError('],
     ['const diaryContentFields =', 'async function loadWbs('],
+    ['const canAttachDiary =', 'const canTransitionTask ='],
     ['function coreSelect(', 'const coreDetailButton'],
     ['function renderHse()', 'function showHseDelete('],
     ['function showSiteForm()', 'function taskResponsibleFields('],

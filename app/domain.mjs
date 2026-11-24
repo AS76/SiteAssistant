@@ -12,7 +12,7 @@ export function formatDisplayNumber(value, { kind = 'number', language = 'it', c
 }
 
 export const STATUSES = ['todo', 'in_progress', 'to_verify', 'closed', 'blocked'];
-export const PRIORITIES = ['normal', 'high', 'urgent'];
+export const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 export const TASK_KINDS = Object.freeze(['ordinary', 'corrective']);
 export const taskKindLabelKey = kind => kind === 'corrective' ? 'kindCorrective' : 'kindOrdinary';
 export function taskVerificationOutcome(task) {
