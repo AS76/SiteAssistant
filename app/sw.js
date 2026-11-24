@@ -1,7 +1,7 @@
 import { createApi } from './api.mjs';
 import { getMirror, replayOps, SYNC_TAG } from './offline.mjs';
 
-const VERSION = 'siteassistant-v15-52';
+const VERSION = 'siteassistant-v15-53';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data-`;
 const shellUrls = [
@@ -56,7 +56,9 @@ self.addEventListener('fetch', event => {
   if (shellUrls.includes(url.href) || (request.mode === 'navigate' && url.origin === self.location.origin && url.pathname.startsWith(new URL(self.registration.scope).pathname) && !url.pathname.includes('/api/'))) {
     event.respondWith((async () => {
       const cache = await caches.open(SHELL);
-      return await cache.match(request.mode === 'navigate' ? shellUrls[1] : request) || fetch(request);
+      // Precache requests have no Origin header, while module and font requests can include it.
+      // The same-origin shell files are public and use the precached URL as their key.
+      return await cache.match(request.mode === 'navigate' ? shellUrls[1] : url.href) || fetch(request);
     })());
   } else if (url.pathname.includes('/api/')) {
     event.respondWith(runtime(request, event));

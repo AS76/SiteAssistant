@@ -472,7 +472,8 @@ function renderChrome() {
     passwordBanner = $('#password-banner');
   }
   passwordBanner.hidden = !session?.password_change_required;
-  passwordBanner.innerHTML = `<h1>${t('passwordChangeNotice')}</h1> ${button('changePassword', 'change-password', offline ? 'disabled' : '')}`;
+  passwordBanner.innerHTML = passwordBanner.hidden ? ''
+    : `<h1>${t('passwordChangeNotice')}</h1> ${button('changePassword', 'change-password', offline ? 'disabled' : '')}`;
   logoutButton.hidden = !session; logoutButton.textContent = t('logout');
   $('#site-select').disabled = loading || !state.sites.length;
   $('#language').textContent = language === 'it' ? 'EN' : 'IT';

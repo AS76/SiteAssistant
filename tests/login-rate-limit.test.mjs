@@ -139,7 +139,7 @@ test('the login form localizes the 429 and keeps the submit button locked until 
     $: selector => selector === '#main' ? main : form,
     Date: { now: () => now }, setTimeout: next => { tick = next; }, clearTimeout: () => { tick = undefined; },
     t: key => messages[language][key], button: () => '', supportsPasskeys: () => false, renderChrome() {},
-    dateFormData: () => ({ email, password }), accountLock: run => run(),
+    dateFormData: () => ({ email, password }), accountLock: run => run(), flushLogout: async () => {},
     api: createApi({ fetchImpl: async () => {
       calls++;
       return Response.json({ code: 'RATE_LIMITED' }, { status: 429, headers: { 'Retry-After': '61' } });
