@@ -6,6 +6,8 @@ import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStaticHandler } from '../server/static-dev.mjs';
+import { createServer as createApplication } from '../server/http.mjs';
+import { openTestDb } from './helpers/db.mjs';
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'static-dev-'));
@@ -60,4 +62,26 @@ test('dev static handler serves the shell, types files and refuses escapes', asy
 
   const post = await fetch(base + '/', { method: 'POST' });
   assert.equal(post.status, 404);
+});
+
+test('API errors, preflight and PWA assets carry the global security headers', async t => {
+  const { db, close } = await openTestDb(); t.after(close);
+  const server = createApplication(db, { production: false, staticDir: new URL('../app/', import.meta.url).pathname });
+  t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  for (const [path, method, status] of [['/', 'GET', 200], ['/sw.js', 'GET', 200], ['/manifest.webmanifest', 'HEAD', 200],
+    ['/api/health', 'GET', 200], ['/api/sites', 'GET', 401], ['/api/sites', 'OPTIONS', 204], ['/missing.css', 'GET', 404]]) {
+    const response = await fetch(base + path, { method, headers: { 'x-forwarded-proto': 'https' } });
+    assert.equal(response.status, status, path);
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff', path);
+    assert.equal(response.headers.get('strict-transport-security'), 'max-age=31536000', path);
+    const policy = response.headers.get('content-security-policy');
+    for (const directive of ["script-src 'self'", "worker-src 'self'", "manifest-src 'self'", "object-src 'none'", "frame-ancestors 'none'"]) {
+      assert.ok(policy.includes(directive), path);
+    }
+    await response.arrayBuffer();
+  }
+  const insecure = await fetch(base + '/api/health');
+  assert.equal(insecure.headers.get('strict-transport-security'), null);
 });

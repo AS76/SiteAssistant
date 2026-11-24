@@ -75,6 +75,11 @@ const authBypassExcluded = new Set([
   '/api/auth/login', '/api/auth/logout', '/api/auth/forgot', '/api/auth/request',
   '/api/auth/request/decide', '/api/auth/password', '/api/auth/me', '/api/health', RESET_PATH,
 ]);
+const browserPolicy = [
+  "default-src 'self'", "base-uri 'none'", "frame-ancestors 'none'", "object-src 'none'",
+  "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:",
+  "font-src 'self'", "connect-src 'self'", "worker-src 'self'", "manifest-src 'self'", "form-action 'self'",
+].join('; ');
 
 async function readJson(request, { includeHash = false, maxBytes = 65536 } = {}) {
   const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
@@ -182,6 +187,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   const authBypassEmail = authBypassUser.trim().toLowerCase();
   let authBypassCount = 0, lastAuthBypassLog = -Infinity;
   return createHttpServer(async (request, response) => {
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Content-Security-Policy', browserPolicy);
+    if (isSecureRequest(request, { production })) response.setHeader('Strict-Transport-Security', 'max-age=31536000');
     response.setHeader('Vary', 'Origin');
     response.setHeader('Cache-Control', 'no-store');
     if (request.headers.origin === 'https://siteassistant.asassi.cloud') {
