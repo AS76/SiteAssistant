@@ -7,6 +7,8 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 22 novembre 2026
 
+- **Conto alla rovescia per l'accesso con password.** Il limite conta solo i tentativi falliti. Se scatta il blocco, **Accedi** mostra il tempo rimanente e si riattiva allo scadere dell'attesa. Vedi [Accesso e account](../../guida/accesso/#entrare).
+
 - **Avanzamento al 100% con verifiche aperte.** L'avviso in **Avanzamento** conta le attività **Da verificare** sullo stesso nodo WBS. Se puoi accedere ad **Attività**, seleziona l'avviso per aprire l'elenco filtrato. Anche la bacheca, l'elenco e **Attività leggere** mostrano l'avviso accanto alle attività interessate. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/).
 
 - **Giorno operativo per cantiere.** I proprietari possono impostare il fuso orario del cantiere e l'ora di inizio del giorno operativo. Diario e Presenze in cantiere seguono il giorno operativo locale. La curva di avanzamento usa i giorni di calendario del cantiere. Vedi [Impostazioni cantiere](../../guida/impostazioni/#impostazioni-cantiere) e [Diario di cantiere](../../moduli/diario/#il-giorno-operativo).
