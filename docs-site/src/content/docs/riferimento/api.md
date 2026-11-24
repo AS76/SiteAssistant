@@ -84,9 +84,17 @@ Ogni cantiere dichiara una **giurisdizione**, `IT` o `UK`: è il diritto che si 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/diary?site_id=` | membro | Voci del cantiere; accetta anche `siteId` |
-| POST | `/api/diary` | owner/editor/verifier | Una voce per cantiere/data/turno |
+| POST | `/api/diary` | owner/editor/verifier con modulo Diario | Una voce per cantiere, giorno e turno |
+| PATCH | `/api/diary/{id}` | autore entro sette giorni oppure owner, con modulo Diario | Corregge il contenuto e archivia la versione precedente |
+| GET | `/api/diary/{id}/versions` | membro con modulo Diario | Versioni in ordine decrescente |
 
 `POST /api/diary` usa il fuso e l'ora di taglio del cantiere. Ometti `operational_date` e `shift` per far assegnare entrambi dal server al salvataggio. Se invii la data senza il turno, il server assegna il turno corrente. Per registrare una data e un turno specifici, invia `operational_date` in formato `YYYY-MM-DD` e `shift` con valore `day` o `night`. Gli eventuali campi `time_zone` e `day_cutoff_time` devono coincidere con quelli del cantiere, altrimenti la risposta è `400 VALIDATION_ERROR`. La voce registra entrambi i valori alla creazione.
+
+La finestra di sette giorni si calcola confrontando `operational_date` con la data di calendario corrente nel fuso del cantiere. Una data futura restituisce `400 VALIDATION_ERROR`. Per una data più vecchia di sette giorni, il `POST` richiede il ruolo owner e una `motivation` di almeno 10 caratteri dopo aver rimosso gli spazi iniziali e finali. La risposta registra `author_id`, `recorded_late` e `recording_motivation`.
+
+Il `PATCH` richiede almeno uno tra `plan`, `actual`, `impediments` e `next_step`. Usa una stringa vuota per svuotare un campo. Il giorno operativo e il turno sono fissi. Per correggere una voce altrui, senza autore associato o oltre i sette giorni serve un owner e vale lo stesso requisito per `motivation`. Un ruolo insufficiente restituisce `403 FORBIDDEN`. Una motivazione obbligatoria mancante o troppo breve restituisce `400 MOTIVATION_REQUIRED`. La risposta riporta la voce aggiornata con `updated_at`, `updated_by` e `updated_by_name`.
+
+L'endpoint delle versioni restituisce un array, vuoto fino alla prima correzione. Ogni elemento include `version`, `snapshot` con la voce prima della correzione, `author_id` e `author_name` di chi ha eseguito la correzione, `created_at` e `motivation` se fornita.
 
 Le due liste accettano sia `site_id` sia `siteId`, perché le attività e il diario usavano storicamente il secondo nome. Un parametro di query non previsto viene rifiutato con `400 VALIDATION_ERROR` invece di essere ignorato: un filtro scritto male non restituisce un elenco non filtrato.
 

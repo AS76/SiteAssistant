@@ -11,7 +11,10 @@ Permissions in SiteAssistant are **per site**, not global: the same person can b
 | :-- | :-: | :-: | :-: | :-: |
 | View sites, tasks and diary | Yes | Yes | Yes | Yes |
 | Create and move tasks | Yes | Yes | Yes | No |
-| Write the diary | Yes | Yes | Yes | No |
+| Record a contribution for today or the previous seven days | Yes | Yes | Yes | No |
+| Record a contribution for an older date | With a reason | No | No | No |
+| Correct a diary entry | Any entry | Own entries within seven days | Own entries within seven days | Own entries within seven days |
+| View diary version history | Yes | Yes | Yes | Yes |
 | Verify or reopen | Yes* | No | Yes* | No |
 | Manage site members | Yes | No | No | No |
 | Create new sites | Yes | No | No | No |
@@ -32,6 +35,8 @@ Permissions in SiteAssistant are **per site**, not global: the same person can b
 | Move or close a cost impact | Yes | No | Yes | No |
 
 \* Only if designated reviewer of the task, and never on their own work. An owner can verify tasks they are not the designated reviewer of, but cannot verify what they executed themselves. A task assigned with a free name, with no linked account, can be reviewed by owners only.
+
+Diary actions require access to the **Diary** module. An author can still correct their own entry within the seven-day window if their role changes to `viewer`. An owner needs a reason to correct another author's entry, an entry without a linked author or an entry more than seven days old. See [Site diary](../../moduli/diario/#correcting-an-entry-and-viewing-its-history).
 
 ## How an account is created
 

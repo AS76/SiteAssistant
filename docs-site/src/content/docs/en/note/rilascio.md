@@ -14,7 +14,7 @@ This page describes the currently published version. It is deliberately explicit
 - Tasks with separate executor and reviewer, priority, due date, area, company and ordinary or corrective type; the **Light tasks** view closes and reopens ordinary ones with a single command.
 - Status transitions with notes, reasons and history. From the task details you can verify, reject or resume work when the button is available.
 - Separate review: whoever executes cannot close their own work.
-- Diary per operational day and shift, with plan, actual results, blockers and next step.
+- Diary per operational day and shift, with plan, actual results, blockers and next step. You can record past shifts, correct entries and view their history online according to the [Diary permissions](../../moduli/diario/).
 - Photos and PDFs attached to tasks, diary entries and deviations, including drag and drop from the desktop, up to 15 MiB per file; HSE events accept photos and PDFs from the edit window.
 - **Project structure (WBS)** operational view: tree and flat table, node editing, task links and reconciliation with the source export; synthetic nodes remain system-generated.
 - **Deviations**, **Site progress**, **Time bookings** and **Cost impacts** views.
@@ -32,7 +32,7 @@ This page describes the currently published version. It is deliberately explicit
 - Sortable tables, optional column filters and cards on phones.
 - Mobile navigation with a bottom bar.
 - Desktop navigation grouped in **Operations**, **Site** and **Management**.
-- Tasks and diary available offline; changes stay queued and are synchronised when the network returns.
+- Tasks and diary are available to read offline. Task changes and new diary contributions stay queued until synchronisation. Diary corrections and history require a connection.
 - Overview, board, list with filters, CSV export, diary printing.
 - Italian/English interface and responsive layout.
 
@@ -47,7 +47,7 @@ This page describes the currently published version. It is deliberately explicit
 ## Not available
 
 - Deleting sites and editing their names, dates or locations.
-- Editing or deleting tasks and diary entries.
+- Editing or deleting tasks and deleting diary entries.
 - Editing or deleting imported data: progress, deviations and attendance stay read-only, except the planned hours of progress items.
 - Deleting purchase orders, packages, shipments and receipts.
 - Acceptance criteria, long descriptions, checklists.
