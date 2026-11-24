@@ -17,9 +17,7 @@ A cosa serve: controllare che cosa è arrivato con l'ultimo caricamento, prima d
 4. Leggi **Righe totali** in fondo alla tabella e **Segnalazioni di qualità** in fondo al riquadro.
 5. Premi **Aggiorna** per rileggere i dati dal database di reporting.
 
-L'elenco **non è filtrato dal cantiere selezionato**: mostra gli ambiti presenti nel database di reporting, ordinati per riferimento progetto. L'accesso alla vista, invece, segue il modulo del cantiere selezionato, come per le altre viste. Un ambito senza un caricamento completo non compare; quando un valore manca, al suo posto leggi **Non disponibile**.
-
-Un bundle non viene attribuito al cantiere selezionato: il riferimento progetto e l’ID ambito sono quelli dichiarati dal bundle. Un report operativo per singolo cantiere è una funzione distinta.
+L’elenco comprende gli ambiti associati esplicitamente ai cantieri in cui hai il modulo reporting. Un ambito condiviso da più cantieri compare solo se hai accesso al reporting in tutti. Il selettore cantiere apre la vista nel cantiere corrente e l’elenco copre tutti i tuoi cantieri autorizzati. Ogni ambito mantiene il riferimento progetto dichiarato.
 
 La **data export dichiarata** è un giorno, senza ora, così come l'ha dichiarata il caricamento. **Caricato il** è invece il momento in cui il caricamento è stato registrato, mostrato con data e ora nel fuso locale del browser. Se riferimento progetto, data export o data di caricamento mancano, al loro posto leggi **Non disponibile**.
 
@@ -42,7 +40,7 @@ I conteggi sono numeri di righe, non importi né ore. **Righe totali** somma i s
 | :-- | :-- |
 | **Caricamento stato importazioni…** | La lettura è in corso |
 | **Stato importazioni non configurato** | Il server non ha la connessione al database di reporting: nessuna lettura viene eseguita |
-| **Nessun bundle completo** | La connessione c'è, ma non c'è ancora un caricamento completo da riepilogare |
+| **Nessun bundle completo** | La connessione è configurata e non ci sono caricamenti completi in un ambito a cui hai accesso |
 | **Stato importazioni non disponibile. Riprova con Aggiorna.** | La lettura non è riuscita, per esempio perché il database di reporting non risponde |
 
 Nessuno di questi stati è un errore dell'applicazione: **Aggiorna** riprova la lettura senza cambiare nulla.
@@ -51,7 +49,7 @@ Nessuno di questi stati è un errore dell'applicazione: **Aggiorna** riprova la 
 
 Il modulo `reporting` segue le regole degli altri moduli: è **attivo per impostazione predefinita** e un owner lo toglie dalla colonna **Stato importazioni** della tabella **Accessi per modulo** della vista **Cantieri**. Senza il modulo la voce non compare nella navigazione e un collegamento diretto mostra **Modulo non disponibile**; l'endpoint risponde `403 MODULE_FORBIDDEN`. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/#accessi-per-modulo).
 
-Tutti i ruoli del cantiere leggono il riepilogo, `viewer` compreso. Nessun ruolo scrive, perché la vista non ha comandi di modifica: owner ed editor non hanno pulsanti diversi dagli altri.
+Ogni ruolo di cantiere può leggere i riepiloghi entro il proprio perimetro. Solo gli owner abilitati esplicitamente sul server al reporting globale vedono tutti gli ambiti, compresi quelli senza associazioni.
 
 :::caution[Configurazione del server]
 La connessione al database di reporting si imposta sul server, con la variabile `REPORTING_DATABASE_URL`; non si configura dall'interfaccia. Senza quella variabile la vista mostra **Stato importazioni non configurato** e non esegue nessuna lettura. Chiedi a chi amministra l'ambiente.

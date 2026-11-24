@@ -397,17 +397,19 @@ The dashboard includes `workDays` (only `operationalDate` and `workTime`, preser
 
 ## Import status
 
-**Import status** is a read-only summary of the latest complete bundle per project scope: it is the same content as the **Import status** view (see [Import status](../../moduli/reporting/)). It does not depend on a site: the route does not accept `site_id` and answers with the scopes present in the reporting database.
+**Import status** is a read-only summary of the latest complete bundle per project scope: it is the same content as the **Import status** view (see [Import status](../../moduli/reporting/)). The server derives the scope from the session and ignores query parameters such as `site_id`.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/reporting/overview` | member with the `reporting` module in at least one site | `{ configured, scopes }`; no parameters |
 
-`configured` is `false` when the server has no reporting database connection (`REPORTING_DATABASE_URL` missing or blank): the answer is still `200`, with `scopes` empty, and no query runs. With the connection configured, `scopes` lists one item per scope: `scopeId`, `projectReference` (`null` when absent), `exportDate` (`YYYY-MM-DD` or `null`), `loadedAt` (ISO 8601 or `null`), `counts` with the six families `employees`, `work_days`, `time_schedule`, `site_progress_items`, `daily_logs` and `deviations`, `totalRows` and `qualityIssues`.
+`configured` is `false` when the server has no reporting database connection (`REPORTING_DATABASE_URL` missing or blank): the answer is still `200`, with `scopes` empty, and no query runs. With the connection configured, `scopes` lists one item per authorized scope: `scopeId`, `projectReference` (`null` when absent), `exportDate` (`YYYY-MM-DD` or `null`), `loadedAt` (ISO 8601 or `null`), `counts` with the six families `employees`, `work_days`, `time_schedule`, `site_progress_items`, `daily_logs` and `deviations`, `totalRows` and `qualityIssues`.
+
+Scoped access uses the trusted site-to-scope links already configured for WBS, workforce, progress and deviation imports. The caller needs reporting access in every site linked to a scope, including when several import families reference it. If no scope qualifies, the response is `200` with an empty `scopes` array and the reporting database is not queried. Global access requires a current site owner role and the authenticated user ID in the server’s comma-separated `REPORTING_GLOBAL_OWNER_IDS` setting. It is disabled by default.
 
 The counts are non-negative integers and `totalRows` is their sum. The answer contains no detail rows, source payloads or load identifiers. Scopes are sorted by project reference and identifier, and the read runs in a single `REPEATABLE READ READ ONLY` transaction, so metadata and counts describe the same load.
 
-The route accepts `GET` only: other methods answer `404`. Without a valid session the answer is `401`; if the module is not allowed in any of the member's sites it is `403 MODULE_FORBIDDEN`; if the reporting database does not answer it is `503 REPORTING_UNAVAILABLE`, with a generic message and no error details. There are no write routes, and a `site_id` in the query is ignored.
+The route accepts `GET` only: other methods answer `404`. Without a valid session the answer is `401`; if the module is not allowed in any of the member's sites it is `403 MODULE_FORBIDDEN`; if the reporting database does not answer it is `503 REPORTING_UNAVAILABLE`, with a generic message and no error details. There are no import-status export or write routes.
 
 ## Planning export import
 

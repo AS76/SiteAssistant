@@ -1,8 +1,32 @@
 import { RepositoryError } from './repository.mjs';
+import { memberships } from './auth.mjs';
+import { moduleAllowed } from './module-access.mjs';
 
 export const REPORTING_FAMILIES = Object.freeze([
   'employees', 'work_days', 'time_schedule', 'site_progress_items', 'daily_logs', 'deviations',
 ]);
+
+export async function reportingScopeIds(db, user, globalOwnerIds) {
+  const roles = await memberships(db, user.id);
+  if (globalOwnerIds.has(user.id) && roles.some(member => member.role === 'owner')) return null;
+
+  const allowedSites = new Set();
+  for (const member of roles) {
+    if (await moduleAllowed(db, member.site_id, user, 'reporting')) allowedSites.add(member.site_id);
+  }
+  if (!allowedSites.size) throw new RepositoryError(403, 'Module is not available.', 'MODULE_FORBIDDEN');
+
+  const bindings = await db.all(`SELECT site_id, scope_id FROM wbs_import_sources
+    UNION SELECT site_id, scope_id FROM hr_import_sources
+    UNION SELECT site_id, scope_id FROM site_progress_import_sources
+    UNION SELECT site_id, scope_id FROM deviation_import_sources`);
+  const allowedScopes = new Set(), excludedScopes = new Set();
+  for (const { site_id, scope_id } of bindings) {
+    (allowedSites.has(site_id) ? allowedScopes : excludedScopes).add(scope_id.toLowerCase());
+  }
+  // Aggregates cover the whole scope, including any other sites linked to it.
+  return [...allowedScopes].filter(id => !excludedScopes.has(id));
+}
 
 let pool;
 async function reportingPool(databaseUrl) {
@@ -39,14 +63,15 @@ export function normalizeReportingScope(row, familyCounts = {}) {
   };
 }
 
-async function readOverview(query) {
+async function readOverview(query, scopeIds) {
   const { rows: runs } = await query(`SELECT r.run_id, r.scope_id, s.project_reference,
     r.declared_export_date::text AS declared_export_date, r.loaded_at,
     (SELECT COUNT(*) FROM ingest.quality_issues q
       JOIN ingest.run_batches rb ON rb.batch_id = q.batch_id AND rb.scope_id = q.scope_id
       WHERE rb.run_id = r.run_id AND rb.scope_id = r.scope_id) AS quality_issues
     FROM reporting.latest_complete_runs r JOIN ingest.scopes s ON s.id = r.scope_id
-    ORDER BY s.project_reference, r.scope_id`);
+    WHERE ($1::uuid[] IS NULL OR r.scope_id = ANY($1::uuid[]))
+    ORDER BY s.project_reference, r.scope_id`, [scopeIds]);
   if (!runs.length) return { configured: true, scopes: [] };
   // Identifiers come only from the fixed family allowlist; scope IDs are parameters.
   const { rows } = await query(REPORTING_FAMILIES.map(family =>
@@ -61,15 +86,16 @@ async function readOverview(query) {
 }
 
 // Query injection keeps unit tests independent of a real reporting database.
-export async function reportingOverview({ databaseUrl = process.env.REPORTING_DATABASE_URL, query } = {}) {
+export async function reportingOverview({ databaseUrl = process.env.REPORTING_DATABASE_URL, scopeIds = [], query } = {}) {
   if (!databaseUrl?.trim()) return { configured: false, scopes: [] };
+  if (scopeIds?.length === 0) return { configured: true, scopes: [] };
   try {
-    if (query) return await readOverview(query);
+    if (query) return await readOverview(query, scopeIds);
     const client = await (await reportingPool(databaseUrl)).connect();
     try {
       // The run metadata and all six current views must describe the same snapshot.
       await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
-      const overview = await readOverview(client.query.bind(client));
+      const overview = await readOverview(client.query.bind(client), scopeIds);
       await client.query('COMMIT');
       return overview;
     } catch (error) {

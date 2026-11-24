@@ -1,5 +1,5 @@
 import { HSE_READ_ROLES } from '../app/hse-permissions.mjs';
-import { moduleAllowed, requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
+import { requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
 import { createServer as createHttpServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { extname } from 'node:path';
@@ -37,7 +37,7 @@ import { searchPlaces } from './geocode.mjs';
 import { dashboard } from './dashboard.mjs';
 import { getDashboardLayout, saveDashboardLayout, deleteDashboardLayout } from './dashboard-layouts.mjs';
 import { report } from './report.mjs';
-import { reportingOverview } from './reporting.mjs';
+import { reportingOverview, reportingScopeIds } from './reporting.mjs';
 import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
 import { progressCurve } from './progress-curve.mjs';
 import { listViews, createView, updateView, deleteView } from './view-settings.mjs';
@@ -172,6 +172,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   anonLimiter = createRateLimiter({ max: Number(process.env.RATE_LIMIT_ANON_PER_MIN ?? 60) }),
   storage = new S3Storage(),
   reporting = reportingOverview,
+  reportingGlobalOwnerIds = process.env.REPORTING_GLOBAL_OWNER_IDS || '',
   assistant = {},
   webauthn = {},
   // Development only: serve the browser client from the same origin as the API.
@@ -185,6 +186,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   const passkeyVerifyLimiter = createAuthRequestLimiter({ ipMax: 10 });
   const serveStatic = staticDir ? createStaticHandler(staticDir) : null;
   const authBypassEmail = authBypassUser.trim().toLowerCase();
+  const globalReportingOwners = new Set(reportingGlobalOwnerIds.split(',').map(id => id.trim().toLowerCase()));
   let authBypassCount = 0, lastAuthBypassLog = -Infinity;
   return createHttpServer(async (request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -344,13 +346,8 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (authError) throw authError;
       if (path === '/api/reporting/overview' && method === 'GET') {
-        const roles = await memberships(db, user.id);
-        let allowed = false;
-        for (const member of roles) {
-          if (await moduleAllowed(db, member.site_id, user, 'reporting')) { allowed = true; break; }
-        }
-        if (!allowed) throw new RepositoryError(403, 'Module is not available.', 'MODULE_FORBIDDEN');
-        return json(response, 200, await reporting());
+        const scopeIds = await reportingScopeIds(db, user, globalReportingOwners);
+        return json(response, 200, await reporting({ scopeIds }));
       }
       if (path === '/api/views' && method === 'GET') {
         return json(response, 200, await listViews(db, {

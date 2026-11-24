@@ -397,17 +397,19 @@ Il dashboard include `workDays` (solo `operationalDate` e `workTime`, con `null`
 
 ## Stato importazioni
 
-Lo **Stato importazioni** è un riepilogo in sola lettura dell'ultimo bundle completo per ogni ambito di progetto: è lo stesso contenuto della vista **Stato importazioni** (vedi [Stato importazioni](../../moduli/reporting/)). Non dipende da un cantiere: la rotta non accetta `site_id` e risponde con gli ambiti presenti nel database di reporting.
+Lo **Stato importazioni** è un riepilogo in sola lettura dell'ultimo bundle completo per ogni ambito di progetto: è lo stesso contenuto della vista **Stato importazioni** (vedi [Stato importazioni](../../moduli/reporting/)). Il server ricava il perimetro dalla sessione e ignora i parametri di query come `site_id`.
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/reporting/overview` | membro con modulo `reporting` in almeno un cantiere | `{ configured, scopes }`; nessun parametro |
 
-`configured` è `false` quando il server non ha la connessione al database di reporting (`REPORTING_DATABASE_URL` mancante o vuota): la risposta è comunque `200`, con `scopes` vuoto, e nessuna query viene eseguita. Con la connessione configurata, `scopes` elenca un elemento per ambito: `scopeId`, `projectReference` (`null` se assente), `exportDate` (`YYYY-MM-DD` o `null`), `loadedAt` (ISO 8601 o `null`), `counts` con le sei famiglie `employees`, `work_days`, `time_schedule`, `site_progress_items`, `daily_logs` e `deviations`, `totalRows` e `qualityIssues`.
+`configured` è `false` quando il server non ha la connessione al database di reporting (`REPORTING_DATABASE_URL` mancante o vuota): la risposta è comunque `200`, con `scopes` vuoto, e nessuna query viene eseguita. Con la connessione configurata, `scopes` elenca un elemento per ambito autorizzato: `scopeId`, `projectReference` (`null` se assente), `exportDate` (`YYYY-MM-DD` o `null`), `loadedAt` (ISO 8601 o `null`), `counts` con le sei famiglie `employees`, `work_days`, `time_schedule`, `site_progress_items`, `daily_logs` e `deviations`, `totalRows` e `qualityIssues`.
+
+L’accesso per cantiere usa le associazioni esplicite già configurate per gli import di WBS, personale, avanzamento e scostamenti. L’utente deve avere accesso al reporting in ogni cantiere associato all’ambito, anche quando lo usano più famiglie di import. Se nessun ambito rientra nel perimetro, la risposta è `200` con `scopes` vuoto e il database di reporting non viene interrogato. L’accesso globale richiede un ruolo owner attivo e l’ID dell’utente autenticato nella variabile server `REPORTING_GLOBAL_OWNER_IDS`, con valori separati da virgole. Per impostazione predefinita è disabilitato.
 
 I conteggi sono interi non negativi e `totalRows` è la loro somma. La risposta non contiene righe di dettaglio, payload di origine né identificativi di caricamento. Gli ambiti sono ordinati per riferimento progetto e identificativo, e la lettura avviene in una sola transazione `REPEATABLE READ READ ONLY`, così metadati e conteggi descrivono lo stesso caricamento.
 
-La rotta accetta solo `GET`: gli altri metodi rispondono `404`. Senza sessione valida la risposta è `401`; se il modulo non è consentito in nessun cantiere del membro è `403 MODULE_FORBIDDEN`; se il database di reporting non risponde è `503 REPORTING_UNAVAILABLE`, con messaggio generico e senza dettagli dell'errore. Non esistono rotte di scrittura, e un eventuale `site_id` nella query viene ignorato.
+La rotta accetta solo `GET`: gli altri metodi rispondono `404`. Senza sessione valida la risposta è `401`; se il modulo non è consentito in nessun cantiere del membro è `403 MODULE_FORBIDDEN`; se il database di reporting non risponde è `503 REPORTING_UNAVAILABLE`, con messaggio generico e senza dettagli dell'errore. Lo Stato importazioni non ha rotte di export o di scrittura.
 
 ## Import degli export di pianificazione
 
