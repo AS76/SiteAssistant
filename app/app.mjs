@@ -2060,15 +2060,28 @@ function renderWorkforcePresence(date) {
 }
 function renderBookings() {
   const days = coreData('workDays'), employees = coreData('employees'), items = coreData('progress');
-  const groups = groupBookings(coreData('bookings'), days, employees, items).filter(group => !coreFilters.bookings.date || group.date === coreFilters.bookings.date);
+  const { date, from, to, company } = coreFilters.bookings;
+  const allGroups = groupBookings(coreData('bookings'), days, employees, items);
+  const companyName = group => group.employee?.company || null;
+  const companyKey = group => JSON.stringify(companyName(group));
+  const companies = [...new Map(allGroups.map(group => [companyKey(group), companyName(group) ?? t('coreUnknown')]))]
+    .sort((a, b) => a[1].localeCompare(b[1], language));
+  const groups = allGroups.filter(group => (!company || companyKey(group) === company) && (!date || group.date === date)
+    && (!from || (group.date && group.date >= from)) && (!to || (group.date && group.date <= to)));
   const dates = [...new Set(days.map(day => day.operationalDate).filter(Boolean))].sort().reverse();
-  let html = `<div class="toolbar core-toolbar">${coreSelect('date', 'reportDate', dates.map(date => [date, dateLabel(date)]), coreFilters.bookings.date, 'coreAllDays')}</div>`;
+  const choices = dates.map(day => [day, dateLabel(day)]);
+  let html = `<div class="toolbar core-toolbar">${coreSelect('company', 'workforceCompany', companies, company, 'bookingAllCompanies')}
+    ${coreSelect('date', 'reportDate', choices, date, 'coreAllDays')}
+    ${coreSelect('from', 'hseFrom', choices, from, 'coreAllDays')}${coreSelect('to', 'hseTo', choices, to, 'coreAllDays')}</div>`;
+  if (from && to && from > to) return html + `<p role="alert">${t('hsePeriodInvalid')}</p>`;
+  const total = groups.reduce((sum, group) => sum + group.appBookedHours, 0);
+  html += `<p class="note" role="status">${t('bookingFilteredTotal')} <strong>${coreNumber(total, 'hours')} h</strong></p><p class="note">${t('bookingCompanySource')}</p>`;
   if (permissions().book) {
     if (!days.length || !items.length) html += `<p class="blank-message">${t('coreBookingPrerequisites')}</p>`;
     else html += `<form id="booking-form" class="panel panel-body core-booking-form"><h2>${t('coreBookHours')}</h2><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="core-entry-grid"><label class="field">${t('coreWorkDay')}<select name="workDayId" required><option value="">${t('coreChoose')}</option>${filterSortRecords(days, {}, [{ key: 'operationalDate', descending: true }, { key: 'employeeId' }]).map(day => `<option value="${esc(day.id)}">${esc(`${day.operationalDate} · ${employeeLabel(employees.find(employee => employee.id === day.employeeId))} · ${t(day.shift || 'coreUnknown')} · ${day.startTime ?? t('coreUnknown')}`)}</option>`).join('')}</select></label><label class="field">${t('coreProgressItem')}<select name="siteProgressItemId" required><option value="">${t('coreChoose')}</option>${items.map(item => `<option value="${esc(item.id)}">${esc(progressLabel(item))}</option>`).join('')}</select></label><label class="field">${t('coreAppBookedHours')}<input name="hours" type="number" min="0" step="0.5" value="1" required></label><div class="core-stepper">${button('coreMinusHalf', 'booking-step', 'data-step="-0.5"')}${button('corePlusHalf', 'booking-step', 'data-step="0.5"')}${button('corePlusOne', 'booking-step', 'data-step="1"')}</div></div><div class="form-actions"><button type="submit" class="primary">${t('coreBookHours')}</button></div></form>`;
   }
   html += `<p class="note booking-legend">${t('coreHoursLegendSource')}<br>${t('coreHoursLegendApp')}</p>`;
-  html += groups.length ? groups.map(group => `<section class="core-day"><h2>${group.date ? dateLabel(group.date) : t('coreUnknown')} · ${esc(employeeLabel(group.employee))}</h2>`
+  html += groups.length ? groups.map(group => `<section class="core-day"><h2>${group.date ? dateLabel(group.date) : t('coreUnknown')} · ${esc(employeeLabel(group.employee))} · ${coreValue(companyName(group))}</h2>`
     + '<div class="booking-summary">' + coreTable(['coreSourceWorkTime', 'coreSourceBookedHours', 'coreAppBookedHours', 'coreSourceOpenHours', 'coreVariance'], [[
       coreNumber(group.sourceWorkTime, 'hours'), coreNumber(group.sourceBookedHours, 'hours'), coreNumber(group.appBookedHours, 'hours'), coreNumber(group.sourceOpenHours, 'hours'), bookingVariance(group.variance),
     ]]) + '</div>'

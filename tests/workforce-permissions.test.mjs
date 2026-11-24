@@ -128,6 +128,7 @@ for (const driver of ['sqlite', 'pg']) test(`Workforce permissions (${driver})`,
   });
 
   await t.test('the assistant can sum bookings for a viewer but cannot retrieve individual rows', async () => {
+    await db.run('UPDATE sites SET assistant_enabled = TRUE WHERE id = ?', site.id);
     let calls = 0;
     await chat(db, { siteId: site.id, user: users.viewer, messages: [{ role: 'user', content: 'Synthetic booking query' }] }, {
       apiKey: 'synthetic-key',
