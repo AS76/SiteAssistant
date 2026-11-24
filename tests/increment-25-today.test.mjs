@@ -6,6 +6,7 @@ import { validDate, initialView, todayActions, todayBlockedTaskMeta, recentActio
 import { messages } from '../app/i18n.mjs';
 import { createOfflineStore, overlayPending } from '../app/offline.mjs';
 import { mockIndexedDB, mockLocks } from './helpers/indexeddb.mjs';
+import { hasOpenProgressSteps } from '../app/domain.mjs';
 
 const day = '2026-04-15', userId = 'synthetic-user';
 const task = (id, extra = {}) => ({ id, title: `Synthetic ${id}`, siteId: 'site-a', kind: 'ordinary', status: 'todo', due: day, executor_id: userId, ...extra });
@@ -148,7 +149,7 @@ function todayUi({ tasks = [], diary = [], snapshots = {}, modules = {}, memberR
     coreCache: new Map(), role: () => memberRole, canWriteTask: () => ['owner', 'editor', 'verifier'].includes(memberRole),
     permissions: () => corePermissions(memberRole), currentModules: () => modules,
     moduleVisible: module => visibleModules([module], modules).length > 0,
-    todayActions, todayBlockedTaskMeta, recentActions, filterSortRecords, allowedTransitions,
+    todayActions, todayBlockedTaskMeta, recentActions, filterSortRecords, allowedTransitions, hasOpenProgressSteps,
     today: () => day, diaryDayAge: () => 0, operationalDay: () => ({ date: day, shift: 'day' }), validDate, notebookTime: () => '',
     language, t: key => messages[context.language][key], timeLabel: value => value,
     siteTasks: () => context.state.tasks.filter(row => row.siteId === context.siteId),
@@ -266,16 +267,18 @@ test('denied task module hides tasks, recent closures and task photo destination
   assert.deepEqual(routes, []);
 });
 
-test('row targets reset unrelated filters and open tasks, progress, diary and read-only deviation lists directly', () => {
+test('row targets reset task and progress filters and open the deviation record directly', () => {
   const { context, routes } = todayUi({ tasks: [task('mine')], snapshots: { 'site-a': { progress: [progress('p')], deviations: [{ id: 'd', title: 'Synthetic deviation', status: 'open' }] } } });
+  const details = [];
+  context.showCoreDetail = (...args) => details.push(args);
   const open = (kind, id) => context.openTodayAction({ dataset: { kind, id } });
   context.filters = { ...context.filters, search: 'old', priority: 'urgent', closable: true };
   open('task', 'mine'); assert.deepEqual(ids(context.filteredTasks()), ['mine']); assert.equal(context.taskView, 'list');
   open('progress', 'p'); assert.deepEqual(plain(context.coreFilters.progress), { wbsId: '', id: 'p' });
   open('diary', day); assert.equal(context.reportDate, day);
-  open('deviation', 'd'); assert.equal(context.deviationView, 'list'); assert.equal(context.coreFilters.deviations.id, 'd');
-  assert.equal(context.coreFilters.deviations.status, ''); assert.equal(context.coreFilters.deviations.priority, '');
-  assert.deepEqual(routes, ['tasks', 'progress', 'diary', 'deviations']);
+  open('deviation', 'd'); assert.deepEqual(details, [['deviations', 'd']]);
+  assert.equal(context.coreFilters.deviations.status, 'closed');
+  assert.deepEqual(routes, ['tasks', 'progress', 'diary']);
 });
 
 test('close shortcut filters actual ordinary, permitted, independent reviews and respects pending operations', () => {
@@ -441,4 +444,46 @@ test('hidden Today resources are never requested and offline missing data do not
   assert.ok(disconnected.nodes['#main'].innerHTML.includes(messages.it.todayUnavailableOffline));
   assert.ok(disconnected.nodes['#main'].innerHTML.includes(messages.it.todayIncomplete));
   assert.ok(!disconnected.nodes['#main'].innerHTML.includes(messages.it.todayEmpty));
+});
+
+test('Today keeps yesterday and current operational progress actionable and puts future work in Upcoming', () => {
+  const work = [
+    { ...progress('yesterday'), plannedStart: '2026-04-14' },
+    { ...progress('current'), plannedStart: day },
+    { ...progress('future-step'), plannedStart: '2026-04-16' },
+  ];
+  assert.deepEqual(ids(todayActions(input({ progress: work }))), ['current', 'yesterday']);
+  const ui = todayUi({ offline: true, snapshots: { 'site-a': { progress: work } } });
+  ui.context.renderToday();
+  const html = ui.nodes['#main'].innerHTML;
+  assert.match(html.split('id="today-upcoming"')[0], /Synthetic current/);
+  assert.doesNotMatch(html.split('id="today-upcoming"')[0], /Synthetic future-step/);
+  assert.match(html.split('id="today-upcoming"')[1], /Synthetic future-step/);
+  todayClick(ui.context, { command: 'today-open', kind: 'progress', id: 'future-step' });
+  assert.equal(ui.routes.at(-1), 'progress');
+});
+
+test('future diary next steps stay out of Now even when a future night shift has the newest entry', () => {
+  const diary = [
+    { date: '2026-04-16', shift: 'night', next: 'Future handover', createdAt: '2026-04-15T14:00:00Z' },
+    { date: day, shift: 'night', next: 'Current handover', createdAt: '2026-04-16T03:00:00Z' },
+    { date: day, shift: 'day', next: 'Day shift handover', createdAt: '2026-04-15T15:00:00Z' },
+  ];
+  const ui = todayUi({ diary: diary.map(entry => ({ ...entry, siteId: 'site-a' })) });
+  ui.context.renderToday();
+  assert.match(ui.nodes['#main'].innerHTML, /Current handover/);
+  assert.doesNotMatch(ui.nodes['#main'].innerHTML, /Future handover/);
+  assert.equal(todayActions(input({ diary: diary.slice(0, 1) })).some(row => row.kind === 'diary-next'), false);
+});
+
+test('diary attachment controls require the diary module and owner or editor', () => {
+  for (const memberRole of ['owner', 'editor', 'verifier', 'viewer']) {
+    const ui = todayUi({ memberRole, diary: [{ id: 'entry', siteId: 'site-a', date: day, shift: 'day' }] });
+    const allowed = ['owner', 'editor'].includes(memberRole);
+    assert.equal(ui.context.todayPhotoTargets().some(item => item.type === 'diary'), allowed);
+    ui.context.runTodayQuick('diary');
+    assert.equal(ui.dialogs.some(dialog => dialog.html.includes('id="entry-photos"')), allowed);
+  }
+  const denied = todayUi({ memberRole: 'editor', modules: { diary: false }, diary: [{ id: 'entry', siteId: 'site-a', date: day, shift: 'day' }] });
+  assert.equal(denied.context.todayPhotoTargets().length, 0);
 });

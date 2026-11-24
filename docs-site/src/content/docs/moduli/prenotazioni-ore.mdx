@@ -5,12 +5,12 @@ description: Consultare i riepiloghi delle ore e le presenze previste, e prenota
 
 import Shot from '../../../components/Shot.astro';
 
-La vista **Prenotazioni ore** (**Ore** nella navigazione) mostra il riepilogo delle ore importate; la schermata qui sotto mostra questo riepilogo. Con l'accesso **Nominativi e ore individuali** si apre invece il dettaglio per **giorno operativo e dipendente**. Le presenze e gli elementi di avanzamento arrivano dall'import di pianificazione.
+La vista **Prenotazioni ore** (**Ore** nella navigazione) mostra riepiloghi di cantiere. Il permesso **Nominativi e ore individuali** apre il dettaglio per giorno operativo e dipendente, come nella schermata qui sotto. Le presenze e le voci di avanzamento arrivano dall’import di pianificazione.
 
 <Shot
   src="/images/2026-11/bookings-desktop.png"
-  alt="Prenotazioni ore con il riepilogo del giorno: ore lavorate 8 (sorgente), ore prenotate 7,5 (sorgente), ore prenotate in app 4, ore non coperte 0,5 (sorgente) e scostamento -3,5 in rosso"
-  caption="Riepilogo delle ore: quattro cifre etichettate per fonte e uno scostamento con segno. Le ore lavorate e quelle prenotate dalla sorgente sono in sola lettura; solo le prenotazioni in app si modificano." width="1440" height="1000" />
+  alt="Prenotazioni ore filtrate per impresa e giorno, con 4 ore prenotate in app, 8 lavorate dalla sorgente, 7,5 prenotate dalla sorgente, 0,5 non coperte e scostamento di −3,5 ore"
+  caption="Dettaglio con nominativi. Il totale in app segue i filtri. Il riquadro del giorno riporta lo scostamento e i singoli valori con la loro fonte." width="1440" height="1120" />
 
 ## Consultare il riepilogo delle ore
 
@@ -23,6 +23,8 @@ Se hai accesso a **Prenotazioni ore** senza il permesso **Nominativi e ore indiv
 Il riepilogo contiene solo totali della sorgente, senza nominativi. Se un valore manca su una delle giornate del gruppo, il totale di quella colonna risulta non disponibile.
 
 Per il periodo predefinito, l'ultimo giorno è il [giorno operativo corrente del cantiere](../../amministrazione/configurare-cantiere/#il-giorno-operativo).
+
+Nella vista con nominativi, filtra per impresa e intervallo di giorni operativi. Il totale somma le ore prenotate in app per il perimetro mostrato. L’impresa proviene dalla scheda della persona associata alla presenza nel cantiere. Le righe senza impresa restano selezionabili con **Non disponibile**.
 
 ## Presenze in cantiere
 
@@ -101,3 +103,11 @@ La Panoramica conta le **ore prenotate in app nelle ultime sei settimane** e il 
 Gli owner hanno già questi accessi. Per gli altri membri, l'owner concede i permessi da [Accessi per modulo](../../amministrazione/utenti-e-ruoli/#accessi-per-modulo).
 
 I dati di presenze e dipendenti arrivano dall'import: per il formato vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/).
+
+## Roadmap per le soglie ore
+
+Le prenotazioni mantengono le validazioni esistenti. Gli scostamenti di ore non fanno scattare blocchi automatici. Prima di definire una soglia occorre stabilire come trattare le ore mancanti, le rettifiche e le deroghe autorizzate.
+
+- **Anomalie informative** segnalano uno scostamento e consentono di continuare a prenotare.
+- **Controlli** richiedono a un responsabile di verificare o riconciliare le ore e registrare la decisione.
+- **Blocchi operativi** impedirebbero una specifica azione in base a una regola approvata, con un perimetro e un processo di deroga definiti.

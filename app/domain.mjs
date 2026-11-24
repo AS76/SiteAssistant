@@ -1,3 +1,5 @@
+import { HSE_READ_ROLES, HSE_WRITE_ROLES } from './hse-permissions.mjs';
+
 // Display precision only: imported values and calculations retain their original precision.
 export function formatDisplayNumber(value, { kind = 'number', language = 'it', currency = 'EUR', signed = false } = {}) {
   if (value == null || value === '') return '—';
@@ -10,9 +12,15 @@ export function formatDisplayNumber(value, { kind = 'number', language = 'it', c
 }
 
 export const STATUSES = ['todo', 'in_progress', 'to_verify', 'closed', 'blocked'];
-export const PRIORITIES = ['normal', 'high', 'urgent'];
+export const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 export const TASK_KINDS = Object.freeze(['ordinary', 'corrective']);
 export const taskKindLabelKey = kind => kind === 'corrective' ? 'kindCorrective' : 'kindOrdinary';
+export function taskVerificationOutcome(task) {
+  if (task.status !== 'closed') return 'pending';
+  if (task.closed_with_waiver) return 'waived';
+  return task.verified_at ? 'verified' : 'legacy';
+}
+export const taskFormalAcceptance = task => task.acceptance_state === 'accepted' ? 'accepted' : 'not_recorded';
 export const TASK_COLUMNS = Object.freeze(['title', 'area', 'status', 'company', 'assignee', 'reviewer', 'due']);
 export const REPORT_PROGRESS_COLUMNS = ['reportArea', 'reportItems', 'reportActual', 'reportPlanned', 'reportSource'];
 export const REPORT_DEVIATION_COLUMNS = ['reportArea', 'reportTotal', 'reportOpen', 'reportClosed', 'reportByStatus'];
@@ -199,8 +207,15 @@ export function todayBlockedTaskMeta(task, day) {
   };
 }
 
+export function hasOpenProgressSteps(item) {
+  return Array.isArray(item.steps) ? item.steps.some(step => step.percent == null || Number(step.percent) < 100)
+    // List responses expose the computed aggregate, detail responses expose steps.
+    : item.progressTypeId != null && item.progressPct != null && Number(item.progressPct) < 100;
+}
+
 // Targets and metadata contain contract fields and translation keys, never UI text.
-export function todayActions({ tasks = [], progress = [], diary = [], deviations = [], userId, today: day, modules = {} }) {
+export function todayActions({ tasks = [], progress = [], diary = [], deviations = [], userId, today: day, modules = {},
+  plannedDay = item => item.plannedStart?.slice(0, 10) } = {}) {
   const rows = [], seen = new Set();
   const orderedTasks = filterSortRecords(tasks, {}, [{ key: 'due' }, { key: 'title' }, { key: 'id' }]);
   const addTask = (task, label) => {
@@ -216,10 +231,7 @@ export function todayActions({ tasks = [], progress = [], diary = [], deviations
     for (const task of orderedTasks) if (userId && task.verifier_id === userId && task.status === 'to_verify') addTask(task, 'todayVerify');
   }
   if (visibleModules(['progress'], modules).length) {
-    const open = progress.filter(item => Array.isArray(item.steps)
-      ? item.steps.some(step => step.percent == null || Number(step.percent) < 100)
-      // List responses expose the computed aggregate, detail responses expose steps.
-      : item.progressTypeId != null && item.progressPct != null && Number(item.progressPct) < 100);
+    const open = progress.filter(item => hasOpenProgressSteps(item) && !(plannedDay(item) > day));
     for (const item of filterSortRecords(open, {}, [{ key: 'description' }, { key: 'id' }]).slice(0, 2)) {
       rows.push({ kind: 'progress', id: item.id, title: item.description, meta: { label: 'todayOpenSteps' },
         target: { view: 'progress', filters: { id: item.id } } });
@@ -239,7 +251,7 @@ export function todayActions({ tasks = [], progress = [], diary = [], deviations
   }
   const selected = rows.slice(0, 5);
   if (!visibleModules(['diary'], modules).length) return selected;
-  const diaryByTime = diary.filter(entry => entry.next?.trim()).map(entry => {
+  const diaryByTime = diary.filter(entry => validDate(entry.date) && entry.date <= day && entry.next?.trim()).map(entry => {
     const createdTime = Date.parse(entry.createdAt);
     return { ...entry, createdTime: Number.isFinite(createdTime) ? createdTime : null };
   });
@@ -342,8 +354,8 @@ export function corePermissions(role) {
     tools: ['owner', 'editor', 'verifier'].includes(role),
     certifications: ['owner', 'editor', 'verifier'].includes(role),
     certificationWrite: ['owner', 'editor'].includes(role),
-    hse: ['owner', 'editor', 'verifier'].includes(role),
-    hseWrite: ['owner', 'editor'].includes(role) };
+    hse: HSE_READ_ROLES.includes(role),
+    hseWrite: HSE_WRITE_ROLES.includes(role) };
 }
 export const HSE_TYPES = Object.freeze(['near_miss', 'accident', 'observation', 'inspection', 'external_visit']);
 // What a person can type by hand: the other two come from the inspection flow.

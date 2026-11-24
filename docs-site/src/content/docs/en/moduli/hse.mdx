@@ -150,7 +150,7 @@ The status is computed in this order — never inspected, failed, overdue, due s
 
 The two empty lists say different things: when the site has no subjects yet, the view says so; when subjects exist but **Category** and **Status** exclude them all, the view says so and offers **Clear filters**.
 
-The list has no **New HSE event** and does not show the **Latest changes** panel, which stay in the **Register**. Instead, owners and editors get **New subject** and the **Edit** command on every row; verifiers and viewers see the table only, but the name opens the subject page for them too. Subjects are the HSE assets of the site: they are created from this view or through the API. See [Adding or editing a subject](#adding-or-editing-a-subject) and [Assets and inspection templates](#assets-and-inspection-templates).
+The list has no **New HSE event** and does not show the **Latest changes** panel, which stay in the **Register**. Instead, owners and editors get **New subject** and the **Edit** command on every row; verifiers see the table only, but the name opens the subject page for them too. Subjects are the HSE assets of the site: they are created from this view or through the API. See [Adding or editing a subject](#adding-or-editing-a-subject) and [Assets and inspection templates](#assets-and-inspection-templates).
 
 ## Opening a subject: state, history and checks
 
@@ -166,7 +166,7 @@ What it is for: moving from “what do I have to deal with” to “what happene
 
 Next to the outcome the page gives the inspection's check tally: **Compliant: 8 · Not compliant: 1 · Not applicable: 1**. The tally comes from the checks stored with the inspection, so it does not change when the template is edited later. For inspections not opened yet the tally is not there straight away: it arrives when you open the row and stays visible when you close it again.
 
-A check result is always written in words: the coloured badge goes with the text, it does not replace it. The writing commands on the page are **New inspection** and, for owners and editors, adding attachments to the open inspection, because inspections are neither edited nor deleted: a correction is a new inspection, while to correct the subject you go back to the list and use **Edit**. The page is seen by whoever sees the **Inspections** view: owners, editors, verifiers and viewers.
+A check result is always written in words: the coloured badge goes with the text, it does not replace it. The writing commands on the page are **New inspection** and, for owners and editors, adding attachments to the open inspection, because inspections are neither edited nor deleted: a correction is a new inspection, while to correct the subject you go back to the list and use **Edit**. The page is seen by whoever sees the **Inspections** view: owners, editors, verifiers.
 
 When the history does not load, the error appears in its place but **Back to inspections** stays available. A subject never inspected says “This subject has never been inspected”; a subject that no longer exists — for example deleted through the API by another user — says “Subject not found”.
 
@@ -181,11 +181,13 @@ Open an inspection on the subject page: below the checks the **Attachments** sec
 3. If you want, write a **Description** up to 200 characters. It is used only for the check before upload and **is not saved**.
 4. Check the warning, if it appears, then press **Save**: the window closes and the attachment appears in the section.
 
-The same rules as event attachments apply: **photograph the condition, not the people**, no identifiable faces and no health data, with a **diagram or pictogram** as an alternative to a photo. The warning on the file name or the description is a reminder for human review, not an examination of the image, and it does not block the upload. The **Add photo** command appears only to **owners** and **editors**; verifiers and viewers see the attachments but do not upload them, and removal is not available in the interface: it is API only. An attachment is seen only from the inspection of the same site.
+The same rules as event attachments apply: **photograph the condition, not the people**, no identifiable faces and no health data, with a **diagram or pictogram** as an alternative to a photo. The warning on the file name or the description is a reminder for human review, not an examination of the image, and it does not block the upload. The **Add photo** command appears only to **owners** and **editors**; verifiers see the attachments but do not upload them, and removal is not available in the interface: it is API only. An attachment is seen only from the inspection of the same site.
 
 Every opening of an inspection attachment writes a **Read** row in the audit register, with the file name, as for event attachments. The row does not appear in the **Latest changes** panel, which lists the register's events: it is read through the API with `entity_type` `hse_inspection`, by owners and verifiers. See [REST API](../../riferimento/api/#attachments).
 
 ## Recording an inspection
+
+On a phone, open **HSE → Inspections**, choose the subject and select **New inspection**. Complete the checks, review the outcome and save. In **Inspection history**, open the date you just recorded to see the checks and use **Add photo** to attach an image or PDF.
 
 What it is for: recording a subject's check without going through the API, filling in the checklist of its family.
 
@@ -240,7 +242,7 @@ What it is for: knowing which site assets have to be inspected and with which ch
 
 The event register is separate from the **inventory of HSE assets** — tools, site works and personal protective equipment — which starts from an **inspection template** for the site's jurisdiction, with the expected visual checks and interval. The inventory is managed from the **Inspections** view (see [Adding or editing a subject](#adding-or-editing-a-subject)); the template catalogue has no screen yet, it is read through the API, and the templates are still drafts. See [REST API](../../riferimento/api/#hse-assets-and-the-inspection-catalogue).
 
-**Inspections** are recorded against the assets in that inventory: each inspection states the date, who performed it, whether the check was internal or external, the outcome — passed, passed with notes, failed — and the answer to every template item, with the next due date computed from the template interval. The inspection keeps the checks as they were in the template that day, so changing the template does not rewrite past inspections. It is neither edited nor deleted: a correction is a new inspection. Unlike the inventory, inspections are recorded from the subject page, by owners and editors (see [Recording an inspection](#recording-an-inspection)), and through the API; they are also read from the subject page (see [Opening a subject](#opening-a-subject-state-history-and-checks)); through the API every site role reads them. See [REST API](../../riferimento/api/#hse-inspections).
+**Inspections** are recorded against the assets in that inventory: each inspection states the date, who performed it, whether the check was internal or external, the outcome — passed, passed with notes, failed — and the answer to every template item, with the next due date computed from the template interval. The inspection keeps the checks as they were in the template that day, so changing the template does not rewrite past inspections. It is neither edited nor deleted: a correction is a new inspection. Unlike the inventory, inspections are recorded from the subject page, by owners and editors (see [Recording an inspection](#recording-an-inspection)), and through the API; they are also read from the subject page (see [Opening a subject](#opening-a-subject-state-history-and-checks)); the API uses the same roles. See [REST API](../../riferimento/api/#hse-inspections).
 
 Recording an inspection also writes a row in the **HSE register**: the type tells the internal check (`inspection`) from the external one (`external_visit`), the severity follows the outcome and the location carries the asset code, or its name when the code is missing. See [Types and severities](#types-and-severities).
 
@@ -255,23 +257,23 @@ The asset list through the API also states where the inspection stands: every ro
 | Add, edit or delete an event | owner, editor |
 | Open the attachments of an HSE event | owner, editor, verifier |
 | Add or remove attachments on an HSE event | owner, editor |
-| Open the attachments of an HSE inspection | owner, editor, verifier, viewer |
+| Open the attachments of an HSE inspection | owner, editor, verifier |
 | Add or remove attachments on an HSE inspection | owner, editor |
-| Read the HSE assets and the template catalogue | owner, editor, verifier, viewer |
+| Read the HSE assets and the template catalogue | owner, editor, verifier |
 | Add or edit an HSE asset from the **Inspections** view | owner, editor |
 | Delete an HSE asset — API only | owner, editor |
-| Read the HSE inspections | owner, editor, verifier, viewer |
+| Read the HSE inspections | owner, editor, verifier |
 | Record an HSE inspection from the subject page or through the API | owner, editor |
 | Read the latest changes | owner, verifier |
 
-The **Attachments** section of an event is in the edit window, which only owners and editors see; verifiers read attachments through the API. Attachments of an inspection sit instead on the subject page, below the checks of the open inspection. Removing an attachment is API only.
+The **Attachments** section of an event is in the edit window, which only owners and editors see; verifiers open **Attachments** from the register row. Attachments of an inspection sit instead on the subject page, below the checks of the open inspection. Removing an attachment is API only.
 
-The `viewer` role has no access to the register: the entry appears in the navigation, but the view shows **Restricted register**. The register is separate from the other modules and feeds neither the Overview nor the report.
+The `viewer` role has no access to the register, inspections, subjects, templates or HSE attachments: the entry appears in the navigation, but the view shows **Restricted register**. The register is separate from the other modules and feeds neither the Overview nor the report.
 
 :::caution[If something does not add up]
 - **“Restricted register” or no data:** your role on the site is `viewer`; reading is reserved to owners, editors and verifiers. See [Users and roles](../../amministrazione/utenti-e-ruoli/).
 - **I cannot see the buttons:** only owners and editors write; verifiers only read.
-- **I cannot see Add photo:** the command on inspection attachments is reserved to owners and editors; verifiers and viewers see the attachments but do not upload them.
+- **I cannot see Add photo:** the command on inspection attachments is reserved to owners and editors; verifiers see the attachments but do not upload them.
 - **I cannot see Open the inspection:** the command appears only on rows that come from an inspection, that is **Inspections** and **External visits**; a row entered by hand has no inspection to open.
 - **The Attachments section is missing:** it appears when you open the date of an inspection whose checks have loaded; if the detail fails to load, the section is missing too.
 - **Event number rejected:** another event of the same site already uses it. Leave it empty or change it.
@@ -279,7 +281,7 @@ The `viewer` role has no access to the register: the entry appears in the naviga
 - **Attachment rejected:** it must be a non-empty image or PDF, up to 15 MiB.
 - **I cannot find the Attachments section:** it appears only when editing an event already saved, and only for owners and editors.
 - **The subject page has no history:** either the subject has never been inspected, and the page says so, or the load failed and an error appears in place of the inspections; **Back to inspections** stays active.
-- **I do not see New inspection:** the button is reserved to owners and editors and needs a connection; verifiers and viewers only read the page.
+- **I do not see New inspection:** the button is reserved to owners and editors and needs a connection; verifiers only read the page.
 - **Save is off in the new inspection:** at least one checklist item is still unanswered; the line under the form says how many remain.
 - **“The checklist for this family is unavailable”:** the subject's family has no checks to fill in; retry, and if the notice stays report it as a problem with the inspection templates.
 - **Period rejected:** the **From** date must not follow the **To** date.

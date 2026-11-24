@@ -1,17 +1,18 @@
-import { moduleAllowed, requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
+import { HSE_READ_ROLES } from '../app/hse-permissions.mjs';
+import { requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
 import { createServer as createHttpServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { extname } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { pipeline } from 'node:stream/promises';
 import { S3Storage, ObjectStorageError, encodeS3Component } from './s3.mjs';
-import { authenticate, login, memberships, publicUser, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
+import { authenticate, assertAuthBypassAllowed, login, memberships, publicUser, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
 import { createWebAuthn } from './webauthn.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { createStaticHandler } from './static-dev.mjs';
-import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage } from './signup.mjs';
+import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage, RESET_PATH, readPasswordReset, confirmPasswordReset, resetPage } from './signup.mjs';
 import { createTaskResponse } from './idempotency.mjs';
-import { createRateLimiter } from './limits.mjs';
+import { createClientIpResolver, createRateLimiter } from './limits.mjs';
 import { readPagination } from './pagination.mjs';
 import { listAuditEvents, countAuditEvents, appendAttachmentRead } from './audit.mjs';
 import { listWbs, getWbs, importWbs, createWbs, updateWbs } from './wbs.mjs';
@@ -23,7 +24,7 @@ import {
 } from './deviations.mjs';
 import { evidenceExport } from './evidence-export.mjs';
 import { deviationReconciliation } from './deviation-reconciliation.mjs';
-import { listCostImpacts, getCostImpact, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
+import { listCostImpacts, getCostImpact, listImpactsForDeviation, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
 import {
   listPurchaseOrders, getPurchaseOrder, createPurchaseOrder, updatePurchaseOrder, transitionPurchaseOrder,
   addPurchaseOrderItem, updatePurchaseOrderItem, transitionPurchaseOrderItem,
@@ -36,7 +37,7 @@ import { searchPlaces } from './geocode.mjs';
 import { dashboard } from './dashboard.mjs';
 import { getDashboardLayout, saveDashboardLayout, deleteDashboardLayout } from './dashboard-layouts.mjs';
 import { report } from './report.mjs';
-import { reportingOverview } from './reporting.mjs';
+import { reportingOverview, reportingScopeIds } from './reporting.mjs';
 import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
 import { progressCurve } from './progress-curve.mjs';
 import { listViews, createView, updateView, deleteView } from './view-settings.mjs';
@@ -72,8 +73,13 @@ async function paginatedJson(response, url, db, list, count, filters, user) {
 const rateLimitExempt = new Set(['/api/auth/login', '/api/auth/forgot', '/api/auth/password', '/api/auth/request']);
 const authBypassExcluded = new Set([
   '/api/auth/login', '/api/auth/logout', '/api/auth/forgot', '/api/auth/request',
-  '/api/auth/request/decide', '/api/auth/password',
+  '/api/auth/request/decide', '/api/auth/password', '/api/auth/me', '/api/health', RESET_PATH,
 ]);
+const browserPolicy = [
+  "default-src 'self'", "base-uri 'none'", "frame-ancestors 'none'", "object-src 'none'",
+  "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:",
+  "font-src 'self'", "connect-src 'self'", "worker-src 'self'", "manifest-src 'self'", "form-action 'self'",
+].join('; ');
 
 async function readJson(request, { includeHash = false, maxBytes = 65536 } = {}) {
   const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
@@ -108,7 +114,7 @@ async function readJson(request, { includeHash = false, maxBytes = 65536 } = {})
   return includeHash ? { input, requestHash: hash.digest('hex') } : input;
 }
 
-async function readForm(request) {
+async function readForm(request, maxBytes = 4096) {
   const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
   if (contentType !== 'application/x-www-form-urlencoded') {
     throw new RepositoryError(400, 'Content-Type must be application/x-www-form-urlencoded.', 'INVALID_FORM');
@@ -117,10 +123,10 @@ async function readForm(request) {
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size <= 4096) chunks.push(chunk);
+    if (size <= maxBytes) chunks.push(chunk);
     else chunks.length = 0;
   }
-  if (size > 4096) throw new RepositoryError(400, 'Form body exceeds 4096 bytes.', 'INVALID_FORM');
+  if (size > maxBytes) throw new RepositoryError(400, `Form body exceeds ${maxBytes} bytes.`, 'INVALID_FORM');
   return new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
 }
 
@@ -140,11 +146,14 @@ function siteFromQuery(url, allowed) {
   return url.searchParams.get('site_id') ?? url.searchParams.get('siteId');
 }
 
-function createAuthRequestLimiter() {
-  const limiter = createRateLimiter({ max: 10, windowMs: 15 * 60 * 1000 });
+function createAuthRequestLimiter({ ipMax = 50 } = {}) {
+  const windowMs = 15 * 60 * 1000;
+  const byIp = createRateLimiter({ max: ipMax, windowMs });
+  const byAccount = createRateLimiter({ max: 10, windowMs });
   return {
     attempt(ip, key) {
-      const { allowed, retryAfter } = limiter.attempt(`${ip}|${key}`);
+      let { allowed, retryAfter } = byIp.attempt(ip);
+      if (allowed && key) ({ allowed, retryAfter } = byAccount.attempt(key));
       if (allowed) return;
       const error = new RepositoryError(429, 'Too many login attempts.', 'RATE_LIMITED');
       error.retryAfter = retryAfter;
@@ -155,6 +164,7 @@ function createAuthRequestLimiter() {
 
 export function createServer(db, { limiter = createLoginLimiter(), production = process.env.NODE_ENV === 'production',
   authBypassUser = process.env.AUTH_BYPASS_USER || '',
+  trustedProxyIps = process.env.TRUSTED_PROXY_IPS || '',
   mailer = sendMail, ownerEmail = process.env.OWNER_EMAIL,
   publicUrl = process.env.PUBLIC_URL || 'https://api.siteassistant.asassi.cloud',
   requestLimiter = createAuthRequestLimiter(), forgotLimiter = createAuthRequestLimiter(), passwordLimiter = createAuthRequestLimiter(),
@@ -162,17 +172,26 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   anonLimiter = createRateLimiter({ max: Number(process.env.RATE_LIMIT_ANON_PER_MIN ?? 60) }),
   storage = new S3Storage(),
   reporting = reportingOverview,
+  reportingGlobalOwnerIds = process.env.REPORTING_GLOBAL_OWNER_IDS || '',
   assistant = {},
   webauthn = {},
   // Development only: serve the browser client from the same origin as the API.
   staticDir = process.env.SERVE_APP === '1' ? new URL('../app/', import.meta.url).pathname : null,
 } = {}) {
+  assertAuthBypassAllowed(authBypassUser, production);
+  const clientIp = createClientIpResolver(trustedProxyIps);
   const passkeys = createWebAuthn(db, webauthn);
   const passkeyLimiter = createAuthRequestLimiter();
+  const resetLimiter = createAuthRequestLimiter();
+  const passkeyVerifyLimiter = createAuthRequestLimiter({ ipMax: 10 });
   const serveStatic = staticDir ? createStaticHandler(staticDir) : null;
   const authBypassEmail = authBypassUser.trim().toLowerCase();
+  const globalReportingOwners = new Set(reportingGlobalOwnerIds.split(',').map(id => id.trim().toLowerCase()));
   let authBypassCount = 0, lastAuthBypassLog = -Infinity;
   return createHttpServer(async (request, response) => {
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Content-Security-Policy', browserPolicy);
+    if (isSecureRequest(request, { production })) response.setHeader('Strict-Transport-Security', 'max-age=31536000');
     response.setHeader('Vary', 'Origin');
     response.setHeader('Cache-Control', 'no-store');
     if (request.headers.origin === 'https://siteassistant.asassi.cloud') {
@@ -180,7 +199,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       response.setHeader('Access-Control-Allow-Credentials', 'true');
       response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
       response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Idempotency-Key, Authorization, Cookie');
-      response.setHeader('Access-Control-Expose-Headers', 'X-Total-Count, X-Limit, X-Offset, X-RateLimit-Remaining, Retry-After, X-Content-SHA256, Link');
+      response.setHeader('Access-Control-Expose-Headers', 'X-Total-Count, X-Limit, X-Offset, X-WBS-Scope, X-RateLimit-Remaining, Retry-After, X-Content-SHA256, Link');
     }
     if (request.method === 'OPTIONS') {
       response.writeHead(204);
@@ -197,6 +216,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       path = url.pathname;
       const method = request.method;
+      const ip = clientIp(request);
       if (serveStatic && !path.startsWith('/api/')) {
         if (await serveStatic(request, response, url)) return;
         // A client-side route (hash routing aside) still gets the shell.
@@ -228,7 +248,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         }
         if (!rateLimitExempt.has(path)) {
           const result = user ? userLimiter.attempt(`user:${user.id}`)
-            : anonLimiter.attempt(`ip:${request.socket?.remoteAddress || ''}`);
+            : anonLimiter.attempt(`ip:${ip}`);
           response.setHeader('X-RateLimit-Remaining', String(result.remaining));
           if (!result.allowed) {
             response.setHeader('X-RateLimit-Remaining', '0');
@@ -250,15 +270,37 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const decision = await decideSignup(db, form.get('token'), form.get('decision'), { mailer });
         return html(response, 200, decision === 'approve' ? 'Request approved. A temporary password has been emailed to the applicant.' : 'Request rejected. No account was created.');
       }
+      if (path === RESET_PATH && ['GET', 'POST'].includes(method)) {
+        response.setHeader('Referrer-Policy', 'no-referrer');
+        response.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+        const form = method === 'POST' ? await readForm(request, 20000) : url.searchParams;
+        const token = form.get('token'), language = form.get('lang');
+        let status = 200, state = method === 'GET' ? 'ready' : 'done';
+        try {
+          if (method === 'GET') await readPasswordReset(db, token);
+          else {
+            resetLimiter.attempt(ip);
+            await confirmPasswordReset(db, token, form.get('password'), form.get('confirmation'));
+          }
+        } catch (error) {
+          state = ({ RESET_LINK_EXPIRED: 'expired', RESET_PASSWORD_INVALID: 'invalid', RATE_LIMITED: 'limited' })[error.code];
+          if (!state) throw error;
+          status = error.status;
+          if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
+        }
+        response.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8' });
+        return response.end(resetPage(language, state, token));
+      }
       if (['/api/auth/request', '/api/auth/forgot'].includes(path) && method === 'POST') {
-        const email = normalizeEmail((await readJson(request)).email);
+        const input = await readJson(request);
+        const email = normalizeEmail(input.email);
         const signup = path === '/api/auth/request';
-        (signup ? requestLimiter : forgotLimiter).attempt(request.socket?.remoteAddress || '', email);
+        (signup ? requestLimiter : forgotLimiter).attempt(ip, email);
         // Preflight also covers no-op cases, keeping configuration errors uniform.
         if (signup && (typeof ownerEmail !== 'string' || !ownerEmail.trim())) throw new MailNotConfiguredError();
         mailer.assertConfigured?.();
         if (signup) await requestSignup(db, email, { mailer, ownerEmail, publicUrl });
-        else await forgotPassword(db, email, { mailer });
+        else await forgotPassword(db, email, { mailer, publicUrl, language: input.language });
         return json(response, 202, { status: 'accepted' });
       }
       if (path === '/api/health' && method === 'GET') return json(response, 200, {
@@ -266,24 +308,27 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       });
       if (path === '/api/auth/login' && method === 'POST') {
         const result = await login(db, await readJson(request), {
-          // Rate limiting uses the immediate peer, never X-Forwarded-For.
-          ip: request.socket?.remoteAddress || '', userAgent: request.headers['user-agent'] || '', limiter,
+          ip, userAgent: request.headers['user-agent'] || '', limiter,
         });
         response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user });
       }
-      const passkeyContext = { ip: request.socket?.remoteAddress || '', userAgent: request.headers['user-agent'] || '' };
+      const passkeyContext = { ip, userAgent: request.headers['user-agent'] || '' };
       if (path === '/api/auth/webauthn/login/options' && method === 'POST') {
         const input = await readJson(request);
         passkeyLimiter.attempt(passkeyContext.ip, typeof input.email === 'string' ? input.email.trim().toLowerCase() : '');
         return json(response, 200, await passkeys.loginOptions(input));
       }
       if (path === '/api/auth/webauthn/login/verify' && method === 'POST') {
-        passkeyLimiter.attempt(passkeyContext.ip, 'webauthn-verify');
+        passkeyVerifyLimiter.attempt(ip);
         const result = await passkeys.loginVerify(await readJson(request), passkeyContext);
         response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user, assurance: result.assurance });
       }
+      if (user?.password_change_required && !(
+        (path === '/api/auth/me' && method === 'GET') ||
+        (['/api/auth/password', '/api/auth/logout'].includes(path) && method === 'POST')
+      )) throw new RepositoryError(403, 'Change the temporary password to continue.', 'PASSWORD_CHANGE_REQUIRED');
       if (path.startsWith('/api/auth/webauthn/register/') || path === '/api/auth/credentials' || path.startsWith('/api/auth/credentials/')) {
         const sessionUser = await authenticate(db, request.headers.cookie);
         if (path === '/api/auth/webauthn/register/options' && method === 'POST') {
@@ -301,13 +346,8 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (authError) throw authError;
       if (path === '/api/reporting/overview' && method === 'GET') {
-        const roles = await memberships(db, user.id);
-        let allowed = false;
-        for (const member of roles) {
-          if (await moduleAllowed(db, member.site_id, user, 'reporting')) { allowed = true; break; }
-        }
-        if (!allowed) throw new RepositoryError(403, 'Module is not available.', 'MODULE_FORBIDDEN');
-        return json(response, 200, await reporting());
+        const scopeIds = await reportingScopeIds(db, user, globalReportingOwners);
+        return json(response, 200, await reporting({ scopeIds }));
       }
       if (path === '/api/views' && method === 'GET') {
         return json(response, 200, await listViews(db, {
@@ -408,7 +448,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           throw new RepositoryError(400, 'siteId must be a UUID.', 'VALIDATION_ERROR');
         }
         const id = siteId.toLowerCase();
-        await requireRole(db, id, user);
+        await requireRole(db, id, user, HSE_READ_ROLES);
         await requireModule(db, id, user, 'hse');
         const { jurisdiction } = await getSite(db, id);
         return json(response, 200, { jurisdiction, templates: templatesForJurisdiction(jurisdiction) });
@@ -491,7 +531,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, await importRequest(db, input, user, { apply: path === '/api/import/apply' }));
       }
       if (path === '/api/auth/password' && method === 'POST') {
-        passwordLimiter.attempt(request.socket?.remoteAddress || '', user.id);
+        passwordLimiter.attempt(ip, user.id);
         await changePassword(db, user, await readJson(request));
         return json(response, 200, { status: 'ok' });
       }
@@ -557,8 +597,13 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         }
         await requireRole(db, siteId.toLowerCase(), user);
         await requireModule(db, siteId.toLowerCase(), user, 'progress');
+        const wbsId = url.searchParams.get('wbs_id'), descendants = url.searchParams.get('include_descendants');
+        if (descendants != null && !['true', 'false'].includes(descendants)) {
+          throw new RepositoryError(400, 'include_descendants must be true or false.', 'VALIDATION_ERROR');
+        }
+        response.setHeader('X-WBS-Scope', wbsId == null ? 'all' : descendants === 'true' ? 'subtree' : 'exact');
         return await paginatedJson(response, url, db, listSiteProgress, countSiteProgress,
-          { siteId, wbsId: url.searchParams.get('wbs_id') });
+          { siteId, wbsId, includeDescendants: descendants === 'true' });
       }
       if (path === '/api/site-progress/import' && method === 'POST') {
         const input = await readJson(request);
@@ -742,7 +787,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const record = await getDeviation(db, deviation[1]);
         await requireRole(db, record.site_id, user);
         await requireModule(db, record.site_id, user, 'deviations');
-        return json(response, 200, record);
+        return json(response, 200, { ...record, impacts: await listImpactsForDeviation(db, record, user) });
       }
       if (path === '/api/attachments' && method === 'POST') {
         const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_ATTACHMENT_BYTES / 3) + 65536 });

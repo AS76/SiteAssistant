@@ -212,7 +212,7 @@ for (const driver of ['sqlite', 'pg']) test(`Deviations ${driver}: import, refer
     await db.run("INSERT INTO deviation_links VALUES (?, 'task', ?)", row.id, target);
     const detail = await request(detailPath, { cookie: auth.cookies.viewer });
     t.assert.strictEqual(detail.status, 200);
-    t.assert.deepStrictEqual(detail.body, { ...row, links: [{ entity_type: 'task', entity_id: target }] });
+    t.assert.deepStrictEqual(detail.body, { ...row, links: [{ entity_type: 'task', entity_id: target }], impacts: [] });
     const filtered = await request(`${list}&status=open&priority=high`, { cookie: auth.cookies.viewer });
     t.assert.strictEqual(filtered.status, 200); t.assert.strictEqual(filtered.body.length, 1);
     for (const path of ['/api/deviations', '/api/deviations?site_id=invalid', `${list}&status=unknown`, `${list}&status=`]) {

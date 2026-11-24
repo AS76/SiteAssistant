@@ -1,12 +1,12 @@
 import { createApi } from './api.mjs';
 import { getMirror, replayOps, SYNC_TAG } from './offline.mjs';
 
-const VERSION = 'siteassistant-v15-51';
+const VERSION = 'siteassistant-v15-54';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data-`;
 const shellUrls = [
   './', './index.html', './styles.css', './fonts.css', './app.mjs', './api.mjs', './webauthn-client.mjs',
-  './domain.mjs', './dashboard-layout.mjs', './i18n.mjs', './offline.mjs', './manifest.webmanifest', './assets/logo.svg',
+  './domain.mjs', './hse-permissions.mjs', './dashboard-layout.mjs', './i18n.mjs', './offline.mjs', './manifest.webmanifest', './assets/logo.svg',
   './assets/fonts/SourceSans3-normal-300-700-37.woff2', './assets/fonts/SourceSans3-italic-400-30.woff2',
   './assets/fonts/SourceSerif4-normal-400-11.woff2', './assets/fonts/SourceSerif4-italic-400-5.woff2',
 ].map(path => new URL(path, self.registration.scope).href);
@@ -27,7 +27,7 @@ const notify = async message => {
 };
 async function runtime(request, event) {
   const active = await getMirror('active');
-  if (!active) return fetch(request);
+  if (!active || active.session.password_change_required) return fetch(request);
   const url = new URL(request.url), base = new URL(active.baseUrl, self.registration.scope);
   const prefix = base.pathname.replace(/\/$/, '');
   if (url.origin !== base.origin || !new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/api/(sites|tasks|diary|wbs|attachments)(/[^/]+)?$`).test(url.pathname)) return fetch(request);
@@ -56,7 +56,9 @@ self.addEventListener('fetch', event => {
   if (shellUrls.includes(url.href) || (request.mode === 'navigate' && url.origin === self.location.origin && url.pathname.startsWith(new URL(self.registration.scope).pathname) && !url.pathname.includes('/api/'))) {
     event.respondWith((async () => {
       const cache = await caches.open(SHELL);
-      return await cache.match(request.mode === 'navigate' ? shellUrls[1] : request) || fetch(request);
+      // Precache requests have no Origin header, while module and font requests can include it.
+      // The same-origin shell files are public and use the precached URL as their key.
+      return await cache.match(request.mode === 'navigate' ? shellUrls[1] : url.href) || fetch(request);
     })());
   } else if (url.pathname.includes('/api/')) {
     event.respondWith(runtime(request, event));
@@ -66,7 +68,7 @@ self.addEventListener('sync', event => {
   if (event.tag !== SYNC_TAG) return;
   event.waitUntil((async () => {
     const active = await getMirror('active');
-    if (!active) return;
+    if (!active || active.session.password_change_required) return;
     const api = createApi({ baseUrl: active.baseUrl, fresh: true });
     try {
       const result = await replayOps(api, { scope: active.scope, userId: active.session.user.id });

@@ -14,7 +14,7 @@ function dateUi(language) {
   const status = { textContent: '' };
   const context = createContext({
     language, formatDateInput, t: key => messages[language][key] || key,
-    heading: () => '', empty: () => '', role: () => 'editor', canWriteTask: () => true,
+    heading: () => '', empty: () => '', role: () => 'editor', canWriteTask: () => true, canAttachDiary: () => true,
     state: { diary: [] }, siteId: 'site-1', reportDate: '2026-11-10', offline: false, moduleVisible: () => true,
     currentSite: () => ({}), timeZoneForSite: () => 'Europe/Rome',
     dateLabel: date => date, today: () => '2026-11-10', operationalDay: () => ({ date: '2026-11-10', shift: 'day' }),
@@ -34,6 +34,7 @@ function dateUi(language) {
     ['const button =', 'function toast('],
     ['function field(', 'function formError('],
     ['const diaryContentFields =', 'async function loadWbs('],
+    ['const canAttachDiary =', 'const canTransitionTask ='],
     ['function coreSelect(', 'const coreDetailButton'],
     ['function renderHse()', 'function showHseDelete('],
     ['function showSiteForm()', 'function taskResponsibleFields('],

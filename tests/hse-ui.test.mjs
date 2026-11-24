@@ -100,6 +100,7 @@ async function hseUi(role = 'editor') {
     coreFilters: { hse: { type: '', severity: '', from: '', to: '' } },
     coreCache: new Map([['site-1', new Map([['hse', { data: [row] }]])]]),
     coreData: () => [row], permissions: () => corePermissions(role), canEditTask: () => role === 'editor' || role === 'owner',
+    canAttachDiary: () => ['owner', 'editor'].includes(role),
     state: { attachments: [{ id: 'file-1', entity_type: 'hse_event', entity_id: row.id, filename: 'Synthetic diagram.pdf' }] },
     syncBadge: () => '', hseAttachmentNeedsReview, validDate, formatDateInput, parseDateInput, errorMessage: error => messages.it[error.message] || error.message,
     t: key => messages.it[key] || key, esc: escaped,

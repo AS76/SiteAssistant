@@ -84,17 +84,13 @@ Every site declares a **jurisdiction**, `IT` or `UK`: it is the law that applies
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/diary?site_id=` | member | Site entries; `siteId` is accepted too |
-| POST | `/api/diary` | owner/editor/verifier with Diary access | One entry per site, day and shift |
-| PATCH | `/api/diary/{id}` | author within seven days or owner, with Diary access | Corrects content and archives the previous version |
-| GET | `/api/diary/{id}/versions` | member with Diary access | Versions in descending order |
+| POST | `/api/diary` | owner/editor/verifier | One entry per site/date/shift |
+| PATCH | `/api/diary/{id}` | owner or editor during the current operational day | Corrects content with a required reason |
+| GET | `/api/diary/{id}/versions` | site member with diary access | Previous snapshots, newest first |
 
 `POST /api/diary` uses the site's time zone and cutoff. Omit `operational_date` and `shift` to have the server assign both when it records the entry. If you supply a date and omit the shift, the server assigns the current shift. To record a specific date and shift, send `operational_date` in `YYYY-MM-DD` format and `shift` as `day` or `night`. Any supplied `time_zone` and `day_cutoff_time` must match the site settings, otherwise the response is `400 VALIDATION_ERROR`. The entry records both settings when it is created.
 
-The seven-day window compares `operational_date` with the current calendar date in the site's time zone. A future date returns `400 VALIDATION_ERROR`. For dates more than seven days old, `POST` requires the owner role and a `motivation` of at least 10 characters after trimming whitespace. The response includes `author_id`, `recorded_late` and `recording_motivation`.
-
-The `PATCH` requires at least one of `plan`, `actual`, `impediments` and `next_step`. Use an empty string to clear a field. The operational date and shift are fixed. Correcting another author's entry, an entry without a linked author or an entry more than seven days old requires an owner and the same `motivation` rule. Insufficient permissions return `403 FORBIDDEN`. A missing or too-short required reason returns `400 MOTIVATION_REQUIRED`. The response gives the updated entry with `updated_at`, `updated_by` and `updated_by_name`.
-
-The versions endpoint returns an array, empty until the first correction. Each item includes `version`, a `snapshot` of the entry before the correction, the person who corrected it in `author_id` and `author_name`, `created_at` and any supplied `motivation`.
+A correction accepts one or more of `plan`, `actual`, `impediments` and `next_step`. Every correction requires `motivation` with at least 10 characters after trimming, otherwise it returns `400 MOTIVATION_REQUIRED`. The operational date is fixed. At the next cutoff in the site’s current time zone an editor loses permission to correct the entry. Each correction archives the previous snapshot with its author (`author_id`), timestamp (`created_at`) and reason (`motivation`).
 
 Both lists accept `site_id` and `siteId`, because tasks and diary historically used the second name. An unexpected query parameter is rejected with `400 VALIDATION_ERROR` instead of being ignored: a mistyped filter never returns an unfiltered list.
 
@@ -134,7 +130,7 @@ Progress items imported from the site system are visible in the **Site progress*
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/site-progress?site_id=&wbs_id=` | member | Site items; optional filter by WBS item |
+| GET | `/api/site-progress?site_id=&wbs_id=&include_descendants=true` | member | `wbs_id` selects the exact node by default. `include_descendants=true` also includes descendants in the operational hierarchy. `X-WBS-Scope` is `all`, `exact` or `subtree`. `X-Total-Count` counts items in that scope. |
 | GET | `/api/site-progress/{id}` | member | Item with `booked_hours` (sum of booked hours), `planned_hours` and its steps |
 | PATCH | `/api/site-progress/{id}` | owner/editor | `{ planned_hours }`: updates the planned hours only |
 | POST | `/api/site-progress/import` | owner | Promotes a progress snapshot |
@@ -306,7 +302,7 @@ The `summary=1` reply counts all five types: `by_type` always carries `inspectio
 
 ## HSE assets and the inspection catalogue
 
-**HSE assets** are what the site has to inspect: tools, site works and personal protective equipment. They are created and edited from the **Inspections** view of the HSE section; deletion is API only. Reading is open to every site member, `viewer` included; writing is reserved to **owners** and **editors**. The `hse` module is required, on reads and writes alike: a member excluded from the module receives `403 MODULE_FORBIDDEN`.
+**HSE assets** are what the site has to inspect: tools, site works and personal protective equipment. They are created and edited from the **Inspections** view of the HSE section; deletion is API only. Owners, editors and verifiers read. Owners and editors write. The `hse` module is required, on reads and writes alike: a member excluded from the module receives `403 MODULE_FORBIDDEN`.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
@@ -338,7 +334,7 @@ Today every template is `draft: true`: they are drafts, not yet enabled. Every s
 
 ## HSE inspections
 
-An **HSE inspection** records the outcome of the checks on an HSE asset on a given date. One inspection is one row, and every template item is a row of its own: the inspection keeps the label of each check as it was in the template on the day it was filled in, so a later change to the template cannot rewrite a past inspection. They are recorded from the subject page in the interface **Inspections** view (see [HSE](../../moduli/hse/#recording-an-inspection)) and through the API; they are read from the API and from the subject page, which shows state, history and individual checks (see [HSE](../../moduli/hse/#opening-a-subject-state-history-and-checks)). Every site member reads, `viewer` included; **owners** and **editors** write. The `hse` module is required, on reads and writes alike.
+An **HSE inspection** records the outcome of the checks on an HSE asset on a given date. One inspection is one row, and every template item is a row of its own: the inspection keeps the label of each check as it was in the template on the day it was filled in, so a later change to the template cannot rewrite a past inspection. They are recorded from the subject page in the interface **Inspections** view (see [HSE](../../moduli/hse/#recording-an-inspection)) and through the API; they are read from the API and from the subject page, which shows state, history and individual checks (see [HSE](../../moduli/hse/#opening-a-subject-state-history-and-checks)). Owners, editors and verifiers read. Owners and editors write. The `hse` module is required, on reads and writes alike.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
@@ -397,17 +393,19 @@ The dashboard includes `workDays` (only `operationalDate` and `workTime`, preser
 
 ## Import status
 
-**Import status** is a read-only summary of the latest complete bundle per project scope: it is the same content as the **Import status** view (see [Import status](../../moduli/reporting/)). It does not depend on a site: the route does not accept `site_id` and answers with the scopes present in the reporting database.
+**Import status** is a read-only summary of the latest complete bundle per project scope: it is the same content as the **Import status** view (see [Import status](../../moduli/reporting/)). The server derives the scope from the session and ignores query parameters such as `site_id`.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/reporting/overview` | member with the `reporting` module in at least one site | `{ configured, scopes }`; no parameters |
 
-`configured` is `false` when the server has no reporting database connection (`REPORTING_DATABASE_URL` missing or blank): the answer is still `200`, with `scopes` empty, and no query runs. With the connection configured, `scopes` lists one item per scope: `scopeId`, `projectReference` (`null` when absent), `exportDate` (`YYYY-MM-DD` or `null`), `loadedAt` (ISO 8601 or `null`), `counts` with the six families `employees`, `work_days`, `time_schedule`, `site_progress_items`, `daily_logs` and `deviations`, `totalRows` and `qualityIssues`.
+`configured` is `false` when the server has no reporting database connection (`REPORTING_DATABASE_URL` missing or blank): the answer is still `200`, with `scopes` empty, and no query runs. With the connection configured, `scopes` lists one item per authorized scope: `scopeId`, `projectReference` (`null` when absent), `exportDate` (`YYYY-MM-DD` or `null`), `loadedAt` (ISO 8601 or `null`), `counts` with the six families `employees`, `work_days`, `time_schedule`, `site_progress_items`, `daily_logs` and `deviations`, `totalRows` and `qualityIssues`.
+
+Scoped access uses the trusted site-to-scope links already configured for WBS, workforce, progress and deviation imports. The caller needs reporting access in every site linked to a scope, including when several import families reference it. If no scope qualifies, the response is `200` with an empty `scopes` array and the reporting database is not queried. Global access requires a current site owner role and the authenticated user ID in the server’s comma-separated `REPORTING_GLOBAL_OWNER_IDS` setting. It is disabled by default.
 
 The counts are non-negative integers and `totalRows` is their sum. The answer contains no detail rows, source payloads or load identifiers. Scopes are sorted by project reference and identifier, and the read runs in a single `REPEATABLE READ READ ONLY` transaction, so metadata and counts describe the same load.
 
-The route accepts `GET` only: other methods answer `404`. Without a valid session the answer is `401`; if the module is not allowed in any of the member's sites it is `403 MODULE_FORBIDDEN`; if the reporting database does not answer it is `503 REPORTING_UNAVAILABLE`, with a generic message and no error details. There are no write routes, and a `site_id` in the query is ignored.
+The route accepts `GET` only: other methods answer `404`. Without a valid session the answer is `401`; if the module is not allowed in any of the member's sites it is `403 MODULE_FORBIDDEN`; if the reporting database does not answer it is `503 REPORTING_UNAVAILABLE`, with a generic message and no error details. There are no import-status export or write routes.
 
 ## Planning export import
 
@@ -437,7 +435,7 @@ Attachments on **tasks, diary, HSE events and HSE inspections** can also be uplo
 | GET | `/api/attachments/{id}` | member; for `hse_event` owner/editor/verifier | Download the bytes |
 | DELETE | `/api/attachments/{id}` | owner/editor | Delete |
 
-Attachments on an HSE event follow the register's rules: the HSE module is required and reading is open to owners, editors and verifiers; upload and deletion stay with owners and editors. A deleted event hides its attachments: the list does not return them and the download answers `404 HSE_NOT_FOUND`. Attachments on an HSE inspection require the HSE module but are read by every site role, viewers included; upload and deletion also stay with owners and editors, and the list returns them only when the inspection exists in the same site. Every download of an HSE attachment — on an event or an inspection — writes a `read` row in the audit register, with the file id and name; if the write fails the download still works. The optional description in the upload form only feeds the warning in the interface: it is neither sent nor saved.
+Attachments on an HSE event follow the register's rules: the HSE module is required and reading is open to owners, editors and verifiers; upload and deletion stay with owners and editors. A deleted event hides its attachments: the list does not return them and the download answers `404 HSE_NOT_FOUND`. Attachments on an HSE inspection follow the register’s role matrix and require the HSE module; upload and deletion also stay with owners and editors, and the list returns them only when the inspection exists in the same site. Every download of an HSE attachment — on an event or an inspection — writes a `read` row in the audit register, with the file id and name; if the write fails the download still works. The optional description in the upload form only feeds the warning in the interface: it is neither sent nor saved.
 
 Files up to **15 MiB** are accepted, images or PDF only (`UNSUPPORTED_MEDIA_TYPE`, `ATTACHMENT_TOO_LARGE`). Upload and deletion are reserved to owners and editors; reading to all members, with the HSE exception above. Before registering the attachment the application reads the stored bytes back and compares the checksum: if it does not match, the file is removed and the response is `502`.
 

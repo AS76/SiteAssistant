@@ -39,6 +39,20 @@ export function createOfflineStore({ indexedDB = globalThis.indexedDB, name = DB
   const put = (store, row) => transaction([store], 'readwrite', tx => tx.objectStore(store).put(row));
   const getMirror = async id => (await read('mirror', id))?.value;
   const setMirror = (id, value) => put('mirror', { id, value });
+  const purgeScope = (scope, logoutKey) => transaction(['mirror', 'pending_ops', 'mappings'], 'readwrite', tx => {
+    const mirror = tx.objectStore('mirror');
+    const active = mirror.get('active');
+    active.onsuccess = () => {
+      if (active.result?.value?.scope === scope) mirror.delete('active');
+    };
+    if (logoutKey) mirror.put({ id: logoutKey, value: true });
+    if (!scope) return;
+    mirror.delete(`state:${scope}`);
+    for (const [name, belongs] of [['pending_ops', row => row.scope === scope], ['mappings', row => row.id.startsWith(`${scope}:`)]]) {
+      const store = tx.objectStore(name), request = store.getAll();
+      request.onsuccess = () => { for (const row of request.result.filter(belongs)) store.delete(row.id); };
+    }
+  });
   const listOps = (scope) => transaction(['pending_ops'], 'readonly', (tx, done) => {
     const request = tx.objectStore('pending_ops').getAll();
     request.onsuccess = () => done(request.result.filter(op => scope === undefined || op.scope === scope).sort((a, b) => a.sequence - b.sequence));
@@ -48,37 +62,47 @@ export function createOfflineStore({ indexedDB = globalThis.indexedDB, name = DB
     if (!locks) return Promise.reject(new Error('offlineLockUnavailable'));
     return locks.request(`${name}:sync`, run);
   }
-  async function enqueue(input) {
+  async function enqueue(input, { requireActive = false } = {}) {
     if (!types.includes(input.op_type) || !input.scope) throw new Error('invalidData');
     const id = input.id || crypto.randomUUID();
     const op = { ...input, id, entity_id: input.entity_id || id, idempotency_key: input.idempotency_key || id,
       created_at: input.created_at || new Date().toISOString(), retries: 0, status: 'pending' };
     const save = () => transaction(['pending_ops', 'mirror', 'mappings'], 'readwrite', (tx, done) => {
       const queue = tx.objectStore('pending_ops');
-      const all = queue.getAll();
-      all.onsuccess = () => {
-        const duplicate = all.result.find(item => item.scope === op.scope && (item.id === id || item.idempotency_key === op.idempotency_key));
-        if (duplicate) return done(duplicate);
-        const receipt = tx.objectStore('mappings').get(`${op.scope}:${op.entity_id}`);
-        receipt.onsuccess = () => {
-          if (receipt.result && op.op_type.startsWith('create_')) return done({ ...op, status: 'confirmed', result: receipt.result.value });
-          // LWW for a diary slot that has never been submitted; preserve its client identity and FIFO position.
-          const older = op.op_type === 'create_diary' && all.result.find(item => item.scope === op.scope && item.op_type === op.op_type && item.status === 'pending' && item.retries === 0 &&
-            ['siteId', 'date', 'shift'].every(key => item.payload[key] === op.payload[key]));
-          if (older) {
-            const winner = Date.parse(op.created_at) > Date.parse(older.created_at) ? { ...older, payload: op.payload, created_at: op.created_at } : older;
-            queue.put(winner); return done(winner);
-          }
-          const counter = tx.objectStore('mirror').get('sequence');
-          counter.onsuccess = () => {
-            op.sequence = (counter.result?.value || 0) + 1;
-            tx.objectStore('mirror').put({ id: 'sequence', value: op.sequence });
-            queue.add(op); done(op);
+      const mirror = tx.objectStore('mirror');
+      const add = () => {
+        const all = queue.getAll();
+        all.onsuccess = () => {
+          const duplicate = all.result.find(item => item.scope === op.scope && (item.id === id || item.idempotency_key === op.idempotency_key));
+          if (duplicate) return done(duplicate);
+          const receipt = tx.objectStore('mappings').get(`${op.scope}:${op.entity_id}`);
+          receipt.onsuccess = () => {
+            if (receipt.result && op.op_type.startsWith('create_')) return done({ ...op, status: 'confirmed', result: receipt.result.value });
+            // LWW for a diary slot that has never been submitted; preserve its client identity and FIFO position.
+            const older = op.op_type === 'create_diary' && all.result.find(item => item.scope === op.scope && item.op_type === op.op_type && item.status === 'pending' && item.retries === 0 &&
+              ['siteId', 'date', 'shift'].every(key => item.payload[key] === op.payload[key]));
+            if (older) {
+              const winner = Date.parse(op.created_at) > Date.parse(older.created_at) ? { ...older, payload: op.payload, created_at: op.created_at } : older;
+              queue.put(winner); return done(winner);
+            }
+            const counter = mirror.get('sequence');
+            counter.onsuccess = () => {
+              op.sequence = (counter.result?.value || 0) + 1;
+              mirror.put({ id: 'sequence', value: op.sequence });
+              queue.add(op); done(op);
+            };
           };
-        };
       };
+      };
+      if (!requireActive) add();
+      else {
+        const active = mirror.get('active');
+        active.onsuccess = () => { if (active.result?.value?.scope === op.scope) add(); };
+      }
     });
-    return locks ? withSyncLock(save) : save();
+    const result = await (locks ? withSyncLock(save) : save());
+    if (!result) throw new Error('authRequired');
+    return result;
   }
   async function confirm(op, result) {
     await transaction(['pending_ops', 'mirror', 'mappings'], 'readwrite', tx => {
@@ -137,6 +161,7 @@ export function createOfflineStore({ indexedDB = globalThis.indexedDB, name = DB
       if (!scope || active?.scope !== scope || active.baseUrl !== api.baseUrl) return summary;
       const session = await api.me(); // Never replay using a cached identity or another user's cookie.
       if (session.user.id !== userId) throw new Error('offlineSessionChanged');
+      if (session.password_change_required) return summary;
       for (const queued of await listOps(scope)) {
         // Earlier acknowledgements may have resolved this operation's client IDs.
         let op = await read('pending_ops', queued.id);
@@ -187,7 +212,7 @@ export function createOfflineStore({ indexedDB = globalThis.indexedDB, name = DB
       return summary;
     });
   }
-  return { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, withSyncLock, confirmedCreation };
+  return { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, purgeScope, withSyncLock, confirmedCreation };
 }
 
 // Overlay only queued local creations. A proposed transition never replaces the authoritative status.
@@ -209,7 +234,7 @@ export function overlayPending(state, ops) {
 }
 
 const defaultStore = createOfflineStore();
-export const { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, withSyncLock, confirmedCreation } = defaultStore;
+export const { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, purgeScope, withSyncLock, confirmedCreation } = defaultStore;
 export async function registerSync(registration) {
   try { await registration?.sync?.register(SYNC_TAG); } catch { /* The page's online/visibility/retry hooks remain available. */ }
 }

@@ -5,7 +5,7 @@ description: Create tasks, move them through their statuses and verify them.
 
 import { Image } from 'astro:assets';
 import flusso from '../../../../assets/flusso-stati-attivita.svg';
-import board from '../../../../assets/board-elenco.svg';
+import board from '../../../../assets/board-elenco-en.svg';
 import Shot from '../../../../components/Shot.astro';
 
 The **task** is the unit of work on site. Every task belongs to a site, has a distinct **executor** and **reviewer**, and only moves through allowed transitions. The golden rule: **whoever executes cannot review their own work**.
@@ -65,7 +65,7 @@ The type is chosen at creation and cannot be changed afterwards: tasks are not e
 | `todo` | To do: planned, not started yet |
 | `in_progress` | In progress |
 | `to_verify` | Reported done, awaiting review |
-| `closed` | Verified and closed |
+| `closed` | Closed after verification, by waiver or in historical records |
 | `blocked` | Stopped by an impediment |
 
 ## Move a task forward

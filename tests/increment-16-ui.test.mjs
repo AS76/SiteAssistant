@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import assert from 'node:assert/strict';
 import { createApi, deviationFromApi, progressFromApi, bookingFromApi, impactFromApi } from '../app/api.mjs';
-import { offlineBannerState, DEVIATION_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, progressWithHours, flattenWbs, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, transitionRequirements, allowedTransitions, transitionPayload, counts, STATUSES, PRIORITIES, TASK_KINDS, taskKindLabelKey } from '../app/domain.mjs';
+import { offlineBannerState, DEVIATION_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, progressWithHours, flattenWbs, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, transitionRequirements, allowedTransitions, transitionPayload, counts, STATUSES, PRIORITIES, TASK_KINDS, taskKindLabelKey, taskFormalAcceptance, taskVerificationOutcome } from '../app/domain.mjs';
 import { messages } from '../app/i18n.mjs';
 import './task-verification-ui.test.mjs';
 
@@ -230,7 +230,7 @@ async function lightUi(tasks, overrides = {}) {
     dateLabel: value => value || '—', timeLabel: value => value,
     empty: title => messages.it[title],
     lightTaskRows, transitionNeedsDialog, transitionRequirements, allowedTransitions, transitionPayload,
-    counts, STATUSES, PRIORITIES, TASK_KINDS, taskKindLabelKey,
+    counts, STATUSES, PRIORITIES, TASK_KINDS, taskKindLabelKey, taskFormalAcceptance, taskVerificationOutcome,
     showModal: (title, html) => {
       dialogs.push({ title, html });
       if (html.includes('id="transition-form"')) {
@@ -247,6 +247,7 @@ async function lightUi(tasks, overrides = {}) {
   runInNewContext([
     section('const esc =', 'let session ='),
     section('const button =', 'function toast('),
+    section('const taskStatusLabel =', 'const priorityBadge ='),
     section('const notebookStates =', 'function todayTaskItem('),
     section('function filteredTasks()', 'const currentViewState ='),
     section('const canEditTask =', 'const canCreateSite ='),
@@ -487,4 +488,15 @@ test('task result counts use singular for one and plural for zero and two in bot
       assert.ok(summary.includes(`${expected[index]} ·`));
     }
   }
+});
+
+test('low priority participates in mixed task filters and the form keeps Normal as the default', async () => {
+  const tasks = ['low', 'normal', 'high'].map(priority => ({
+    id: priority, siteId: 'site-a', title: priority, status: 'todo', priority,
+  }));
+  const { context, section } = await lightUi(tasks);
+  context.filters.priority = 'low';
+  assert.deepEqual(Array.from(context.filteredTasks(), row => row.id), ['low']);
+  assert.ok(PRIORITIES.includes('low'));
+  assert.match(section('async function showTaskForm()', 'function taskEvidence('), /priority === 'normal' \? ' selected'/);
 });

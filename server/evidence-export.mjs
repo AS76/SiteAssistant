@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { csvCell } from '../app/domain.mjs';
+import { csvCell, taskFormalAcceptance, taskVerificationOutcome } from '../app/domain.mjs';
 import { listDeviations } from './deviations.mjs';
 import { requireModule } from './module-access.mjs';
 import { RepositoryError, getSite, listAttachments, requireRole } from './repository.mjs';
@@ -9,7 +9,8 @@ const columns = ['record', 'id', 'reference', 'title', 'status', 'key', 'value',
   'acceptance_document_id', 'acceptance_date', 'source_system', 'source_id', 'source_status',
   'source_export_date', 'last_seen_in_export_date', 'traceability', 'absence', 'absence_reason',
   'absence_export_date', 'absence_scope', 'provenance', 'internal_owner_id', 'attribution_state',
-  'causing_company', 'resolving_company', 'entity_type', 'entity_id', 'mime', 'size', 'content_sha256', 'created_at'];
+  'causing_company', 'resolving_company', 'entity_type', 'entity_id', 'mime', 'size', 'content_sha256', 'created_at',
+  'verification_outcome', 'formal_acceptance'];
 
 function statusCounts(record, rows) {
   const counts = new Map();
@@ -44,7 +45,10 @@ export async function evidenceExport(db, id, user, { generatedAt = new Date().to
       { record: 'metadata', key: 'site_code', value: site.code },
       ...statusCounts('tasks', tasks), ...statusCounts('deviations', deviations),
       { record: 'attachments', key: 'total', count: attachments.length },
-      ...tasks.map(row => ({ ...row, record: 'task' })),
+      ...tasks.map(row => ({ ...row, record: 'task',
+        verification_outcome: taskVerificationOutcome({ ...row, closed_with_waiver: row.waiver_reason != null }),
+        formal_acceptance: taskFormalAcceptance(row),
+      })),
       ...deviations.map(row => ({ ...row, record: 'deviation', reference: row.deviation_no })),
       ...attachments.map(row => ({ ...row, record: 'attachment', title: row.filename })),
     ];

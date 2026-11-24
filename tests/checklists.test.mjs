@@ -106,10 +106,11 @@ test('inspection template HTTP catalogue', async t => {
     }
   });
 
-  await t.test('every site role can read the catalogue', async () => {
-    for (const role of ['owner', 'editor', 'verifier', 'viewer']) {
+  await t.test('the catalogue follows the HSE read roles', async () => {
+    for (const role of ['owner', 'editor', 'verifier']) {
       assert.equal((await get(`${path}?siteId=${sites.IT.id}`, role)).status, 200);
     }
+    error(await get(`${path}?siteId=${sites.IT.id}`, 'viewer'), 403, 'FORBIDDEN');
   });
 
   await t.test('missing, empty and malformed site ids give validation errors', async () => {

@@ -47,6 +47,13 @@ async function signIn(page, role, site) {
   await page.locator('#login-form [type=submit]').click();
   await page.locator('#login-form').waitFor({ state: 'detached' });
   await selectSite(page, site);
+  const select = page.getByRole('combobox', { name: 'Cantiere', exact: true });
+  const label = page.locator('label[for=site-select]');
+  assert.equal(await select.getAttribute('id'), 'site-select');
+  assert.ok(await label.isVisible());
+  await label.click();
+  assert.ok(await select.evaluate(node => node === document.activeElement));
+  assert.ok((await select.boundingBox()).height >= 44);
 }
 async function noOverflow(page) {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -133,7 +140,7 @@ async function session(env, viewport) {
     if (url.origin !== ORIGIN) return route.abort('blockedbyclient');
     const file = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(1));
     // Explicit local shell allowlist, including self-hosted fonts; all else is aborted.
-    const shell = ['index.html', 'app.mjs', 'api.mjs', 'webauthn-client.mjs', 'domain.mjs',
+    const shell = ['index.html', 'app.mjs', 'api.mjs', 'webauthn-client.mjs', 'domain.mjs', 'hse-permissions.mjs',
       'dashboard-layout.mjs', 'offline.mjs', 'i18n.mjs', 'styles.css', 'fonts.css',
       'manifest.webmanifest', 'assets/logo.svg'];
     if (!shell.includes(file) && !/^assets\/fonts\/[a-z0-9-]+\.woff2$/.test(file)) return route.abort('blockedbyclient');
@@ -217,9 +224,8 @@ async function readPath(s, env) {
   assert.equal(await row.count(), 1);
   await noOverflow(page);
   await row.click();
-  await page.waitForURL(url => url.hash === '#deviations');
-  await page.locator(`[data-command=core-detail][data-module=deviations][data-id="${env.deviation.id}"]`).click();
   await hasText(page.locator('#modal [data-detail-panel=data]'), 'Synthetic access clearance awaited');
+  assert.equal(new URL(page.url()).hash, '#today');
   await hasText(page.locator('#modal [data-detail-panel=data]'), 'DEMO-C03');
   await page.locator('[data-command=detail-tab][data-panel=refs]').click();
   // The UI renders linked task IDs as text, rather than task titles or links.
@@ -382,8 +388,27 @@ async function offline(env) {
     await hasText(page.locator('.diary-entry').filter({ hasText: plan }), actual);
     assert.equal((await rows()).length, 1);
     assert.equal(await pending(page), 0);
+    await s.setOffline(true);
+    const scope = await page.evaluate(async () => {
+      const { getMirror, enqueue } = await import('/offline.mjs');
+      const { scope } = await getMirror('active');
+      await enqueue({ scope, op_type: 'create_task', payload: { title: 'Discarded at sign-out' } });
+      return scope;
+    });
+    await page.locator('#logout').click();
+    await page.locator('#login-form').waitFor();
+    assert.deepEqual(await page.evaluate(async scope => {
+      const { getMirror, listOps } = await import('/offline.mjs');
+      return [(await getMirror(`state:${scope}`)) ?? null, (await getMirror('active')) ?? null, (await listOps(scope)).length];
+    }, scope), [null, null, 0]);
+    const revocation = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/logout');
+    await s.setOffline(false);
+    assert.equal((await revocation).status(), 200);
+    await page.reload();
+    await page.locator('#login-form').waitFor();
+    assert.equal((await env.db.get("SELECT count(*) AS count FROM tasks WHERE title = 'Discarded at sign-out'")).count, 0);
     s.check();
-    console.log('PASS offline: editor C03 night diary queued locally with zero DB writes, replayed exactly once on reconnect, pending count zero after reconnect and reload');
+    console.log('PASS offline: C03 diary replays once, sign-out purges IndexedDB and reconnect revokes the session');
   } finally { await s.context.close(); }
 }
 

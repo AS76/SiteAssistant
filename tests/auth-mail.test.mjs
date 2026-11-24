@@ -53,7 +53,7 @@ function transport({ port = 587, auth = 'PLAIN', starttls = true, rejectRecipien
 
 test('email templates include escaped inline HTML, embedded logo and readable text alternatives', t => {
   const notification = signupNotifyEmail({ email: '<applicant>@example.invalid', reviewUrl: 'https://app.example.invalid/api/auth/request/decide?token=synthetic' });
-  for (const mail of [notification, welcomeEmail({ password: '<synthetic-password>' }), resetEmail({ password: 'Synthetic-password!' })]) {
+  for (const mail of [notification, welcomeEmail({ password: '<synthetic-password>' }), resetEmail({ resetUrl: 'https://app.example.invalid/api/auth/reset?token=synthetic' })]) {
     t.assert.ok(mail.text.length > 40); t.assert.ok(mail.subject);
     t.assert.match(mail.html, /data:image\/svg\+xml;base64,/);
     t.assert.match(mail.html, /#126c57/); t.assert.match(mail.html, /#d1e7c0/); t.assert.match(mail.html, /#142c30/);

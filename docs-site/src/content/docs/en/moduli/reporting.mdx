@@ -17,9 +17,7 @@ What it is for: checking what arrived with the latest load, before trusting the 
 4. Read **Total rows** at the bottom of the table and **Quality issues** at the bottom of the card.
 5. Press **Refresh** to read the data from the reporting database again.
 
-The list is **not filtered by the selected site**: it shows the scopes present in the reporting database, sorted by project reference. Access to the view, on the other hand, follows the selected site's module, like the other views. A scope without a complete load does not appear; when a value is missing, **Unavailable** takes its place.
-
-A bundle is not attributed to the selected site: project reference and scope ID are those declared by the bundle. An operational report for one site is a separate feature.
+The list covers scopes explicitly linked to the sites where you have the reporting module. A scope shared by several sites appears only if you have reporting access in all of them. The site selector opens the view for the current site and the list covers all your authorized sites. Each scope keeps its declared project reference.
 
 The **declared export date** is a day, without a time, as the load declared it. **Loaded at** is the moment the load was recorded, shown with date and time in the browser's local time zone. When project reference, export date or load time are missing, **Unavailable** takes their place.
 
@@ -42,7 +40,7 @@ The counts are row numbers, not amounts or hours. **Total rows** sums the six co
 | :-- | :-- |
 | **Loading import status…** | The read is in progress |
 | **Import status not configured** | The server has no reporting database connection: no read is performed |
-| **No complete bundle** | The connection exists, but there is no complete load to summarise yet |
+| **No complete bundle** | The connection exists, but there is no complete load in a scope you can access |
 | **Import status is unavailable. Try Refresh again.** | The read failed, for example because the reporting database is not answering |
 
 None of these states is an application error: **Refresh** retries the read and changes nothing.
@@ -51,7 +49,7 @@ None of these states is an application error: **Refresh** retries the read and c
 
 The `reporting` module follows the rules of the other modules: it is **on by default** and an owner clears it from the **Import status** column of the **Module access** table in the **Sites** view. Without the module the entry does not appear in the navigation and a direct link shows **Module unavailable**; the endpoint answers `403 MODULE_FORBIDDEN`. See [Users and roles](../../amministrazione/utenti-e-ruoli/#module-access).
 
-Every site role reads the summary, `viewer` included. No role writes, because the view has no editing commands: owners and editors have no buttons the others do not have.
+Every site role can read summaries within its authorized scope. Only owners explicitly enabled for global reporting on the server see every scope, including unlinked ones.
 
 :::caution[Server configuration]
 The reporting database connection is set on the server, with the `REPORTING_DATABASE_URL` variable; it is not configured from the interface. Without that variable the view shows **Import status not configured** and performs no read. Ask whoever administers the environment.

@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { normalizeReportingScope, reportingOverview, REPORTING_FAMILIES } from '../server/reporting.mjs';
-import { RepositoryError } from '../server/repository.mjs';
+import { createSite, RepositoryError } from '../server/repository.mjs';
 import { createServer } from '../server/http.mjs';
-import { MODULES } from '../server/module-access.mjs';
+import { saveModuleAccess } from '../server/module-access.mjs';
+import { authFixture, requestListener } from './helpers/auth.mjs';
+import { wbsDatabase } from './helpers/wbs.mjs';
 
 const databaseUrl = 'postgresql://example.invalid/synthetic_reporting';
 const run = (scope = 'scope-a') => ({
@@ -42,7 +45,7 @@ test('reporting missing configuration never queries or imports a pool', async t 
 
 test('reporting reads latest run metadata and all six aggregate counts, without returning source rows', async () => {
   const calls = [];
-  const overview = await reportingOverview({ databaseUrl, query: async (sql, parameters) => {
+  const overview = await reportingOverview({ databaseUrl, scopeIds: null, query: async (sql, parameters) => {
     calls.push({ sql, parameters });
     if (calls.length === 1) return { rows: [run(), { ...run('scope-b'), quality_issues: '0' }] };
     return { rows: [
@@ -53,6 +56,7 @@ test('reporting reads latest run metadata and all six aggregate counts, without 
   assert.equal(calls.length, 2);
   assert.match(calls[0].sql, /reporting\.latest_complete_runs/);
   assert.match(calls[0].sql, /JOIN ingest\.scopes/);
+  assert.deepEqual(calls[0].parameters, [null]);
   assert.match(calls[0].sql, /JOIN ingest\.run_batches rb ON rb\.batch_id = q\.batch_id AND rb\.scope_id = q\.scope_id/);
   assert.match(calls[0].sql, /rb\.run_id = r\.run_id AND rb\.scope_id = r\.scope_id/);
   for (const family of REPORTING_FAMILIES) assert.ok(calls[1].sql.includes(`reporting.${family}_current`));
@@ -70,7 +74,7 @@ test('reporting reads latest run metadata and all six aggregate counts, without 
 
 test('configured reporting with no complete runs returns an empty overview after one query', async () => {
   let calls = 0;
-  assert.deepEqual(await reportingOverview({ databaseUrl, query: async () => { calls++; return { rows: [] }; } }),
+  assert.deepEqual(await reportingOverview({ databaseUrl, scopeIds: null, query: async () => { calls++; return { rows: [] }; } }),
     { configured: true, scopes: [] });
   assert.equal(calls, 1);
 });
@@ -78,7 +82,7 @@ test('configured reporting with no complete runs returns an empty overview after
 test('reporting failures are sanitized 503 repository errors at either query stage', async () => {
   for (const failAt of [1, 2]) {
     let calls = 0;
-    await assert.rejects(reportingOverview({ databaseUrl, query: async () => {
+    await assert.rejects(reportingOverview({ databaseUrl, scopeIds: null, query: async () => {
       if (++calls === failAt) throw new Error(`Synthetic connection failure ${databaseUrl}`);
       return { rows: [run()] };
     } }), error => {
@@ -92,67 +96,98 @@ test('reporting failures are sanitized 503 repository errors at either query sta
     });
   }
   for (const count of ['bad', '-1', '9007199254740992']) {
-    await assert.rejects(reportingOverview({ databaseUrl, query: async () => ({ rows: [{ ...run(), quality_issues: count }] }) }),
+    await assert.rejects(reportingOverview({ databaseUrl, scopeIds: null, query: async () => ({ rows: [{ ...run(), quality_issues: count }] }) }),
       { code: 'REPORTING_UNAVAILABLE', status: 503 });
   }
 });
 
-// Invoke the real HTTP request listener with a synthetic repository; no TCP listener or database.
-async function route({ authenticated = true, members = [{ site_id: 'site-a', role: 'viewer', allowed: true }],
-  method = 'GET', reporting = async () => ({ configured: false, scopes: [] }) } = {}) {
-  let reads = 0;
-  const db = {
-    async get(sql, ...parameters) {
-      if (sql.includes('FROM sessions')) return authenticated ? { id: 'user-a' } : null;
-      assert.ok(sql.includes('FROM site_members m'));
-      const member = members.find(member => member.site_id === parameters[1]);
-      return member ? { role: member.role, allowed: member.allowed } : undefined;
-    },
-    async all(sql) { assert.match(sql, /^SELECT site_id, role FROM site_members/); return members; },
-  };
-  const server = createServer(db, { staticDir: null, reporting: async () => { reads++; return reporting(); } });
-  const response = {
-    headers: {}, setHeader(name, value) { this.headers[name] = value; },
-    writeHead(status, headers) { this.status = status; Object.assign(this.headers, headers); },
-    end(body) { this.body = JSON.parse(body); },
-  };
-  await server.listeners('request')[0]({ url: '/api/reporting/overview', method,
-    headers: { cookie: `sa_session=${'s'.repeat(43)}` }, socket: { remoteAddress: '127.0.0.1' } }, response);
-  return { ...response, reads };
-}
-
-test('reporting route is authenticated, member/module governed, global and GET only', async () => {
-  assert.ok(MODULES.includes('reporting'));
-  for (const role of ['owner', 'editor', 'verifier', 'viewer']) {
-    const response = await route({ members: [{ site_id: 'site-a', role, allowed: true }] });
-    assert.equal(response.status, 200);
-    assert.deepEqual(response.body, { configured: false, scopes: [] });
-    assert.equal(response.reads, 1);
-    assert.equal(response.headers['Cache-Control'], 'no-store');
-  }
-  for (const members of [[], [{ site_id: 'site-a', role: 'viewer', allowed: false }]]) {
-    const response = await route({ members });
-    assert.equal(response.status, 403);
-    assert.equal(response.body.code, 'MODULE_FORBIDDEN');
-    assert.equal(response.reads, 0);
-  }
-  const anonymous = await route({ authenticated: false });
-  assert.equal(anonymous.status, 401);
-  assert.equal(anonymous.reads, 0);
-  assert.equal((await route({ members: [{ site_id: 'site-a', role: 'owner', allowed: false }] })).status, 200);
-  assert.equal((await route({ members: [
-    { site_id: 'site-a', role: 'viewer', allowed: false }, { site_id: 'site-b', role: 'viewer', allowed: true },
-  ] })).status, 200);
-  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
-    const response = await route({ method });
-    assert.equal(response.status, 404);
-    assert.equal(response.reads, 0);
-  }
+test('reporting refuses to query without an explicit scope selection', async () => {
+  const query = () => assert.fail('Reporting must not query without authorized scopes.');
+  assert.deepEqual(await reportingOverview({ databaseUrl, query }), { configured: true, scopes: [] });
+  assert.deepEqual(await reportingOverview({ databaseUrl, scopeIds: [], query }), { configured: true, scopes: [] });
 });
 
-test('reporting route maps an unavailable repository to a safe 503 response', async () => {
-  const response = await route({ reporting: () => reportingOverview({ databaseUrl,
-    query: async () => { throw new Error(`Synthetic failure ${databaseUrl}`); } }) });
+test('reporting gates the entire aggregate by assigned sites and explicit global owner access', async t => {
+  const db = await wbsDatabase(t, 'pg');
+  const siteA = await createSite(db, { code: 'SITE-A', name: 'Synthetic site A' });
+  const siteB = await createSite(db, { code: 'SITE-B', name: 'Synthetic site B' });
+  const { users, cookies } = await authFixture(db, siteA);
+  const scopes = {};
+  for (const key of ['a', 'b', 'shared', 'unlinked']) {
+    const scope = scopes[key] = { id: randomUUID(), runId: randomUUID() };
+    await db.run(`INSERT INTO ingest.scopes (id, organization_id, source_system_key, project_reference)
+      VALUES (?, ?, 'synthetic', ?)`, scope.id, randomUUID(), key);
+    await db.run(`INSERT INTO ingest.import_runs (id, scope_id, declared_export_date, status, completeness_verified)
+      VALUES (?, ?, '2026-11-12', 'ready', TRUE)`, scope.runId, scope.id);
+  }
+  for (const [table, site, scope] of [
+    ['wbs_import_sources', siteA, scopes.a],
+    ['hr_import_sources', siteB, scopes.b],
+    ['site_progress_import_sources', siteA, scopes.shared],
+    ['deviation_import_sources', siteB, scopes.shared],
+  ]) {
+    await db.run(`INSERT INTO ${table} (site_id, scope_id, run_id) VALUES (?, ?, ?)`, site.id, scope.id, scope.runId);
+  }
+
+  const calls = [];
+  const reporting = options => reportingOverview({ ...options, databaseUrl, query: async (sql, params) => {
+    calls.push(params[0]);
+    return { rows: await db.all(sql, ...params) };
+  } });
+  const request = requestListener(createServer(db, { reporting, reportingGlobalOwnerIds: '' }));
+  const requestWithGrant = requestListener(createServer(db, {
+    reporting, reportingGlobalOwnerIds: `${users.viewer.id}, ${users.owner.id}`,
+  }));
+  const path = '/api/reporting/overview';
+  const expectScopes = async (listen, role, expected, query = '') => {
+    calls.length = 0;
+    const response = await listen(path + query, { cookie: cookies[role] });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(response.body.configured, true);
+    assert.equal(response.headers['cache-control'], 'no-store');
+    const ids = expected.map(key => scopes[key].id);
+    assert.deepEqual(response.body.scopes.map(scope => scope.scopeId), ids);
+    if (!ids.length) assert.deepEqual(calls, []);
+    else {
+      assert.equal(calls.length, 2);
+      assert.deepEqual(calls[1], ids);
+    }
+    return calls[0];
+  };
+
+  assert.deepEqual(await expectScopes(request, 'viewer', ['a'], `?site_id=${siteB.id}`), [scopes.a.id]);
+  assert.deepEqual(await expectScopes(requestWithGrant, 'viewer', ['a']), [scopes.a.id]);
+  assert.deepEqual(await expectScopes(request, 'owner', ['a']), [scopes.a.id]);
+  assert.equal(await expectScopes(requestWithGrant, 'owner', ['a', 'b', 'shared', 'unlinked']), null);
+  assert.equal((await request(path)).status, 401);
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+    assert.equal((await request(path, { method, cookie: cookies.owner })).status, 404);
+  }
+  assert.equal((await request('/api/reporting/export', { cookie: cookies.owner })).status, 404);
+  for (const other of [`/api/report?site_id=${siteB.id}`, `/api/sites/${siteB.id}/evidence-export`]) {
+    assert.equal((await request(other, { cookie: cookies.viewer })).status, 403);
+  }
+
+  await db.run('INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, ?)', siteB.id, users.viewer.id, 'viewer');
+  const assigned = await expectScopes(request, 'viewer', ['a', 'b', 'shared']);
+  assert.deepEqual(new Set(assigned), new Set([scopes.a.id, scopes.b.id, scopes.shared.id]));
+  await db.run('INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, ?)', siteB.id, users.owner.id, 'owner');
+  await saveModuleAccess(db, { siteId: siteB.id, memberId: users.viewer.id, module: 'reporting', allowed: false }, users.owner);
+  assert.deepEqual(await expectScopes(request, 'viewer', ['a']), [scopes.a.id]);
+
+  await db.run('DELETE FROM wbs_import_sources WHERE site_id = ?', siteA.id);
+  await expectScopes(request, 'viewer', []);
+  await saveModuleAccess(db, { siteId: siteA.id, memberId: users.viewer.id, module: 'reporting', allowed: false }, users.owner);
+  const denied = await request(path, { cookie: cookies.viewer });
+  assert.equal(denied.status, 403);
+  assert.equal(denied.body.code, 'MODULE_FORBIDDEN');
+  assert.deepEqual(calls, []);
+
+  const unavailable = requestListener(createServer(db, { reportingGlobalOwnerIds: users.owner.id,
+    reporting: options => reportingOverview({ ...options, databaseUrl,
+      query: async () => { throw new Error(`Synthetic failure ${databaseUrl}`); } }),
+  }));
+  const response = await unavailable(path, { cookie: cookies.owner });
   assert.equal(response.status, 503);
   assert.deepEqual(response.body, { code: 'REPORTING_UNAVAILABLE', error: 'Reporting is temporarily unavailable.' });
 });

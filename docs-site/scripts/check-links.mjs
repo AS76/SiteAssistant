@@ -1,6 +1,6 @@
 // Post-build link checker: fails the build if an internal link or asset is missing.
 // Handles the Astro `base` prefix, directory indexes and hash-only links.
-import { readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
 
 const dist = resolve('dist');
@@ -39,23 +39,34 @@ async function targetFor(pathname) {
 }
 
 const pages = await walk(dist);
-for (const page of pages) {
-  const html = await (await import('node:fs/promises')).readFile(page, 'utf8');
+const htmlByPath = new Map(await Promise.all(pages.map(async page => [page, await readFile(page, 'utf8')])));
+const idsByPath = new Map([...htmlByPath].map(([page, html]) => [page,
+  new Set([...html.matchAll(/\sid="([^"]+)"/g)].map(match => match[1])),
+]));
+let anchors = 0;
+for (const [page, html] of htmlByPath) {
   const pageUrl = '/' + relative(dist, page).replaceAll('\\', '/').replace(/index\.html$/, '');
   for (const [, raw] of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
-    if (!raw || raw.startsWith('#') || raw.startsWith('mailto:') || raw.startsWith('tel:')) continue;
-    if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) continue; // external scheme
-    let pathname = raw.split('#')[0].split('?')[0];
-    if (!pathname) continue;
-    let target;
+    if (!raw || raw.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(raw)) continue;
+    const hashIndex = raw.indexOf('#');
+    const pathname = (hashIndex === -1 ? raw : raw.slice(0, hashIndex)).split('?')[0];
+    const anchor = hashIndex === -1 ? '' : raw.slice(hashIndex + 1);
+    let target = page;
     if (pathname.startsWith('/')) {
       target = await targetFor(pathname);
       if (!target) { problems.push(`${pageUrl}: root-relative link without base prefix -> ${raw}`); continue; }
-    } else {
+    } else if (pathname) {
       target = resolve(dist, `.${pageUrl}`, pathname);
       if (!(await exists(target))) target = join(target, 'index.html');
     }
-    if (!(await exists(target))) problems.push(`${pageUrl}: ${raw}`);
+    if (!(await exists(target))) { problems.push(`${pageUrl}: ${raw}`); continue; }
+    if (anchor && idsByPath.has(target)) {
+      anchors++;
+      let id;
+      try { id = decodeURIComponent(anchor); }
+      catch { problems.push(`${pageUrl}: invalid anchor encoding in ${raw}`); continue; }
+      if (!idsByPath.get(target).has(id)) problems.push(`${pageUrl}: missing anchor in ${raw}`);
+    }
   }
 }
 
@@ -64,4 +75,4 @@ if (problems.length) {
   for (const problem of [...new Set(problems)]) console.error(`  - ${problem}`);
   process.exit(1);
 }
-console.log(`Link check passed: ${pages.length} pages, no broken internal links.`);
+console.log(`Link check passed for ${pages.length} pages and ${anchors} internal anchors.`);

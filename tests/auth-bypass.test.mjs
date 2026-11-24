@@ -17,6 +17,25 @@ async function fixture(t, options = {}) {
   return { db, site, request, warnings, ...auth };
 }
 
+test('the server rejects bypass configuration in protected environments', t => {
+  const keys = ['NODE_ENV', 'APP_ENV', 'RAILWAY_ENVIRONMENT_NAME', 'RAILWAY_ENVIRONMENT'];
+  const options = { authBypassUser: 'viewer@example.invalid' };
+  t.assert.throws(() => createServer({}, { ...options, production: true }), /AUTH_BYPASS_USER is disabled/);
+  for (const key of keys) {
+    const previous = process.env[key];
+    try {
+      for (const name of ['production', ' DEMO ', 'Staging']) {
+        process.env[key] = name;
+        t.assert.throws(() => createServer({}, options), /AUTH_BYPASS_USER is disabled/);
+        t.assert.doesNotThrow(() => createServer({}, { authBypassUser: '   ' }));
+      }
+    } finally {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    }
+  }
+});
+
 test('configured bypass authenticates without a cookie using the chosen profile', async t => {
   const { db, site, request, warnings } = await fixture(t, { authBypassUser: ' VIEWER@EXAMPLE.INVALID ' });
   const sessionsBefore = await db.all('SELECT * FROM sessions ORDER BY id');
@@ -143,16 +162,16 @@ test('excluded auth endpoints never use bypass and normal login and logout still
   t.assert.strictEqual(warnings.mock.callCount(), 0);
 });
 
-test('auth me uses bypass without a valid session and other auth paths are not excluded', async t => {
-  const { request, users, cookies, site } = await fixture(t);
+test('auth me requires a session and health never uses the bypass identity', async t => {
+  const { request, cookies, users, warnings } = await fixture(t);
   for (const cookie of [undefined, 'sa_session=invalid']) {
     const result = await request('/api/auth/me', { cookie });
-    t.assert.strictEqual(result.status, 200);
-    t.assert.deepStrictEqual(result.body, {
-      user: users.viewer, roles: [{ site_id: site.id, role: 'viewer' }], password_change_required: false,
-    });
+    t.assert.strictEqual(result.status, 401);
+    t.assert.strictEqual(result.body.code, 'AUTH_REQUIRED');
     t.assert.strictEqual(result.headers['set-cookie'], undefined);
   }
+  t.assert.deepStrictEqual((await request('/api/health')).body, { status: 'ok', auth_bypass: true });
+  t.assert.strictEqual(warnings.mock.callCount(), 0);
   t.assert.deepStrictEqual((await request('/api/auth/me', { cookie: cookies.owner })).body.user, users.owner);
   const unknown = await request('/api/auth/unknown');
   t.assert.strictEqual(unknown.status, 404);
@@ -184,6 +203,6 @@ test('bypass warnings count every request and log at most once per minute withou
   t.assert.strictEqual((await request(`/api/sites/${site.id}`, { method: 'PATCH', body: { name: 'Synthetic' } })).status, 403);
   t.assert.deepStrictEqual(warnings.mock.calls.map(call => JSON.parse(call.arguments[0])), [
     { event: 'AUTH_BYPASS', authentication: 'bypassed', method: 'GET', path: '/api/sites', count: 1 },
-    { event: 'AUTH_BYPASS', authentication: 'bypassed', method: 'PATCH', path: `/api/sites/${site.id}`, count: 109 },
+    { event: 'AUTH_BYPASS', authentication: 'bypassed', method: 'PATCH', path: `/api/sites/${site.id}`, count: 108 },
   ]);
 });

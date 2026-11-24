@@ -5,12 +5,12 @@ description: View hours summaries and scheduled attendance, and book hours again
 
 import Shot from '../../../../components/Shot.astro';
 
-The **Time bookings** view (**Hours** in the navigation) shows a summary of imported hours; the screenshot below shows that summary. With **Worker names and individual hours** access, it opens the detailed view by **operational day and employee**. Work days and progress items come from the planning import.
+**Time bookings** (**Hours** in the navigation) shows site-wide totals. **Worker names and individual hours** access opens the detail by operational day and employee, as shown below. Work days and progress items come from the planning import.
 
 <Shot
   src="/images/2026-11/en/bookings-desktop.png"
-  alt="Time bookings with the day summary: worked hours Not available (source), source-booked hours Not available, hours booked in the app 6.0, uncovered hours Not available (source) and variance Not calculable"
-  caption="Hours summary: four figures labelled by origin and one signed variance. Worked hours and source-booked hours are read-only; only hours booked in the app can be edited." width="1440" height="1000" />
+  alt="Time bookings filtered by company and day, with 4 hours booked in the app, 8 worked hours from the source, 7.5 booked source hours, 0.5 uncovered and a variance of −3.5 hours"
+  caption="Named booking detail. The app total follows the selected filters. The day summary shows the variance and labels each figure by source." width="1440" height="1120" />
 
 ## Viewing the hours summary
 
@@ -23,6 +23,8 @@ If you have access to **Time bookings** without the **Worker names and individua
 The summary contains source totals only, with no worker names. If a value is missing from any work day in a group, the total for that column is unavailable.
 
 The default range ends on the [site's current operational day](../../amministrazione/configurare-cantiere/#the-operational-day).
+
+In the named view, filter by company and operational date range. The total adds the hours booked in the app for the displayed records. The company comes from the worker record linked to the site attendance entry. Rows with no company can be selected under **Not available**.
 
 ## Site attendance
 
@@ -101,3 +103,11 @@ The Overview counts the **hours booked in app over the last six weeks**, and the
 Owners already have these permissions. For other members, an owner grants them from [Module access](../../amministrazione/utenti-e-ruoli/#module-access).
 
 Work day and employee data come from the import: for the format see [Import a planning export](../../amministrazione/import-pianificazione/).
+
+## Roadmap for hours thresholds
+
+Bookings keep their existing validations. Discrepancies in hours do not trigger an automatic block. Before defining a threshold, the product needs rules for missing hours, corrections and authorized exceptions.
+
+- **Informational anomalies** flag a discrepancy while bookings can continue.
+- **Checks** ask a responsible person to review or reconcile the hours and record the decision.
+- **Operational blocks** would prevent a specific action under an approved rule, with a defined scope and exception process.

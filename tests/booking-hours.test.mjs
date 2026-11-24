@@ -129,7 +129,7 @@ test('weekly overview keeps the last six weeks in chronological order', () => {
 });
 
 // Execute the real renderers with synthetic data and DOM sinks, without bootstrap or sockets.
-async function ui({ days = [day], bookings = [booking], language = 'it', canBook = false } = {}) {
+async function ui({ days = [day], bookings = [booking], language = 'it', canBook = false, people = employees } = {}) {
   const source = await readFile(new URL('../app/app.mjs', import.meta.url), 'utf8');
   const section = (start, end) => source.slice(source.indexOf(start), source.indexOf(end));
   const context = {
@@ -137,7 +137,7 @@ async function ui({ days = [day], bookings = [booking], language = 'it', canBook
       assert.equal(typeof messages[language][key], 'string', `translation: ${key}`);
       return messages[language][key];
     },
-    coreData: name => ({ workDays: days, bookings, employees, progress: [{ id: 'item-a', description: '<b>Synthetic item</b>' }] })[name],
+    coreData: name => ({ workDays: days, bookings, employees: people, progress: [{ id: 'item-a', description: '<b>Synthetic item</b>' }] })[name],
     coreFilters: { bookings: { date: '' } }, permissions: () => ({ book: canBook }),
     dateLabel: date => date, empty: key => messages[language][key],
     formatDisplayNumber, groupBookings, weeklyBookingHours, filterSortRecords, DASHBOARD_WIDGETS,
@@ -308,4 +308,21 @@ test('overview distinguishes 276 six-week hours, 368 full-period hours and 92 ou
       if (source === 'partial') assert.ok(html.includes(messages[language].dashSourcePartial));
     }
   }
+});
+
+test('company and operational date range filter the app total across shifts', async () => {
+  const days = [day, { ...day, id: 'day-night', shift: 'night' }, { ...day, id: 'next-day', operationalDate: '2026-01-06' },
+    { ...day, id: 'other-company', employeeId: 'employee-b' }];
+  const rows = [booking, { ...booking, id: 'night-booking', workDayId: 'day-night', hours: 1.5 },
+    { ...booking, id: 'later-booking', workDayId: 'next-day', hours: 6 },
+    { ...booking, id: 'other-booking', workDayId: 'other-company', hours: 10 }];
+  const context = await ui({ days, bookings: rows, language: 'en', people: [
+    { ...employees[0], company: 'Synthetic contractor A' }, { id: 'employee-b', employeeNo: 'SYN-002', company: 'Synthetic contractor B' },
+  ] });
+  context.coreFilters.bookings = { company: JSON.stringify('Synthetic contractor A'), from: day.operationalDate, to: day.operationalDate };
+  const html = context.renderBookings();
+  assert.match(html, /Total hours booked in the app.*3\.5/);
+  assert.equal((html.match(/class="core-day"/g) || []).length, 1);
+  assert.doesNotMatch(html, /SYN-002/);
+  assert.match(html, /worker record linked to the site attendance entry/);
 });

@@ -84,17 +84,13 @@ Ogni cantiere dichiara una **giurisdizione**, `IT` o `UK`: è il diritto che si 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/diary?site_id=` | membro | Voci del cantiere; accetta anche `siteId` |
-| POST | `/api/diary` | owner/editor/verifier con modulo Diario | Una voce per cantiere, giorno e turno |
-| PATCH | `/api/diary/{id}` | autore entro sette giorni oppure owner, con modulo Diario | Corregge il contenuto e archivia la versione precedente |
-| GET | `/api/diary/{id}/versions` | membro con modulo Diario | Versioni in ordine decrescente |
+| POST | `/api/diary` | owner/editor/verifier | Una voce per cantiere/data/turno |
+| PATCH | `/api/diary/{id}` | owner o editor entro il giorno operativo corrente | Rettifica il contenuto con motivazione obbligatoria |
+| GET | `/api/diary/{id}/versions` | membro del cantiere con accesso al diario | Versioni precedenti, dalla più recente |
 
 `POST /api/diary` usa il fuso e l'ora di taglio del cantiere. Ometti `operational_date` e `shift` per far assegnare entrambi dal server al salvataggio. Se invii la data senza il turno, il server assegna il turno corrente. Per registrare una data e un turno specifici, invia `operational_date` in formato `YYYY-MM-DD` e `shift` con valore `day` o `night`. Gli eventuali campi `time_zone` e `day_cutoff_time` devono coincidere con quelli del cantiere, altrimenti la risposta è `400 VALIDATION_ERROR`. La voce registra entrambi i valori alla creazione.
 
-La finestra di sette giorni si calcola confrontando `operational_date` con la data di calendario corrente nel fuso del cantiere. Una data futura restituisce `400 VALIDATION_ERROR`. Per una data più vecchia di sette giorni, il `POST` richiede il ruolo owner e una `motivation` di almeno 10 caratteri dopo aver rimosso gli spazi iniziali e finali. La risposta registra `author_id`, `recorded_late` e `recording_motivation`.
-
-Il `PATCH` richiede almeno uno tra `plan`, `actual`, `impediments` e `next_step`. Usa una stringa vuota per svuotare un campo. Il giorno operativo e il turno sono fissi. Per correggere una voce altrui, senza autore associato o oltre i sette giorni serve un owner e vale lo stesso requisito per `motivation`. Un ruolo insufficiente restituisce `403 FORBIDDEN`. Una motivazione obbligatoria mancante o troppo breve restituisce `400 MOTIVATION_REQUIRED`. La risposta riporta la voce aggiornata con `updated_at`, `updated_by` e `updated_by_name`.
-
-L'endpoint delle versioni restituisce un array, vuoto fino alla prima correzione. Ogni elemento include `version`, `snapshot` con la voce prima della correzione, `author_id` e `author_name` di chi ha eseguito la correzione, `created_at` e `motivation` se fornita.
+Una rettifica accetta uno o più campi tra `plan`, `actual`, `impediments` e `next_step`. Ogni rettifica richiede `motivation` di almeno 10 caratteri esclusi gli spazi iniziali e finali, altrimenti risponde `400 MOTIVATION_REQUIRED`. La data operativa resta fissa. Alla successiva ora di taglio nel fuso corrente del cantiere termina il permesso dell’editor. Ogni rettifica archivia la versione precedente con autore della rettifica (`author_id`), data e ora (`created_at`) e motivo (`motivation`).
 
 Le due liste accettano sia `site_id` sia `siteId`, perché le attività e il diario usavano storicamente il secondo nome. Un parametro di query non previsto viene rifiutato con `400 VALIDATION_ERROR` invece di essere ignorato: un filtro scritto male non restituisce un elenco non filtrato.
 
@@ -134,7 +130,7 @@ Le voci di avanzamento importate dal sistema di cantiere sono visibili nella vis
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/site-progress?site_id=&wbs_id=` | membro | Voci del cantiere; filtro opzionale per voce WBS |
+| GET | `/api/site-progress?site_id=&wbs_id=&include_descendants=true` | membro | `wbs_id` filtra il nodo esatto per impostazione predefinita. `include_descendants=true` include anche i discendenti della gerarchia operativa. `X-WBS-Scope` indica `all`, `exact` o `subtree`. `X-Total-Count` conta le voci nel perimetro. |
 | GET | `/api/site-progress/{id}` | membro | Voce con `booked_hours` (somma delle ore prenotate), `planned_hours` e gli step |
 | PATCH | `/api/site-progress/{id}` | owner/editor | `{ planned_hours }`: aggiorna solo le ore pianificate |
 | POST | `/api/site-progress/import` | owner | Promuove uno snapshot di avanzamento |
@@ -306,7 +302,7 @@ Il riepilogo con `summary=1` conta tutti e cinque i tipi: `by_type` contiene sem
 
 ## Attrezzature HSE e catalogo delle ispezioni
 
-Le **attrezzature HSE** sono ciò che il cantiere deve ispezionare: strumenti, opere di cantiere e dispositivi di protezione individuale. Si creano e si modificano dalla vista **Ispezioni** della sezione HSE; l'eliminazione è solo via API. La lettura è aperta a tutti i membri del cantiere, `viewer` compreso; la scrittura è riservata a **owner** ed **editor**. Serve il modulo `hse`, in lettura e in scrittura: un membro escluso dal modulo riceve `403 MODULE_FORBIDDEN`.
+Le **attrezzature HSE** sono ciò che il cantiere deve ispezionare: strumenti, opere di cantiere e dispositivi di protezione individuale. Si creano e si modificano dalla vista **Ispezioni** della sezione HSE; l'eliminazione è solo via API. Owner, editor e verificatori leggono. Solo owner ed editor scrivono. Serve il modulo `hse`, in lettura e in scrittura: un membro escluso dal modulo riceve `403 MODULE_FORBIDDEN`.
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
@@ -334,11 +330,11 @@ Il catalogo restituisce `{ jurisdiction, templates }`, con le sole famiglie dell
 | `uk_ppe` | UK | Personal protective equipment | 12 mesi | PPE at Work Regulations 1992 |
 | `uk_scaffolding` | UK | Scaffolding | 3 mesi | Work at Height Regulations 2005 |
 
-Oggi tutti i modelli sono `draft: true`: sono in bozza, non ancora attivati. Tutti i ruoli del cantiere leggono il catalogo; un cantiere che non esiste risponde `404 SITE_NOT_FOUND` e la lettura non lascia righe nel registro di audit. Codici dedicati delle attrezzature: `VALIDATION_ERROR` (400), `TEMPLATE_JURISDICTION_MISMATCH` (400), `DUPLICATE_ASSET_NAME` (409), `HSE_ASSET_NOT_FOUND` (404).
+Oggi tutti i modelli sono `draft: true`: sono in bozza, non ancora attivati. Owner, editor e verificatori leggono il catalogo; un cantiere che non esiste risponde `404 SITE_NOT_FOUND` e la lettura non lascia righe nel registro di audit. Codici dedicati delle attrezzature: `VALIDATION_ERROR` (400), `TEMPLATE_JURISDICTION_MISMATCH` (400), `DUPLICATE_ASSET_NAME` (409), `HSE_ASSET_NOT_FOUND` (404).
 
 ## Ispezioni HSE
 
-Un'**ispezione HSE** registra l'esito dei controlli di un'attrezzatura HSE in una data. Ogni ispezione è una riga e ogni controllo del modello è una riga a parte: l'ispezione conserva l'etichetta di ogni controllo com'era nel modello il giorno della compilazione, così una modifica successiva al modello non riscrive un'ispezione passata. Si registrano dalla scheda del soggetto nella vista **Ispezioni** dell'interfaccia (vedi [HSE](../../moduli/hse/#registrare-unispezione)) e via API; si leggono dall'API e dalla scheda del soggetto, che mostra stato, storico e singoli controlli (vedi [HSE](../../moduli/hse/#aprire-un-soggetto-stato-storico-e-controlli)). Legge ogni membro del cantiere, `viewer` compreso; scrivono **owner** ed **editor**. Serve il modulo `hse`, in lettura e in scrittura.
+Un'**ispezione HSE** registra l'esito dei controlli di un'attrezzatura HSE in una data. Ogni ispezione è una riga e ogni controllo del modello è una riga a parte: l'ispezione conserva l'etichetta di ogni controllo com'era nel modello il giorno della compilazione, così una modifica successiva al modello non riscrive un'ispezione passata. Si registrano dalla scheda del soggetto nella vista **Ispezioni** dell'interfaccia (vedi [HSE](../../moduli/hse/#registrare-unispezione)) e via API; si leggono dall'API e dalla scheda del soggetto, che mostra stato, storico e singoli controlli (vedi [HSE](../../moduli/hse/#aprire-un-soggetto-stato-storico-e-controlli)). Owner, editor e verificatori leggono. Solo owner ed editor scrivono. Serve il modulo `hse`, in lettura e in scrittura.
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
@@ -397,17 +393,19 @@ Il dashboard include `workDays` (solo `operationalDate` e `workTime`, con `null`
 
 ## Stato importazioni
 
-Lo **Stato importazioni** è un riepilogo in sola lettura dell'ultimo bundle completo per ogni ambito di progetto: è lo stesso contenuto della vista **Stato importazioni** (vedi [Stato importazioni](../../moduli/reporting/)). Non dipende da un cantiere: la rotta non accetta `site_id` e risponde con gli ambiti presenti nel database di reporting.
+Lo **Stato importazioni** è un riepilogo in sola lettura dell'ultimo bundle completo per ogni ambito di progetto: è lo stesso contenuto della vista **Stato importazioni** (vedi [Stato importazioni](../../moduli/reporting/)). Il server ricava il perimetro dalla sessione e ignora i parametri di query come `site_id`.
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/reporting/overview` | membro con modulo `reporting` in almeno un cantiere | `{ configured, scopes }`; nessun parametro |
 
-`configured` è `false` quando il server non ha la connessione al database di reporting (`REPORTING_DATABASE_URL` mancante o vuota): la risposta è comunque `200`, con `scopes` vuoto, e nessuna query viene eseguita. Con la connessione configurata, `scopes` elenca un elemento per ambito: `scopeId`, `projectReference` (`null` se assente), `exportDate` (`YYYY-MM-DD` o `null`), `loadedAt` (ISO 8601 o `null`), `counts` con le sei famiglie `employees`, `work_days`, `time_schedule`, `site_progress_items`, `daily_logs` e `deviations`, `totalRows` e `qualityIssues`.
+`configured` è `false` quando il server non ha la connessione al database di reporting (`REPORTING_DATABASE_URL` mancante o vuota): la risposta è comunque `200`, con `scopes` vuoto, e nessuna query viene eseguita. Con la connessione configurata, `scopes` elenca un elemento per ambito autorizzato: `scopeId`, `projectReference` (`null` se assente), `exportDate` (`YYYY-MM-DD` o `null`), `loadedAt` (ISO 8601 o `null`), `counts` con le sei famiglie `employees`, `work_days`, `time_schedule`, `site_progress_items`, `daily_logs` e `deviations`, `totalRows` e `qualityIssues`.
+
+L’accesso per cantiere usa le associazioni esplicite già configurate per gli import di WBS, personale, avanzamento e scostamenti. L’utente deve avere accesso al reporting in ogni cantiere associato all’ambito, anche quando lo usano più famiglie di import. Se nessun ambito rientra nel perimetro, la risposta è `200` con `scopes` vuoto e il database di reporting non viene interrogato. L’accesso globale richiede un ruolo owner attivo e l’ID dell’utente autenticato nella variabile server `REPORTING_GLOBAL_OWNER_IDS`, con valori separati da virgole. Per impostazione predefinita è disabilitato.
 
 I conteggi sono interi non negativi e `totalRows` è la loro somma. La risposta non contiene righe di dettaglio, payload di origine né identificativi di caricamento. Gli ambiti sono ordinati per riferimento progetto e identificativo, e la lettura avviene in una sola transazione `REPEATABLE READ READ ONLY`, così metadati e conteggi descrivono lo stesso caricamento.
 
-La rotta accetta solo `GET`: gli altri metodi rispondono `404`. Senza sessione valida la risposta è `401`; se il modulo non è consentito in nessun cantiere del membro è `403 MODULE_FORBIDDEN`; se il database di reporting non risponde è `503 REPORTING_UNAVAILABLE`, con messaggio generico e senza dettagli dell'errore. Non esistono rotte di scrittura, e un eventuale `site_id` nella query viene ignorato.
+La rotta accetta solo `GET`: gli altri metodi rispondono `404`. Senza sessione valida la risposta è `401`; se il modulo non è consentito in nessun cantiere del membro è `403 MODULE_FORBIDDEN`; se il database di reporting non risponde è `503 REPORTING_UNAVAILABLE`, con messaggio generico e senza dettagli dell'errore. Lo Stato importazioni non ha rotte di export o di scrittura.
 
 ## Import degli export di pianificazione
 
@@ -437,7 +435,7 @@ Gli allegati a **attività, diario, eventi HSE e ispezioni HSE** si caricano anc
 | GET | `/api/attachments/{id}` | membro; per `hse_event` owner/editor/verifier | Scarica i byte |
 | DELETE | `/api/attachments/{id}` | owner/editor | Elimina |
 
-Per gli allegati a un evento HSE valgono le regole del registro: servono il modulo HSE e un ruolo tra owner, editor e verificatore per la lettura; caricamento ed eliminazione restano a owner ed editor. Un evento eliminato nasconde i suoi allegati: l'elenco non li restituisce e il download risponde `404 HSE_NOT_FOUND`. Gli allegati a un'ispezione HSE richiedono il modulo HSE ma li leggono tutti i ruoli del cantiere, viewer compreso; anche per loro caricamento ed eliminazione restano a owner ed editor, e un allegato si vede solo se l'ispezione esiste nello stesso cantiere. Ogni download di un allegato HSE — di un evento o di un'ispezione — scrive una voce `read` nel registro di audit, con id e nome del file; se la scrittura fallisce il download riesce comunque. La descrizione facoltativa del modulo di caricamento serve solo all'avviso nell'interfaccia: non viene inviata né salvata.
+Per gli allegati a un evento HSE valgono le regole del registro: servono il modulo HSE e un ruolo tra owner, editor e verificatore per la lettura; caricamento ed eliminazione restano a owner ed editor. Un evento eliminato nasconde i suoi allegati: l'elenco non li restituisce e il download risponde `404 HSE_NOT_FOUND`. Gli allegati a un'ispezione HSE seguono la stessa matrice del registro HSE; anche per loro caricamento ed eliminazione restano a owner ed editor, e un allegato si vede solo se l'ispezione esiste nello stesso cantiere. Ogni download di un allegato HSE — di un evento o di un'ispezione — scrive una voce `read` nel registro di audit, con id e nome del file; se la scrittura fallisce il download riesce comunque. La descrizione facoltativa del modulo di caricamento serve solo all'avviso nell'interfaccia: non viene inviata né salvata.
 
 Sono ammessi file fino a **15 MiB**, di tipo immagine o PDF (`UNSUPPORTED_MEDIA_TYPE`, `ATTACHMENT_TOO_LARGE`). Il caricamento e l'eliminazione sono riservati a owner ed editor; la lettura a tutti i membri, con l'eccezione HSE qui sopra. Prima di registrare l'allegato l'applicazione rilegge i byte salvati e confronta il checksum: se non coincide, il file viene rimosso e la risposta è `502`.
 

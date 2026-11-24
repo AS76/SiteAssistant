@@ -1,11 +1,10 @@
+import { HSE_READ_ROLES, HSE_WRITE_ROLES } from '../app/hse-permissions.mjs';
 import { randomUUID } from 'node:crypto';
 import { RepositoryError, requireRole } from './repository.mjs';
 import { requireModule } from './module-access.mjs';
 import { appendAuditEvent } from './audit.mjs';
 import { findTemplate } from './checklists.mjs';
 
-// Same rule as the rest of HSE: the site manager enters the record, the verifier checks it.
-const WRITE_ROLES = ['owner', 'editor'];
 const COLUMNS = `id, site_id, asset_id, CAST(performed_on AS TEXT) AS performed_on,
   performed_by, performer_role, mode, outcome, notes, CAST(next_due_on AS TEXT) AS next_due_on,
   hse_event_id, created_at, updated_at`;
@@ -55,7 +54,7 @@ function addMonths(value, months) {
   return date(parsed.toISOString().slice(0, 10), 'nextDueOn');
 }
 
-async function inspectionRole(db, siteId, user, roles) {
+async function inspectionRole(db, siteId, user, roles = HSE_READ_ROLES) {
   await requireRole(db, siteId, user, roles);
   await requireModule(db, siteId, user, 'hse');
 }
@@ -105,10 +104,10 @@ export async function createInspection(db, input, user) {
   const suppliedDue = Object.hasOwn(input, 'nextDueOn') || Object.hasOwn(input, 'nextOn');
   const due = suppliedDue ? date(Object.hasOwn(input, 'nextDueOn') ? input.nextDueOn : input.nextOn, 'nextDueOn') : null;
   return await db.transaction(async tx => {
-    await inspectionRole(tx, siteId, user, WRITE_ROLES);
+    await inspectionRole(tx, siteId, user, HSE_WRITE_ROLES);
     // Use the same lock order as asset edits and membership/module changes.
     await tx.run('UPDATE sites SET id = id WHERE id = ?', siteId);
-    await inspectionRole(tx, siteId, user, WRITE_ROLES);
+    await inspectionRole(tx, siteId, user, HSE_WRITE_ROLES);
     await tx.run('UPDATE hse_assets SET id = id WHERE id = ? AND site_id = ? AND deleted_at IS NULL', assetId, siteId);
     const asset = await findAsset(tx, siteId, assetId);
     const template = findTemplate(asset.template_code);

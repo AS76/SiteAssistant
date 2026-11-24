@@ -2,7 +2,7 @@ import test from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { createSite } from '../server/repository.mjs';
 import { listSiteProgress, getSiteProgressItem, importSiteProgress } from '../server/site-progress.mjs';
-import { importWbs, listWbs, stableId } from '../server/wbs.mjs';
+import { createWbs, importWbs, listWbs, stableId, updateWbs } from '../server/wbs.mjs';
 import { createServer } from '../server/http.mjs';
 import { applyMigration } from '../server/migrations/index.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
@@ -28,6 +28,28 @@ for (const driver of ['sqlite', 'pg']) test(`Site Progress ${driver}: snapshots,
   const promote = site => importSiteProgress(db, site.id, auth.users.owner);
   const state = site => listSiteProgress(db, { siteId: site.id });
   const config = site => db.get('SELECT * FROM site_progress_import_sources WHERE site_id = ?', site.id);
+
+  await t.test('WBS scope counts exact and descendant links once and honors operational parents', async t => {
+    const f = await fixture(); await promote(f.site);
+    const root = (await listWbs(db, { siteId: f.site.id, flat: true })).find(node => node.wbs_code === '1');
+    const child = await createWbs(db, { site_id: f.site.id, wbs_code: 'CHILD', parent_id: root.id }, auth.users.owner);
+    const leaf = await createWbs(db, { site_id: f.site.id, wbs_code: 'LEAF', parent_id: child.id }, auth.users.owner);
+    const id = randomUUID();
+    await db.run('INSERT INTO site_progress_items (id, site_id, wbs_id, source_row, created_at) VALUES (?, ?, ?, 100, ?)',
+      id, f.site.id, leaf.id, '2026-01-01T00:00:00Z');
+    const api = requestListener(createServer(db)), path = `/api/site-progress?site_id=${f.site.id}&wbs_id=${root.id}`;
+    const read = suffix => api(path + suffix, { cookie: auth.cookies.owner });
+    const exact = await read('');
+    t.assert.strictEqual(exact.headers['x-wbs-scope'], 'exact');
+    t.assert.strictEqual(exact.headers['x-total-count'], '3');
+    const subtree = await read('&include_descendants=true');
+    t.assert.strictEqual(subtree.headers['x-wbs-scope'], 'subtree');
+    t.assert.strictEqual(subtree.headers['x-total-count'], '4');
+    t.assert.strictEqual(new Set(subtree.body.map(row => row.id)).size, 4);
+    t.assert.strictEqual((await read('&include_descendants=true&limit=1')).headers['x-total-count'], '4');
+    await updateWbs(db, child.id, { parent_id: null }, auth.users.owner);
+    t.assert.strictEqual((await read('&include_descendants=true')).headers['x-total-count'], '3');
+  });
 
   await t.test('promotion preserves fields, nulls, zero/100, timestamps and unresolved identities without annotations', async t => {
     const f = await fixture();

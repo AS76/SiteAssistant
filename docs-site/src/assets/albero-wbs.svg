@@ -6,7 +6,7 @@
     .b{font-weight:700} .s{fill:#544E46} .br{fill:#8E2E24}
   </style>
   <rect x="0.5" y="0.5" width="899" height="335" rx="3" fill="#FAF6EC" stroke="#CFC3AC"/>
-<rect x="360" y="24" width="180" height="56" rx="3" fill="#1E1A15" stroke="#1E1A15" stroke-width="1.5"/><text class="mono" x="450.0" y="46" font-size="14" text-anchor="middle" style="fill:#FAF6EC">1</text><text x="450.0" y="65" font-size="13" text-anchor="middle" style="fill:#FAF6EC">Impianto · Plant</text>
+<rect x="360" y="24" width="180" height="56" rx="3" fill="#1E1A15" stroke="#1E1A15" stroke-width="1.5"/><text class="mono" x="450.0" y="46" font-size="14" text-anchor="middle" style="fill:#FAF6EC">1</text><text x="450.0" y="65" font-size="13" text-anchor="middle" style="fill:#FAF6EC">Impianto</text>
 <path d="M450 80V108" stroke="#544E46" stroke-width="1.5" fill="none"/>
 <path d="M130 108H770" stroke="#544E46" stroke-width="1.5" fill="none"/>
 <path d="M130 108V132" stroke="#544E46" stroke-width="1.5" fill="none"/>
@@ -16,11 +16,11 @@
 <path d="M40 216H220" stroke="#544E46" stroke-width="1.5" fill="none"/>
 <path d="M40 216V240" stroke="#544E46" stroke-width="1.5" fill="none"/>
 <path d="M220 216V240" stroke="#544E46" stroke-width="1.5" fill="none"/>
-<rect x="40" y="132" width="180" height="56" rx="3" fill="#FFFCF5" stroke="#CFC3AC" stroke-width="1.5"/><text class="mono" x="130.0" y="154" font-size="14" text-anchor="middle" style="fill:#1E1A15">1.1</text><text x="130.0" y="173" font-size="13" text-anchor="middle" style="fill:#544E46">Strutture · Structures</text>
-<rect x="360" y="132" width="180" height="56" rx="3" fill="#FFFCF5" stroke="#CFC3AC" stroke-width="1.5"/><text class="mono" x="450.0" y="154" font-size="14" text-anchor="middle" style="fill:#1E1A15">1.2</text><text x="450.0" y="173" font-size="13" text-anchor="middle" style="fill:#544E46">Montaggio · Erection</text>
+<rect x="40" y="132" width="180" height="56" rx="3" fill="#FFFCF5" stroke="#CFC3AC" stroke-width="1.5"/><text class="mono" x="130.0" y="154" font-size="14" text-anchor="middle" style="fill:#1E1A15">1.1</text><text x="130.0" y="173" font-size="13" text-anchor="middle" style="fill:#544E46">Strutture</text>
+<rect x="360" y="132" width="180" height="56" rx="3" fill="#FFFCF5" stroke="#CFC3AC" stroke-width="1.5"/><text class="mono" x="450.0" y="154" font-size="14" text-anchor="middle" style="fill:#1E1A15">1.2</text><text x="450.0" y="173" font-size="13" text-anchor="middle" style="fill:#544E46">Montaggio</text>
 <rect x="680" y="132" width="180" height="56" rx="3" fill="#F2ECDD" stroke="#544E46" stroke-width="1.5" stroke-dasharray="6 4"/><text class="mono" x="770.0" y="154" font-size="14" text-anchor="middle" style="fill:#1E1A15">1.3</text><text x="770.0" y="173" font-size="13" text-anchor="middle" style="fill:#544E46">· · ·</text>
-<rect x="660" y="196" width="220" height="24" rx="3" fill="#F7EAE4" stroke="#8E2E24"/><text class="b" x="770" y="213" font-size="12" text-anchor="middle" style="fill:#8E2E24">padre sintetico · synthetic parent</text>
+<rect x="660" y="196" width="220" height="24" rx="3" fill="#F7EAE4" stroke="#8E2E24"/><text class="b" x="770" y="213" font-size="12" text-anchor="middle" style="fill:#8E2E24">padre sintetico</text>
 <rect x="4" y="240" width="112" height="56" rx="3" fill="#FFFCF5" stroke="#CFC3AC" stroke-width="1.5"/><text class="mono" x="60.0" y="262" font-size="14" text-anchor="middle" style="fill:#1E1A15">1.1.1</text><text x="60.0" y="281" font-size="13" text-anchor="middle" style="fill:#544E46">Fondazioni</text>
 <rect x="164" y="240" width="112" height="56" rx="3" fill="#FFFCF5" stroke="#CFC3AC" stroke-width="1.5"/><text class="mono" x="220.0" y="262" font-size="14" text-anchor="middle" style="fill:#1E1A15">1.1.2</text><text x="220.0" y="281" font-size="13" text-anchor="middle" style="fill:#544E46">Tamponature</text>
-<text x="450" y="324" text-anchor="middle" font-size="13" style="fill:#544E46">Albero espandibile e tabella piatta · sola lettura · Expandable tree and flat table · read only</text>
+<text x="450" y="324" text-anchor="middle" font-size="13" style="fill:#544E46">Albero e tabella operativi</text>
 </svg>

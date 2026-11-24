@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
-import { formatDisplayNumber, formatDateInput, counts, PRIORITIES, DEVIATION_STATUSES, groupDeviationRows, filterSortRecords,
+import { formatDisplayNumber, formatDateInput, counts, PRIORITIES, DEVIATION_STATUSES, groupDeviationRows, filterSortRecords, flattenWbs,
   validDate, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts, CERT_CATEGORIES, CERT_STATUSES,
   certCategoryLabelKey, certStatusLabelKey, filterCertifications, certificationCounts } from '../app/domain.mjs';
 import { messages } from '../app/i18n.mjs';
@@ -32,7 +32,7 @@ function ui({ language = 'it', width = 1440, tasks = [], diary = [], reconciliat
   };
   const data = { deviations, hse, reconciliation: reconciliation || { items: [], counts: { closed_without_date: 0, close_before_approval: 0 } } };
   const context = createContext({
-    supportsPasskeys: () => false, validDate, language, prefs: { currency: 'EUR', separators: language, decimals: 0 }, formatDisplayNumber, formatDateInput, counts, PRIORITIES, DEVIATION_STATUSES, groupDeviationRows, filterSortRecords,
+    supportsPasskeys: () => false, validDate, language, prefs: { currency: 'EUR', separators: language, decimals: 0 }, formatDisplayNumber, formatDateInput, counts, PRIORITIES, DEVIATION_STATUSES, groupDeviationRows, filterSortRecords, flattenWbs,
     HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts, state: { sites: [{ id: 'site-1', code: 'SYN-01', name: 'Synthetic site with a long name' }], diary },
     siteId: 'site-1', actor: 'Synthetic user', loading: false, offline: false, view: 'overview',
     session: { user: { id: 'user-1' }, roles: [{ site_id: 'site-1', role: 'owner' }] },
@@ -49,7 +49,7 @@ function ui({ language = 'it', width = 1440, tasks = [], diary = [], reconciliat
     }) },
     syncBadge: () => '', icon: () => '', taskRow: () => '', renderOffline() {}, render() {},
     document: { documentElement: {} }, sessionStorage: { getItem: () => null }, localStorage: { getItem: () => '1' },
-    visibleModules: items => items, moduleVisible: () => true, currentModules: () => [], headerNavItems: () => ['bookings'], canWriteTask: () => true,
+    visibleModules: items => items, moduleVisible: () => true, currentModules: () => [], headerNavItems: () => ['bookings'], canWriteTask: () => true, canAttachDiary: () => true,
     desktopNavigation: link => link('bookings'), bindDesktopNavigation() {}, $: node,
   });
   const evidenceLabels = runInContext(section('const evidenceLabels =', 'const t =') + '\nevidenceLabels', context);
@@ -57,6 +57,7 @@ function ui({ language = 'it', width = 1440, tasks = [], diary = [], reconciliat
     ['const esc =', 'let session ='], ['const money =', 'let offlineScope'], ['const dateLabel =', 'const paths ='], ['const button =', 'function toast('],
     ['function heading(', 'function renderChrome('], ['function renderChrome()', 'function dueMarkup('],
     ['const role =', 'const currentModules ='],
+    ['const canAttachDiary =', 'const canTransitionTask ='],
     ['const notebookStates =', 'function todayTaskItem('],
     ['const coreValue =', 'function renderCore('], ['function localOverviewWidgets()', '// Every report opening'],
     ['function earnedValueSummary(', 'const STATUS_COLORS'],
@@ -204,12 +205,19 @@ test('41.08 M4 — today diary has exactly one invitation: a button when empty, 
     assert.equal((empty.match(/data-command="go-diary"/g) || []).length, 1);
     assert.equal((empty.match(/<button/g) || []).length, 1);
     assert.ok(empty.includes(messages[language].noDiary)); assert.doesNotMatch(empty, /href="#diary"/);
+    assert.match(empty, /datetime="2026-11-14"/);
     app.context.state.diary.push({ siteId: 'site-1', date: '2026-11-14', actual: 'Synthetic work completed' });
     const filled = app.run('localOverviewWidgets().journal_today');
     assert.equal((filled.match(/href="#diary"/g) || []).length, 1);
+    assert.match(filled, /href="#diary" data-command="go-diary"/);
     assert.doesNotMatch(filled, /<button/); assert.match(filled, /Synthetic work completed/);
+    app.context.siteId = 'other-site';
+    app.context.operationalDay = () => ({ date: '2026-11-15' });
+    const changed = app.run('localOverviewWidgets().journal_today');
+    assert.match(changed, /datetime="2026-11-15"/);
+    assert.doesNotMatch(changed, /Synthetic work completed|Other synthetic entry/);
   }
-  assert.match(source, /'go-diary': \(\) => \{ reportDate = operationalDay\(\).date; go\('diary'\); \}/);
+  assert.match(source, /'go-diary': .*reportDate = operationalDay\(\).date; go\('diary'\)/);
 });
 
 test('41.09 M5 — person is plain text populated from the signed-in identity', () => {
@@ -490,8 +498,7 @@ test('diary shows the selected date, chronological contributions and localized c
     assert.ok(register.includes(`2 ${messages[language].entries}`));
     assert.ok(register.indexOf('Synthetic earlier entry') < register.indexOf('Synthetic later entry'));
     assert.doesNotMatch(register, /data-command="new-entry"/);
-    assert.match(register, /data-command="diary-correct" data-id="earlier"/);
-    assert.doesNotMatch(register, /data-command="diary-correct" data-id="later"/);
+    assert.doesNotMatch(register, /data-command="diary-correct"/);
     assert.match(register, /data-command="diary-versions" data-id="later"/);
     assert.ok(register.includes('Synthetic editor'));
     t.mock.timers.setTime(Date.parse('2026-11-22T12:00:00Z'));
@@ -505,10 +512,75 @@ test('diary shows the selected date, chronological contributions and localized c
   }
 });
 
-test('41.07 M2 — mobile pages keep their scale: no pinch zoom, no focus zoom, no text inflation', () => {
-  assert.match(shell, /<meta name="viewport" content="[^"]*width=device-width[^"]*initial-scale=1[^"]*maximum-scale=1[^"]*user-scalable=no/);
-  assert.match(css, /html\{[^}]*-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:pan-x pan-y/);
-  assert.match(css, /@media \(max-width: 800px\) \{\s*input, select, textarea \{ font-size: 16px !important; \}/);
-  assert.match(source, /for \(const type of \['gesturestart', 'gesturechange', 'gestureend'\]\)/);
-  assert.match(source, /if \(event\.touches\.length > 1\) event\.preventDefault\(\)/);
+test('diary corrections follow the site cutoff for editors and are always available to owners', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-03-29T04:14:59.999Z') });
+  const entry = { id: 'entry', siteId: 'site-1', date: '2026-03-28', shift: 'night', author_id: 'other-user' };
+  const app = ui({ diary: [entry] });
+  Object.assign(app.context.state.sites[0], { time_zone: 'Europe/Rome', day_cutoff_time: '06:15' });
+  app.context.Date = Date;
+  app.context.reportDate = entry.date;
+  app.context.showModal = (_title, html) => { app.node('#dialog').innerHTML = html; };
+  app.context.formActions = () => '';
+  app.run(section('const diaryContentFields =', 'async function loadWbs()'));
+  app.run(section('function diaryMotivationField()', 'async function showDiaryVersions('));
+  const member = app.context.session.roles[0];
+  member.role = 'editor';
+  app.run('renderDiary(); showDiaryCorrection("entry")');
+  assert.match(app.node('#main').innerHTML, /data-command="diary-correct"/);
+  assert.match(app.node('#dialog').innerHTML, /<textarea name="motivation"[^>]*required/);
+  member.role = 'verifier';
+  app.run('renderDiary()');
+  assert.doesNotMatch(app.node('#main').innerHTML, /data-command="diary-correct"/);
+  member.role = 'editor';
+  t.mock.timers.setTime(Date.parse('2026-03-29T04:15:00.000Z'));
+  app.run('renderDiary()');
+  assert.doesNotMatch(app.node('#main').innerHTML, /data-command="diary-correct"/);
+  member.role = 'owner';
+  app.run('renderDiary()');
+  assert.match(app.node('#main').innerHTML, /data-command="diary-correct"/);
+});
+
+test('mobile pages allow voluntary zoom and keep field text at least 16px', () => {
+  assert.match(shell, /<meta name="viewport" content="width=device-width, initial-scale=1">/);
+  assert.match(css, /html\{[^}]*-webkit-text-size-adjust:100%;text-size-adjust:100%/);
+  assert.doesNotMatch(css, /touch-action\s*:/);
+  assert.match(css, /@media \(max-width: 800px\), \(pointer: coarse\) \{\s*input, select, textarea \{ font-size: 16px !important; \}/);
+  assert.doesNotMatch(source, /gesture(?:start|change|end)|addEventListener\('touchmove'/);
+});
+
+test('WBS filter announces exact and subtree scopes with unique visible item counts', () => {
+  for (const language of ['it', 'en']) {
+    const app = ui({ language });
+    const child = { id: 'child', wbs_code: '1.1', description: 'Child node', children: [] };
+    Object.assign(app.data, { wbs: [{ id: 'root', wbs_code: '1', description: 'Root node', children: [child] }, child],
+      progress: [{ id: 'root-row', wbsId: 'root' }, { id: 'child-row', wbsId: 'child' }, { id: 'unassigned' }] });
+    app.context.coreFilters.progress = { wbsId: 'root' };
+    app.run(section('function renderProgress()', 'function openProgressVerifications('));
+    const exact = app.run('renderProgress()');
+    assert.ok(exact.includes(messages[language].wbsScopeExact));
+    assert.doesNotMatch(exact, /child-row|unassigned/);
+    app.context.coreFilters.progress.includeDescendants = true;
+    const subtree = app.run('renderProgress()');
+    assert.ok(subtree.includes(messages[language].wbsScopeSubtree));
+    assert.equal((subtree.match(/data-id="child-row"/g) || []).length, 1);
+    assert.doesNotMatch(subtree, /unassigned/);
+  }
+});
+
+test('progress explains empty data and labels the origin of measured zero and calculated values', () => {
+  for (const language of ['it', 'en']) {
+    const app = ui({ language });
+    Object.assign(app.data, { wbs: [], progress: [] });
+    app.context.coreFilters.progress = { wbsId: '' };
+    app.run(section('function renderProgress()', 'function openProgressVerifications('));
+    assert.ok(app.run('renderProgress()').includes(messages[language].progressEmptyHint));
+    app.data.progress = [{ id: 'import-zero', progressPct: 0, progressPctSource: 'imported' },
+      { id: 'app-progress', progressPct: 20, progressPctSource: 'computed' },
+      { id: 'missing', progressPct: null, progressPctSource: 'imported' }];
+    const html = app.run('renderProgress()');
+    assert.equal(html.split(messages[language].coreImported).length - 1, 1);
+    assert.equal(html.split(messages[language].coreComputed).length - 1, 1);
+    assert.match(html, /value="0"/);
+    assert.ok(html.includes(messages[language].coreUnknown));
+  }
 });

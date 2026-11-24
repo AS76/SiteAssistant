@@ -3,9 +3,11 @@ import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
 import { messages } from './i18n.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
+import { hasOpenProgressSteps } from './domain.mjs';
+import { taskFormalAcceptance, taskVerificationOutcome } from './domain.mjs';
 import { INSPECTION_STATUSES, inspectionStatusLabelKey, filterHseAssets, sortHseAssets, hseAssetCounts, inspectionOutcomeLabelKey, inspectionModeLabelKey, inspectionItemResultLabelKey, inspectionTally, sortInspections, inspectionSuggestion, inspectionProgress, inspectionPayload } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
-import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
+import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, purgeScope, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
 
 const api = createApi({ baseUrl: new URL(document.querySelector('meta[name=siteassistant-api-base]')?.content || DEFAULT_BASE_URL, location.href).href, onUnauthorized: () => clearSession(true) });
 const freshApi = createApi({ baseUrl: api.baseUrl, fresh: true, onUnauthorized: () => clearSession(true) });
@@ -30,6 +32,8 @@ const money = value => {
 let offlineScope, pendingOps = [], offline = !navigator.onLine, storageReady = false, storageError = false, swUnavailable = false, swRegistration, syncRun;
 const accountChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('siteassistant-session') : null;
 const accountLock = run => navigator.locks ? withSyncLock(run) : run();
+const logoutKey = `logout:${api.baseUrl}`;
+let logoutPending = false;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 let session = null;
@@ -60,7 +64,6 @@ const evidenceLabels = {
   evidenceFull: ['Completa', 'Full'],
   evidencePartial: ['Parziale', 'Partial'],
   evidenceNone: ['Assente', 'None'],
-  evidenceNoDeclaration: ['Nessuna dichiarazione', 'No declaration'],
   evidenceAbsence: ['Presenza nell’export', 'Export presence'],
   evidencePresent: ['Presente nell’export completo del {date} (perimetro: {scope})', 'Present in the complete export dated {date} (scope: {scope})'],
   evidenceAbsent: ['Assente dall’export completo del {date} (perimetro: {scope})', 'Absent from the complete export dated {date} (scope: {scope})'],
@@ -95,7 +98,11 @@ const evidenceLabels = {
   evidenceDeclared: ['Dichiarata il', 'Declared on'],
   evidenceVerified: ['Verificata il', 'Verified on'],
   evidenceAcceptance: ['Accettazione formale', 'Formal acceptance'],
-  evidenceAcceptanceHint: ['Stato della dichiarazione e della verifica del risultato.', 'Status of the result declaration and verification.'],
+  evidenceVerification: ['Verifica operativa', 'Operational verification'],
+  evidenceVerificationPending: ['Verifica da registrare', 'Verification pending'],
+  evidenceVerificationRecorded: ['Verifica registrata', 'Verification recorded'],
+  evidenceVerificationLegacy: ['Chiusura storica senza verifica documentata', 'Historical closure without documented verification'],
+  evidenceAcceptanceNotRecorded: ['Accettazione formale non registrata', 'Formal acceptance not recorded'],
   evidenceAccepted: ['Accettata', 'Accepted'],
   evidenceAcceptanceDocument: ['Documento di accettazione', 'Acceptance document'],
   evidenceAcceptanceDate: ['Data di accettazione', 'Acceptance date'],
@@ -166,7 +173,9 @@ const paths = {
   execution:'<path d="m8 5 11 7-11 7V5Z"/>',review:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',closed:'<circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/>',overdue:'<path d="m12 3 10 18H2L12 3Zm0 6v5m0 3h.01"/>',
 };
 const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[key] || paths.tasks}</svg>`;
-const badge = status => `<span class="badge ${status}">${t(status)}</span>`;
+const badge = (status, label = t(status)) => `<span class="badge ${esc(status)}">${esc(label)}</span>`;
+const taskStatusLabel = status => t(status === 'closed' ? 'notebookClosed' : status);
+const formalAcceptanceLabel = task => t(taskFormalAcceptance(task) === 'accepted' ? 'evidenceAccepted' : 'evidenceAcceptanceNotRecorded');
 const priorityBadge = priority => priority !== 'normal' ? `<span class="badge ${esc(priority)}">${esc(t(priority))}</span>` : '';
 const button = (key, command, extra = '', css = '') => `<button type="button" class="${css}" data-command="${command}" ${extra}>${t(key)}</button>`;
 function toast(message) {
@@ -179,7 +188,7 @@ const errorKeys = {
   DEVIATION_OWNER_INVALID: 'evidenceOwnerError', DEVIATION_IDENTITY_UNRESOLVED: 'evidenceIdentityError',
   DEVIATION_EXPORT_META_INVALID: 'evidenceImportError', DEVIATION_EXPORT_INVALID: 'evidenceImportError',
   DEVIATION_EXPORT_CHECKSUM_MISMATCH: 'evidenceImportError', SHIPMENT_NOT_FOUND: 'shpNotFound', SHIPMENT_DUPLICATE_NUMBER: 'shpDuplicateNumber', SHIPMENT_PACKAGE_NOT_FOUND: 'shpPackageUnavailable', SHIPMENT_PACKAGE_SITE_MISMATCH: 'shpPackageUnavailable', SHIPMENT_PACKAGE_TAKEN: 'shpPackageTaken', SHIPMENT_STATUS_CONFLICT: 'shpStatusConflict', SHIPMENT_ITEM_NOT_FOUND: 'shpItemNotFound', PACKAGE_NOT_FOUND: 'pkgNotFound', PACKAGE_ITEM_NOT_FOUND: 'poItemNotFound', PACKAGE_DUPLICATE_NUMBER: 'pkgDuplicateNumber', PACKAGE_QUANTITY_EXCEEDED: 'pkgQuantityExceeded', PACKAGE_STATUS_CONFLICT: 'pkgStatusConflict', PO_STATUS_CONFLICT: 'poStatusConflict', PO_DUPLICATE_NUMBER: 'poDuplicateNumber', PO_DUPLICATE_LINE: 'poDuplicateLine', PO_NOT_FOUND: 'poNotFound', PO_ITEM_NOT_FOUND: 'poItemNotFound', HSE_INVALID: 'hseInvalid', HSE_FORBIDDEN: 'forbidden', HSE_NOT_FOUND: 'hseNotFound', MODULE_FORBIDDEN: 'moduleUnavailable', ACCESS_INVALID: 'accessInvalid', LAYOUT_INVALID: 'layoutInvalid', MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
-function errorMessage(error) { if (error.code === 'MODULE_FORBIDDEN') return t('moduleUnavailable'); if (error.code === 'PAGINATION_LIMIT') return t('paginationLimit'); return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
+function errorMessage(error) { if (error.code === 'PASSWORD_CHANGE_REQUIRED') return t('passwordChangeNotice'); if (error.code === 'MODULE_FORBIDDEN') return t('moduleUnavailable'); if (error.code === 'PAGINATION_LIMIT') return t('paginationLimit'); return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
   reportPrintIntent = null; lastReport = null;
   resetSavedViews();
@@ -196,13 +205,35 @@ async function forgetActive() {
   if (storageReady) await setMirror('active', null);
   if ('caches' in window) for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.includes('-data-')) await caches.delete(key);
 }
+async function flushLogout() {
+  if (!logoutPending && !(storageReady && await getMirror(logoutKey))) return;
+  try { await api.logout(); }
+  catch (error) { if (error.status !== 401) throw error; }
+  if (storageReady) await setMirror(logoutKey, null);
+  logoutPending = false;
+}
 async function logout() {
   try {
-    await accountLock(async () => { await api.logout(); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
+    await accountLock(async () => {
+      const active = storageReady ? await getMirror('active') : null;
+      const scope = offlineScope ?? active?.scope;
+      const current = !active || active.scope === scope;
+      if (storageReady) await purgeScope(scope, current ? logoutKey : undefined);
+      if ('caches' in window && scope) {
+        const suffix = `-data-${encodeURIComponent(scope)}`;
+        try {
+          for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.endsWith(suffix)) await caches.delete(key);
+        } catch { storageError = true; }
+      }
+      clearSession(); accountChannel?.postMessage('changed');
+      if (!current) return;
+      logoutPending = !storageReady;
+      if (navigator.onLine) await flushLogout();
+    });
   } catch (error) { toast(errorMessage(error)); }
 }
 async function persistState() {
-  if (!storageReady || !offlineScope) return;
+  if (!storageReady || !offlineScope || (await getMirror('active'))?.scope !== offlineScope) return;
   await setMirror(`state:${offlineScope}`, {
     ...state,
     tasks: state.tasks.filter(item => !item.localOnly), diary: state.diary.filter(item => !item.localOnly),
@@ -226,6 +257,10 @@ async function loadData() {
   loading = true; loadError = null; render();
   try {
     await accountLock(async () => {
+      if (logoutPending || (storageReady && await getMirror(logoutKey))) {
+        if (navigator.onLine) await flushLogout().catch(() => {});
+        return;
+      }
       let active = storageReady ? await getMirror('active') : null;
       try {
         session = await freshApi.me(); actor = session.user.name; offline = false;
@@ -235,8 +270,13 @@ async function loadData() {
       } catch (error) {
         if (error.code !== 'NETWORK_ERROR' || active?.baseUrl !== api.baseUrl) throw error;
         const saved = await getMirror(`state:${active.scope}`);
-        if (!saved) throw error;
+        if (!saved && !active.session.password_change_required) throw error;
         offline = true; session = active.session; actor = session.user.name; offlineScope = active.scope; state = saved;
+      }
+      if (session.password_change_required) {
+        state = { sites: [], tasks: [], diary: [], attachments: [] };
+        siteId = undefined; pendingOps = [];
+        return;
       }
       if (!offline) {
         try {
@@ -268,7 +308,7 @@ async function loadData() {
   loading = false; render();
 }
 async function syncQueue(currentDiaryId) {
-  if (syncRun || !navigator.onLine || !session || !storageReady) return syncRun;
+  if (syncRun || !navigator.onLine || !session || session.password_change_required || !storageReady) return syncRun;
   syncRun = (async () => {
     try {
       await replayOps(freshApi, { scope: offlineScope, userId: session.user.id, currentDiaryId });
@@ -292,7 +332,7 @@ async function writeOperation(op_type, payload, entity_id) {
     if (op_type === 'create_attachment') { const file = await api.createAttachment(payload); state.attachments.push(file); return file; }
     return;
   }
-  const op = await enqueue({ op_type, payload, entity_id, scope: offlineScope });
+  const op = await enqueue({ op_type, payload, entity_id, scope: offlineScope }, { requireActive: true });
   await refreshPending();
   if (navigator.onLine && !offline) await syncQueue(op_type === 'create_diary' ? op.id : undefined);
   if (pendingOps.some(item => item.status !== 'failed')) await registerSync(swRegistration);
@@ -378,6 +418,7 @@ function renderChrome() {
     settings: 'guida/impostazioni/'
   };
   renderOffline();
+  const accountReady = Boolean(session && !session.password_change_required);
   document.documentElement.lang = language;
   document.title = `SiteAssistant · ${t(view)}`;
   renderAssistantChrome();
@@ -396,11 +437,12 @@ function renderChrome() {
   nav.innerHTML = rail ? desktopNavigation(navLink) : destinations.map(navLink).join('')
     + `<button type="button" class="nav-more${more ? ' active' : ''}" data-command="more-nav" aria-haspopup="dialog">${icon('more')}<span>${t('more')}</span></button>`;
   if (rail) bindDesktopNavigation();
-  nav.hidden = !session;
+  nav.hidden = !accountReady;
   $('#skip').textContent = t('skip');
-  $('.site-control').hidden = !session;
+  $('.site-control').hidden = !accountReady;
   $('#site-label').textContent = t('site');
   $('#settings-button').title = t('settingsTitle');
+  $('#settings-button').hidden = Boolean(session?.password_change_required);
   $('#settings-button').setAttribute('aria-label', t('settingsTitle'));
   $('#manual-link').textContent = t('manual');
   $('#manual-link').href = `https://as76.github.io/SiteAssistant/${language === 'en' ? 'en/' : ''}${manualPages[view] || ''}`;
@@ -436,9 +478,9 @@ function renderChrome() {
     $('#demo-banner').insertAdjacentHTML('afterend', '<section id="password-banner" class="demo-banner"></section>');
     passwordBanner = $('#password-banner');
   }
-  const bannerDismissed = sessionStorage.getItem('sa-password-banner') === 'hidden';
-  passwordBanner.hidden = !session?.password_change_required || bannerDismissed;
-  passwordBanner.innerHTML = `<strong>${t('passwordChangeNotice')}</strong> ${button('changePassword', 'change-password')} <button type="button" class="text-button" data-command="dismiss-password-banner" aria-label="${t('close')}">×</button>`;
+  passwordBanner.hidden = !session?.password_change_required;
+  passwordBanner.innerHTML = passwordBanner.hidden ? ''
+    : `<h1>${t('passwordChangeNotice')}</h1> ${button('changePassword', 'change-password', offline ? 'disabled' : '')}`;
   logoutButton.hidden = !session; logoutButton.textContent = t('logout');
   $('#site-select').disabled = loading || !state.sites.length;
   $('#language').textContent = language === 'it' ? 'EN' : 'IT';
@@ -489,7 +531,7 @@ function renderAssistantChrome() {
 }
 function dueMarkup(task) { return `<span class="due ${task.status !== 'closed' && task.due && task.due < today() ? 'overdue' : ''}">${dateLabel(task.due)}</span>`; }
 function taskRow(task) {
-  return `<div class="task-row"><div><h3><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></h3><p>${esc(task.area || t('noArea'))} · ${esc(task.company)}</p>${badge(task.status)} ${priorityBadge(task.priority)} ${syncBadge(task)}</div><div class="subtitle">${dueMarkup(task)}</div></div>`;
+  return `<div class="task-row"><div><h3><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></h3><p>${esc(task.area || t('noArea'))} · ${esc(task.company)}</p>${badge(task.status, taskStatusLabel(task.status))} ${priorityBadge(task.priority)} ${syncBadge(task)}</div><div class="subtitle">${dueMarkup(task)}</div></div>`;
 }
 function todayResource(name) {
   const entry = coreCache.get(siteId)?.get(name);
@@ -508,17 +550,22 @@ function rememberTodayResource(name, data, selected = siteId) {
     if (scope === offlineScope) await persistState();
   }).catch(() => { storageError = true; });
 }
+function progressPlannedDay(item) {
+  const start = item.plannedStart;
+  if (validDate(start)) return start;
+  return start && Number.isFinite(Date.parse(start)) ? operationalDay(new Date(start)).date : null;
+}
 function currentTodayActions(day = operationalDay().date) {
   return todayActions({ progress: todayResource('progress'),
     diary: state.diary.filter(entry => entry.siteId === siteId), deviations: todayResource('deviations'),
-    userId: session?.user.id, today: day, modules: currentModules() });
+    userId: session?.user.id, today: day, modules: currentModules(), plannedDay: progressPlannedDay });
 }
 function canCloseTodayTask(task) {
   return task.status !== 'closed' && canRunLightTransition(task);
 }
 function todayPhotoTargets() {
   const day = operationalDay().date;
-  const entries = moduleVisible('diary') && ['owner', 'editor'].includes(role())
+  const entries = canAttachDiary()
     ? state.diary.filter(entry => entry.siteId === siteId && entry.date === day)
     .map(entry => ({ type: 'diary', id: entry.id, title: `${t('journalToday')} · ${t(entry.shift)}` })) : [];
   const tasks = canEditTask() ? filterSortRecords(siteTasks().filter(task => task.status !== 'closed'), {}, [{ key: 'due' }, { key: 'title' }, { key: 'id' }])
@@ -616,8 +663,12 @@ function renderToday() {
   const review = tasks.filter(item => item.inVerification);
   const verify = review.filter(item => item.status === 'to_verify');
   const work = tasks.filter(item => item.status !== 'to_verify' && !item.inVerification && validDate(item.due) && item.due <= day);
-  const upcoming = tasks.filter(item => !item.inVerification && validDate(item.due) && item.due > day)
-    .map(item => ({ ...item, status: 'upcoming' }));
+  const upcomingProgress = moduleVisible('progress') ? todayResource('progress').filter(hasOpenProgressSteps).map(item => ({
+    kind: 'progress', id: item.id, title: item.description, due: progressPlannedDay(item), meta: [t('todayOpenSteps')],
+  })).filter(item => item.due > day) : [];
+  const upcoming = filterSortRecords([
+    ...tasks.filter(item => !item.inVerification && validDate(item.due) && item.due > day), ...upcomingProgress,
+  ], {}, [{ key: 'due' }, { key: 'title' }]).map(item => ({ ...item, status: 'upcoming' }));
   const other = currentTodayActions(day).filter(item => item.meta.label !== 'todayDiaryMissing').map(item => ({
     kind: item.kind, id: item.id, title: item.title || t('journalToday'),
     status: item.meta.status,
@@ -659,7 +710,7 @@ function renderToday() {
     </section>
     ${section('today-verify', 'to_verify', review.filter(item => item !== now))}
     ${section('today-work', 'todayWork', [...work, ...other].filter(item => item !== now))}
-    ${tasksVisible ? `<section id="today-upcoming" class="today-upcoming" aria-labelledby="today-upcoming-title">
+    ${tasksVisible || upcoming.length ? `<section id="today-upcoming" class="today-upcoming" aria-labelledby="today-upcoming-title">
       <div class="notebook-section-head"><h2 id="today-upcoming-title" tabindex="-1">${t('todayUpcoming')}</h2><span>${t('todayOutsideDay')}</span></div>
       ${upcoming.length ? `<ul class="today-list">${upcoming.map(item => notebookRow(item, true)).join('')}</ul>`
         : `<p class="notebook-meta">${t('todayUpcomingEmpty')}</p>`}</section>` : ''}
@@ -675,13 +726,16 @@ function openTodayAction(control) {
   let target;
   if (kind === 'task' || kind === 'recent') {
     if (siteTasks().some(task => task.id === id)) target = { view: 'tasks', filters: { id } };
+  } else if (kind === 'progress') {
+    if (todayResource('progress').some(item => item.id === id)) target = { view: 'progress', filters: { id } };
   } else {
     target = currentTodayActions().find(row => row.id === id && row.kind === kind)?.target;
   }
   if (!target || !moduleVisible(target.view)) return;
+  if (target.view === 'deviations') { void showCoreDetail('deviations', id); return; }
   if (target.view === 'tasks') { resetSavedViews(); filters = { ...filters, ...target.filters }; taskView = 'list'; }
   else if (target.view === 'diary') reportDate = target.date;
-  else { coreFilters[target.view] = { ...Object.fromEntries(Object.keys(coreFilters[target.view]).map(key => [key, ''])), ...target.filters }; if (target.view === 'deviations') deviationView = 'list'; }
+  else coreFilters[target.view] = { ...Object.fromEntries(Object.keys(coreFilters[target.view]).map(key => [key, ''])), ...target.filters };
   go(target.view);
 }
 function runTodayQuick(action) {
@@ -722,10 +776,12 @@ function localOverviewWidgets() {
   }).slice(0, 5);
   const diaryDate = operationalDay().date;
   const lastEntry = state.diary.filter(item => item.siteId === siteId && item.date === diaryDate).at(-1);
+  const diaryLink = moduleVisible('diary') && lastEntry
+    ? `<a class="subtitle" href="#diary" data-command="go-diary">${t('openDiary')} →</a>` : '';
   return {
     priority_work: `<section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section>`,
     daily_pulse: `<section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack">${!count.blocked && !count.review ? `<p class="note">${t('pulseClear')}</p>` : `<div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div>`}${count.review ? `<div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div>` : ''}</div></div></section>`,
-    journal_today: `<section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2>${!lastEntry ? button('draft', 'go-diary') : ''}</div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}${lastEntry ? `<a class="subtitle" href="#diary">${t('openDiary')} →</a>` : ''}</div></section>`,
+    journal_today: `<section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2>${!lastEntry && moduleVisible('diary') ? button('draft', 'go-diary') : ''}</div><div class="panel-body"><p class="notebook-meta">${t('reportDate')} <time datetime="${esc(diaryDate)}">${esc(dateLabel(diaryDate))}</time></p><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}${diaryLink}</div></section>`,
   };
 }
 
@@ -896,7 +952,12 @@ function renderOverviewWidgets(target, widgets, data, failed = false) {
       + `<p class="note">${t('dashEfficiencyCoverage')}</p><p class="note">${source}</p>`);
   }
   const chosen = widgets.map(id => DASHBOARD_WIDGETS.find(widget => widget.id === id));
-  const cards = chosen.filter(widget => widget.kind === 'kpi').map(widget => `<div class="kpi-card" data-widget="${widget.id}"><span>${t(widget.label)}</span><strong>${data ? esc(String(kpis[widget.id])) : esc(t(failed ? 'apiError' : 'loading'))}</strong>${data && widget.id === 'kpi_booked_hours' ? hoursDetail : ''}</div>`).join('');
+  const cards = chosen.filter(widget => widget.kind === 'kpi').map(widget => {
+    const claim = { kpi_open_claims: 'open', kpi_settled_claims: 'settled' }[widget.id];
+    const coverage = data?.claims.coverage?.[claim];
+    const detail = coverage ? `<small>${esc(t('dashClaimCoverage').replace('{known}', coverage.known).replace('{total}', coverage.total))}</small>` : '';
+    return `<div class="kpi-card" data-widget="${widget.id}"><span>${t(widget.label)}</span><strong>${data ? esc(String(kpis[widget.id])) : esc(t(failed ? 'apiError' : 'loading'))}</strong>${widget.id === 'kpi_booked_hours' ? hoursDetail : detail}</div>`;
+  }).join('');
   const panels = chosen.filter(widget => widget.kind === 'panel').map(widget => `<div data-widget="${widget.id}">${content[widget.id] || panel(widget.label, unavailable)}</div>`).join('');
   target.innerHTML = (cards ? `<div class="kpi-row">${cards}</div>` : '') + (panels ? `<div class="dash-grid">${panels}</div>` : '');
 }
@@ -1023,6 +1084,7 @@ const selectedSavedView = () => savedViewsCache?.data?.find(item => item.id === 
 const canCreateView = () => ['owner', 'editor', 'verifier'].includes(role());
 const canWriteTask = () => ['owner', 'editor', 'verifier'].includes(role());
 const canEditTask = () => canWriteTask() && ['owner', 'editor'].includes(role()) && moduleVisible('tasks');
+const canAttachDiary = () => ['owner', 'editor'].includes(role()) && moduleVisible('diary');
 const canTransitionTask = () => canWriteTask() && moduleVisible('tasks');
 const savingTaskTransitions = new Set();
 function canReviewTask(task) {
@@ -1265,9 +1327,8 @@ function diaryDayAge(day) {
   const { year, month, day: localDay } = Object.fromEntries(parts.map(part => [part.type, part.value]));
   return (Date.parse(`${year}-${month}-${localDay}`) - Date.parse(day)) / 86_400_000;
 }
-const diaryAuthorInWindow = entry => entry.author_id === session?.user.id && diaryDayAge(entry.date) <= 7;
 const canCorrectDiary = entry => !offline && !entry.syncStatus && moduleVisible('diary') &&
-  (role() === 'owner' || (role() && diaryAuthorInWindow(entry)));
+  (role() === 'owner' || (role() === 'editor' && entry.date === operationalDay().date));
 const diaryTimestamp = (instant, entry) => new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: entry.time_zone || timeZoneForSite(currentSite()),
 }).format(new Date(instant));
@@ -1290,7 +1351,7 @@ function renderDiary() {
   const shownShifts = shifts.length || current.date !== reportDate ? shifts : [current.shift];
   const age = diaryDayAge(reportDate);
   const canWrite = canWriteTask() && availableShifts.length > 0 && age >= 0 && (age <= 7 || role() === 'owner');
-  const canAttach = ['owner', 'editor'].includes(role());
+  const canAttach = canAttachDiary();
   const count = (number, single, multiple) => `<span class="num">${number} ${t(number === 1 ? single : multiple)}</span>`;
   $('#main').innerHTML = `<div class="notebook diary-notebook">
     <header class="notebook-page-head">
@@ -1389,7 +1450,10 @@ async function showWbsForm(id = '') {
   try {
     const nodes = await freshApi.listWbs(selected, true), node = nodes.find(row => row.id === id);
     if (version !== modalVersion || selected !== siteId || user !== session?.user.id) return;
-    const editable = canWriteWbs(), value = node || {}, source = node?.source_values;
+    const editable = canWriteWbs(), value = node || {};
+    const origin = node?.is_synthetic ? 'synthetic' : node?.provenance?.origin;
+    const originLabel = { source: 'wbsImported', native: 'wbsNative', synthetic: 'wbsSyntheticOrigin' }[origin] || 'coreUnknown';
+    const source = origin === 'source' ? node.source_values : null;
     const descendants = new Set(id ? [id] : []);
     for (let n = 0; n < nodes.length; n++) for (const row of nodes) if (descendants.has(row.parent_id)) descendants.add(row.id);
     const parentOptions = `<option value="">${t('wbsNoParent')}</option>` + nodes.filter(row => !descendants.has(row.id)).map(row => `<option value="${esc(row.id)}" ${row.id === value.parent_id ? 'selected' : ''}>${esc(row.wbs_code)} · ${esc(row.description ?? '')}</option>`).join('');
@@ -1399,10 +1463,11 @@ async function showWbsForm(id = '') {
       return `<div><dt>${t(label)}</dt><dd>${esc(text ?? '—')}</dd></div>`;
     }).join('') : '';
     const resolutions = ['description', 'parent_id', 'sort_order'].filter(key => Object.hasOwn(node?.local_overrides || {}, key)).map(key =>
-      field(({ description: 'wbsDescription', parent_id: 'wbsParent', sort_order: 'wbsOrder' })[key], `resolve_${key}`, '', { options: `<option value="">${t('wbsLeaveLocal')}</option><option value="source">${t('wbsUseSource')}</option><option value="keep">${t('wbsKeepLocal')}</option>` })).join('');
+      field(({ description: 'wbsDescription', parent_id: 'wbsParent', sort_order: 'wbsOrder' })[key], `resolve_${key}`, '', { options: `<option value="">${t('wbsLeaveLocal')}</option><option value="source">${t(source ? 'wbsUseSource' : 'wbsUseInitial')}</option><option value="keep">${t('wbsKeepLocal')}</option>` })).join('');
     showModal(t(id ? 'wbsEdit' : 'wbsCreate'), `<form id="wbs-form" data-id="${esc(id)}" data-site="${esc(selected)}" data-user="${esc(user)}"><div class="form-error" role="alert" tabindex="-1" hidden></div>
       ${Object.keys(node?.conflicts || {}).length ? `<p role="alert" class="note">${t('wbsConflictHint')}</p>` : ''}
-      ${node ? `<p>${t('wbsOrigin')}: ${t(node.provenance?.origin === 'source' ? 'wbsImported' : 'wbsNative')}${wbsState(node)}</p><p>${t('wbsUpdated')}: ${esc(node.provenance?.updated_at ?? node.created_at)} UTC</p><details><summary>${t('wbsSource')}</summary><dl class="detail-grid" data-wbs-source>${sourceRows}</dl></details>` : ''}
+      ${node ? `<p>${t('wbsOrigin')}: ${t(originLabel)}${wbsState(node)}</p><p>${t('wbsUpdated')}: ${esc(node.provenance?.updated_at ?? node.created_at)} UTC</p>` : ''}
+      ${source ? `<details><summary>${t('wbsSource')}</summary><dl class="detail-grid" data-wbs-source>${sourceRows}</dl></details>` : ''}
       <fieldset ${editable ? '' : 'disabled'}><legend>${t('wbsLocal')}</legend><div class="form-grid">
       ${!id ? field('wbsCode', 'wbs_code', '', { required: true, max: 100 }) : ''}${field('wbsDescription', 'description', value.description ?? '')}${field('wbsParent', 'parent_id', '', { options: parentOptions })}${field('wbsOrder', 'sort_order', value.sort_order ?? '', { type: 'number' })}${resolutions}</div>
       ${id ? `<label class="view-checkbox"><input type="checkbox" name="archived" ${value.archived_at ? 'checked' : ''}>${t('wbsArchive')}</label>` : ''}</fieldset>
@@ -1930,11 +1995,24 @@ function renderDeviations() {
   return window.matchMedia('(max-width: 520px)').matches ? html + renderReconciliation() : renderReconciliation() + html;
 }
 function renderProgress() {
-  const rows = filterSortRecords(coreData('progress'), coreFilters.progress, [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
-  return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbs', coreData('wbs').map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), coreFilters.progress.wbsId, 'coreAllWbs')}</div>` +
+  const { wbsId, includeDescendants, id } = coreFilters.progress;
+  const nodes = coreData('wbs');
+  const selected = nodes.find(node => node.id === wbsId);
+  const scope = new Set(includeDescendants && selected ? flattenWbs([selected]).map(node => node.id) : [wbsId]);
+  const all = coreData('progress');
+  const rows = filterSortRecords(all.filter(row => !wbsId || scope.has(row.wbsId)), { id },
+    [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
+  const scopeLabel = t(!wbsId ? 'coreAllWbs' : includeDescendants ? 'wbsScopeSubtree' : 'wbsScopeExact');
+  return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbsFilterNode', nodes.map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), wbsId, 'coreAllWbs')}
+      <label><input type="checkbox" data-core-filter="includeDescendants" ${includeDescendants ? 'checked' : ''} ${wbsId ? '' : 'disabled'}> ${t('wbsIncludeDescendants')}</label></div>
+    <p class="note" role="status">${scopeLabel} · ${t(rows.length === 1 ? 'wbsVisibleItem' : 'wbsVisibleItems').replace('{count}', coreNumber(rows.length, 'count'))}</p>` +
     (rows.length ? coreTable(['wbsDescription', 'coreSection', 'area', 'coreProgressPct', 'coreBookedHours'], rows.map(row => [coreDetailButton('progress', row), coreValue(row.section), coreValue(row.plcArea),
-      `<div>${progressBar(row.progressPct)}${row.progressPctSource === 'computed' ? ` <span class="badge">${t('coreComputed')}</span>` : ''}
-      ${progressVerificationWarning(row)}</div>`, coreNumber(row.bookedHours, 'hours')])) : empty('noResults', 'noResultsHint'));
+      `<div>${progressValue(row)}${progressVerificationWarning(row)}</div>`, coreNumber(row.bookedHours, 'hours')]))
+      : all.length ? empty('noResults', 'noResultsHint') : empty('progressEmpty', 'progressEmptyHint'));
+}
+function progressValue(row) {
+  const source = { imported: 'coreImported', computed: 'coreComputed' }[row.progressPctSource];
+  return progressBar(row.progressPct) + (row.progressPct != null && source ? ` <span class="badge">${t(source)}</span>` : '');
 }
 function progressVerificationWarning(row, linkToTasks = true) {
   if (row.verificationConflict !== true) return '';
@@ -1992,15 +2070,28 @@ function renderWorkforcePresence(date) {
 }
 function renderBookings() {
   const days = coreData('workDays'), employees = coreData('employees'), items = coreData('progress');
-  const groups = groupBookings(coreData('bookings'), days, employees, items).filter(group => !coreFilters.bookings.date || group.date === coreFilters.bookings.date);
+  const { date, from, to, company } = coreFilters.bookings;
+  const allGroups = groupBookings(coreData('bookings'), days, employees, items);
+  const companyName = group => group.employee?.company || null;
+  const companyKey = group => JSON.stringify(companyName(group));
+  const companies = [...new Map(allGroups.map(group => [companyKey(group), companyName(group) ?? t('coreUnknown')]))]
+    .sort((a, b) => a[1].localeCompare(b[1], language));
+  const groups = allGroups.filter(group => (!company || companyKey(group) === company) && (!date || group.date === date)
+    && (!from || (group.date && group.date >= from)) && (!to || (group.date && group.date <= to)));
   const dates = [...new Set(days.map(day => day.operationalDate).filter(Boolean))].sort().reverse();
-  let html = `<div class="toolbar core-toolbar">${coreSelect('date', 'reportDate', dates.map(date => [date, dateLabel(date)]), coreFilters.bookings.date, 'coreAllDays')}</div>`;
+  const choices = dates.map(day => [day, dateLabel(day)]);
+  let html = `<div class="toolbar core-toolbar">${coreSelect('company', 'workforceCompany', companies, company, 'bookingAllCompanies')}
+    ${coreSelect('date', 'reportDate', choices, date, 'coreAllDays')}
+    ${coreSelect('from', 'hseFrom', choices, from, 'coreAllDays')}${coreSelect('to', 'hseTo', choices, to, 'coreAllDays')}</div>`;
+  if (from && to && from > to) return html + `<p role="alert">${t('hsePeriodInvalid')}</p>`;
+  const total = groups.reduce((sum, group) => sum + group.appBookedHours, 0);
+  html += `<p class="note" role="status">${t('bookingFilteredTotal')} <strong>${coreNumber(total, 'hours')} h</strong></p><p class="note">${t('bookingCompanySource')}</p>`;
   if (permissions().book) {
     if (!days.length || !items.length) html += `<p class="blank-message">${t('coreBookingPrerequisites')}</p>`;
     else html += `<form id="booking-form" class="panel panel-body core-booking-form"><h2>${t('coreBookHours')}</h2><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="core-entry-grid"><label class="field">${t('coreWorkDay')}<select name="workDayId" required><option value="">${t('coreChoose')}</option>${filterSortRecords(days, {}, [{ key: 'operationalDate', descending: true }, { key: 'employeeId' }]).map(day => `<option value="${esc(day.id)}">${esc(`${day.operationalDate} · ${employeeLabel(employees.find(employee => employee.id === day.employeeId))} · ${t(day.shift || 'coreUnknown')} · ${day.startTime ?? t('coreUnknown')}`)}</option>`).join('')}</select></label><label class="field">${t('coreProgressItem')}<select name="siteProgressItemId" required><option value="">${t('coreChoose')}</option>${items.map(item => `<option value="${esc(item.id)}">${esc(progressLabel(item))}</option>`).join('')}</select></label><label class="field">${t('coreAppBookedHours')}<input name="hours" type="number" min="0" step="0.5" value="1" required></label><div class="core-stepper">${button('coreMinusHalf', 'booking-step', 'data-step="-0.5"')}${button('corePlusHalf', 'booking-step', 'data-step="0.5"')}${button('corePlusOne', 'booking-step', 'data-step="1"')}</div></div><div class="form-actions"><button type="submit" class="primary">${t('coreBookHours')}</button></div></form>`;
   }
   html += `<p class="note booking-legend">${t('coreHoursLegendSource')}<br>${t('coreHoursLegendApp')}</p>`;
-  html += groups.length ? groups.map(group => `<section class="core-day"><h2>${group.date ? dateLabel(group.date) : t('coreUnknown')} · ${esc(employeeLabel(group.employee))}</h2>`
+  html += groups.length ? groups.map(group => `<section class="core-day"><h2>${group.date ? dateLabel(group.date) : t('coreUnknown')} · ${esc(employeeLabel(group.employee))} · ${coreValue(companyName(group))}</h2>`
     + '<div class="booking-summary">' + coreTable(['coreSourceWorkTime', 'coreSourceBookedHours', 'coreAppBookedHours', 'coreSourceOpenHours', 'coreVariance'], [[
       coreNumber(group.sourceWorkTime, 'hours'), coreNumber(group.sourceBookedHours, 'hours'), coreNumber(group.appBookedHours, 'hours'), coreNumber(group.sourceOpenHours, 'hours'), bookingVariance(group.variance),
     ]]) + '</div>'
@@ -2757,15 +2848,20 @@ function renderHse() {
   let html = `<p class="note">${t('hsePrivacy')}</p><div class="core-kpis" role="status">${kpis}</div><p class="note">${t('hseSummaryHint')}</p>`;
   html += `<div class="toolbar core-toolbar">${coreSelect('type', 'hseType', HSE_TYPES.map(type => [type, t(`hseType_${type}`)]), filter.type, 'hseAllTypes')}${coreSelect('severity', 'hseSeverity', HSE_SEVERITIES.map(severity => [severity, t(`hseSeverity_${severity}`)]), filter.severity, 'hseAllSeverities')}<div class="hse-period-filters">${period}</div></div>`;
   if (filter.from && filter.to && filter.from > filter.to) return html + `<p role="alert">${t('hsePeriodInvalid')}</p>`;
-  html += rows.length ? coreTable(['hseOccurredOn', 'hseEventNo', 'hseType', 'hseSeverity', 'hseLocation', 'hsePersons', 'hseMeasures', ...(canWrite ? ['coreActions'] : [])], rows.map(row => [
+  html += rows.length ? coreTable(['hseOccurredOn', 'hseEventNo', 'hseType', 'hseSeverity', 'hseLocation', 'hsePersons', 'hseMeasures', 'coreActions'], rows.map(row => [
     coreDate(row.occurredOn), coreValue(row.eventNo), t(`hseType_${row.type}`)
       + (['inspection', 'external_visit'].includes(row.type) && row.inspectionId && row.assetId
         ? ` ${button('hseInspectionOpen', 'hse-inspection-open', `data-inspection-id="${esc(row.inspectionId)}" data-asset-id="${esc(row.assetId)}"`, 'small')}` : ''),
     coreStatus(row.severity, t(`hseSeverity_${row.severity}`)),
     coreValue(row.location), row.personsInvolved == null ? '—' : coreNumber(row.personsInvolved, 'count'), coreValue(row.measures),
-    ...(canWrite ? [`<div class="tool-actions hse-actions">${button('edit', 'hse-edit', `data-id="${esc(row.id)}"`, 'small')}<span aria-hidden="true">·</span>${button('coreDelete', 'hse-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`] : []),
+    canWrite ? `<div class="tool-actions hse-actions">${button('edit', 'hse-edit', `data-id="${esc(row.id)}"`, 'small')}<span aria-hidden="true">·</span>${button('coreDelete', 'hse-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`
+      : button('attachments', 'hse-attachments', `data-id="${esc(row.id)}"`, 'small'),
   ])) : empty('hseEmpty', 'hseEmptyHint');
   return html;
+}
+function showHseAttachments(id) {
+  if (!permissions().hse || !moduleVisible('hse') || !coreData('hse').some(row => row.id === id)) return;
+  showModal(t('attachments'), attachmentSection('hse_event', id));
 }
 function showHseForm() {
   if (!permissions().hseWrite) return toast(t('forbidden'));
@@ -2956,6 +3052,7 @@ async function passkeyLogin(discoverable) {
   controls.forEach(control => { control.disabled = true; });
   try {
     await accountLock(async () => {
+      await flushLogout();
       await runPasskey(api, 'login', discoverable ? { discoverable: true } : { email: email.value.trim() });
       await forgetActive(); clearSession(); accountChannel?.postMessage('changed');
     });
@@ -3132,7 +3229,10 @@ function renderImportPreview(preview) {
   const rows = [['added', 'importAdded'], ['updated', 'importUpdated'], ['unchanged', 'importUnchanged'], ['removed', 'importRemoved'], ['rejected', 'importRejected']]
     .map(([key, label]) => `<li><strong>${counts[key] ?? 0}</strong> ${t(label)}</li>`).join('');
   const rejected = (preview.samples?.rejected || []).slice(0, 8)
-    .map(row => `<li>${esc(row.source_row ?? '')} — ${esc(row.rejected || '')}${row.reason ? `: ${esc(row.reason)}` : ''}</li>`).join('');
+    .map(row => {
+      const reason = row.rejected === 'AMBIGUOUS_NUMBER' ? t('importAmbiguousNumber') : row.reason;
+      return `<li>${esc(row.source_row ?? '')} — ${esc(row.rejected || '')}${reason ? `: ${esc(reason)}` : ''}</li>`;
+    }).join('');
   return `<h3>${t('importPreviewTitle')}</h3><ul class="import-counts">${rows}</ul>` +
     (rejected ? `<h4>${t('importRejectedRows')}</h4><ul class="import-rejected">${rejected}</ul>` : '');
 }
@@ -3272,7 +3372,8 @@ async function showCoreDetail(module, id) {
     if (row.siteId !== selected) throw new Error('forbidden');
     if (['progress', 'deviations'].includes(module)) {
       const previous = todayResource(module);
-      const updated = { ...previous.find(item => item.id === row.id), ...row };
+      const { impacts, ...record } = row;
+      const updated = { ...previous.find(item => item.id === row.id), ...record };
       rememberTodayResource(module, [...previous.filter(item => item.id !== row.id), updated]);
     }
     let content;
@@ -3281,14 +3382,17 @@ async function showCoreDetail(module, id) {
       const typeLabels = { site_progress_item: 'coreProgressItem', task: 'tasks', diary: 'diary' };
       const details = coreFields(row, [['deviationNo', 'coreReference', deviationCode], ['status', 'status', deviationState], ['priority', 'priority'], ['problemDescription', 'coreDescription'], ['author', 'coreAuthor'], ['assignedTo', 'coreAssignedTo'], ['plcArea', 'area'], ['creationDate', 'coreCreated', coreDate], ['dueDate', 'due', coreDate], ['approvedDate', 'coreApprovedDate', coreDate], ['closedDate', 'coreClosed', coreDate], ['actualCost', 'coreActualCost'], ['claimQuantity', 'coreClaimQuantity'], ['laborHours', 'coreLaborHours'], ['completedTasksPct', 'coreCompletedPct']]);
       const references = row.links?.length ? `<ul class="core-links">${row.links.map(link => `<li>${esc(t(typeLabels[link.entityType] || 'coreReference'))}: ${esc(link.entityId)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`;
+      const linkedImpacts = moduleVisible('impacts') && row.impacts?.length
+        ? `<h3>${t('coreLinkedImpacts')}</h3><ul class="core-links">${row.impacts.map(impact =>
+          `<li>${coreDetailButton('impacts', impact)} ${coreStatus(impact.status, impactLabel(impact.status))}</li>`).join('')}</ul>` : '';
       // Two tabs keep the sheet readable: everything about the record, then what it points to.
       content = `<div class="detail-tabs" role="tablist">
         <button type="button" role="tab" aria-selected="true" class="selected" data-command="detail-tab" data-panel="data">${t('coreDetails')}</button>
         <button type="button" role="tab" aria-selected="false" data-command="detail-tab" data-panel="refs">${t('coreReferences')}</button>
-      </div><div class="detail-panel" data-detail-panel="data">${details}${deviationGovernance(row, events, members)}</div><div class="detail-panel" data-detail-panel="refs" hidden>${references}</div>`;
+      </div><div class="detail-panel" data-detail-panel="data">${details}${deviationGovernance(row, events, members)}</div><div class="detail-panel" data-detail-panel="refs" hidden>${references}${linkedImpacts}</div>`;
     } else if (module === 'progress') {
       const day = value => value ? dateLabel(String(value).slice(0, 10)) : null;
-      content = progressBar(row.progressPct) + progressVerificationWarning(row) + coreFields({ ...row, wbsId: [row.wbsCode, row.wbsDescription].filter(Boolean).join(' · ') || '—',
+      content = progressValue(row) + progressVerificationWarning(row) + coreFields({ ...row, wbsId: [row.wbsCode, row.wbsDescription].filter(Boolean).join(' · ') || '—',
         plannedStart: day(row.plannedStart), plannedFinish: day(row.plannedFinish), actualStart: day(row.actualStart) },
       [['description', 'coreDescription'], ['section', 'coreSection'], ['plcArea', 'area'], ['wbsId', 'wbs'], ['assignedTo', 'coreAssignedTo'], ['progressPct', 'coreProgressPct'], ['plannedProgressPct', 'corePlannedPct'], ['deltaProgressSource', 'coreDeltaPct'], ['bookedHours', 'coreBookedHours'], ['plannedStart', 'wbsPlannedStart'], ['plannedFinish', 'wbsPlannedFinish'], ['actualStart', 'coreActualStart'], ['expectedDelay', 'coreExpectedDelay'], ['hasFiles', 'coreHasFiles'], ['hasNotes', 'coreHasNotes'], ['hasDeviations', 'coreHasDeviations']]);
       content += progressStepsSection(row);
@@ -3393,6 +3497,7 @@ function render() {
     $('#main').innerHTML = view === 'today' ? `<div role="status" aria-label="${t('loading')}">${todaySkeleton(3)}</div>` : `<p role="status">${t('loading')}</p>`;
     return;
   }
+  if (session?.password_change_required) { $('#main').innerHTML = ''; return; }
   if (!session && (!loadError || loadError.status === 401)) {
     $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div id="login-rate-limit" class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<span class="password-row"><input name="password" type="password" autocomplete="current-password" required maxlength="1024"><button type="button" class="text-button password-toggle" data-command="toggle-password" aria-label="${t('showPassword')}">◉</button></span></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button>${button('passkeyLogin', 'passkey-login', supportsPasskeys() ? '' : 'disabled')}</div>${button('passkeyDiscoverable', 'passkey-discoverable', supportsPasskeys() ? '' : 'disabled')}${!supportsPasskeys() ? `<p class="note">${t('passkeyUnsupported')}</p>` : ''}</form><div class="heading-actions">${button('requestAccess', 'request-access')}${button('forgotPassword', 'forgot-password')}</div></div></section>`;
     if (loginRetryUntil > Date.now()) updateLoginRetry();
@@ -3555,7 +3660,7 @@ function wireTaskResponsibles(form) {
   };
 }
 async function showTaskForm() {
-  showModal(t('newTask'), `<form id="task-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', '', { full: true, required: true, max: 180 })}${field('area', 'area', '', { max: 100 })}${field('company', 'company', '', { max: 100 })}<div data-task-wbs>${field('wbs', 'wbsId', '', { options: `<option value="">${t('wbsUnassigned')}</option>` })}</div>${taskResponsibleFields()}${field('priority', 'priority', '', { options: PRIORITIES.map(priority => `<option value="${esc(priority)}">${esc(t(priority))}</option>`).join(''), required: true })}${field('kind', 'kind', 'ordinary', { options: TASK_KINDS.map(kind => `<option value="${esc(kind)}">${esc(t(taskKindLabelKey(kind)))}</option>`).join('') })}${field('due', 'due', today(), { type: 'date' })}</div>${formActions()}</form>`);
+  showModal(t('newTask'), `<form id="task-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', '', { full: true, required: true, max: 180 })}${field('area', 'area', '', { max: 100 })}${field('company', 'company', '', { max: 100 })}<div data-task-wbs>${field('wbs', 'wbsId', '', { options: `<option value="">${t('wbsUnassigned')}</option>` })}</div>${taskResponsibleFields()}${field('priority', 'priority', 'normal', { options: PRIORITIES.map(priority => `<option value="${esc(priority)}"${priority === 'normal' ? ' selected' : ''}>${esc(t(priority))}</option>`).join(''), required: true })}${field('kind', 'kind', 'ordinary', { options: TASK_KINDS.map(kind => `<option value="${esc(kind)}">${esc(t(taskKindLabelKey(kind)))}</option>`).join('') })}${field('due', 'due', today(), { type: 'date' })}</div>${formActions()}</form>`);
   const version = modalVersion, selectedSite = siteId;
   const form = $('#task-form');
   if (moduleVisible('wbs') && !offline) void taskWbsOptions(selectedSite).then(options => {
@@ -3574,22 +3679,22 @@ async function showTaskForm() {
   }
 }
 function taskEvidence(task) {
-  const label = { accepted: 'evidenceAccepted', declared: 'evidenceDeclared', none: 'evidenceNoDeclaration' };
   const files = state.attachments.filter(file => file.entity_type === 'task' && file.entity_id === task.id && !file.localOnly);
   const document = files.find(file => file.id === task.acceptance_document_id);
   const canAccept = canTransitionTask() && !offline && !task.localOnly && (role() === 'owner' || (role() === 'verifier' && task.verifier_id === session?.user.id));
-  const status = t(label[task.acceptance_state] || 'evidenceNoDeclaration');
+  const outcome = { pending: 'evidenceVerificationPending', waived: 'evidenceWaiver', verified: 'evidenceVerificationRecorded', legacy: 'evidenceVerificationLegacy' };
   const form = canAccept && files.length ? `<form id="task-acceptance-form" data-id="${esc(task.id)}">
     <div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">
     ${field('evidenceAcceptanceDocument', 'documentId', '', { required: true, options: `<option value="">${t('coreChoose')}</option>` +
       files.map(file => `<option value="${esc(file.id)}" ${file.id === document?.id ? 'selected' : ''}>${esc(file.filename)}</option>`).join('') })}
     ${field('evidenceAcceptanceDate', 'date', task.acceptance_date || '', { required: true, type: 'date' })}</div>
     <div class="form-actions"><button type="submit" class="primary">${t('evidenceAcceptance')}</button></div></form>` : '';
-  return `<section><h3>${t('evidenceAcceptance')}</h3><p class="note">${t('evidenceAcceptanceHint')}</p>${coreFields({ declared: task.declared_at && timeLabel(task.declared_at),
-    verified: task.verified_at && timeLabel(task.verified_at), statusLabel: status, reopenCount: task.reopen_count ?? 0 },
-    [['declared', 'evidenceDeclared'], ['verified', 'evidenceVerified'], ['statusLabel', 'status'], ['reopenCount', 'evidenceReopenCount']])}
+  return `<section><h3>${t('evidenceVerification')}</h3><p>${t(outcome[taskVerificationOutcome(task)])}</p>${coreFields({ declared: task.declared_at && timeLabel(task.declared_at),
+    verified: task.verified_at && timeLabel(task.verified_at), reopenCount: task.reopen_count ?? 0 },
+    [['declared', 'evidenceDeclared'], ['verified', 'evidenceVerified'], ['reopenCount', 'evidenceReopenCount']])}</section>
+    <section><h3>${t('evidenceAcceptance')}</h3><p>${formalAcceptanceLabel(task)}</p>
     ${task.acceptance_date ? `<p>${dateLabel(task.acceptance_date)}${document ? ` · ${esc(document.filename)}` : ''}</p>` : ''}
-    ${task.closed_with_waiver ? `<p><strong>${t('evidenceWaiver')}</strong></p>` : ''}${form}</section>`;
+    ${(task.acceptance_events || []).map(event => `<p class="event-meta">${esc(t('evidenceAcceptance'))} · ${personName(event.actor)} · ${timeLabel(event.at)}</p>`).join('')}${form}</section>`;
 }
 async function showDetail(taskId, { history = false } = {}) {
   const modalStyle = { notebook: true };
@@ -3692,7 +3797,7 @@ async function runStatusTransition(taskId, to, control) {
   if (fromDetail && version === modalVersion && siteId === task.siteId) await showDetail(taskId);
 }
 function diaryMotivationField() {
-  return field('diaryMotivation', 'motivation', '', { type: 'textarea', required: true, full: true, hint: t('diaryMotivationHint') });
+  return field('diaryMotivation', 'motivation', '', { type: 'textarea', required: true, full: true, hint: 'diaryMotivationHint' });
 }
 function showDiaryCorrection(id) {
   const entry = state.diary.find(item => item.id === id && item.siteId === siteId);
@@ -3702,7 +3807,7 @@ function showDiaryCorrection(id) {
     <p class="note">${esc(t('diaryCorrectionGuide'))}</p>
     <div class="form-grid">${Object.keys(diaryContentFields).map(key =>
       field(key, key, entry[key], { type: 'textarea', full: true, max: 10000 })).join('')}
-      ${diaryAuthorInWindow(entry) ? '' : diaryMotivationField()}</div>${formActions()}</form>`, { notebook: true });
+      ${diaryMotivationField()}</div>${formActions()}</form>`, { notebook: true });
   $('#diary-correction-form').originalEntry = entry;
 }
 async function showDiaryVersions(id) {
@@ -3727,6 +3832,7 @@ async function showDiaryVersions(id) {
   }
 }
 function showEntryForm(preferredShift = '') {
+  if (!canWriteTask() || !moduleVisible('diary')) return;
   const age = diaryDayAge(reportDate);
   if (age < 0 || (age > 7 && role() !== 'owner')) return;
   const current = operationalDay();
@@ -3736,9 +3842,9 @@ function showEntryForm(preferredShift = '') {
     required: true, options: ['day', 'night'].map(value => `<option value="${value}"${value === shift ? ' selected' : ''}>${t(value)}</option>`).join(''),
   });
   showModal(t(view === 'diary' ? 'diaryCloseShift' : 'newEntry'), `<form id="entry-form" data-date="${esc(reportDate)}" data-current="${isCurrent}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}${isCurrent ? ` · ${t(shift)}` : ''}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${shiftField}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}${age > 7 ? diaryMotivationField() : ''}</div>
-      <label class="dropzone" id="entry-drop" for="entry-photos"><strong>${t('diaryPhotos')}</strong><span>${t('diaryPhotosHint')}</span>
+      ${canAttachDiary() ? `<label class="dropzone" id="entry-drop" for="entry-photos"><strong>${t('diaryPhotos')}</strong><span>${t('diaryPhotosHint')}</span>
         <input id="entry-photos" name="photos" type="file" accept="image/*,application/pdf" multiple hidden></label>
-      <p class="note" id="entry-photos-count" hidden></p>${formActions()}</form>`);
+      <p class="note" id="entry-photos-count" hidden></p>` : ''}${formActions()}</form>`);
   wireDropzone();
 }
 // Photos: pick from the dialog or drop files straight from the desktop (Windows/macOS).
@@ -3779,10 +3885,11 @@ function attachmentUrl(file) {
   return `${api.baseUrl}/api/attachments/${encodeURIComponent(file.id)}`;
 }
 function attachmentSection(entityType, entityId) {
-  const write = entityType === 'task' ? canEditTask()
-    : entityType === 'deviation' ? deviationWrite() : entityType !== 'hse_inspection' || permissions().hseWrite;
   const inspection = entityType === 'hse_inspection';
   const hse = inspection || entityType === 'hse_event';
+  const write = entityType === 'task' ? canEditTask()
+    : entityType === 'deviation' ? deviationWrite()
+    : entityType === 'diary' ? canAttachDiary() : !hse || permissions().hseWrite;
   const sync = entityType === 'task' || entityType === 'deviation' ? notebookSync : syncBadge;
   const files = (state.attachments || []).filter(file => file.entity_type === entityType && file.entity_id === entityId);
   return `<section class="attachment-section"><h3>${t('attachments')}</h3>${hse ? `<p class="note">${t('hseAttachmentRule')}</p><p class="note">${t('hseAttachmentAlternative')}</p>` : ''}${files.map(file => inspection && file.mime?.startsWith('image/') && !file.blob
@@ -3790,8 +3897,9 @@ function attachmentSection(entityType, entityId) {
     : `<p>${button('openAttachment', 'open-attachment', `data-id="${esc(file.id)}"`)} ${esc(file.filename)} ${sync(file)}</p>`).join('')}${write ? button(inspection ? 'addPhoto' : 'addAttachment', 'new-attachment', `data-entity-type="${entityType}" data-id="${esc(entityId)}"`) : ''}</section>`;
 }
 function showAttachmentForm(entityType, entityId, { camera = false } = {}) {
-  if ((entityType === 'task' && !canEditTask()) || (entityType === 'hse_inspection' && !permissions().hseWrite) || (entityType === 'deviation' && !deviationWrite())) return toast(t('forbidden'));
   const hse = ['hse_event', 'hse_inspection'].includes(entityType);
+  if ((entityType === 'task' && !canEditTask()) || (hse && !permissions().hseWrite) ||
+      (entityType === 'diary' && !canAttachDiary()) || (entityType === 'deviation' && !deviationWrite())) return toast(t('forbidden'));
   showModal(t('addAttachment'), `<form id="attachment-form" data-entity-type="${entityType}" data-entity-id="${esc(entityId)}"><div class="form-error" role="alert" tabindex="-1" hidden></div>${hse ? `<p class="note">${t('hseAttachmentRule')}</p><p class="note">${t('hseAttachmentAlternative')}</p>` : ''}<label class="field">${t('attachmentFile')}<input type="file" name="file" accept="${camera ? 'image/*' : 'image/*,application/pdf'}" ${camera ? 'capture="environment"' : ''} required></label><p class="note">${t('attachmentHint')}</p>${hse ? `<label class="field">${t('hseAttachmentDescription')}<textarea name="description" maxlength="200"></textarea></label><p class="note" data-hse-attachment-warning role="status" aria-live="polite" hidden>${t('hseAttachmentWarning')} ${t('hseAttachmentRule')}</p>` : ''}${formActions()}</form>`);
   if (hse) {
     const form = $('#attachment-form');
@@ -3864,14 +3972,17 @@ function exportCsv() {
   const tasks = filteredTasks();
   if (!tasks.length) return toast(t('emptyExport'));
   const header = ['title', 'area', 'company', 'assignee', 'reviewer', 'priority', 'kind', 'due', 'status'];
-  const rows = [header.map(t), ...tasks.map(task => header.map(key => key === 'kind' ? t(taskKindLabelKey(task.kind ?? 'ordinary')) : ['priority', 'status'].includes(key) ? t(task[key]) : task[key]))];
+  const rows = [[...header.map(t), t('evidenceAcceptance')], ...tasks.map(task => [
+    ...header.map(key => key === 'kind' ? t(taskKindLabelKey(task.kind ?? 'ordinary'))
+      : key === 'status' ? taskStatusLabel(task.status) : key === 'priority' ? t(task.priority) : task[key]), formalAcceptanceLabel(task),
+  ])];
   download('\ufeff' + rows.map(row => row.map(csvCell).join(',')).join('\r\n'), 'text/csv;charset=utf-8', `siteassistant-tasks-${today()}.csv`); toast(t('csvDone'));
 }
 document.addEventListener('click', event => {
   const target = event.target.closest('[data-command]'); if (!target) return;
   const command = target.dataset.command, id = target.dataset.id;
   const commands = {
-    'go-diary': () => { reportDate = operationalDay().date; go('diary'); },
+    'go-diary': () => { if (moduleVisible('diary')) { reportDate = operationalDay().date; go('diary'); } },
     'today-open': () => openTodayAction(target),
     'today-diary': () => { if (moduleVisible('diary')) { reportDate = operationalDay().date; go('diary'); } },
     'task-history': () => showDetail(id, { history: true }),
@@ -3941,6 +4052,7 @@ document.addEventListener('click', event => {
     'tool-delete': () => showToolDelete(id),
     'hse-new': () => { hseEditingId = ''; showHseForm(); },
     'hse-edit': () => { hseEditingId = id; showHseForm(); },
+    'hse-attachments': () => showHseAttachments(id),
     'hse-delete': () => showHseDelete(id),
     'cert-new': () => { certEditingId = ''; showCertificationForm(); },
     'cert-edit': () => { certEditingId = id; showCertificationForm(); },
@@ -3987,7 +4099,6 @@ document.addEventListener('click', event => {
       });
       modal.querySelectorAll('[data-detail-panel]').forEach(section => { section.hidden = section.dataset.detailPanel !== panel; });
     },
-    'dismiss-password-banner': () => { sessionStorage.setItem('sa-password-banner', 'hidden'); renderChrome(); },
     'dismiss-demo-notice': dismissDemoNotice,
     'open-demo-info': showDemoInfo,
     'toggle-password': () => {
@@ -4047,8 +4158,8 @@ document.addEventListener('submit', async event => {
   // Capture the selected context before waiting for the server.
   const selectedSite = siteId;
   try {
-    if (['entry-form', 'diary-correction-form'].includes(form.id) &&
-        data.motivation !== undefined && data.motivation.trim().length < 10) {
+    if ((form.id === 'diary-correction-form' || (form.id === 'entry-form' && data.motivation !== undefined)) &&
+        (data.motivation ?? '').trim().length < 10) {
       throw new Error('diaryMotivationHint');
     }
     if (form.id === 'deviation-owner-form' || form.id === 'deviation-attribution-form') {
@@ -4139,19 +4250,18 @@ document.addEventListener('submit', async event => {
     if (['hse-form', 'hse-delete-form'].includes(form.id)) { await submitHse(form, data); return; }
     if (['cert-form', 'cert-delete-form'].includes(form.id)) { await submitCertification(form, data); return; }
     if (form.id === 'login-form') {
-      await accountLock(async () => { await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
+      await accountLock(async () => { await flushLogout(); await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
       await loadData(); await syncQueue(); return;
     }
     if (form.id === 'password-form') {
       if (data.new_password !== data.confirm_password) throw new Error('passwordMismatch');
       if ([...data.new_password].length < 12 || data.new_password === data.current_password) throw new Error('passwordPolicy');
       await api.changePassword({ current_password: data.current_password, new_password: data.new_password });
-      if (session) session.password_change_required = false;
       if (version === modalVersion) closeModal();
-      render(); toast(t('passwordChanged')); return;
+      await loadData(); await syncQueue(); toast(t('passwordChanged')); return;
     }
     if (['request-form', 'forgot-form'].includes(form.id)) {
-      await (form.id === 'request-form' ? api.requestAccess(data) : api.forgotPassword(data));
+      await (form.id === 'request-form' ? api.requestAccess(data) : api.forgotPassword({ ...data, language }));
       if (version === modalVersion) closeModal();
       toast(t('emailAccepted')); return;
     }
@@ -4168,7 +4278,7 @@ document.addEventListener('submit', async event => {
         closeModal();
         return;
       }
-      if (data.motivation !== undefined) changes.motivation = data.motivation;
+      changes.motivation = data.motivation;
       const user = session?.user.id;
       const entry = await api.updateDiary(original.id, changes);
       if (user !== session?.user.id) return;
@@ -4181,13 +4291,14 @@ document.addEventListener('submit', async event => {
       message = 'entrySaved';
     }
     if (form.id === 'entry-form') {
+      const photos = [...(form.querySelector('[name=photos]')?.files || [])];
+      if (photos.length && !canAttachDiary()) throw new Error('forbidden');
       const payload = { ...data, siteId: selectedSite, date: form.dataset.date,
         useServerDay: form.dataset.current === 'true' && !offline };
       delete payload.photos;
       diaryPayload(payload);
       const entry = await writeOperation('create_diary', payload);
       if (entry?.date && siteId === selectedSite && version === modalVersion) reportDate = entry.date;
-      const photos = [...(form.querySelector('[name=photos]')?.files || [])];
       for (const file of photos) {
         if (!file.size || file.size > 15 * 1024 * 1024 || !/^(image\/[a-z0-9.+-]+|application\/pdf)$/i.test(file.type)) throw new Error('attachmentInvalid');
       }
@@ -4220,8 +4331,9 @@ document.addEventListener('submit', async event => {
       message = 'actionSaved';
     }
     if (form.id === 'attachment-form') {
-      if ((form.dataset.entityType === 'task' && !canEditTask()) || (form.dataset.entityType === 'hse_inspection' && !permissions().hseWrite) ||
-          (form.dataset.entityType === 'deviation' && !deviationWrite())) throw new Error('forbidden');
+      const { entityType } = form.dataset;
+      if ((entityType === 'task' && !canEditTask()) || (['hse_event', 'hse_inspection'].includes(entityType) && !permissions().hseWrite) ||
+          (entityType === 'diary' && !canAttachDiary()) || (entityType === 'deviation' && !deviationWrite())) throw new Error('forbidden');
       const blob = data.file;
       if (!blob?.size || blob.size > 15 * 1024 * 1024 || !/^(image\/[a-z0-9.+-]+|application\/pdf)$/i.test(blob.type)) throw new Error('attachmentInvalid');
       await writeOperation('create_attachment', { site_id: selectedSite, entity_type: form.dataset.entityType, entity_id: form.dataset.entityId, filename: blob.name, blob });
@@ -4326,7 +4438,13 @@ document.addEventListener('change', event => {
     if (event.target.dataset.coreFilter === 'order') hseAssetOrder = event.target.value;
     else hseAssetFilters[event.target.dataset.coreFilter] = event.target.value;
     render();
-  } else if (event.target.dataset.coreFilter && coreFilters[view]) { coreFilters[view][event.target.dataset.coreFilter] = event.target.value; render(); }
+  } else if (event.target.dataset.coreFilter && coreFilters[view]) {
+    const key = event.target.dataset.coreFilter;
+    coreFilters[view][key] = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
+    if (view === 'progress' && key === 'wbsId') coreFilters.progress.includeDescendants = false;
+    render();
+    if (view === 'progress') $(`[data-core-filter="${key}"]`)?.focus();
+  }
   if (event.target.matches('#impact-transition-form [name=to]')) {
     const closing = event.target.value === 'closed', result = $('#impact-transition-form [name=result]');
     $('#impact-result-field').hidden = !closing; result.required = closing; result.disabled = !closing; if (!closing) result.value = '';
@@ -4362,17 +4480,14 @@ window.addEventListener('offline', () => { offline = true; renderOffline(); if (
 for (const breakpoint of ['(width < 640px)', '(min-width: 1180px)']) {
   window.matchMedia(breakpoint).addEventListener('change', renderChrome);
 }
-window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view] || view === 'today' || view === 'tasks') render(); void syncQueue(); });
+window.addEventListener('online', () => {
+  offline = false; coreCache.clear(); renderOffline();
+  if (moduleResources[view] || view === 'today' || view === 'tasks') render();
+  if (session) void syncQueue();
+  else void accountLock(flushLogout).catch(error => toast(errorMessage(error)));
+});
 document.addEventListener('visibilitychange', () => { if (!document.hidden) void syncQueue(); });
 
-// Mobile browsers may still expose pinch gestures despite the viewport meta.
-// Keep the app at its designed scale; normal panning and scrolling stay native.
-for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
-  document.addEventListener(type, event => event.preventDefault(), { passive: false });
-}
-document.addEventListener('touchmove', event => {
-  if (event.touches.length > 1) event.preventDefault();
-}, { passive: false });
 accountChannel?.addEventListener('message', () => { clearSession(); void loadData(); });
 navigator.serviceWorker?.addEventListener('message', event => {
   if (event.data?.scope !== offlineScope) return;

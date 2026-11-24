@@ -197,7 +197,7 @@ function serialToIso(value) {
   return new Date(milliseconds).toISOString().slice(0, 19).replace('T', ' ');
 }
 
-function decodeCell(cell, shared, dates, budget) {
+function decodeCell(cell, shared, dates, budget, typedNumber) {
   const type = (/\st="([^"]+)"/.exec(cell) || [])[1];
   const style = Number((/\ss="(\d+)"/.exec(cell) || [])[1] || -1);
   if (type === 'inlineStr') {
@@ -214,6 +214,9 @@ function decodeCell(cell, shared, dates, budget) {
   if (dates.has(style) && Number.isFinite(Number(raw)) && Number(raw) > 0) {
     // Values below one are clock times (planning start/finish), not dates.
     return Number(raw) < 1 ? timeOfDay(Number(raw)) : serialToIso(Number(raw));
+  }
+  if (typedNumber && (!type || type === 'n') && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(raw)) {
+    return Number(raw);
   }
   return raw;
 }
@@ -257,7 +260,7 @@ function sheetPath(workbook, rels, wanted, budget) {
   return target.startsWith('/') ? target.slice(1) : `xl/${target}`;
 }
 
-export function readWorkbook(buffer, { sheet, limits } = {}) {
+export function readWorkbook(buffer, { sheet, limits, numericHeaders } = {}) {
   const budget = parseBudget(limits);
   const archive = entries(buffer, budget);
   const readXml = name => readEntry(buffer, archive, name, budget)?.toString('utf8') || '';
@@ -283,7 +286,7 @@ export function readWorkbook(buffer, { sheet, limits } = {}) {
       const index = reference ? columnIndex(reference[1], available) : cells.length;
       if (index >= available) throw new XlsxLimitError();
       const previousLength = cells.length;
-      cells[index] = decodeCell(cell, shared, dates, budget);
+      cells[index] = decodeCell(cell, shared, dates, budget, numericHeaders?.has(header?.[index]));
       if (index > previousLength) cells.fill(null, previousLength, index);
     }
     // Sparse references and header-width padding also consume cell slots.

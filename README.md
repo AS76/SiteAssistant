@@ -185,7 +185,9 @@ The Northline dataset creates `NL-IT-01` and `NL-UK-01` and associated fictional
 
 PostgreSQL is supported by setting `DB_DRIVER=pg` and `DATABASE_URL`. The frontend is intended to share an origin with the API.
 
-Authentication bypass (`AUTH_BYPASS_USER`) is an advanced deployment feature, not part of the normal login workflow; it must not be enabled on a publicly reachable or production deployment without explicit security review.
+Authentication bypass (`AUTH_BYPASS_USER`) is reserved for local development. Startup rejects it when `NODE_ENV`, `APP_ENV`, `RAILWAY_ENVIRONMENT_NAME` or `RAILWAY_ENVIRONMENT` identifies production, demo or staging. `/api/auth/me` always requires a valid session. The health endpoint exposes only a boolean bypass indicator.
+
+Rate limiting uses the connection peer by default. Set `TRUSTED_PROXY_IPS` to the comma-separated IP addresses of controlled reverse proxies that append or overwrite `X-Forwarded-For`. Restrict direct access to the backend so clients cannot connect from a trusted address. This also applies when trusting a loopback proxy. The server walks the forwarded chain from right to left, stopping at the first address outside that list. Password login allows ten failures per account and fifty per client IP within fifteen minutes.
 
 See [technical architecture](docs/architecture.md), the files under [`docs/`](docs/) and the API reference for implementation and deployment considerations.
 

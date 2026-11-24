@@ -1,11 +1,10 @@
+import { HSE_READ_ROLES, HSE_WRITE_ROLES } from '../app/hse-permissions.mjs';
 import { randomUUID } from 'node:crypto';
 import { RepositoryError, requireRole } from './repository.mjs';
 import { requireModule } from './module-access.mjs';
 import { appendAuditEvent } from './audit.mjs';
 import { findTemplate } from './checklists.mjs';
 
-// Same rule as the rest of HSE: the site manager enters the record, the verifier checks it.
-const WRITE_ROLES = ['owner', 'editor'];
 const COLUMNS = `id, site_id, kind, category, name, code, tool_id, template_code, active,
   notes, deleted_at, created_at, updated_at`;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,16 +43,16 @@ function active(value) {
   return value;
 }
 
-async function assetRole(db, siteId, user, roles) {
+async function assetRole(db, siteId, user, roles = HSE_READ_ROLES) {
   await requireRole(db, siteId, user, roles);
   await requireModule(db, siteId, user, 'hse');
 }
 
 async function writableSite(tx, siteId, user) {
-  await assetRole(tx, siteId, user, WRITE_ROLES);
+  await assetRole(tx, siteId, user, HSE_WRITE_ROLES);
   // Share the site lock with jurisdiction and membership changes.
   await tx.run('UPDATE sites SET id = id WHERE id = ?', siteId);
-  await assetRole(tx, siteId, user, WRITE_ROLES);
+  await assetRole(tx, siteId, user, HSE_WRITE_ROLES);
 }
 
 async function templateForSite(db, code, siteId) {
