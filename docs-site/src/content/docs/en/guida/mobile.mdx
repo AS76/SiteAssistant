@@ -40,7 +40,7 @@ Below **640 px** wide the application opens on **Today** when the address does n
 
 The screen is organised in sections:
 
-1. **Now**: one dominant action, the most urgent thing to do; it shows state, time and a **Task details** command.
+1. **Now** highlights the first item to look at. When that item is a blocked task or a diary next step, it appears as a row you can tap.
 2. **To verify**: the tasks waiting for your check.
 3. **Today's work**: the tasks and progress items for the day.
 4. **Upcoming**: what is due after the operational day, kept separate from current work.
@@ -48,11 +48,13 @@ The screen is organised in sections:
 6. **Latest actions**: the last three closed tasks, with their closing date.
 7. **Connection status**: offline, one line says how many changes are queued.
 
-Tapping a row opens the target view **already filtered** on the record: **Tasks** in list mode, **Site progress** or **Deviations** in list mode, **Diary** on the given day. At the top of the view a note says the selection comes from **Today**, with **Clear filters** to drop it.
+- A **Blocked** row shows the title, due date, most recent recorded **Reason**, if available, and how many days overdue the task is as of the site's operational day. A task due today shows **0 days overdue**. Tap the row to open the task details or **History** to see its status changes.
+- The **Next step** row shows the text from the most recent **Diary** contribution for the selected site with a next step. If newer contributions leave the field blank, the row uses an earlier contribution. The row also shows its operational day and shift. Tap it to open the **Diary** on that day.
+- Other rows open the corresponding view for the record, either a filtered list in **Tasks**, **Site progress** or **Deviations**, or the **Diary** on the given day. Use **Clear filters** to remove the selection from a list.
 
 :::caution[If Today looks incomplete]
-- The resources behind the sections load independently: while a resource is loading or unavailable, the section declares itself **incomplete** instead of showing partial data without warning.
-- When loading a resource fails, its row offers **Retry**: the retry concerns that resource only, not the whole screen.
+- **Site progress** and **Deviations** load independently. Placeholder rows appear while they load.
+- If a refresh fails, **Today** shows a warning and keeps previously loaded items for the site visible when available. If access fails, items from that resource are hidden. **Retry** reloads only the affected resource.
 - Tasks with no executor are not "yours": they appear at the bottom as **no linked executor** only when they were due before today.
 - If the list is empty, the application says there are no actions to suggest from the available data: it does not mean the site has stopped.
 - Offline the screen shows the latest data saved on the device and the number of queued writes, which sync when the network returns; for a resource with no saved data the screen says it is unavailable offline.
@@ -67,11 +69,11 @@ On a phone the first screen is **Today** (on desktop it stays the Overview).
 <Shot
   src="/images/2026-11/en/today-mobile.png"
   alt="Today screen on a phone: the dominant Now action first, then To verify and Today's work; the bottom bar with Today, Tasks, Diary, Deviations, Progress and More"
-  caption="Today puts one dominant action first, then verifications and the day's work; every row opens the view already filtered."
+  caption="In this example, Now shows the first action, followed by verifications and the day's work."
   width="390" height="844" compact
 />
 
-1. **Now** — the first action to take, with state and time. **Task details** opens the record; when there is nothing, the screen says so and offers the diary or the available views.
+1. **Now** shows the first item and the action it supports. For a blocked task or a diary next step, tap the row itself. If there are no items, the screen offers the diary or the available views.
 2. **To verify** — the tasks waiting for your check, with their due date.
 3. **Today's work** — the tasks and progress items for the day; **Upcoming** keeps separate what is due after the operational day.
 4. **Quick actions** — **Task list**, **Write diary**, **Take photo**, **Open progress**.

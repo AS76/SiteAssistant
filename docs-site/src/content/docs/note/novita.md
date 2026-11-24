@@ -7,6 +7,8 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 22 novembre 2026
 
+- **Blocchi e prossimo passo in Oggi.** Le attività bloccate mostrano la scadenza, il motivo se registrato e i giorni di ritardo, con accesso diretto al dettaglio e alla **Cronologia**. Il **Prossimo passo** riprende il contributo più recente del Diario che lo contiene e apre il relativo giorno operativo. Se l'aggiornamento di Avanzamento o Deviazioni fallisce, le voci già caricate restano visibili quando l'accesso è ancora consentito. Vedi [Guida rapida mobile](../../guida/mobile/#la-schermata-oggi).
+
 - **Conto alla rovescia per l'accesso con password.** Il limite conta solo i tentativi falliti. Se scatta il blocco, **Accedi** mostra il tempo rimanente e si riattiva allo scadere dell'attesa. Vedi [Accesso e account](../../guida/accesso/#entrare).
 
 - **Avanzamento al 100% con verifiche aperte.** L'avviso in **Avanzamento** conta le attività **Da verificare** sullo stesso nodo WBS. Se puoi accedere ad **Attività**, seleziona l'avviso per aprire l'elenco filtrato. Anche la bacheca, l'elenco e **Attività leggere** mostrano l'avviso accanto alle attività interessate. Vedi [Avanzamento di cantiere](../../moduli/avanzamento/).

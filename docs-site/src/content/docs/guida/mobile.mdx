@@ -40,7 +40,7 @@ Sotto i **640 px** di larghezza l'applicazione si apre su **Oggi** quando l'indi
 
 La schermata è organizzata in sezioni:
 
-1. **Adesso**: una sola azione dominante, quella più urgente da fare; mostra stato, orario e un comando **Dettaglio attività**.
+1. **Adesso**: mette in evidenza la prima voce da consultare. Se in cima c'è un'attività bloccata o il prossimo passo del diario, li mostra come righe selezionabili.
 2. **Da verificare**: le attività che aspettano il tuo controllo.
 3. **Lavoro di oggi**: le attività e le voci di avanzamento del giorno.
 4. **In arrivo**: ciò che scade dopo il giorno operativo, separato dal lavoro di adesso.
@@ -48,11 +48,13 @@ La schermata è organizzata in sezioni:
 6. **Ultime azioni**: le ultime tre attività chiuse, con la data di chiusura.
 7. **Stato della connessione**: se sei offline, una riga dice quante modifiche sono in coda.
 
-Toccando una riga si apre la vista di destinazione **già filtrata** sul record: **Attività** in elenco, **Avanzamento** o **Deviazioni** in elenco, **Diario** nel giorno indicato. In cima alla vista un avviso ricorda che la selezione viene da **Oggi**, con **Azzera filtri** per toglierla.
+- Una riga **Bloccata** mostra il titolo, la scadenza, il **Motivo** più recente se registrato e il numero di giorni di ritardo rispetto al giorno operativo del cantiere. Un'attività che scade oggi mostra **0 giorni di ritardo**. Tocca la riga per aprire il dettaglio o **Cronologia** per vedere i passaggi di stato.
+- La riga **Prossimo passo** riprende il testo dall'ultimo contributo del **Diario** del cantiere selezionato che contiene un prossimo passo. Se i contributi più recenti hanno il campo vuoto, la riga riprende un contributo precedente. La riga mostra il giorno operativo e il turno. Toccala per aprire il **Diario** su quel giorno.
+- Le altre righe aprono la vista di destinazione sul record: **Attività**, **Avanzamento** o **Deviazioni** in elenco filtrato, oppure **Diario** nel giorno indicato. Usa **Azzera filtri** per togliere la selezione dagli elenchi.
 
 :::caution[Se Oggi sembra incompleto]
-- Le risorse che compongono le sezioni si caricano in modo indipendente: finché una risorsa è in caricamento o non disponibile, la sezione si dichiara **incompleta** invece di mostrare dati parziali senza avviso.
-- Se il caricamento di una risorsa fallisce, la riga della risorsa propone **Riprova**: il tentativo riguarda solo quella risorsa, non l'intera schermata.
+- **Avanzamento** e **Deviazioni** si caricano in modo indipendente. Durante il caricamento compaiono righe segnaposto.
+- Se un aggiornamento fallisce, **Oggi** mostra un avviso e mantiene le voci già caricate per il cantiere, se disponibili. In caso di errore di accesso, le voci della risorsa vengono nascoste. **Riprova** ricarica solo la risorsa interessata.
 - Le attività senza esecutore non sono «tue»: compaiono in fondo come **senza responsabile** solo quando sono scadute prima di oggi.
 - Se l'elenco è vuoto, l'applicazione scrive che non ci sono voci da proporre con i dati disponibili: non significa che il cantiere sia fermo.
 - Offline la schermata mostra gli ultimi dati salvati sul dispositivo e il numero di scritture in coda, che si sincronizzano al ritorno della rete; per una risorsa senza dati salvati la schermata dichiara che non è disponibile offline.
@@ -67,11 +69,11 @@ Aprendo l'applicazione su un telefono, la prima schermata è **Oggi** (sul deskt
 <Shot
   src="/images/2026-11/today-mobile.png"
   alt="Schermata Oggi su telefono: in cima l'azione dominante Adesso, poi Da verificare e Lavoro di oggi; in basso la barra con Oggi, Attività, Diario, Deviazioni, Avanz. e Altro"
-  caption="Oggi mette in cima una sola azione dominante, poi le verifiche e il lavoro del giorno; ogni riga apre la vista già filtrata."
+  caption="In questo esempio, Adesso mostra la prima azione, seguita dalle verifiche e dal lavoro del giorno."
   width="390" height="844" compact
 />
 
-1. **Adesso** — la prima azione da fare, con stato e orario. Il comando **Dettaglio attività** apre la scheda; se non c'è nulla, la schermata lo dice e propone il diario o le viste disponibili.
+1. **Adesso** — la prima voce da consultare, con il comando adatto alla voce mostrata. Per un blocco o un prossimo passo del diario, tocca direttamente la riga. Se non ci sono voci, la schermata propone il diario o le viste disponibili.
 2. **Da verificare** — le attività che aspettano il tuo controllo, con la scadenza.
 3. **Lavoro di oggi** — le attività e le voci di avanzamento del giorno; **In arrivo** tiene separate quelle che scadono dopo il giorno operativo.
 4. **Azioni rapide** — **Elenco verifiche**, **Scrivi diario**, **Scatta foto**, **Apri avanzamento**.

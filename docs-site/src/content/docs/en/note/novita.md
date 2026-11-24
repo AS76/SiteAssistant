@@ -7,6 +7,8 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 22 November 2026
 
+- **Blockers and the next step in Today.** Blocked tasks show their due date, any recorded reason and the number of days overdue, with direct access to the task details and **History**. The **Next step** row uses the latest Diary contribution with a next step and opens its operational day. If Site progress or Deviations fails to refresh, previously loaded items stay visible while access is still allowed. See [Mobile quick guide](../../guida/mobile/#the-today-screen).
+
 - **Password sign-in countdown.** The limit counts failed attempts only. If the limit is reached, **Sign in** displays the remaining wait and becomes available again when the countdown ends. See [Sign in and account](../../guida/accesso/#sign-in).
 
 - **Progress at 100% with open verifications.** The warning in **Site progress** counts **To verify** tasks on the same WBS node. If you can access **Tasks**, select the warning to open the filtered list. The board, list and **Light tasks** also show the warning beside the affected tasks. See [Site progress](../../moduli/avanzamento/).
