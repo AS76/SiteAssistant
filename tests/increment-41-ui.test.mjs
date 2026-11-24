@@ -539,3 +539,21 @@ test('WBS filter announces exact and subtree scopes with unique visible item cou
     assert.doesNotMatch(subtree, /unassigned/);
   }
 });
+
+test('progress explains empty data and labels the origin of measured zero and calculated values', () => {
+  for (const language of ['it', 'en']) {
+    const app = ui({ language });
+    Object.assign(app.data, { wbs: [], progress: [] });
+    app.context.coreFilters.progress = { wbsId: '' };
+    app.run(section('function renderProgress()', 'function openProgressVerifications('));
+    assert.ok(app.run('renderProgress()').includes(messages[language].progressEmptyHint));
+    app.data.progress = [{ id: 'import-zero', progressPct: 0, progressPctSource: 'imported' },
+      { id: 'app-progress', progressPct: 20, progressPctSource: 'computed' },
+      { id: 'missing', progressPct: null, progressPctSource: 'imported' }];
+    const html = app.run('renderProgress()');
+    assert.equal(html.split(messages[language].coreImported).length - 1, 1);
+    assert.equal(html.split(messages[language].coreComputed).length - 1, 1);
+    assert.match(html, /value="0"/);
+    assert.ok(html.includes(messages[language].coreUnknown));
+  }
+});

@@ -1451,7 +1451,10 @@ async function showWbsForm(id = '') {
   try {
     const nodes = await freshApi.listWbs(selected, true), node = nodes.find(row => row.id === id);
     if (version !== modalVersion || selected !== siteId || user !== session?.user.id) return;
-    const editable = canWriteWbs(), value = node || {}, source = node?.source_values;
+    const editable = canWriteWbs(), value = node || {};
+    const origin = node?.is_synthetic ? 'synthetic' : node?.provenance?.origin;
+    const originLabel = { source: 'wbsImported', native: 'wbsNative', synthetic: 'wbsSyntheticOrigin' }[origin] || 'coreUnknown';
+    const source = origin === 'source' ? node.source_values : null;
     const descendants = new Set(id ? [id] : []);
     for (let n = 0; n < nodes.length; n++) for (const row of nodes) if (descendants.has(row.parent_id)) descendants.add(row.id);
     const parentOptions = `<option value="">${t('wbsNoParent')}</option>` + nodes.filter(row => !descendants.has(row.id)).map(row => `<option value="${esc(row.id)}" ${row.id === value.parent_id ? 'selected' : ''}>${esc(row.wbs_code)} · ${esc(row.description ?? '')}</option>`).join('');
@@ -1461,10 +1464,11 @@ async function showWbsForm(id = '') {
       return `<div><dt>${t(label)}</dt><dd>${esc(text ?? '—')}</dd></div>`;
     }).join('') : '';
     const resolutions = ['description', 'parent_id', 'sort_order'].filter(key => Object.hasOwn(node?.local_overrides || {}, key)).map(key =>
-      field(({ description: 'wbsDescription', parent_id: 'wbsParent', sort_order: 'wbsOrder' })[key], `resolve_${key}`, '', { options: `<option value="">${t('wbsLeaveLocal')}</option><option value="source">${t('wbsUseSource')}</option><option value="keep">${t('wbsKeepLocal')}</option>` })).join('');
+      field(({ description: 'wbsDescription', parent_id: 'wbsParent', sort_order: 'wbsOrder' })[key], `resolve_${key}`, '', { options: `<option value="">${t('wbsLeaveLocal')}</option><option value="source">${t(source ? 'wbsUseSource' : 'wbsUseInitial')}</option><option value="keep">${t('wbsKeepLocal')}</option>` })).join('');
     showModal(t(id ? 'wbsEdit' : 'wbsCreate'), `<form id="wbs-form" data-id="${esc(id)}" data-site="${esc(selected)}" data-user="${esc(user)}"><div class="form-error" role="alert" tabindex="-1" hidden></div>
       ${Object.keys(node?.conflicts || {}).length ? `<p role="alert" class="note">${t('wbsConflictHint')}</p>` : ''}
-      ${node ? `<p>${t('wbsOrigin')}: ${t(node.provenance?.origin === 'source' ? 'wbsImported' : 'wbsNative')}${wbsState(node)}</p><p>${t('wbsUpdated')}: ${esc(node.provenance?.updated_at ?? node.created_at)} UTC</p><details><summary>${t('wbsSource')}</summary><dl class="detail-grid" data-wbs-source>${sourceRows}</dl></details>` : ''}
+      ${node ? `<p>${t('wbsOrigin')}: ${t(originLabel)}${wbsState(node)}</p><p>${t('wbsUpdated')}: ${esc(node.provenance?.updated_at ?? node.created_at)} UTC</p>` : ''}
+      ${source ? `<details><summary>${t('wbsSource')}</summary><dl class="detail-grid" data-wbs-source>${sourceRows}</dl></details>` : ''}
       <fieldset ${editable ? '' : 'disabled'}><legend>${t('wbsLocal')}</legend><div class="form-grid">
       ${!id ? field('wbsCode', 'wbs_code', '', { required: true, max: 100 }) : ''}${field('wbsDescription', 'description', value.description ?? '')}${field('wbsParent', 'parent_id', '', { options: parentOptions })}${field('wbsOrder', 'sort_order', value.sort_order ?? '', { type: 'number' })}${resolutions}</div>
       ${id ? `<label class="view-checkbox"><input type="checkbox" name="archived" ${value.archived_at ? 'checked' : ''}>${t('wbsArchive')}</label>` : ''}</fieldset>
@@ -1996,15 +2000,20 @@ function renderProgress() {
   const nodes = coreData('wbs');
   const selected = nodes.find(node => node.id === wbsId);
   const scope = new Set(includeDescendants && selected ? flattenWbs([selected]).map(node => node.id) : [wbsId]);
-  const rows = filterSortRecords(coreData('progress').filter(row => !wbsId || scope.has(row.wbsId)), { id },
+  const all = coreData('progress');
+  const rows = filterSortRecords(all.filter(row => !wbsId || scope.has(row.wbsId)), { id },
     [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
   const scopeLabel = t(!wbsId ? 'coreAllWbs' : includeDescendants ? 'wbsScopeSubtree' : 'wbsScopeExact');
   return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbsFilterNode', nodes.map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), wbsId, 'coreAllWbs')}
       <label><input type="checkbox" data-core-filter="includeDescendants" ${includeDescendants ? 'checked' : ''} ${wbsId ? '' : 'disabled'}> ${t('wbsIncludeDescendants')}</label></div>
     <p class="note" role="status">${scopeLabel} · ${t(rows.length === 1 ? 'wbsVisibleItem' : 'wbsVisibleItems').replace('{count}', coreNumber(rows.length, 'count'))}</p>` +
     (rows.length ? coreTable(['wbsDescription', 'coreSection', 'area', 'coreProgressPct', 'coreBookedHours'], rows.map(row => [coreDetailButton('progress', row), coreValue(row.section), coreValue(row.plcArea),
-      `<div>${progressBar(row.progressPct)}${row.progressPctSource === 'computed' ? ` <span class="badge">${t('coreComputed')}</span>` : ''}
-      ${progressVerificationWarning(row)}</div>`, coreNumber(row.bookedHours, 'hours')])) : empty('noResults', 'noResultsHint'));
+      `<div>${progressValue(row)}${progressVerificationWarning(row)}</div>`, coreNumber(row.bookedHours, 'hours')]))
+      : all.length ? empty('noResults', 'noResultsHint') : empty('progressEmpty', 'progressEmptyHint'));
+}
+function progressValue(row) {
+  const source = { imported: 'coreImported', computed: 'coreComputed' }[row.progressPctSource];
+  return progressBar(row.progressPct) + (row.progressPct != null && source ? ` <span class="badge">${t(source)}</span>` : '');
 }
 function progressVerificationWarning(row, linkToTasks = true) {
   if (row.verificationConflict !== true) return '';
@@ -3384,7 +3393,7 @@ async function showCoreDetail(module, id) {
       </div><div class="detail-panel" data-detail-panel="data">${details}${deviationGovernance(row, events, members)}</div><div class="detail-panel" data-detail-panel="refs" hidden>${references}${linkedImpacts}</div>`;
     } else if (module === 'progress') {
       const day = value => value ? dateLabel(String(value).slice(0, 10)) : null;
-      content = progressBar(row.progressPct) + progressVerificationWarning(row) + coreFields({ ...row, wbsId: [row.wbsCode, row.wbsDescription].filter(Boolean).join(' · ') || '—',
+      content = progressValue(row) + progressVerificationWarning(row) + coreFields({ ...row, wbsId: [row.wbsCode, row.wbsDescription].filter(Boolean).join(' · ') || '—',
         plannedStart: day(row.plannedStart), plannedFinish: day(row.plannedFinish), actualStart: day(row.actualStart) },
       [['description', 'coreDescription'], ['section', 'coreSection'], ['plcArea', 'area'], ['wbsId', 'wbs'], ['assignedTo', 'coreAssignedTo'], ['progressPct', 'coreProgressPct'], ['plannedProgressPct', 'corePlannedPct'], ['deltaProgressSource', 'coreDeltaPct'], ['bookedHours', 'coreBookedHours'], ['plannedStart', 'wbsPlannedStart'], ['plannedFinish', 'wbsPlannedFinish'], ['actualStart', 'coreActualStart'], ['expectedDelay', 'coreExpectedDelay'], ['hasFiles', 'coreHasFiles'], ['hasNotes', 'coreHasNotes'], ['hasDeviations', 'coreHasDeviations']]);
       content += progressStepsSection(row);
