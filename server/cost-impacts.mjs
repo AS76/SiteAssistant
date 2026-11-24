@@ -42,7 +42,14 @@ export async function getCostImpact(db, id, user) {
   const showDeviations = !user || await moduleAllowed(db, row.site_id, user, 'deviations');
   return { ...row, deviations: showDeviations ? await db.all(`SELECT d.* FROM deviations d
     JOIN cost_impact_deviations link ON link.deviation_id = d.id
-    WHERE link.cost_impact_id = ? ORDER BY d.id`, row.id) : [] };
+    WHERE link.cost_impact_id = ? AND d.site_id = ? ORDER BY d.id`, row.id, row.site_id) : [] };
+}
+
+export async function listImpactsForDeviation(db, deviation, user) {
+  if (!await moduleAllowed(db, deviation.site_id, user, 'impacts')) return [];
+  return db.all(`SELECT c.id, c.title, c.status FROM cost_impacts c
+    JOIN cost_impact_deviations link ON link.cost_impact_id = c.id
+    WHERE link.deviation_id = ? AND c.site_id = ? ORDER BY c.created_at, c.id`, deviation.id, deviation.site_id);
 }
 
 export async function createCostImpact(db, input, user) {

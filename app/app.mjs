@@ -3349,7 +3349,8 @@ async function showCoreDetail(module, id) {
     if (row.siteId !== selected) throw new Error('forbidden');
     if (['progress', 'deviations'].includes(module)) {
       const previous = todayResource(module);
-      const updated = { ...previous.find(item => item.id === row.id), ...row };
+      const { impacts, ...record } = row;
+      const updated = { ...previous.find(item => item.id === row.id), ...record };
       rememberTodayResource(module, [...previous.filter(item => item.id !== row.id), updated]);
     }
     let content;
@@ -3358,11 +3359,14 @@ async function showCoreDetail(module, id) {
       const typeLabels = { site_progress_item: 'coreProgressItem', task: 'tasks', diary: 'diary' };
       const details = coreFields(row, [['deviationNo', 'coreReference', deviationCode], ['status', 'status', deviationState], ['priority', 'priority'], ['problemDescription', 'coreDescription'], ['author', 'coreAuthor'], ['assignedTo', 'coreAssignedTo'], ['plcArea', 'area'], ['creationDate', 'coreCreated', coreDate], ['dueDate', 'due', coreDate], ['approvedDate', 'coreApprovedDate', coreDate], ['closedDate', 'coreClosed', coreDate], ['actualCost', 'coreActualCost'], ['claimQuantity', 'coreClaimQuantity'], ['laborHours', 'coreLaborHours'], ['completedTasksPct', 'coreCompletedPct']]);
       const references = row.links?.length ? `<ul class="core-links">${row.links.map(link => `<li>${esc(t(typeLabels[link.entityType] || 'coreReference'))}: ${esc(link.entityId)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`;
+      const linkedImpacts = moduleVisible('impacts') && row.impacts?.length
+        ? `<h3>${t('coreLinkedImpacts')}</h3><ul class="core-links">${row.impacts.map(impact =>
+          `<li>${coreDetailButton('impacts', impact)} ${coreStatus(impact.status, impactLabel(impact.status))}</li>`).join('')}</ul>` : '';
       // Two tabs keep the sheet readable: everything about the record, then what it points to.
       content = `<div class="detail-tabs" role="tablist">
         <button type="button" role="tab" aria-selected="true" class="selected" data-command="detail-tab" data-panel="data">${t('coreDetails')}</button>
         <button type="button" role="tab" aria-selected="false" data-command="detail-tab" data-panel="refs">${t('coreReferences')}</button>
-      </div><div class="detail-panel" data-detail-panel="data">${details}${deviationGovernance(row, events, members)}</div><div class="detail-panel" data-detail-panel="refs" hidden>${references}</div>`;
+      </div><div class="detail-panel" data-detail-panel="data">${details}${deviationGovernance(row, events, members)}</div><div class="detail-panel" data-detail-panel="refs" hidden>${references}${linkedImpacts}</div>`;
     } else if (module === 'progress') {
       const day = value => value ? dateLabel(String(value).slice(0, 10)) : null;
       content = progressBar(row.progressPct) + progressVerificationWarning(row) + coreFields({ ...row, wbsId: [row.wbsCode, row.wbsDescription].filter(Boolean).join(' · ') || '—',
