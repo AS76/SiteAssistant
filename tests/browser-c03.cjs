@@ -133,7 +133,7 @@ async function session(env, viewport) {
     if (url.origin !== ORIGIN) return route.abort('blockedbyclient');
     const file = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(1));
     // Explicit local shell allowlist, including self-hosted fonts; all else is aborted.
-    const shell = ['index.html', 'app.mjs', 'api.mjs', 'webauthn-client.mjs', 'domain.mjs',
+    const shell = ['index.html', 'app.mjs', 'api.mjs', 'webauthn-client.mjs', 'domain.mjs', 'hse-permissions.mjs',
       'dashboard-layout.mjs', 'offline.mjs', 'i18n.mjs', 'styles.css', 'fonts.css',
       'manifest.webmanifest', 'assets/logo.svg'];
     if (!shell.includes(file) && !/^assets\/fonts\/[a-z0-9-]+\.woff2$/.test(file)) return route.abort('blockedbyclient');

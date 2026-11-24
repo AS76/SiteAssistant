@@ -1,3 +1,4 @@
+import { HSE_READ_ROLES } from '../app/hse-permissions.mjs';
 import { moduleAllowed, requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
 import { createServer as createHttpServer } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -442,7 +443,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           throw new RepositoryError(400, 'siteId must be a UUID.', 'VALIDATION_ERROR');
         }
         const id = siteId.toLowerCase();
-        await requireRole(db, id, user);
+        await requireRole(db, id, user, HSE_READ_ROLES);
         await requireModule(db, id, user, 'hse');
         const { jurisdiction } = await getSite(db, id);
         return json(response, 200, { jurisdiction, templates: templatesForJurisdiction(jurisdiction) });

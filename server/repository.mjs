@@ -1,3 +1,4 @@
+import { HSE_READ_ROLES, HSE_WRITE_ROLES } from '../app/hse-permissions.mjs';
 import { moduleAllowed, requireModule } from './module-access.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { calendarDateFormatter, calendarDayAge, operationalDate, shiftOf } from './operational-day.mjs';
@@ -640,7 +641,7 @@ export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
 const ATTACHMENT_ROLES = ['owner', 'editor'];
 const attachmentTables = { task: 'tasks', diary: 'diary', site: 'sites', hse_event: 'hse_events', hse_inspection: 'hse_inspections', deviation: 'deviations' };
 const attachmentModules = { task: 'tasks', diary: 'diary', site: 'sites', hse_event: 'hse', hse_inspection: 'hse', deviation: 'deviations' };
-const HSE_ATTACHMENT_READ_ROLES = ['owner', 'editor', 'verifier'];
+const hseAttachmentTypes = ['hse_event', 'hse_inspection'];
 
 function attachmentUser(user) {
   if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
@@ -661,7 +662,7 @@ async function attachmentEntity(db, input, user, roles) {
   }
   if (!entity) fail(400, 'Attachment entity does not exist.', 'VALIDATION_ERROR');
   const siteId = input.entity_type === 'site' ? entity.id : entity.site_id;
-  await requireRole(db, siteId, user, roles ?? (input.entity_type === 'hse_event' ? HSE_ATTACHMENT_READ_ROLES : undefined));
+  await requireRole(db, siteId, user, hseAttachmentTypes.includes(input.entity_type) ? (roles ? HSE_WRITE_ROLES : HSE_READ_ROLES) : roles);
   await requireModule(db, siteId, user, attachmentModules[input.entity_type]);
   // The POST contract derives site_id; an optional explicit scope must agree.
   if (input.site_id !== undefined && attachmentId(input.site_id, 'site_id') !== siteId) {
@@ -760,7 +761,7 @@ export async function listAttachments(db, input, user) {
   const clauses = ['site_id = ?'], values = [siteId];
   if (input.entity_type !== undefined) {
     if (typeof input.entity_type !== 'string' || !Object.hasOwn(attachmentTables, input.entity_type)) fail(400, 'Invalid entity_type.', 'VALIDATION_ERROR');
-    if (input.entity_type === 'hse_event') await requireRole(db, siteId, user, HSE_ATTACHMENT_READ_ROLES);
+    if (hseAttachmentTypes.includes(input.entity_type)) await requireRole(db, siteId, user, HSE_READ_ROLES);
     await requireModule(db, siteId, user, attachmentModules[input.entity_type]);
     clauses.push('entity_type = ?'); values.push(input.entity_type);
   }
@@ -781,7 +782,7 @@ export async function listAttachments(db, input, user) {
   const rows = await db.all(`SELECT * FROM attachments WHERE ${clauses.join(' AND ')} ORDER BY created_at, id`, ...values);
   const visible = [];
   for (const row of rows) {
-    if (row.entity_type === 'hse_event' && !HSE_ATTACHMENT_READ_ROLES.includes(role)) continue;
+    if (hseAttachmentTypes.includes(row.entity_type) && !HSE_READ_ROLES.includes(role)) continue;
     if (await moduleAllowed(db, siteId, user, attachmentModules[row.entity_type])) visible.push(publicAttachment(row));
   }
   return visible;

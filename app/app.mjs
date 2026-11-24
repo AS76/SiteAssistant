@@ -2763,15 +2763,20 @@ function renderHse() {
   let html = `<p class="note">${t('hsePrivacy')}</p><div class="core-kpis" role="status">${kpis}</div><p class="note">${t('hseSummaryHint')}</p>`;
   html += `<div class="toolbar core-toolbar">${coreSelect('type', 'hseType', HSE_TYPES.map(type => [type, t(`hseType_${type}`)]), filter.type, 'hseAllTypes')}${coreSelect('severity', 'hseSeverity', HSE_SEVERITIES.map(severity => [severity, t(`hseSeverity_${severity}`)]), filter.severity, 'hseAllSeverities')}<div class="hse-period-filters">${period}</div></div>`;
   if (filter.from && filter.to && filter.from > filter.to) return html + `<p role="alert">${t('hsePeriodInvalid')}</p>`;
-  html += rows.length ? coreTable(['hseOccurredOn', 'hseEventNo', 'hseType', 'hseSeverity', 'hseLocation', 'hsePersons', 'hseMeasures', ...(canWrite ? ['coreActions'] : [])], rows.map(row => [
+  html += rows.length ? coreTable(['hseOccurredOn', 'hseEventNo', 'hseType', 'hseSeverity', 'hseLocation', 'hsePersons', 'hseMeasures', 'coreActions'], rows.map(row => [
     coreDate(row.occurredOn), coreValue(row.eventNo), t(`hseType_${row.type}`)
       + (['inspection', 'external_visit'].includes(row.type) && row.inspectionId && row.assetId
         ? ` ${button('hseInspectionOpen', 'hse-inspection-open', `data-inspection-id="${esc(row.inspectionId)}" data-asset-id="${esc(row.assetId)}"`, 'small')}` : ''),
     coreStatus(row.severity, t(`hseSeverity_${row.severity}`)),
     coreValue(row.location), row.personsInvolved == null ? '—' : coreNumber(row.personsInvolved, 'count'), coreValue(row.measures),
-    ...(canWrite ? [`<div class="tool-actions hse-actions">${button('edit', 'hse-edit', `data-id="${esc(row.id)}"`, 'small')}<span aria-hidden="true">·</span>${button('coreDelete', 'hse-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`] : []),
+    canWrite ? `<div class="tool-actions hse-actions">${button('edit', 'hse-edit', `data-id="${esc(row.id)}"`, 'small')}<span aria-hidden="true">·</span>${button('coreDelete', 'hse-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`
+      : button('attachments', 'hse-attachments', `data-id="${esc(row.id)}"`, 'small'),
   ])) : empty('hseEmpty', 'hseEmptyHint');
   return html;
+}
+function showHseAttachments(id) {
+  if (!permissions().hse || !moduleVisible('hse') || !coreData('hse').some(row => row.id === id)) return;
+  showModal(t('attachments'), attachmentSection('hse_event', id));
 }
 function showHseForm() {
   if (!permissions().hseWrite) return toast(t('forbidden'));
@@ -3786,10 +3791,10 @@ function attachmentUrl(file) {
   return `${api.baseUrl}/api/attachments/${encodeURIComponent(file.id)}`;
 }
 function attachmentSection(entityType, entityId) {
-  const write = entityType === 'task' ? canEditTask()
-    : entityType === 'deviation' ? deviationWrite() : entityType !== 'hse_inspection' || permissions().hseWrite;
   const inspection = entityType === 'hse_inspection';
   const hse = inspection || entityType === 'hse_event';
+  const write = entityType === 'task' ? canEditTask()
+    : entityType === 'deviation' ? deviationWrite() : !hse || permissions().hseWrite;
   const sync = entityType === 'task' || entityType === 'deviation' ? notebookSync : syncBadge;
   const files = (state.attachments || []).filter(file => file.entity_type === entityType && file.entity_id === entityId);
   return `<section class="attachment-section"><h3>${t('attachments')}</h3>${hse ? `<p class="note">${t('hseAttachmentRule')}</p><p class="note">${t('hseAttachmentAlternative')}</p>` : ''}${files.map(file => inspection && file.mime?.startsWith('image/') && !file.blob
@@ -3797,8 +3802,8 @@ function attachmentSection(entityType, entityId) {
     : `<p>${button('openAttachment', 'open-attachment', `data-id="${esc(file.id)}"`)} ${esc(file.filename)} ${sync(file)}</p>`).join('')}${write ? button(inspection ? 'addPhoto' : 'addAttachment', 'new-attachment', `data-entity-type="${entityType}" data-id="${esc(entityId)}"`) : ''}</section>`;
 }
 function showAttachmentForm(entityType, entityId, { camera = false } = {}) {
-  if ((entityType === 'task' && !canEditTask()) || (entityType === 'hse_inspection' && !permissions().hseWrite) || (entityType === 'deviation' && !deviationWrite())) return toast(t('forbidden'));
   const hse = ['hse_event', 'hse_inspection'].includes(entityType);
+  if ((entityType === 'task' && !canEditTask()) || (hse && !permissions().hseWrite) || (entityType === 'deviation' && !deviationWrite())) return toast(t('forbidden'));
   showModal(t('addAttachment'), `<form id="attachment-form" data-entity-type="${entityType}" data-entity-id="${esc(entityId)}"><div class="form-error" role="alert" tabindex="-1" hidden></div>${hse ? `<p class="note">${t('hseAttachmentRule')}</p><p class="note">${t('hseAttachmentAlternative')}</p>` : ''}<label class="field">${t('attachmentFile')}<input type="file" name="file" accept="${camera ? 'image/*' : 'image/*,application/pdf'}" ${camera ? 'capture="environment"' : ''} required></label><p class="note">${t('attachmentHint')}</p>${hse ? `<label class="field">${t('hseAttachmentDescription')}<textarea name="description" maxlength="200"></textarea></label><p class="note" data-hse-attachment-warning role="status" aria-live="polite" hidden>${t('hseAttachmentWarning')} ${t('hseAttachmentRule')}</p>` : ''}${formActions()}</form>`);
   if (hse) {
     const form = $('#attachment-form');
@@ -3948,6 +3953,7 @@ document.addEventListener('click', event => {
     'tool-delete': () => showToolDelete(id),
     'hse-new': () => { hseEditingId = ''; showHseForm(); },
     'hse-edit': () => { hseEditingId = id; showHseForm(); },
+    'hse-attachments': () => showHseAttachments(id),
     'hse-delete': () => showHseDelete(id),
     'cert-new': () => { certEditingId = ''; showCertificationForm(); },
     'cert-edit': () => { certEditingId = id; showCertificationForm(); },
