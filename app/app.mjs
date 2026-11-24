@@ -1999,9 +1999,9 @@ function renderProgress() {
   const rows = filterSortRecords(coreData('progress').filter(row => !wbsId || scope.has(row.wbsId)), { id },
     [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
   const scopeLabel = t(!wbsId ? 'coreAllWbs' : includeDescendants ? 'wbsScopeSubtree' : 'wbsScopeExact');
-  return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbs', nodes.map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), wbsId, 'coreAllWbs')}
+  return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbsFilterNode', nodes.map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), wbsId, 'coreAllWbs')}
       <label><input type="checkbox" data-core-filter="includeDescendants" ${includeDescendants ? 'checked' : ''} ${wbsId ? '' : 'disabled'}> ${t('wbsIncludeDescendants')}</label></div>
-    <p class="note" role="status">${scopeLabel} · ${coreNumber(rows.length, 'count')}</p>` +
+    <p class="note" role="status">${scopeLabel} · ${t(rows.length === 1 ? 'wbsVisibleItem' : 'wbsVisibleItems').replace('{count}', coreNumber(rows.length, 'count'))}</p>` +
     (rows.length ? coreTable(['wbsDescription', 'coreSection', 'area', 'coreProgressPct', 'coreBookedHours'], rows.map(row => [coreDetailButton('progress', row), coreValue(row.section), coreValue(row.plcArea),
       `<div>${progressBar(row.progressPct)}${row.progressPctSource === 'computed' ? ` <span class="badge">${t('coreComputed')}</span>` : ''}
       ${progressVerificationWarning(row)}</div>`, coreNumber(row.bookedHours, 'hours')])) : empty('noResults', 'noResultsHint'));

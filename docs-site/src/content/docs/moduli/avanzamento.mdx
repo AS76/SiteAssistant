@@ -12,7 +12,7 @@ La vista **Avanzamento** mostra le voci di avanzamento del cantiere selezionato.
 A cosa serve: capire quanto è avanti ogni elemento e quante ore ha assorbito.
 
 1. Apri **Avanzamento** dalla navigazione.
-2. Filtra con il menu **Struttura progetto** per vedere solo le voci collegate a un nodo WBS.
+2. Scegli un **Nodo WBS** per vedere le sole voci collegate direttamente. Attiva **Includi discendenti** per vedere anche le voci collegate ai nodi sottostanti. Sotto il filtro compare il perimetro con il numero di voci mostrate.
 3. Leggi per ogni riga descrizione, sezione, area PLC, percentuale e ore prenotate.
 4. Apri una riga per il dettaglio: piano, scostamento, date e contrassegni.
 
@@ -21,10 +21,9 @@ A cosa serve: capire quanto è avanti ogni elemento e quante ore ha assorbito.
   alt="Vista Avanzamento con l'elenco delle voci, le colonne Descrizione, Sezione, Area asset, Avanzamento con barra e Ore prenotate, e il filtro Tutti i nodi WBS"
   caption="L'elenco dell'avanzamento: la barra mostra la percentuale, il badge «calcolato» indica i valori ricalcolati dagli step registrati." width="1440" height="900" />
 
-Il filtro in alto limita l'elenco alle voci collegate a un nodo della struttura progetto: non cambia i dati, cambia solo cosa vedi.
 
 :::caution[Se una voce non c'è]
-- Il filtro **Struttura progetto** può escludere la voce: riportalo su **Tutti i nodi WBS**.
+- Il filtro **Nodo WBS** può escludere la voce: riportalo su **Tutti i nodi WBS**.
 - Le voci arrivano dall'import di pianificazione: se manca un elemento, va corretto l'export e ripetuto l'import, non creato a mano.
 - Questa vista richiede la connessione: offline mostra un messaggio al posto dell'elenco.
 :::

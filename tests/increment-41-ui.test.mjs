@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
-import { formatDisplayNumber, formatDateInput, counts, PRIORITIES, DEVIATION_STATUSES, groupDeviationRows, filterSortRecords,
+import { formatDisplayNumber, formatDateInput, counts, PRIORITIES, DEVIATION_STATUSES, groupDeviationRows, filterSortRecords, flattenWbs,
   validDate, HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts, CERT_CATEGORIES, CERT_STATUSES,
   certCategoryLabelKey, certStatusLabelKey, filterCertifications, certificationCounts } from '../app/domain.mjs';
 import { messages } from '../app/i18n.mjs';
@@ -32,7 +32,7 @@ function ui({ language = 'it', width = 1440, tasks = [], diary = [], reconciliat
   };
   const data = { deviations, hse, reconciliation: reconciliation || { items: [], counts: { closed_without_date: 0, close_before_approval: 0 } } };
   const context = createContext({
-    supportsPasskeys: () => false, validDate, language, prefs: { currency: 'EUR', separators: language, decimals: 0 }, formatDisplayNumber, formatDateInput, counts, PRIORITIES, DEVIATION_STATUSES, groupDeviationRows, filterSortRecords,
+    supportsPasskeys: () => false, validDate, language, prefs: { currency: 'EUR', separators: language, decimals: 0 }, formatDisplayNumber, formatDateInput, counts, PRIORITIES, DEVIATION_STATUSES, groupDeviationRows, filterSortRecords, flattenWbs,
     HSE_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts, state: { sites: [{ id: 'site-1', code: 'SYN-01', name: 'Synthetic site with a long name' }], diary },
     siteId: 'site-1', actor: 'Synthetic user', loading: false, offline: false, view: 'overview',
     session: { user: { id: 'user-1' }, roles: [{ site_id: 'site-1', role: 'owner' }] },
@@ -519,4 +519,23 @@ test('41.07 M2 — mobile pages keep their scale: no pinch zoom, no focus zoom, 
   assert.match(css, /@media \(max-width: 800px\) \{\s*input, select, textarea \{ font-size: 16px !important; \}/);
   assert.match(source, /for \(const type of \['gesturestart', 'gesturechange', 'gestureend'\]\)/);
   assert.match(source, /if \(event\.touches\.length > 1\) event\.preventDefault\(\)/);
+});
+
+test('WBS filter announces exact and subtree scopes with unique visible item counts', () => {
+  for (const language of ['it', 'en']) {
+    const app = ui({ language });
+    const child = { id: 'child', wbs_code: '1.1', description: 'Child node', children: [] };
+    Object.assign(app.data, { wbs: [{ id: 'root', wbs_code: '1', description: 'Root node', children: [child] }, child],
+      progress: [{ id: 'root-row', wbsId: 'root' }, { id: 'child-row', wbsId: 'child' }, { id: 'unassigned' }] });
+    app.context.coreFilters.progress = { wbsId: 'root' };
+    app.run(section('function renderProgress()', 'function openProgressVerifications('));
+    const exact = app.run('renderProgress()');
+    assert.ok(exact.includes(messages[language].wbsScopeExact));
+    assert.doesNotMatch(exact, /child-row|unassigned/);
+    app.context.coreFilters.progress.includeDescendants = true;
+    const subtree = app.run('renderProgress()');
+    assert.ok(subtree.includes(messages[language].wbsScopeSubtree));
+    assert.equal((subtree.match(/data-id="child-row"/g) || []).length, 1);
+    assert.doesNotMatch(subtree, /unassigned/);
+  }
 });
