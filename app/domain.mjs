@@ -1,3 +1,5 @@
+import { HSE_READ_ROLES, HSE_WRITE_ROLES } from './hse-permissions.mjs';
+
 // Display precision only: imported values and calculations retain their original precision.
 export function formatDisplayNumber(value, { kind = 'number', language = 'it', currency = 'EUR', signed = false } = {}) {
   if (value == null || value === '') return '—';
@@ -346,8 +348,8 @@ export function corePermissions(role) {
     tools: ['owner', 'editor', 'verifier'].includes(role),
     certifications: ['owner', 'editor', 'verifier'].includes(role),
     certificationWrite: ['owner', 'editor'].includes(role),
-    hse: ['owner', 'editor', 'verifier'].includes(role),
-    hseWrite: ['owner', 'editor'].includes(role) };
+    hse: HSE_READ_ROLES.includes(role),
+    hseWrite: HSE_WRITE_ROLES.includes(role) };
 }
 export const HSE_TYPES = Object.freeze(['near_miss', 'accident', 'observation', 'inspection', 'external_visit']);
 // What a person can type by hand: the other two come from the inspection flow.

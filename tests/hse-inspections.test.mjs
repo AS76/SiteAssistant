@@ -49,7 +49,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE inspections ${driver === 'pg' &
     };
     return { site, asset, template, input,
       create: (changes = {}, user = users.owner) => createInspection(db, { ...input, ...changes }, user),
-      list: (changes = {}, user = users.viewer) => listInspections(db, { siteId: site.id, ...changes }, user),
+      list: (changes = {}, user = users.verifier) => listInspections(db, { siteId: site.id, ...changes }, user),
     };
   };
 
@@ -100,7 +100,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE inspections ${driver === 'pg' &
       t.assert.strictEqual(event.notes, `${f.asset.name} — ${f.template.title}`);
       t.assert.strictEqual(event.location, f.asset.code);
       for (const field of ['event_no', 'persons_involved', 'deviation_id']) t.assert.strictEqual(event[field], null);
-      t.assert.strictEqual((await getInspection(db, row.id, users.viewer)).hse_event_id, event.id);
+      t.assert.strictEqual((await getInspection(db, row.id, users.verifier)).hse_event_id, event.id);
       t.assert.strictEqual((await f.list()).find(item => item.id === row.id).hse_event_id, event.id);
       const audit = await listAuditEvents(db, { siteId: f.site.id, entityType: 'hse_event', entityId: event.id }, users.owner);
       t.assert.strictEqual(audit.length, 1);
@@ -133,7 +133,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE inspections ${driver === 'pg' &
     // UTC is already November 15, while the server calendar is November 14.
     t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-15T07:30:00Z') });
     const f = await fixture();
-    const listedAsset = async () => (await listHseAssets(db, { siteId: f.site.id }, users.viewer))[0];
+    const listedAsset = async () => (await listHseAssets(db, { siteId: f.site.id }, users.verifier))[0];
     const never = await listedAsset();
     t.assert.deepStrictEqual([never.lastInspectionOn, never.lastOutcome, never.nextDueOn, never.status], [null, null, null, 'never']);
     const cases = [
@@ -165,7 +165,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE inspections ${driver === 'pg' &
     await other.create({ performedOn: '2026-10-03' });
     await db.run('UPDATE hse_inspections SET created_at = ? WHERE id = ?', '2026-10-03T01:00:00.000Z', latest.id);
     await db.run('UPDATE hse_inspections SET created_at = ? WHERE id = ?', '2026-10-03T00:00:00.000Z', sameDateOlder.id);
-    const rows = await listHseAssets(db, { siteId: f.site.id }, users.viewer);
+    const rows = await listHseAssets(db, { siteId: f.site.id }, users.verifier);
     const row = rows.find(row => row.id === f.asset.id);
     t.assert.deepStrictEqual([row.lastInspectionOn, row.lastOutcome, row.nextDueOn, row.status],
       [latest.performed_on, latest.outcome, latest.next_due_on, 'failed']);
@@ -209,7 +209,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE inspections ${driver === 'pg' &
     for (const field of ['nextDueOn', 'nextOn']) {
       const row = await f.create({ [field]: '2030-02-28' });
       t.assert.strictEqual(row.next_due_on, '2030-02-28');
-      t.assert.strictEqual((await getInspection(db, row.id, users.viewer)).next_due_on, '2030-02-28');
+      t.assert.strictEqual((await getInspection(db, row.id, users.verifier)).next_due_on, '2030-02-28');
       for (const value of [null, '', '2027-02-29', '2026-04-31', '2026-13-01', '0000-01-01', '2026-01-01T00:00:00Z', 20260101]) {
         await t.assert.rejects(() => f.create({ [field]: value }), error(400, 'VALIDATION_ERROR'));
       }
@@ -235,8 +235,8 @@ for (const driver of ['sqlite', 'pg']) test(`HSE inspections ${driver === 'pg' &
     t.assert.strictEqual((await f.create({ performedBy: ` ${'x'.repeat(200)} `, outcome: 'fail', performedOn: '2028-02-29' })).performed_by.length, 200);
     await t.assert.rejects(() => f.list({ siteId: 'bad' }), error(400, 'VALIDATION_ERROR'));
     await t.assert.rejects(() => f.list({ assetId: '' }), error(400, 'VALIDATION_ERROR'));
-    await t.assert.rejects(() => getInspection(db, 'bad', users.viewer), error(400, 'VALIDATION_ERROR'));
-    await t.assert.rejects(() => getInspection(db, randomUUID(), users.viewer), error(404, 'INSPECTION_NOT_FOUND'));
+    await t.assert.rejects(() => getInspection(db, 'bad', users.verifier), error(400, 'VALIDATION_ERROR'));
+    await t.assert.rejects(() => getInspection(db, randomUUID(), users.verifier), error(404, 'INSPECTION_NOT_FOUND'));
   });
 
   await t.test('rejects foreign, missing and soft-deleted assets for create and filtering', async t => {
@@ -247,24 +247,26 @@ for (const driver of ['sqlite', 'pg']) test(`HSE inspections ${driver === 'pg' &
       await t.assert.rejects(() => f.create({ assetId }), error(404, 'ASSET_NOT_FOUND'));
       await t.assert.rejects(() => f.list({ assetId }), error(404, 'ASSET_NOT_FOUND'));
     }
-    t.assert.strictEqual((await getInspection(db, historical.id, users.viewer)).id, historical.id);
-    t.assert.strictEqual((await getInspection(db, historical.id, users.viewer)).hse_event_id, historical.hse_event_id);
+    t.assert.strictEqual((await getInspection(db, historical.id, users.verifier)).id, historical.id);
+    t.assert.strictEqual((await getInspection(db, historical.id, users.verifier)).hse_event_id, historical.hse_event_id);
     t.assert.deepStrictEqual((await f.list()).map(row => row.id), [historical.id]);
     const events = await listHseEvents(db, { siteId: f.site.id }, users.owner);
     t.assert.deepStrictEqual(events.map(row => row.id), [historical.hse_event_id]);
-    t.assert.deepStrictEqual(await listHseAssets(db, { siteId: f.site.id }, users.viewer), []);
+    t.assert.deepStrictEqual(await listHseAssets(db, { siteId: f.site.id }, users.verifier), []);
   });
 
-  await t.test('enforces owner/editor writes and member reads, rejects non-members', async t => {
+  await t.test('enforces owner/editor writes and HSE reads, rejects non-members', async t => {
     const f = await fixture();
     const row = await f.create({}, users.editor);
     for (const role of ['viewer', 'verifier']) {
       await t.assert.rejects(() => f.create({}, users[role]), error(403, 'FORBIDDEN'));
     }
-    for (const role of ['owner', 'editor', 'verifier', 'viewer']) {
+    for (const role of ['owner', 'editor', 'verifier']) {
       t.assert.deepStrictEqual((await f.list({}, users[role])).map(item => item.id), [row.id]);
       t.assert.strictEqual((await getInspection(db, row.id, users[role])).id, row.id);
     }
+    await t.assert.rejects(() => f.list({}, users.viewer), error(403, 'FORBIDDEN'));
+    await t.assert.rejects(() => getInspection(db, row.id, users.viewer), error(403, 'FORBIDDEN'));
     const restricted = await fixture('it_lifting', ['owner']);
     const other = await restricted.create();
     for (const call of [
@@ -307,7 +309,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE inspections ${driver === 'pg' &
     // Give the first item a later position to prove the query orders stored positions.
     await db.run('UPDATE hse_inspection_items SET position = ? WHERE id = ?', 99, row.items[0].id);
     await updateHseAsset(db, f.asset.id, { templateCode: 'it_ppe' }, users.owner);
-    const detail = await getInspection(db, row.id, users.viewer);
+    const detail = await getInspection(db, row.id, users.verifier);
     t.assert.deepStrictEqual({ ...detail.asset }, { id: f.asset.id, name: f.asset.name, code: f.asset.code, template_code: 'it_ppe' });
     t.assert.deepStrictEqual(detail.items.map(item => item.position), [...f.template.items.slice(1).map((_, index) => index + 1), 99]);
     t.assert.deepStrictEqual(detail.items.map(item => item.label), [...f.template.items.slice(1), f.template.items[0]].map(item => item.label));
@@ -412,7 +414,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE inspections ${driver === 'pg' &
     t.assert.strictEqual(created.body.items.length, f.template.items.length);
     t.assert.strictEqual(created.body.next_due_on, '2028-01-31');
     t.assert.ok(created.body.hse_event_id);
-    const assets = await api(`/api/hse/assets?siteId=${f.site.id}`, { role: 'viewer' });
+    const assets = await api(`/api/hse/assets?siteId=${f.site.id}`, { role: 'verifier' });
     t.assert.strictEqual(assets.status, 200);
     t.assert.deepStrictEqual([assets.body[0].lastInspectionOn, assets.body[0].lastOutcome, assets.body[0].nextDueOn],
       ['2026-01-31', 'pass', '2028-01-31']);
@@ -423,16 +425,18 @@ for (const driver of ['sqlite', 'pg']) test(`HSE inspections ${driver === 'pg' &
     const summary = await api(`/api/hse-events?siteId=${f.site.id}&summary=1`, { role: 'verifier' });
     t.assert.strictEqual(summary.status, 200);
     t.assert.deepStrictEqual(summary.body.by_type, { near_miss: 0, accident: 0, observation: 0, inspection: 1, external_visit: 0 });
-    const listed = await api(`${path}?siteId=${f.site.id}&assetId=${f.asset.id}`, { role: 'viewer' });
+    const listed = await api(`${path}?siteId=${f.site.id}&assetId=${f.asset.id}`, { role: 'verifier' });
     t.assert.strictEqual(listed.status, 200);
     t.assert.deepStrictEqual(listed.body.map(row => row.id), [id]);
-    const detail = await api(`${path}/${id}`, { role: 'viewer' });
+    const detail = await api(`${path}/${id}`, { role: 'verifier' });
     t.assert.strictEqual(detail.status, 200);
     t.assert.deepStrictEqual(detail.body.items.map(item => item.position), f.template.items.map((_, index) => index));
     t.assert.deepStrictEqual(detail.body.asset, { id: f.asset.id, name: f.asset.name, code: f.asset.code, template_code: f.asset.template_code });
     const privateRow = await restricted.create();
     for (const [url, method, body, role, status, code] of [
       [path, 'POST', f.input, 'viewer', 403, 'FORBIDDEN'],
+      [`${path}?siteId=${f.site.id}`, 'GET', undefined, 'viewer', 403, 'FORBIDDEN'],
+      [`${path}/${id}`, 'GET', undefined, 'viewer', 403, 'FORBIDDEN'],
       [path, 'POST', f.input, 'verifier', 403, 'FORBIDDEN'],
       [path, 'POST', restricted.input, 'verifier', 403, 'FORBIDDEN'],
       [`${path}?siteId=${restricted.site.id}`, 'GET', undefined, 'verifier', 403, 'FORBIDDEN'],

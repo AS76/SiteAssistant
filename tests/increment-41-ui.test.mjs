@@ -49,7 +49,7 @@ function ui({ language = 'it', width = 1440, tasks = [], diary = [], reconciliat
     }) },
     syncBadge: () => '', icon: () => '', taskRow: () => '', renderOffline() {}, render() {},
     document: { documentElement: {} }, sessionStorage: { getItem: () => null }, localStorage: { getItem: () => '1' },
-    visibleModules: items => items, moduleVisible: () => true, currentModules: () => [], headerNavItems: () => ['bookings'], canWriteTask: () => true,
+    visibleModules: items => items, moduleVisible: () => true, currentModules: () => [], headerNavItems: () => ['bookings'], canWriteTask: () => true, canAttachDiary: () => true,
     desktopNavigation: link => link('bookings'), bindDesktopNavigation() {}, $: node,
   });
   const evidenceLabels = runInContext(section('const evidenceLabels =', 'const t =') + '\nevidenceLabels', context);

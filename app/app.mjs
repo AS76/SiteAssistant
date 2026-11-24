@@ -6,7 +6,7 @@ import { hseAttachmentNeedsReview } from './domain.mjs';
 import { hasOpenProgressSteps } from './domain.mjs';
 import { INSPECTION_STATUSES, inspectionStatusLabelKey, filterHseAssets, sortHseAssets, hseAssetCounts, inspectionOutcomeLabelKey, inspectionModeLabelKey, inspectionItemResultLabelKey, inspectionTally, sortInspections, inspectionSuggestion, inspectionProgress, inspectionPayload } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
-import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
+import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, purgeScope, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
 
 const api = createApi({ baseUrl: new URL(document.querySelector('meta[name=siteassistant-api-base]')?.content || DEFAULT_BASE_URL, location.href).href, onUnauthorized: () => clearSession(true) });
 const freshApi = createApi({ baseUrl: api.baseUrl, fresh: true, onUnauthorized: () => clearSession(true) });
@@ -31,6 +31,8 @@ const money = value => {
 let offlineScope, pendingOps = [], offline = !navigator.onLine, storageReady = false, storageError = false, swUnavailable = false, swRegistration, syncRun;
 const accountChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('siteassistant-session') : null;
 const accountLock = run => navigator.locks ? withSyncLock(run) : run();
+const logoutKey = `logout:${api.baseUrl}`;
+let logoutPending = false;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 let session = null;
@@ -180,7 +182,7 @@ const errorKeys = {
   DEVIATION_OWNER_INVALID: 'evidenceOwnerError', DEVIATION_IDENTITY_UNRESOLVED: 'evidenceIdentityError',
   DEVIATION_EXPORT_META_INVALID: 'evidenceImportError', DEVIATION_EXPORT_INVALID: 'evidenceImportError',
   DEVIATION_EXPORT_CHECKSUM_MISMATCH: 'evidenceImportError', SHIPMENT_NOT_FOUND: 'shpNotFound', SHIPMENT_DUPLICATE_NUMBER: 'shpDuplicateNumber', SHIPMENT_PACKAGE_NOT_FOUND: 'shpPackageUnavailable', SHIPMENT_PACKAGE_SITE_MISMATCH: 'shpPackageUnavailable', SHIPMENT_PACKAGE_TAKEN: 'shpPackageTaken', SHIPMENT_STATUS_CONFLICT: 'shpStatusConflict', SHIPMENT_ITEM_NOT_FOUND: 'shpItemNotFound', PACKAGE_NOT_FOUND: 'pkgNotFound', PACKAGE_ITEM_NOT_FOUND: 'poItemNotFound', PACKAGE_DUPLICATE_NUMBER: 'pkgDuplicateNumber', PACKAGE_QUANTITY_EXCEEDED: 'pkgQuantityExceeded', PACKAGE_STATUS_CONFLICT: 'pkgStatusConflict', PO_STATUS_CONFLICT: 'poStatusConflict', PO_DUPLICATE_NUMBER: 'poDuplicateNumber', PO_DUPLICATE_LINE: 'poDuplicateLine', PO_NOT_FOUND: 'poNotFound', PO_ITEM_NOT_FOUND: 'poItemNotFound', HSE_INVALID: 'hseInvalid', HSE_FORBIDDEN: 'forbidden', HSE_NOT_FOUND: 'hseNotFound', MODULE_FORBIDDEN: 'moduleUnavailable', ACCESS_INVALID: 'accessInvalid', LAYOUT_INVALID: 'layoutInvalid', MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
-function errorMessage(error) { if (error.code === 'MODULE_FORBIDDEN') return t('moduleUnavailable'); if (error.code === 'PAGINATION_LIMIT') return t('paginationLimit'); return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
+function errorMessage(error) { if (error.code === 'PASSWORD_CHANGE_REQUIRED') return t('passwordChangeNotice'); if (error.code === 'MODULE_FORBIDDEN') return t('moduleUnavailable'); if (error.code === 'PAGINATION_LIMIT') return t('paginationLimit'); return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
   reportPrintIntent = null; lastReport = null;
   resetSavedViews();
@@ -197,13 +199,35 @@ async function forgetActive() {
   if (storageReady) await setMirror('active', null);
   if ('caches' in window) for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.includes('-data-')) await caches.delete(key);
 }
+async function flushLogout() {
+  if (!logoutPending && !(storageReady && await getMirror(logoutKey))) return;
+  try { await api.logout(); }
+  catch (error) { if (error.status !== 401) throw error; }
+  if (storageReady) await setMirror(logoutKey, null);
+  logoutPending = false;
+}
 async function logout() {
   try {
-    await accountLock(async () => { await api.logout(); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
+    await accountLock(async () => {
+      const active = storageReady ? await getMirror('active') : null;
+      const scope = offlineScope ?? active?.scope;
+      const current = !active || active.scope === scope;
+      if (storageReady) await purgeScope(scope, current ? logoutKey : undefined);
+      if ('caches' in window && scope) {
+        const suffix = `-data-${encodeURIComponent(scope)}`;
+        try {
+          for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.endsWith(suffix)) await caches.delete(key);
+        } catch { storageError = true; }
+      }
+      clearSession(); accountChannel?.postMessage('changed');
+      if (!current) return;
+      logoutPending = !storageReady;
+      if (navigator.onLine) await flushLogout();
+    });
   } catch (error) { toast(errorMessage(error)); }
 }
 async function persistState() {
-  if (!storageReady || !offlineScope) return;
+  if (!storageReady || !offlineScope || (await getMirror('active'))?.scope !== offlineScope) return;
   await setMirror(`state:${offlineScope}`, {
     ...state,
     tasks: state.tasks.filter(item => !item.localOnly), diary: state.diary.filter(item => !item.localOnly),
@@ -227,6 +251,10 @@ async function loadData() {
   loading = true; loadError = null; render();
   try {
     await accountLock(async () => {
+      if (logoutPending || (storageReady && await getMirror(logoutKey))) {
+        if (navigator.onLine) await flushLogout().catch(() => {});
+        return;
+      }
       let active = storageReady ? await getMirror('active') : null;
       try {
         session = await freshApi.me(); actor = session.user.name; offline = false;
@@ -236,8 +264,13 @@ async function loadData() {
       } catch (error) {
         if (error.code !== 'NETWORK_ERROR' || active?.baseUrl !== api.baseUrl) throw error;
         const saved = await getMirror(`state:${active.scope}`);
-        if (!saved) throw error;
+        if (!saved && !active.session.password_change_required) throw error;
         offline = true; session = active.session; actor = session.user.name; offlineScope = active.scope; state = saved;
+      }
+      if (session.password_change_required) {
+        state = { sites: [], tasks: [], diary: [], attachments: [] };
+        siteId = undefined; pendingOps = [];
+        return;
       }
       if (!offline) {
         try {
@@ -269,7 +302,7 @@ async function loadData() {
   loading = false; render();
 }
 async function syncQueue(currentDiaryId) {
-  if (syncRun || !navigator.onLine || !session || !storageReady) return syncRun;
+  if (syncRun || !navigator.onLine || !session || session.password_change_required || !storageReady) return syncRun;
   syncRun = (async () => {
     try {
       await replayOps(freshApi, { scope: offlineScope, userId: session.user.id, currentDiaryId });
@@ -293,7 +326,7 @@ async function writeOperation(op_type, payload, entity_id) {
     if (op_type === 'create_attachment') { const file = await api.createAttachment(payload); state.attachments.push(file); return file; }
     return;
   }
-  const op = await enqueue({ op_type, payload, entity_id, scope: offlineScope });
+  const op = await enqueue({ op_type, payload, entity_id, scope: offlineScope }, { requireActive: true });
   await refreshPending();
   if (navigator.onLine && !offline) await syncQueue(op_type === 'create_diary' ? op.id : undefined);
   if (pendingOps.some(item => item.status !== 'failed')) await registerSync(swRegistration);
@@ -379,6 +412,7 @@ function renderChrome() {
     settings: 'guida/impostazioni/'
   };
   renderOffline();
+  const accountReady = Boolean(session && !session.password_change_required);
   document.documentElement.lang = language;
   document.title = `SiteAssistant · ${t(view)}`;
   renderAssistantChrome();
@@ -397,11 +431,12 @@ function renderChrome() {
   nav.innerHTML = rail ? desktopNavigation(navLink) : destinations.map(navLink).join('')
     + `<button type="button" class="nav-more${more ? ' active' : ''}" data-command="more-nav" aria-haspopup="dialog">${icon('more')}<span>${t('more')}</span></button>`;
   if (rail) bindDesktopNavigation();
-  nav.hidden = !session;
+  nav.hidden = !accountReady;
   $('#skip').textContent = t('skip');
-  $('.site-control').hidden = !session;
+  $('.site-control').hidden = !accountReady;
   $('#site-label').textContent = t('site');
   $('#settings-button').title = t('settingsTitle');
+  $('#settings-button').hidden = Boolean(session?.password_change_required);
   $('#settings-button').setAttribute('aria-label', t('settingsTitle'));
   $('#manual-link').textContent = t('manual');
   $('#manual-link').href = `https://as76.github.io/SiteAssistant/${language === 'en' ? 'en/' : ''}${manualPages[view] || ''}`;
@@ -437,9 +472,9 @@ function renderChrome() {
     $('#demo-banner').insertAdjacentHTML('afterend', '<section id="password-banner" class="demo-banner"></section>');
     passwordBanner = $('#password-banner');
   }
-  const bannerDismissed = sessionStorage.getItem('sa-password-banner') === 'hidden';
-  passwordBanner.hidden = !session?.password_change_required || bannerDismissed;
-  passwordBanner.innerHTML = `<strong>${t('passwordChangeNotice')}</strong> ${button('changePassword', 'change-password')} <button type="button" class="text-button" data-command="dismiss-password-banner" aria-label="${t('close')}">×</button>`;
+  passwordBanner.hidden = !session?.password_change_required;
+  passwordBanner.innerHTML = passwordBanner.hidden ? ''
+    : `<h1>${t('passwordChangeNotice')}</h1> ${button('changePassword', 'change-password', offline ? 'disabled' : '')}`;
   logoutButton.hidden = !session; logoutButton.textContent = t('logout');
   $('#site-select').disabled = loading || !state.sites.length;
   $('#language').textContent = language === 'it' ? 'EN' : 'IT';
@@ -524,7 +559,7 @@ function canCloseTodayTask(task) {
 }
 function todayPhotoTargets() {
   const day = operationalDay().date;
-  const entries = moduleVisible('diary') && ['owner', 'editor'].includes(role())
+  const entries = canAttachDiary()
     ? state.diary.filter(entry => entry.siteId === siteId && entry.date === day)
     .map(entry => ({ type: 'diary', id: entry.id, title: `${t('journalToday')} · ${t(entry.shift)}` })) : [];
   const tasks = canEditTask() ? filterSortRecords(siteTasks().filter(task => task.status !== 'closed'), {}, [{ key: 'due' }, { key: 'title' }, { key: 'id' }])
@@ -1040,6 +1075,7 @@ const selectedSavedView = () => savedViewsCache?.data?.find(item => item.id === 
 const canCreateView = () => ['owner', 'editor', 'verifier'].includes(role());
 const canWriteTask = () => ['owner', 'editor', 'verifier'].includes(role());
 const canEditTask = () => canWriteTask() && ['owner', 'editor'].includes(role()) && moduleVisible('tasks');
+const canAttachDiary = () => ['owner', 'editor'].includes(role()) && moduleVisible('diary');
 const canTransitionTask = () => canWriteTask() && moduleVisible('tasks');
 const savingTaskTransitions = new Set();
 function canReviewTask(task) {
@@ -1307,7 +1343,7 @@ function renderDiary() {
   const shownShifts = shifts.length || current.date !== reportDate ? shifts : [current.shift];
   const age = diaryDayAge(reportDate);
   const canWrite = canWriteTask() && availableShifts.length > 0 && age >= 0 && (age <= 7 || role() === 'owner');
-  const canAttach = ['owner', 'editor'].includes(role());
+  const canAttach = canAttachDiary();
   const count = (number, single, multiple) => `<span class="num">${number} ${t(number === 1 ? single : multiple)}</span>`;
   $('#main').innerHTML = `<div class="notebook diary-notebook">
     <header class="notebook-page-head">
@@ -2782,15 +2818,20 @@ function renderHse() {
   let html = `<p class="note">${t('hsePrivacy')}</p><div class="core-kpis" role="status">${kpis}</div><p class="note">${t('hseSummaryHint')}</p>`;
   html += `<div class="toolbar core-toolbar">${coreSelect('type', 'hseType', HSE_TYPES.map(type => [type, t(`hseType_${type}`)]), filter.type, 'hseAllTypes')}${coreSelect('severity', 'hseSeverity', HSE_SEVERITIES.map(severity => [severity, t(`hseSeverity_${severity}`)]), filter.severity, 'hseAllSeverities')}<div class="hse-period-filters">${period}</div></div>`;
   if (filter.from && filter.to && filter.from > filter.to) return html + `<p role="alert">${t('hsePeriodInvalid')}</p>`;
-  html += rows.length ? coreTable(['hseOccurredOn', 'hseEventNo', 'hseType', 'hseSeverity', 'hseLocation', 'hsePersons', 'hseMeasures', ...(canWrite ? ['coreActions'] : [])], rows.map(row => [
+  html += rows.length ? coreTable(['hseOccurredOn', 'hseEventNo', 'hseType', 'hseSeverity', 'hseLocation', 'hsePersons', 'hseMeasures', 'coreActions'], rows.map(row => [
     coreDate(row.occurredOn), coreValue(row.eventNo), t(`hseType_${row.type}`)
       + (['inspection', 'external_visit'].includes(row.type) && row.inspectionId && row.assetId
         ? ` ${button('hseInspectionOpen', 'hse-inspection-open', `data-inspection-id="${esc(row.inspectionId)}" data-asset-id="${esc(row.assetId)}"`, 'small')}` : ''),
     coreStatus(row.severity, t(`hseSeverity_${row.severity}`)),
     coreValue(row.location), row.personsInvolved == null ? '—' : coreNumber(row.personsInvolved, 'count'), coreValue(row.measures),
-    ...(canWrite ? [`<div class="tool-actions hse-actions">${button('edit', 'hse-edit', `data-id="${esc(row.id)}"`, 'small')}<span aria-hidden="true">·</span>${button('coreDelete', 'hse-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`] : []),
+    canWrite ? `<div class="tool-actions hse-actions">${button('edit', 'hse-edit', `data-id="${esc(row.id)}"`, 'small')}<span aria-hidden="true">·</span>${button('coreDelete', 'hse-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`
+      : button('attachments', 'hse-attachments', `data-id="${esc(row.id)}"`, 'small'),
   ])) : empty('hseEmpty', 'hseEmptyHint');
   return html;
+}
+function showHseAttachments(id) {
+  if (!permissions().hse || !moduleVisible('hse') || !coreData('hse').some(row => row.id === id)) return;
+  showModal(t('attachments'), attachmentSection('hse_event', id));
 }
 function showHseForm() {
   if (!permissions().hseWrite) return toast(t('forbidden'));
@@ -2981,6 +3022,7 @@ async function passkeyLogin(discoverable) {
   controls.forEach(control => { control.disabled = true; });
   try {
     await accountLock(async () => {
+      await flushLogout();
       await runPasskey(api, 'login', discoverable ? { discoverable: true } : { email: email.value.trim() });
       await forgetActive(); clearSession(); accountChannel?.postMessage('changed');
     });
@@ -3421,6 +3463,7 @@ function render() {
     $('#main').innerHTML = view === 'today' ? `<div role="status" aria-label="${t('loading')}">${todaySkeleton(3)}</div>` : `<p role="status">${t('loading')}</p>`;
     return;
   }
+  if (session?.password_change_required) { $('#main').innerHTML = ''; return; }
   if (!session && (!loadError || loadError.status === 401)) {
     $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div id="login-rate-limit" class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<span class="password-row"><input name="password" type="password" autocomplete="current-password" required maxlength="1024"><button type="button" class="text-button password-toggle" data-command="toggle-password" aria-label="${t('showPassword')}">◉</button></span></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button>${button('passkeyLogin', 'passkey-login', supportsPasskeys() ? '' : 'disabled')}</div>${button('passkeyDiscoverable', 'passkey-discoverable', supportsPasskeys() ? '' : 'disabled')}${!supportsPasskeys() ? `<p class="note">${t('passkeyUnsupported')}</p>` : ''}</form><div class="heading-actions">${button('requestAccess', 'request-access')}${button('forgotPassword', 'forgot-password')}</div></div></section>`;
     if (loginRetryUntil > Date.now()) updateLoginRetry();
@@ -3755,6 +3798,7 @@ async function showDiaryVersions(id) {
   }
 }
 function showEntryForm(preferredShift = '') {
+  if (!canWriteTask() || !moduleVisible('diary')) return;
   const age = diaryDayAge(reportDate);
   if (age < 0 || (age > 7 && role() !== 'owner')) return;
   const current = operationalDay();
@@ -3764,9 +3808,9 @@ function showEntryForm(preferredShift = '') {
     required: true, options: ['day', 'night'].map(value => `<option value="${value}"${value === shift ? ' selected' : ''}>${t(value)}</option>`).join(''),
   });
   showModal(t(view === 'diary' ? 'diaryCloseShift' : 'newEntry'), `<form id="entry-form" data-date="${esc(reportDate)}" data-current="${isCurrent}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}${isCurrent ? ` · ${t(shift)}` : ''}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${shiftField}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}${age > 7 ? diaryMotivationField() : ''}</div>
-      <label class="dropzone" id="entry-drop" for="entry-photos"><strong>${t('diaryPhotos')}</strong><span>${t('diaryPhotosHint')}</span>
+      ${canAttachDiary() ? `<label class="dropzone" id="entry-drop" for="entry-photos"><strong>${t('diaryPhotos')}</strong><span>${t('diaryPhotosHint')}</span>
         <input id="entry-photos" name="photos" type="file" accept="image/*,application/pdf" multiple hidden></label>
-      <p class="note" id="entry-photos-count" hidden></p>${formActions()}</form>`);
+      <p class="note" id="entry-photos-count" hidden></p>` : ''}${formActions()}</form>`);
   wireDropzone();
 }
 // Photos: pick from the dialog or drop files straight from the desktop (Windows/macOS).
@@ -3807,10 +3851,11 @@ function attachmentUrl(file) {
   return `${api.baseUrl}/api/attachments/${encodeURIComponent(file.id)}`;
 }
 function attachmentSection(entityType, entityId) {
-  const write = entityType === 'task' ? canEditTask()
-    : entityType === 'deviation' ? deviationWrite() : entityType !== 'hse_inspection' || permissions().hseWrite;
   const inspection = entityType === 'hse_inspection';
   const hse = inspection || entityType === 'hse_event';
+  const write = entityType === 'task' ? canEditTask()
+    : entityType === 'deviation' ? deviationWrite()
+    : entityType === 'diary' ? canAttachDiary() : !hse || permissions().hseWrite;
   const sync = entityType === 'task' || entityType === 'deviation' ? notebookSync : syncBadge;
   const files = (state.attachments || []).filter(file => file.entity_type === entityType && file.entity_id === entityId);
   return `<section class="attachment-section"><h3>${t('attachments')}</h3>${hse ? `<p class="note">${t('hseAttachmentRule')}</p><p class="note">${t('hseAttachmentAlternative')}</p>` : ''}${files.map(file => inspection && file.mime?.startsWith('image/') && !file.blob
@@ -3818,8 +3863,9 @@ function attachmentSection(entityType, entityId) {
     : `<p>${button('openAttachment', 'open-attachment', `data-id="${esc(file.id)}"`)} ${esc(file.filename)} ${sync(file)}</p>`).join('')}${write ? button(inspection ? 'addPhoto' : 'addAttachment', 'new-attachment', `data-entity-type="${entityType}" data-id="${esc(entityId)}"`) : ''}</section>`;
 }
 function showAttachmentForm(entityType, entityId, { camera = false } = {}) {
-  if ((entityType === 'task' && !canEditTask()) || (entityType === 'hse_inspection' && !permissions().hseWrite) || (entityType === 'deviation' && !deviationWrite())) return toast(t('forbidden'));
   const hse = ['hse_event', 'hse_inspection'].includes(entityType);
+  if ((entityType === 'task' && !canEditTask()) || (hse && !permissions().hseWrite) ||
+      (entityType === 'diary' && !canAttachDiary()) || (entityType === 'deviation' && !deviationWrite())) return toast(t('forbidden'));
   showModal(t('addAttachment'), `<form id="attachment-form" data-entity-type="${entityType}" data-entity-id="${esc(entityId)}"><div class="form-error" role="alert" tabindex="-1" hidden></div>${hse ? `<p class="note">${t('hseAttachmentRule')}</p><p class="note">${t('hseAttachmentAlternative')}</p>` : ''}<label class="field">${t('attachmentFile')}<input type="file" name="file" accept="${camera ? 'image/*' : 'image/*,application/pdf'}" ${camera ? 'capture="environment"' : ''} required></label><p class="note">${t('attachmentHint')}</p>${hse ? `<label class="field">${t('hseAttachmentDescription')}<textarea name="description" maxlength="200"></textarea></label><p class="note" data-hse-attachment-warning role="status" aria-live="polite" hidden>${t('hseAttachmentWarning')} ${t('hseAttachmentRule')}</p>` : ''}${formActions()}</form>`);
   if (hse) {
     const form = $('#attachment-form');
@@ -3969,6 +4015,7 @@ document.addEventListener('click', event => {
     'tool-delete': () => showToolDelete(id),
     'hse-new': () => { hseEditingId = ''; showHseForm(); },
     'hse-edit': () => { hseEditingId = id; showHseForm(); },
+    'hse-attachments': () => showHseAttachments(id),
     'hse-delete': () => showHseDelete(id),
     'cert-new': () => { certEditingId = ''; showCertificationForm(); },
     'cert-edit': () => { certEditingId = id; showCertificationForm(); },
@@ -4015,7 +4062,6 @@ document.addEventListener('click', event => {
       });
       modal.querySelectorAll('[data-detail-panel]').forEach(section => { section.hidden = section.dataset.detailPanel !== panel; });
     },
-    'dismiss-password-banner': () => { sessionStorage.setItem('sa-password-banner', 'hidden'); renderChrome(); },
     'dismiss-demo-notice': dismissDemoNotice,
     'open-demo-info': showDemoInfo,
     'toggle-password': () => {
@@ -4167,19 +4213,18 @@ document.addEventListener('submit', async event => {
     if (['hse-form', 'hse-delete-form'].includes(form.id)) { await submitHse(form, data); return; }
     if (['cert-form', 'cert-delete-form'].includes(form.id)) { await submitCertification(form, data); return; }
     if (form.id === 'login-form') {
-      await accountLock(async () => { await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
+      await accountLock(async () => { await flushLogout(); await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
       await loadData(); await syncQueue(); return;
     }
     if (form.id === 'password-form') {
       if (data.new_password !== data.confirm_password) throw new Error('passwordMismatch');
       if ([...data.new_password].length < 12 || data.new_password === data.current_password) throw new Error('passwordPolicy');
       await api.changePassword({ current_password: data.current_password, new_password: data.new_password });
-      if (session) session.password_change_required = false;
       if (version === modalVersion) closeModal();
-      render(); toast(t('passwordChanged')); return;
+      await loadData(); await syncQueue(); toast(t('passwordChanged')); return;
     }
     if (['request-form', 'forgot-form'].includes(form.id)) {
-      await (form.id === 'request-form' ? api.requestAccess(data) : api.forgotPassword(data));
+      await (form.id === 'request-form' ? api.requestAccess(data) : api.forgotPassword({ ...data, language }));
       if (version === modalVersion) closeModal();
       toast(t('emailAccepted')); return;
     }
@@ -4209,13 +4254,14 @@ document.addEventListener('submit', async event => {
       message = 'entrySaved';
     }
     if (form.id === 'entry-form') {
+      const photos = [...(form.querySelector('[name=photos]')?.files || [])];
+      if (photos.length && !canAttachDiary()) throw new Error('forbidden');
       const payload = { ...data, siteId: selectedSite, date: form.dataset.date,
         useServerDay: form.dataset.current === 'true' && !offline };
       delete payload.photos;
       diaryPayload(payload);
       const entry = await writeOperation('create_diary', payload);
       if (entry?.date && siteId === selectedSite && version === modalVersion) reportDate = entry.date;
-      const photos = [...(form.querySelector('[name=photos]')?.files || [])];
       for (const file of photos) {
         if (!file.size || file.size > 15 * 1024 * 1024 || !/^(image\/[a-z0-9.+-]+|application\/pdf)$/i.test(file.type)) throw new Error('attachmentInvalid');
       }
@@ -4248,8 +4294,9 @@ document.addEventListener('submit', async event => {
       message = 'actionSaved';
     }
     if (form.id === 'attachment-form') {
-      if ((form.dataset.entityType === 'task' && !canEditTask()) || (form.dataset.entityType === 'hse_inspection' && !permissions().hseWrite) ||
-          (form.dataset.entityType === 'deviation' && !deviationWrite())) throw new Error('forbidden');
+      const { entityType } = form.dataset;
+      if ((entityType === 'task' && !canEditTask()) || (['hse_event', 'hse_inspection'].includes(entityType) && !permissions().hseWrite) ||
+          (entityType === 'diary' && !canAttachDiary()) || (entityType === 'deviation' && !deviationWrite())) throw new Error('forbidden');
       const blob = data.file;
       if (!blob?.size || blob.size > 15 * 1024 * 1024 || !/^(image\/[a-z0-9.+-]+|application\/pdf)$/i.test(blob.type)) throw new Error('attachmentInvalid');
       await writeOperation('create_attachment', { site_id: selectedSite, entity_type: form.dataset.entityType, entity_id: form.dataset.entityId, filename: blob.name, blob });
@@ -4396,7 +4443,12 @@ window.addEventListener('offline', () => { offline = true; renderOffline(); if (
 for (const breakpoint of ['(width < 640px)', '(min-width: 1180px)']) {
   window.matchMedia(breakpoint).addEventListener('change', renderChrome);
 }
-window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view] || view === 'today' || view === 'tasks') render(); void syncQueue(); });
+window.addEventListener('online', () => {
+  offline = false; coreCache.clear(); renderOffline();
+  if (moduleResources[view] || view === 'today' || view === 'tasks') render();
+  if (session) void syncQueue();
+  else void accountLock(flushLogout).catch(error => toast(errorMessage(error)));
+});
 document.addEventListener('visibilitychange', () => { if (!document.hidden) void syncQueue(); });
 
 // Mobile browsers may still expose pinch gestures despite the viewport meta.

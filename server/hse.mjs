@@ -1,3 +1,4 @@
+import { HSE_READ_ROLES, HSE_WRITE_ROLES } from '../app/hse-permissions.mjs';
 import { appendAuditEvent } from './audit.mjs';
 import { randomUUID } from 'node:crypto';
 import { RepositoryError, requireRole } from './repository.mjs';
@@ -9,8 +10,6 @@ import { requireModule } from './module-access.mjs';
 export const HSE_TYPES = Object.freeze(['near_miss', 'accident', 'observation', 'inspection', 'external_visit']);
 export const HSE_MANUAL_TYPES = Object.freeze(['near_miss', 'accident', 'observation']);
 export const HSE_SEVERITIES = Object.freeze(['low', 'medium', 'high']);
-const READ_ROLES = ['owner', 'editor', 'verifier'];
-const WRITE_ROLES = ['owner', 'editor'];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const COLUMNS = `id, site_id, event_no, type, severity, CAST(occurred_on AS TEXT) AS occurred_on,
   location, persons_involved, measures, notes, deviation_id, created_at, updated_at`;
@@ -107,7 +106,7 @@ async function findEvent(db, id) {
 export async function listHseEvents(db, { siteId, type, severity, from, to } = {}, user) {
   requireUser(user);
   const site = validId(siteId, 'site_id');
-  await hseRole(db, site, user, READ_ROLES);
+  await hseRole(db, site, user, HSE_READ_ROLES);
   const clauses = ['e.site_id = ?', 'e.deleted_at IS NULL'], values = [site];
   for (const [field, filter, validate, operator] of [
     ['type', type, v => choice(v, HSE_TYPES, 'type'), '='],
@@ -130,7 +129,7 @@ export async function createHseEvent(db, input, user) {
     requireUser(user);
     object(input);
     const siteId = validId(value(input, 'siteId', 'site_id'), 'site_id');
-    await hseRole(tx, siteId, user, WRITE_ROLES);
+    await hseRole(tx, siteId, user, HSE_WRITE_ROLES);
     const event = { ...nextEvent(input), site_id: siteId };
     await checkDeviation(tx, event);
     const id = randomUUID(), at = new Date().toISOString();
@@ -152,7 +151,7 @@ export async function updateHseEvent(db, id, input, user) {
     // A no-op write locks the live row before reading its audit snapshot on both drivers.
     await tx.run('UPDATE hse_events SET id = id WHERE id = ? AND deleted_at IS NULL', validId(id, 'id'));
     const event = await findEvent(tx, id);
-    await hseRole(tx, event.site_id, user, WRITE_ROLES);
+    await hseRole(tx, event.site_id, user, HSE_WRITE_ROLES);
     if ((Object.hasOwn(input, 'siteId') || Object.hasOwn(input, 'site_id'))
       && validId(value(input, 'siteId', 'site_id'), 'site_id') !== event.site_id) invalid('site_id cannot be changed.');
     const next = nextEvent(input, event);
@@ -173,7 +172,7 @@ export async function deleteHseEvent(db, id, user) {
     // A no-op write locks the live row before reading its audit snapshot on both drivers.
     await tx.run('UPDATE hse_events SET id = id WHERE id = ? AND deleted_at IS NULL', validId(id, 'id'));
     const event = await findEvent(tx, id);
-    await hseRole(tx, event.site_id, user, WRITE_ROLES);
+    await hseRole(tx, event.site_id, user, HSE_WRITE_ROLES);
     const at = new Date().toISOString();
     await tx.run('UPDATE hse_events SET deleted_at = ? WHERE id = ?', at, event.id);
     await appendAuditEvent(tx, { entityType: 'hse_event', action: 'delete', before: event, actor: user.id, at });

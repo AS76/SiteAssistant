@@ -417,7 +417,7 @@ async function inspectionFixture(t) {
     upload: (extra = {}, user = f.users.editor) => createAttachment(f.db, { ...input, ...extra }, user, f.storage) };
 }
 
-test('inspection attachments accept writer uploads and viewer reads with minimal read audit rows', async t => {
+test('inspection attachments accept writer uploads and authorized HSE reads with minimal read audit rows', async t => {
   const { db, site, inspection, input, users, cookies, storage } = await inspectionFixture(t);
   const server = createServer(db, { storage });
   const scoped = `/api/attachments?site_id=${site.id}&entity_type=hse_inspection&entity_id=${inspection.id}`;
@@ -430,7 +430,7 @@ test('inspection attachments accept writer uploads and viewer reads with minimal
   const path = `/api/attachments/${files[0].id}`;
   t.assert.strictEqual((await invoke(server, path)).status, 401);
   for (const role of ['owner', 'editor', 'verifier', 'viewer', 'outsider']) {
-    const allowed = role !== 'outsider';
+    const allowed = ['owner', 'editor', 'verifier'].includes(role);
     const list = await invoke(server, scoped, { cookie: cookies[role] });
     t.assert.strictEqual(list.status, allowed ? 200 : 403, role);
     if (allowed) t.assert.deepStrictEqual(list.body.map(row => row.id).sort(), files.map(row => row.id).sort());
@@ -444,8 +444,8 @@ test('inspection attachments accept writer uploads and viewer reads with minimal
   const audit = await invoke(server, `/api/audit-events?site_id=${site.id}&entity_type=hse_inspection&entity_id=${inspection.id}`, { cookie: cookies.owner });
   t.assert.strictEqual(audit.status, 200);
   const reads = audit.body.filter(row => row.action === 'read');
-  t.assert.strictEqual(reads.length, 4);
-  t.assert.deepStrictEqual(reads.map(row => row.actor).sort(), ['owner', 'editor', 'verifier', 'viewer'].map(role => users[role].id).sort());
+  t.assert.strictEqual(reads.length, 3);
+  t.assert.deepStrictEqual(reads.map(row => row.actor).sort(), ['owner', 'editor', 'verifier'].map(role => users[role].id).sort());
   for (const row of reads) {
     t.assert.strictEqual(row.entity_type, 'hse_inspection');
     t.assert.strictEqual(row.entity_id, inspection.id);
@@ -453,13 +453,13 @@ test('inspection attachments accept writer uploads and viewer reads with minimal
     t.assert.strictEqual(new Date(row.at).toISOString(), row.at);
     t.assert.deepStrictEqual(JSON.parse(row.changes), { attachment: { id: files[0].id, filename: files[0].filename } });
   }
-  t.assert.deepStrictEqual((await invoke(server, `/api/attachments?site_id=${site.id}`, { cookie: cookies.viewer })).body.map(row => row.id).sort(), files.map(row => row.id).sort());
+  t.assert.deepStrictEqual((await invoke(server, `/api/attachments?site_id=${site.id}`, { cookie: cookies.viewer })).body, []);
   for (const role of ['verifier', 'viewer']) {
     t.assert.strictEqual((await invoke(server, path, { method: 'DELETE', cookie: cookies[role] })).status, 403);
   }
-  await saveModuleAccess(db, { siteId: site.id, memberId: users.viewer.id, module: 'hse', allowed: false }, users.owner);
-  t.assert.strictEqual((await invoke(server, path, { cookie: cookies.viewer })).status, 403);
-  t.assert.strictEqual((await invoke(server, scoped, { cookie: cookies.viewer })).status, 403);
+  await saveModuleAccess(db, { siteId: site.id, memberId: users.verifier.id, module: 'hse', allowed: false }, users.owner);
+  t.assert.strictEqual((await invoke(server, path, { cookie: cookies.verifier })).status, 403);
+  t.assert.strictEqual((await invoke(server, scoped, { cookie: cookies.verifier })).status, 403);
   t.assert.deepStrictEqual((await invoke(server, `/api/attachments?site_id=${site.id}`, { cookie: cookies.viewer })).body, []);
   t.assert.strictEqual((await invoke(server, path, { method: 'DELETE', cookie: cookies.editor })).status, 204);
 });
@@ -473,8 +473,9 @@ test('inspection attachments disappear from lists when inspection site differs a
   for (const role of ['owner', 'editor', 'verifier', 'viewer']) {
     for (const suffix of ['', '&entity_type=hse_inspection']) {
       const response = await invoke(server, `/api/attachments?site_id=${site.id}${suffix}`, { cookie: cookies[role] });
-      t.assert.strictEqual(response.status, 200);
-      t.assert.deepStrictEqual(response.body, []);
+      const allowed = !suffix || role !== 'viewer';
+      t.assert.strictEqual(response.status, allowed ? 200 : 403);
+      if (allowed) t.assert.deepStrictEqual(response.body, []);
     }
     t.assert.strictEqual((await invoke(server, `/api/attachments/${file.id}`, { cookie: cookies[role] })).status, 403);
   }
@@ -494,7 +495,7 @@ test('inspection downloads keep the existing non-fatal audit failure behavior', 
   };
   const logs = [];
   t.mock.method(console, 'error', (...args) => logs.push(args));
-  const response = await invoke(createServer(failing, { storage }), `/api/attachments/${file.id}`, { cookie: cookies.viewer });
+  const response = await invoke(createServer(failing, { storage }), `/api/attachments/${file.id}`, { cookie: cookies.verifier });
   t.assert.strictEqual(response.status, 200);
   t.assert.strictEqual(response.complete, true);
   t.assert.deepStrictEqual(response.raw, data);

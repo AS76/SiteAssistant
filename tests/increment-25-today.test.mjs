@@ -473,3 +473,15 @@ test('future diary next steps stay out of Now even when a future night shift has
   assert.doesNotMatch(ui.nodes['#main'].innerHTML, /Future handover/);
   assert.equal(todayActions(input({ diary: diary.slice(0, 1) })).some(row => row.kind === 'diary-next'), false);
 });
+
+test('diary attachment controls require the diary module and owner or editor', () => {
+  for (const memberRole of ['owner', 'editor', 'verifier', 'viewer']) {
+    const ui = todayUi({ memberRole, diary: [{ id: 'entry', siteId: 'site-a', date: day, shift: 'day' }] });
+    const allowed = ['owner', 'editor'].includes(memberRole);
+    assert.equal(ui.context.todayPhotoTargets().some(item => item.type === 'diary'), allowed);
+    ui.context.runTodayQuick('diary');
+    assert.equal(ui.dialogs.some(dialog => dialog.html.includes('id="entry-photos"')), allowed);
+  }
+  const denied = todayUi({ memberRole: 'editor', modules: { diary: false }, diary: [{ id: 'entry', siteId: 'site-a', date: day, shift: 'day' }] });
+  assert.equal(denied.context.todayPhotoTargets().length, 0);
+});

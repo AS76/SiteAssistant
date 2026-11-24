@@ -306,7 +306,7 @@ The `summary=1` reply counts all five types: `by_type` always carries `inspectio
 
 ## HSE assets and the inspection catalogue
 
-**HSE assets** are what the site has to inspect: tools, site works and personal protective equipment. They are created and edited from the **Inspections** view of the HSE section; deletion is API only. Reading is open to every site member, `viewer` included; writing is reserved to **owners** and **editors**. The `hse` module is required, on reads and writes alike: a member excluded from the module receives `403 MODULE_FORBIDDEN`.
+**HSE assets** are what the site has to inspect: tools, site works and personal protective equipment. They are created and edited from the **Inspections** view of the HSE section; deletion is API only. Owners, editors and verifiers read. Owners and editors write. The `hse` module is required, on reads and writes alike: a member excluded from the module receives `403 MODULE_FORBIDDEN`.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
@@ -338,7 +338,7 @@ Today every template is `draft: true`: they are drafts, not yet enabled. Every s
 
 ## HSE inspections
 
-An **HSE inspection** records the outcome of the checks on an HSE asset on a given date. One inspection is one row, and every template item is a row of its own: the inspection keeps the label of each check as it was in the template on the day it was filled in, so a later change to the template cannot rewrite a past inspection. They are recorded from the subject page in the interface **Inspections** view (see [HSE](../../moduli/hse/#recording-an-inspection)) and through the API; they are read from the API and from the subject page, which shows state, history and individual checks (see [HSE](../../moduli/hse/#opening-a-subject-state-history-and-checks)). Every site member reads, `viewer` included; **owners** and **editors** write. The `hse` module is required, on reads and writes alike.
+An **HSE inspection** records the outcome of the checks on an HSE asset on a given date. One inspection is one row, and every template item is a row of its own: the inspection keeps the label of each check as it was in the template on the day it was filled in, so a later change to the template cannot rewrite a past inspection. They are recorded from the subject page in the interface **Inspections** view (see [HSE](../../moduli/hse/#recording-an-inspection)) and through the API; they are read from the API and from the subject page, which shows state, history and individual checks (see [HSE](../../moduli/hse/#opening-a-subject-state-history-and-checks)). Owners, editors and verifiers read. Owners and editors write. The `hse` module is required, on reads and writes alike.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
@@ -397,17 +397,19 @@ The dashboard includes `workDays` (only `operationalDate` and `workTime`, preser
 
 ## Import status
 
-**Import status** is a read-only summary of the latest complete bundle per project scope: it is the same content as the **Import status** view (see [Import status](../../moduli/reporting/)). It does not depend on a site: the route does not accept `site_id` and answers with the scopes present in the reporting database.
+**Import status** is a read-only summary of the latest complete bundle per project scope: it is the same content as the **Import status** view (see [Import status](../../moduli/reporting/)). The server derives the scope from the session and ignores query parameters such as `site_id`.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/reporting/overview` | member with the `reporting` module in at least one site | `{ configured, scopes }`; no parameters |
 
-`configured` is `false` when the server has no reporting database connection (`REPORTING_DATABASE_URL` missing or blank): the answer is still `200`, with `scopes` empty, and no query runs. With the connection configured, `scopes` lists one item per scope: `scopeId`, `projectReference` (`null` when absent), `exportDate` (`YYYY-MM-DD` or `null`), `loadedAt` (ISO 8601 or `null`), `counts` with the six families `employees`, `work_days`, `time_schedule`, `site_progress_items`, `daily_logs` and `deviations`, `totalRows` and `qualityIssues`.
+`configured` is `false` when the server has no reporting database connection (`REPORTING_DATABASE_URL` missing or blank): the answer is still `200`, with `scopes` empty, and no query runs. With the connection configured, `scopes` lists one item per authorized scope: `scopeId`, `projectReference` (`null` when absent), `exportDate` (`YYYY-MM-DD` or `null`), `loadedAt` (ISO 8601 or `null`), `counts` with the six families `employees`, `work_days`, `time_schedule`, `site_progress_items`, `daily_logs` and `deviations`, `totalRows` and `qualityIssues`.
+
+Scoped access uses the trusted site-to-scope links already configured for WBS, workforce, progress and deviation imports. The caller needs reporting access in every site linked to a scope, including when several import families reference it. If no scope qualifies, the response is `200` with an empty `scopes` array and the reporting database is not queried. Global access requires a current site owner role and the authenticated user ID in the server’s comma-separated `REPORTING_GLOBAL_OWNER_IDS` setting. It is disabled by default.
 
 The counts are non-negative integers and `totalRows` is their sum. The answer contains no detail rows, source payloads or load identifiers. Scopes are sorted by project reference and identifier, and the read runs in a single `REPEATABLE READ READ ONLY` transaction, so metadata and counts describe the same load.
 
-The route accepts `GET` only: other methods answer `404`. Without a valid session the answer is `401`; if the module is not allowed in any of the member's sites it is `403 MODULE_FORBIDDEN`; if the reporting database does not answer it is `503 REPORTING_UNAVAILABLE`, with a generic message and no error details. There are no write routes, and a `site_id` in the query is ignored.
+The route accepts `GET` only: other methods answer `404`. Without a valid session the answer is `401`; if the module is not allowed in any of the member's sites it is `403 MODULE_FORBIDDEN`; if the reporting database does not answer it is `503 REPORTING_UNAVAILABLE`, with a generic message and no error details. There are no import-status export or write routes.
 
 ## Planning export import
 
@@ -437,7 +439,7 @@ Attachments on **tasks, diary, HSE events and HSE inspections** can also be uplo
 | GET | `/api/attachments/{id}` | member; for `hse_event` owner/editor/verifier | Download the bytes |
 | DELETE | `/api/attachments/{id}` | owner/editor | Delete |
 
-Attachments on an HSE event follow the register's rules: the HSE module is required and reading is open to owners, editors and verifiers; upload and deletion stay with owners and editors. A deleted event hides its attachments: the list does not return them and the download answers `404 HSE_NOT_FOUND`. Attachments on an HSE inspection require the HSE module but are read by every site role, viewers included; upload and deletion also stay with owners and editors, and the list returns them only when the inspection exists in the same site. Every download of an HSE attachment — on an event or an inspection — writes a `read` row in the audit register, with the file id and name; if the write fails the download still works. The optional description in the upload form only feeds the warning in the interface: it is neither sent nor saved.
+Attachments on an HSE event follow the register's rules: the HSE module is required and reading is open to owners, editors and verifiers; upload and deletion stay with owners and editors. A deleted event hides its attachments: the list does not return them and the download answers `404 HSE_NOT_FOUND`. Attachments on an HSE inspection follow the register’s role matrix and require the HSE module; upload and deletion also stay with owners and editors, and the list returns them only when the inspection exists in the same site. Every download of an HSE attachment — on an event or an inspection — writes a `read` row in the audit register, with the file id and name; if the write fails the download still works. The optional description in the upload form only feeds the warning in the interface: it is neither sent nor saved.
 
 Files up to **15 MiB** are accepted, images or PDF only (`UNSUPPORTED_MEDIA_TYPE`, `ATTACHMENT_TOO_LARGE`). Upload and deletion are reserved to owners and editors; reading to all members, with the HSE exception above. Before registering the attachment the application reads the stored bytes back and compares the checksum: if it does not match, the file is removed and the response is `502`.
 

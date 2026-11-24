@@ -310,3 +310,23 @@ test('worker Background Sync replays without a page and rejects transient work f
   await assert.rejects(f.dispatch('sync', { tag: SYNC_TAG }), /connectivity/);
   f.state.active = null; await f.dispatch('sync', { tag: SYNC_TAG });
 });
+
+test('purging a scope removes its mirror, pending operations and receipts while preserving another account', async () => {
+  const { store, replay, api, enqueue } = await fixture();
+  const other = scopeFor(baseUrl, 'other-user');
+  api.createTask = async () => ({ id: 'confirmed-task' });
+  const confirmed = await enqueue('create_task', task);
+  await replay();
+  await enqueue('create_diary', diary);
+  await store.setMirror(`state:${other}`, { tasks: [] });
+  await store.enqueue({ scope: other, op_type: 'create_task', payload: task });
+  await store.withSyncLock(() => store.purgeScope(scope, 'logout:test'));
+  assert.equal(await store.getMirror('active'), undefined);
+  assert.equal(await store.getMirror(`state:${scope}`), undefined);
+  assert.equal(await store.getMirror('logout:test'), true);
+  assert.equal(await store.confirmedCreation(scope, confirmed.entity_id), undefined);
+  assert.deepEqual(await store.listOps(scope), []);
+  assert.equal((await store.listOps(other)).length, 1);
+  assert.deepEqual(await store.getMirror(`state:${other}`), { tasks: [] });
+  await assert.rejects(() => store.enqueue({ scope, op_type: 'create_task', payload: task }, { requireActive: true }), /authRequired/);
+});

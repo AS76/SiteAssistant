@@ -14,7 +14,7 @@ function dateUi(language) {
   const status = { textContent: '' };
   const context = createContext({
     language, formatDateInput, t: key => messages[language][key] || key,
-    heading: () => '', empty: () => '', role: () => 'editor', canWriteTask: () => true,
+    heading: () => '', empty: () => '', role: () => 'editor', canWriteTask: () => true, canAttachDiary: () => true,
     state: { diary: [] }, siteId: 'site-1', reportDate: '2026-11-10', offline: false, moduleVisible: () => true,
     currentSite: () => ({}), timeZoneForSite: () => 'Europe/Rome',
     dateLabel: date => date, today: () => '2026-11-10', operationalDay: () => ({ date: '2026-11-10', shift: 'day' }),

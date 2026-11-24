@@ -44,7 +44,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE assets ${driver === 'pg' && !is
       create: (input = {}, user = users.owner) => createHseAsset(db, {
         siteId: site.id, templateCode: `${jurisdiction.toLowerCase()}_lifting`, name: 'Synthetic asset', ...input,
       }, user),
-      list: (user = users.viewer) => listHseAssets(db, { siteId: site.id }, user),
+      list: (user = users.verifier) => listHseAssets(db, { siteId: site.id }, user),
     };
   };
   const error = (status, code) => ({ status, code });
@@ -73,7 +73,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE assets ${driver === 'pg' && !is
       error(400, 'TEMPLATE_JURISDICTION_MISMATCH'));
     await t.assert.rejects(() => updateHseAsset(db, row.id, { templateCode: 'uk_ppe' }, users.owner),
       error(400, 'TEMPLATE_JURISDICTION_MISMATCH'));
-    t.assert.strictEqual((await getHseAsset(db, row.id, users.viewer)).template_code, 'it_lifting');
+    t.assert.strictEqual((await getHseAsset(db, row.id, users.verifier)).template_code, 'it_lifting');
     const british = await fixture('UK');
     t.assert.strictEqual((await british.create()).template_code, 'uk_lifting');
   });
@@ -94,7 +94,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE assets ${driver === 'pg' && !is
     const second = await f.create({ name: 'Second asset' });
     await t.assert.rejects(() => updateHseAsset(db, second.id, { name: row.name }, users.owner),
       error(409, 'DUPLICATE_ASSET_NAME'));
-    t.assert.strictEqual((await getHseAsset(db, second.id, users.viewer)).name, 'Second asset');
+    t.assert.strictEqual((await getHseAsset(db, second.id, users.verifier)).name, 'Second asset');
     t.assert.strictEqual((await db.all("SELECT * FROM audit_events WHERE entity_id = ? AND action = 'update'", second.id)).length, 0);
   });
 
@@ -109,7 +109,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE assets ${driver === 'pg' && !is
       t.assert.deepStrictEqual(await f.list(), []);
       t.assert.ok((await db.get('SELECT * FROM hse_assets WHERE id = ?', row.id)).deleted_at);
       for (const call of [
-        () => getHseAsset(db, row.id, users.viewer),
+        () => getHseAsset(db, row.id, users.verifier),
         () => updateHseAsset(db, row.id, {}, users.owner),
         () => deleteHseAsset(db, row.id, users.owner),
       ]) await t.assert.rejects(call, error(404, 'HSE_ASSET_NOT_FOUND'));
@@ -165,7 +165,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE assets ${driver === 'pg' && !is
     t.assert.strictEqual((await f.create({ toolId: tool.id.toUpperCase() })).tool_id, tool.id);
   });
 
-  await t.test('role matrix permits owner and editor writes, site members read', async t => {
+  await t.test('role matrix permits owner and editor writes, HSE readers read', async t => {
     const f = await fixture(), row = await f.create();
     for (const role of ['owner', 'editor']) {
       const created = await f.create({ name: `Asset ${role}` }, users[role]);
@@ -179,10 +179,12 @@ for (const driver of ['sqlite', 'pg']) test(`HSE assets ${driver === 'pg' && !is
         () => deleteHseAsset(db, row.id, users[role]),
       ]) await t.assert.rejects(call, error(403, 'FORBIDDEN'));
     }
-    for (const role of ['owner', 'editor', 'verifier', 'viewer']) {
+    for (const role of ['owner', 'editor', 'verifier']) {
       t.assert.deepStrictEqual((await f.list(users[role])).map(row => row.id), [row.id]);
       t.assert.strictEqual((await getHseAsset(db, row.id, users[role])).id, row.id);
     }
+    await t.assert.rejects(() => f.list(users.viewer), error(403, 'FORBIDDEN'));
+    await t.assert.rejects(() => getHseAsset(db, row.id, users.viewer), error(403, 'FORBIDDEN'));
     const nonmember = await fixture('IT', ['owner']);
     const other = await nonmember.create();
     for (const call of [
@@ -217,7 +219,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE assets ${driver === 'pg' && !is
     const removed = await f.create({ name: 'Hidden' });
     await deleteHseAsset(db, removed.id, users.owner);
     await other.create();
-    const rows = await listHseAssets(db, { siteId: f.site.id.toUpperCase() }, users.viewer);
+    const rows = await listHseAssets(db, { siteId: f.site.id.toUpperCase() }, users.verifier);
     t.assert.deepStrictEqual(rows.map(row => row.id), [a.id, z.id, ppe.id, scaffold.id]);
     for (const row of rows) {
       t.assert.strictEqual(row.templateTitle, findTemplate(row.template_code).title);
@@ -242,9 +244,9 @@ for (const driver of ['sqlite', 'pg']) test(`HSE assets ${driver === 'pg' && !is
       await t.assert.rejects(() => updateHseAsset(db, row.id, input, users.owner), error(400, 'VALIDATION_ERROR'));
     }
     for (const call of [
-      () => listHseAssets(db, { siteId: 'invalid' }, users.viewer),
+      () => listHseAssets(db, { siteId: 'invalid' }, users.verifier),
       () => f.create({ siteId: 'invalid' }),
-      () => getHseAsset(db, 'invalid', users.viewer),
+      () => getHseAsset(db, 'invalid', users.verifier),
       () => updateHseAsset(db, 'invalid', {}, users.owner),
       () => deleteHseAsset(db, 'invalid', users.owner),
     ]) await t.assert.rejects(call, error(400, 'VALIDATION_ERROR'));
@@ -347,7 +349,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE assets ${driver === 'pg' && !is
     t.assert.strictEqual(created.body.kind, 'tool');
     t.assert.strictEqual(created.body.category, 'lifting');
     const id = created.body.id;
-    const listed = await api(`${path}?siteId=${f.site.id}`, { role: 'viewer' });
+    const listed = await api(`${path}?siteId=${f.site.id}`, { role: 'verifier' });
     t.assert.strictEqual(listed.status, 200);
     t.assert.deepStrictEqual(listed.body.map(row => row.id), [id]);
     t.assert.strictEqual(listed.body[0].templateTitle, findTemplate('it_lifting').title);
@@ -359,6 +361,8 @@ for (const driver of ['sqlite', 'pg']) test(`HSE assets ${driver === 'pg' && !is
     const foreignTool = await createTool(db, { siteId: other.site.id, name: 'Foreign tool' }, users.owner);
     for (const [url, method, body, role, status, code] of [
       [path, 'POST', input, 'viewer', 403, 'FORBIDDEN'],
+      [`${path}?siteId=${f.site.id}`, 'GET', undefined, 'viewer', 403, 'FORBIDDEN'],
+      [`/api/hse/inspection-templates?siteId=${f.site.id}`, 'GET', undefined, 'viewer', 403, 'FORBIDDEN'],
       [`${path}/${id}`, 'PATCH', {}, 'viewer', 403, 'FORBIDDEN'],
       [`${path}/${id}`, 'DELETE', undefined, 'viewer', 403, 'FORBIDDEN'],
       [path, 'POST', input, 'verifier', 403, 'FORBIDDEN'],

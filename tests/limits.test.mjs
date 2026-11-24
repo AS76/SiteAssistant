@@ -263,3 +263,18 @@ test('HTTP socket smoke: anonymous rate limiting returns headers and JSON over H
   t.assert.strictEqual(result.headers.get('x-ratelimit-remaining'), '0');
   t.assert.deepStrictEqual(await result.json(), { error: 'Too many requests.', code: 'RATE_LIMITED' });
 });
+
+test('a configured loopback proxy exposes only the trusted suffix of the forwarded chain', async t => {
+  const api = requestListener(createServer({}, {
+    trustedProxyIps: '127.0.0.1, 2001:db8::100',
+    anonLimiter: createRateLimiter({ max: 1 }),
+  }));
+  const health = (ip, forwarded) => api('/api/health', { ip, headers: { 'x-forwarded-for': forwarded } });
+  t.assert.strictEqual((await health('::ffff:127.0.0.1', '192.0.2.9, 192.0.2.1, 2001:db8:0::100')).status, 200);
+  t.assert.strictEqual((await health('127.0.0.1', '192.0.2.8, 192.0.2.1')).status, 429);
+  t.assert.strictEqual((await health('127.0.0.1', '192.0.2.9, 192.0.2.2')).status, 200);
+  t.assert.strictEqual((await health('192.0.2.1', '192.0.2.3')).status, 429);
+  t.assert.strictEqual((await health('127.0.0.1', '192.0.2.3, malformed')).status, 200);
+  t.assert.strictEqual((await health('127.0.0.1', '2001:db8::100')).status, 429);
+  t.assert.throws(() => createServer({}, { trustedProxyIps: '127.0.0.1/8' }), /TRUSTED_PROXY_IPS/);
+});
