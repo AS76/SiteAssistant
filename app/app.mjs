@@ -3132,7 +3132,10 @@ function renderImportPreview(preview) {
   const rows = [['added', 'importAdded'], ['updated', 'importUpdated'], ['unchanged', 'importUnchanged'], ['removed', 'importRemoved'], ['rejected', 'importRejected']]
     .map(([key, label]) => `<li><strong>${counts[key] ?? 0}</strong> ${t(label)}</li>`).join('');
   const rejected = (preview.samples?.rejected || []).slice(0, 8)
-    .map(row => `<li>${esc(row.source_row ?? '')} — ${esc(row.rejected || '')}${row.reason ? `: ${esc(row.reason)}` : ''}</li>`).join('');
+    .map(row => {
+      const reason = row.rejected === 'AMBIGUOUS_NUMBER' ? t('importAmbiguousNumber') : row.reason;
+      return `<li>${esc(row.source_row ?? '')} — ${esc(row.rejected || '')}${reason ? `: ${esc(reason)}` : ''}</li>`;
+    }).join('');
   return `<h3>${t('importPreviewTitle')}</h3><ul class="import-counts">${rows}</ul>` +
     (rejected ? `<h4>${t('importRejectedRows')}</h4><ul class="import-rejected">${rejected}</ul>` : '');
 }

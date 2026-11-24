@@ -616,6 +616,7 @@ export const messages = {
     importRemoved: "assenti (non toccate)",
     importRejected: "rifiutate",
     importRejectedRows: "Righe rifiutate",
+    importAmbiguousNumber: "Separatore decimale o delle migliaia ambiguo. Usa una cella numerica XLSX o scrivi il numero in modo univoco.",
     importApplied: "Import completato",
     importTooBig: "Il file supera i 20 MiB.",
 
@@ -1321,6 +1322,7 @@ export const messages = {
     importRemoved: "missing (untouched)",
     importRejected: "rejected",
     importRejectedRows: "Rejected rows",
+    importAmbiguousNumber: "Ambiguous decimal or thousands separator. Use a numeric XLSX cell or write the number unambiguously.",
     importApplied: "Import completed",
     importTooBig: "The file exceeds 20 MiB.",
 
