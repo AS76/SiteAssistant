@@ -30,7 +30,7 @@
 }
 [hidden]{display:none!important}
 *{box-sizing:border-box}body{margin:0;font-size:15px;line-height:1.5}
-html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:pan-x pan-y}button,input,select,textarea{font:inherit}button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.5}a{color:inherit}button,input,select,textarea{border-radius:8px}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,main:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}button{border:1px solid var(--line);background:white;color:var(--ink);padding:10px 15px;font-weight:600}button:hover{background:#eef3f0}button.primary{background:var(--green);border-color:var(--green);color:white}button.primary:hover{background:#0d5544}button.danger{color:#a73c37;border-color:#e5c4c1}button.small{padding:6px 11px;font-size:12px}.text-button{background:transparent;border:0;padding:6px 8px;font-size:12px;color:var(--muted)}.text-button:hover{color:var(--green)}.skip{position:fixed;top:-60px;left:20px;background:var(--surface);padding:12px;z-index:50}.skip:focus{top:12px}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}button,input,select,textarea{font:inherit}button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.5}a{color:inherit}button,input,select,textarea{border-radius:8px}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,main:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}button{border:1px solid var(--line);background:white;color:var(--ink);padding:10px 15px;font-weight:600}button:hover{background:#eef3f0}button.primary{background:var(--green);border-color:var(--green);color:white}button.primary:hover{background:#0d5544}button.danger{color:#a73c37;border-color:#e5c4c1}button.small{padding:6px 11px;font-size:12px}.text-button{background:transparent;border:0;padding:6px 8px;font-size:12px;color:var(--muted)}.text-button:hover{color:var(--green)}.skip{position:fixed;top:-60px;left:20px;background:var(--surface);padding:12px;z-index:50}.skip:focus{top:12px}
 /* App shell */
 .num { font-variant-numeric: tabular-nums; }
 .sidebar { display: none; }
@@ -932,9 +932,8 @@ footer{font-size:11px}
 .logistics-tabs .view-toggle button.selected { background: transparent; color: var(--green); border-bottom-color: var(--green); }
 
 
-/* Mobile: keep the layout at its designed scale. Native inputs stay at 16px
-   so iOS does not zoom the page when a field receives focus. */
-@media (max-width: 800px) {
+/* Keep fields at 16px on mobile, including wide touch screens, to avoid iOS focus zoom. */
+@media (max-width: 800px), (pointer: coarse) {
   input, select, textarea { font-size: 16px !important; }
 }
 

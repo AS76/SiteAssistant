@@ -540,12 +540,12 @@ test('diary corrections follow the site cutoff for editors and are always availa
   assert.match(app.node('#main').innerHTML, /data-command="diary-correct"/);
 });
 
-test('41.07 M2 — mobile pages keep their scale: no pinch zoom, no focus zoom, no text inflation', () => {
-  assert.match(shell, /<meta name="viewport" content="[^"]*width=device-width[^"]*initial-scale=1[^"]*maximum-scale=1[^"]*user-scalable=no/);
-  assert.match(css, /html\{[^}]*-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:pan-x pan-y/);
-  assert.match(css, /@media \(max-width: 800px\) \{\s*input, select, textarea \{ font-size: 16px !important; \}/);
-  assert.match(source, /for \(const type of \['gesturestart', 'gesturechange', 'gestureend'\]\)/);
-  assert.match(source, /if \(event\.touches\.length > 1\) event\.preventDefault\(\)/);
+test('mobile pages allow voluntary zoom and keep field text at least 16px', () => {
+  assert.match(shell, /<meta name="viewport" content="width=device-width, initial-scale=1">/);
+  assert.match(css, /html\{[^}]*-webkit-text-size-adjust:100%;text-size-adjust:100%/);
+  assert.doesNotMatch(css, /touch-action\s*:/);
+  assert.match(css, /@media \(max-width: 800px\), \(pointer: coarse\) \{\s*input, select, textarea \{ font-size: 16px !important; \}/);
+  assert.doesNotMatch(source, /gesture(?:start|change|end)|addEventListener\('touchmove'/);
 });
 
 test('WBS filter announces exact and subtree scopes with unique visible item counts', () => {
