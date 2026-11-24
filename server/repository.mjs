@@ -314,7 +314,22 @@ export async function getTask(db, id) {
   if (!task) fail(404, 'Task not found.', 'TASK_NOT_FOUND');
   const events = await db.all('SELECT * FROM task_events WHERE task_id = ? ORDER BY at, id', id);
   const history = events.map(event => Object.hasOwn(event, 'waiver') ? { ...event, waiver: Boolean(event.waiver) } : event);
-  return { ...await taskWithWbs(db, task), events: history,
+  // Formal acceptance has its own audit history and does not transition task status.
+  const acceptanceEvents = [];
+  if (task.acceptance_state === 'accepted') {
+    const updates = await db.all(`SELECT a.id, a.at, u.name AS actor, a.changes FROM audit_events a
+      LEFT JOIN users u ON u.id = a.actor
+      WHERE a.site_id = ? AND a.entity_type = 'task' AND a.entity_id = ? AND a.action = 'update'
+      ORDER BY a.at, a.id`, task.site_id, task.id);
+    for (const { changes, ...event } of updates) {
+      const diff = JSON.parse(changes);
+      if (diff.acceptance_state?.to !== 'accepted' && !diff.acceptance_document_id && !diff.acceptance_date) continue;
+      const previous = acceptanceEvents.at(-1);
+      acceptanceEvents.push({ ...event, document_id: diff.acceptance_document_id?.to ?? previous?.document_id ?? null,
+        date: diff.acceptance_date?.to ?? previous?.date ?? null });
+    }
+  }
+  return { ...await taskWithWbs(db, task), events: history, acceptance_events: acceptanceEvents,
     reopen_count: history.filter(event => event.from_status === 'closed' && event.to_status !== 'closed').length,
     closed_with_waiver: task.status === 'closed' && Boolean(history.findLast(event =>
       event.to_status === 'closed' && event.from_status !== 'closed')?.waiver) };

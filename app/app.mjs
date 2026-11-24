@@ -4,6 +4,7 @@ import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
 import { messages } from './i18n.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
 import { hasOpenProgressSteps } from './domain.mjs';
+import { taskVerificationOutcome } from './domain.mjs';
 import { INSPECTION_STATUSES, inspectionStatusLabelKey, filterHseAssets, sortHseAssets, hseAssetCounts, inspectionOutcomeLabelKey, inspectionModeLabelKey, inspectionItemResultLabelKey, inspectionTally, sortInspections, inspectionSuggestion, inspectionProgress, inspectionPayload } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, purgeScope, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
@@ -63,7 +64,6 @@ const evidenceLabels = {
   evidenceFull: ['Completa', 'Full'],
   evidencePartial: ['Parziale', 'Partial'],
   evidenceNone: ['Assente', 'None'],
-  evidenceNoDeclaration: ['Nessuna dichiarazione', 'No declaration'],
   evidenceAbsence: ['Presenza nell’export', 'Export presence'],
   evidencePresent: ['Presente nell’export completo del {date} (perimetro: {scope})', 'Present in the complete export dated {date} (scope: {scope})'],
   evidenceAbsent: ['Assente dall’export completo del {date} (perimetro: {scope})', 'Absent from the complete export dated {date} (scope: {scope})'],
@@ -98,7 +98,11 @@ const evidenceLabels = {
   evidenceDeclared: ['Dichiarata il', 'Declared on'],
   evidenceVerified: ['Verificata il', 'Verified on'],
   evidenceAcceptance: ['Accettazione formale', 'Formal acceptance'],
-  evidenceAcceptanceHint: ['Stato della dichiarazione e della verifica del risultato.', 'Status of the result declaration and verification.'],
+  evidenceVerification: ['Verifica operativa', 'Operational verification'],
+  evidenceVerificationPending: ['Verifica da registrare', 'Verification pending'],
+  evidenceVerificationRecorded: ['Verifica registrata', 'Verification recorded'],
+  evidenceVerificationLegacy: ['Chiusura storica senza verifica documentata', 'Historical closure without documented verification'],
+  evidenceAcceptanceNotRecorded: ['Accettazione formale non registrata', 'Formal acceptance not recorded'],
   evidenceAccepted: ['Accettata', 'Accepted'],
   evidenceAcceptanceDocument: ['Documento di accettazione', 'Acceptance document'],
   evidenceAcceptanceDate: ['Data di accettazione', 'Acceptance date'],
@@ -3645,22 +3649,23 @@ async function showTaskForm() {
   }
 }
 function taskEvidence(task) {
-  const label = { accepted: 'evidenceAccepted', declared: 'evidenceDeclared', none: 'evidenceNoDeclaration' };
   const files = state.attachments.filter(file => file.entity_type === 'task' && file.entity_id === task.id && !file.localOnly);
   const document = files.find(file => file.id === task.acceptance_document_id);
   const canAccept = canTransitionTask() && !offline && !task.localOnly && (role() === 'owner' || (role() === 'verifier' && task.verifier_id === session?.user.id));
-  const status = t(label[task.acceptance_state] || 'evidenceNoDeclaration');
+  const outcome = { pending: 'evidenceVerificationPending', waived: 'evidenceWaiver', verified: 'evidenceVerificationRecorded', legacy: 'evidenceVerificationLegacy' };
+  const accepted = task.acceptance_state === 'accepted';
   const form = canAccept && files.length ? `<form id="task-acceptance-form" data-id="${esc(task.id)}">
     <div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">
     ${field('evidenceAcceptanceDocument', 'documentId', '', { required: true, options: `<option value="">${t('coreChoose')}</option>` +
       files.map(file => `<option value="${esc(file.id)}" ${file.id === document?.id ? 'selected' : ''}>${esc(file.filename)}</option>`).join('') })}
     ${field('evidenceAcceptanceDate', 'date', task.acceptance_date || '', { required: true, type: 'date' })}</div>
     <div class="form-actions"><button type="submit" class="primary">${t('evidenceAcceptance')}</button></div></form>` : '';
-  return `<section><h3>${t('evidenceAcceptance')}</h3><p class="note">${t('evidenceAcceptanceHint')}</p>${coreFields({ declared: task.declared_at && timeLabel(task.declared_at),
-    verified: task.verified_at && timeLabel(task.verified_at), statusLabel: status, reopenCount: task.reopen_count ?? 0 },
-    [['declared', 'evidenceDeclared'], ['verified', 'evidenceVerified'], ['statusLabel', 'status'], ['reopenCount', 'evidenceReopenCount']])}
+  return `<section><h3>${t('evidenceVerification')}</h3><p>${t(outcome[taskVerificationOutcome(task)])}</p>${coreFields({ declared: task.declared_at && timeLabel(task.declared_at),
+    verified: task.verified_at && timeLabel(task.verified_at), reopenCount: task.reopen_count ?? 0 },
+    [['declared', 'evidenceDeclared'], ['verified', 'evidenceVerified'], ['reopenCount', 'evidenceReopenCount']])}</section>
+    <section><h3>${t('evidenceAcceptance')}</h3><p>${t(accepted ? 'evidenceAccepted' : 'evidenceAcceptanceNotRecorded')}</p>
     ${task.acceptance_date ? `<p>${dateLabel(task.acceptance_date)}${document ? ` · ${esc(document.filename)}` : ''}</p>` : ''}
-    ${task.closed_with_waiver ? `<p><strong>${t('evidenceWaiver')}</strong></p>` : ''}${form}</section>`;
+    ${(task.acceptance_events || []).map(event => `<p class="event-meta">${esc(t('evidenceAcceptance'))} · ${personName(event.actor)} · ${timeLabel(event.at)}</p>`).join('')}${form}</section>`;
 }
 async function showDetail(taskId, { history = false } = {}) {
   const modalStyle = { notebook: true };
