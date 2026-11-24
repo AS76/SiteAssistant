@@ -97,7 +97,7 @@ test('approval creates a login-capable temporary password, exposes me flag and c
   const me = await f.request('/api/auth/me', { cookie });
   t.assert.strictEqual(me.body.password_change_required, true);
   t.assert.deepStrictEqual(me.body.roles, []);
-  t.assert.strictEqual((await f.request('/api/sites', { cookie })).status, 200);
+  t.assert.strictEqual((await f.request('/api/sites', { cookie })).status, 403);
   for (const url of urls) {
     const reused = await f.request(path(url));
     t.assert.strictEqual(reused.status, 410);

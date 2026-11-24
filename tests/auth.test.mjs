@@ -331,3 +331,22 @@ test('seed is guarded, repeatable and explicit reset preserves migration ledger'
   t.assert.deepStrictEqual(await db.all('SELECT * FROM sessions'), []);
   t.assert.deepStrictEqual(await db.all('SELECT * FROM schema_migrations ORDER BY version'), ledger);
 });
+
+test('a temporary password gates application routes and passkey management in all site roles', async t => {
+  const { db, users, as, site } = await fixture(t);
+  for (const [role, user] of Object.entries(users)) {
+    await db.run('UPDATE users SET password_change_required = TRUE WHERE id = ?', user.id);
+    t.assert.equal((await as(role, '/api/auth/me')).body.password_change_required, true);
+    for (const [path, payload] of [['/api/sites'], [`/api/tasks?site_id=${site.id}`], ['/api/tasks', {}],
+      ['/api/auth/credentials'], ['/api/auth/webauthn/register/options', {}]]) {
+      const denied = await as(role, path, payload);
+      t.assert.equal(denied.status, 403, `${role} ${path}`);
+      t.assert.equal(denied.body.code, 'PASSWORD_CHANGE_REQUIRED');
+    }
+    const change = await as(role, '/api/auth/password', { current_password: 'Synthetic-test-password!', new_password: 'Different-synthetic-password' });
+    t.assert.equal(change.status, 200);
+    t.assert.equal((await as(role, '/api/sites')).status, 200);
+    await db.run('UPDATE users SET password_change_required = TRUE WHERE id = ?', user.id);
+    t.assert.equal((await as(role, '/api/auth/logout', {})).status, 200);
+  }
+});

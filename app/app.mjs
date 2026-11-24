@@ -179,7 +179,7 @@ const errorKeys = {
   DEVIATION_OWNER_INVALID: 'evidenceOwnerError', DEVIATION_IDENTITY_UNRESOLVED: 'evidenceIdentityError',
   DEVIATION_EXPORT_META_INVALID: 'evidenceImportError', DEVIATION_EXPORT_INVALID: 'evidenceImportError',
   DEVIATION_EXPORT_CHECKSUM_MISMATCH: 'evidenceImportError', SHIPMENT_NOT_FOUND: 'shpNotFound', SHIPMENT_DUPLICATE_NUMBER: 'shpDuplicateNumber', SHIPMENT_PACKAGE_NOT_FOUND: 'shpPackageUnavailable', SHIPMENT_PACKAGE_SITE_MISMATCH: 'shpPackageUnavailable', SHIPMENT_PACKAGE_TAKEN: 'shpPackageTaken', SHIPMENT_STATUS_CONFLICT: 'shpStatusConflict', SHIPMENT_ITEM_NOT_FOUND: 'shpItemNotFound', PACKAGE_NOT_FOUND: 'pkgNotFound', PACKAGE_ITEM_NOT_FOUND: 'poItemNotFound', PACKAGE_DUPLICATE_NUMBER: 'pkgDuplicateNumber', PACKAGE_QUANTITY_EXCEEDED: 'pkgQuantityExceeded', PACKAGE_STATUS_CONFLICT: 'pkgStatusConflict', PO_STATUS_CONFLICT: 'poStatusConflict', PO_DUPLICATE_NUMBER: 'poDuplicateNumber', PO_DUPLICATE_LINE: 'poDuplicateLine', PO_NOT_FOUND: 'poNotFound', PO_ITEM_NOT_FOUND: 'poItemNotFound', HSE_INVALID: 'hseInvalid', HSE_FORBIDDEN: 'forbidden', HSE_NOT_FOUND: 'hseNotFound', MODULE_FORBIDDEN: 'moduleUnavailable', ACCESS_INVALID: 'accessInvalid', LAYOUT_INVALID: 'layoutInvalid', MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
-function errorMessage(error) { if (error.code === 'MODULE_FORBIDDEN') return t('moduleUnavailable'); if (error.code === 'PAGINATION_LIMIT') return t('paginationLimit'); return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
+function errorMessage(error) { if (error.code === 'PASSWORD_CHANGE_REQUIRED') return t('passwordChangeNotice'); if (error.code === 'MODULE_FORBIDDEN') return t('moduleUnavailable'); if (error.code === 'PAGINATION_LIMIT') return t('paginationLimit'); return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
   reportPrintIntent = null; lastReport = null;
   resetSavedViews();
@@ -235,8 +235,13 @@ async function loadData() {
       } catch (error) {
         if (error.code !== 'NETWORK_ERROR' || active?.baseUrl !== api.baseUrl) throw error;
         const saved = await getMirror(`state:${active.scope}`);
-        if (!saved) throw error;
+        if (!saved && !active.session.password_change_required) throw error;
         offline = true; session = active.session; actor = session.user.name; offlineScope = active.scope; state = saved;
+      }
+      if (session.password_change_required) {
+        state = { sites: [], tasks: [], diary: [], attachments: [] };
+        siteId = undefined; pendingOps = [];
+        return;
       }
       if (!offline) {
         try {
@@ -268,7 +273,7 @@ async function loadData() {
   loading = false; render();
 }
 async function syncQueue(currentDiaryId) {
-  if (syncRun || !navigator.onLine || !session || !storageReady) return syncRun;
+  if (syncRun || !navigator.onLine || !session || session.password_change_required || !storageReady) return syncRun;
   syncRun = (async () => {
     try {
       await replayOps(freshApi, { scope: offlineScope, userId: session.user.id, currentDiaryId });
@@ -378,6 +383,7 @@ function renderChrome() {
     settings: 'guida/impostazioni/'
   };
   renderOffline();
+  const accountReady = Boolean(session && !session.password_change_required);
   document.documentElement.lang = language;
   document.title = `SiteAssistant · ${t(view)}`;
   renderAssistantChrome();
@@ -396,11 +402,12 @@ function renderChrome() {
   nav.innerHTML = rail ? desktopNavigation(navLink) : destinations.map(navLink).join('')
     + `<button type="button" class="nav-more${more ? ' active' : ''}" data-command="more-nav" aria-haspopup="dialog">${icon('more')}<span>${t('more')}</span></button>`;
   if (rail) bindDesktopNavigation();
-  nav.hidden = !session;
+  nav.hidden = !accountReady;
   $('#skip').textContent = t('skip');
-  $('.site-control').hidden = !session;
+  $('.site-control').hidden = !accountReady;
   $('#site-label').textContent = t('site');
   $('#settings-button').title = t('settingsTitle');
+  $('#settings-button').hidden = Boolean(session?.password_change_required);
   $('#settings-button').setAttribute('aria-label', t('settingsTitle'));
   $('#manual-link').textContent = t('manual');
   $('#manual-link').href = `https://as76.github.io/SiteAssistant/${language === 'en' ? 'en/' : ''}${manualPages[view] || ''}`;
@@ -436,9 +443,8 @@ function renderChrome() {
     $('#demo-banner').insertAdjacentHTML('afterend', '<section id="password-banner" class="demo-banner"></section>');
     passwordBanner = $('#password-banner');
   }
-  const bannerDismissed = sessionStorage.getItem('sa-password-banner') === 'hidden';
-  passwordBanner.hidden = !session?.password_change_required || bannerDismissed;
-  passwordBanner.innerHTML = `<strong>${t('passwordChangeNotice')}</strong> ${button('changePassword', 'change-password')} <button type="button" class="text-button" data-command="dismiss-password-banner" aria-label="${t('close')}">×</button>`;
+  passwordBanner.hidden = !session?.password_change_required;
+  passwordBanner.innerHTML = `<h1>${t('passwordChangeNotice')}</h1> ${button('changePassword', 'change-password', offline ? 'disabled' : '')}`;
   logoutButton.hidden = !session; logoutButton.textContent = t('logout');
   $('#site-select').disabled = loading || !state.sites.length;
   $('#language').textContent = language === 'it' ? 'EN' : 'IT';
@@ -3393,6 +3399,7 @@ function render() {
     $('#main').innerHTML = view === 'today' ? `<div role="status" aria-label="${t('loading')}">${todaySkeleton(3)}</div>` : `<p role="status">${t('loading')}</p>`;
     return;
   }
+  if (session?.password_change_required) { $('#main').innerHTML = ''; return; }
   if (!session && (!loadError || loadError.status === 401)) {
     $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div id="login-rate-limit" class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<span class="password-row"><input name="password" type="password" autocomplete="current-password" required maxlength="1024"><button type="button" class="text-button password-toggle" data-command="toggle-password" aria-label="${t('showPassword')}">◉</button></span></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button>${button('passkeyLogin', 'passkey-login', supportsPasskeys() ? '' : 'disabled')}</div>${button('passkeyDiscoverable', 'passkey-discoverable', supportsPasskeys() ? '' : 'disabled')}${!supportsPasskeys() ? `<p class="note">${t('passkeyUnsupported')}</p>` : ''}</form><div class="heading-actions">${button('requestAccess', 'request-access')}${button('forgotPassword', 'forgot-password')}</div></div></section>`;
     if (loginRetryUntil > Date.now()) updateLoginRetry();
@@ -3987,7 +3994,6 @@ document.addEventListener('click', event => {
       });
       modal.querySelectorAll('[data-detail-panel]').forEach(section => { section.hidden = section.dataset.detailPanel !== panel; });
     },
-    'dismiss-password-banner': () => { sessionStorage.setItem('sa-password-banner', 'hidden'); renderChrome(); },
     'dismiss-demo-notice': dismissDemoNotice,
     'open-demo-info': showDemoInfo,
     'toggle-password': () => {
@@ -4146,9 +4152,8 @@ document.addEventListener('submit', async event => {
       if (data.new_password !== data.confirm_password) throw new Error('passwordMismatch');
       if ([...data.new_password].length < 12 || data.new_password === data.current_password) throw new Error('passwordPolicy');
       await api.changePassword({ current_password: data.current_password, new_password: data.new_password });
-      if (session) session.password_change_required = false;
       if (version === modalVersion) closeModal();
-      render(); toast(t('passwordChanged')); return;
+      await loadData(); await syncQueue(); toast(t('passwordChanged')); return;
     }
     if (['request-form', 'forgot-form'].includes(form.id)) {
       await (form.id === 'request-form' ? api.requestAccess(data) : api.forgotPassword({ ...data, language }));

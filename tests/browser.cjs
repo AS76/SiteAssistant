@@ -467,13 +467,16 @@ async function run() {
     await page.locator('#forgot-form [name="email"]').fill('owner@example.invalid');
     await page.locator('#forgot-form [type="submit"]').click();
     await page.waitForSelector('#modal', { state: 'hidden' });
-    const temporary = /Temporary password: ([^\s]+)/.exec(mail.at(-1).text)[1];
+    assert.match(mail.at(-1).text, /\/api\/auth\/reset/);
+    await db.run('UPDATE users SET password_change_required = TRUE WHERE id = ?', owner.id);
+    const temporary = 'Local-owner-5b!';
     await page.locator('#login-form [name="email"]').fill('owner@example.invalid');
     await page.locator('#login-form [name="password"]').fill(temporary);
     await page.locator('#login-form [type="submit"]').click();
     await page.waitForSelector('#password-banner:not([hidden])');
-    // The banner does not block navigation, even on mobile and without a modal.
-    await page.locator('a[href="#tasks"]').click();
+    await page.evaluate(() => { location.hash = 'tasks'; });
+    assert.equal(await page.locator('#navigation').isVisible(), false);
+    assert.equal(await page.locator('#task-results').count(), 0);
     await page.locator('#language').click();
     await contains(page.locator('#password-banner'), 'Change password');
     await page.locator('[data-command="change-password"]').click();
@@ -494,7 +497,7 @@ async function run() {
     await page.waitForSelector('#task-results');
     assert.equal(await page.locator('#password-banner').isVisible(), false);
     assert.deepEqual(errors, []);
-    console.log('PASS: personal overview widgets/ordering/reset/site scoping/empty states/error fallback/mobile, WBS tree/flat/synthetic parents/site switching/error recovery, API loading/creation, transitions/events, login/logout, HttpOnly cookie, independent session verification, blocked state, CSV, diary uniqueness, escaping, IT/EN, reload, mobile, network error recovery, signup request/rejection, forgot password, non-blocking password banner and password change.');
+    console.log('PASS: personal overview widgets/ordering/reset/site scoping/empty states/error fallback/mobile, WBS tree/flat/synthetic parents/site switching/error recovery, API loading/creation, transitions/events, login/logout, HttpOnly cookie, independent session verification, blocked state, CSV, diary uniqueness, escaping, IT/EN, reload, mobile, network error recovery, signup request/rejection, forgot password, blocking temporary password screen and password change.');
   } finally {
     if (browser) await browser.close();
     if (server.listening) await new Promise(resolve => server.close(resolve));

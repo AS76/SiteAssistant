@@ -27,7 +27,7 @@ const notify = async message => {
 };
 async function runtime(request, event) {
   const active = await getMirror('active');
-  if (!active) return fetch(request);
+  if (!active || active.session.password_change_required) return fetch(request);
   const url = new URL(request.url), base = new URL(active.baseUrl, self.registration.scope);
   const prefix = base.pathname.replace(/\/$/, '');
   if (url.origin !== base.origin || !new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/api/(sites|tasks|diary|wbs|attachments)(/[^/]+)?$`).test(url.pathname)) return fetch(request);
@@ -66,7 +66,7 @@ self.addEventListener('sync', event => {
   if (event.tag !== SYNC_TAG) return;
   event.waitUntil((async () => {
     const active = await getMirror('active');
-    if (!active) return;
+    if (!active || active.session.password_change_required) return;
     const api = createApi({ baseUrl: active.baseUrl, fresh: true });
     try {
       const result = await replayOps(api, { scope: active.scope, userId: active.session.user.id });

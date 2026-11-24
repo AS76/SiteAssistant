@@ -314,6 +314,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user, assurance: result.assurance });
       }
+      if (user?.password_change_required && !(
+        (path === '/api/auth/me' && method === 'GET') ||
+        (['/api/auth/password', '/api/auth/logout'].includes(path) && method === 'POST')
+      )) throw new RepositoryError(403, 'Change the temporary password to continue.', 'PASSWORD_CHANGE_REQUIRED');
       if (path.startsWith('/api/auth/webauthn/register/') || path === '/api/auth/credentials' || path.startsWith('/api/auth/credentials/')) {
         const sessionUser = await authenticate(db, request.headers.cookie);
         if (path === '/api/auth/webauthn/register/options' && method === 'POST') {
