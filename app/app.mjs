@@ -896,7 +896,12 @@ function renderOverviewWidgets(target, widgets, data, failed = false) {
       + `<p class="note">${t('dashEfficiencyCoverage')}</p><p class="note">${source}</p>`);
   }
   const chosen = widgets.map(id => DASHBOARD_WIDGETS.find(widget => widget.id === id));
-  const cards = chosen.filter(widget => widget.kind === 'kpi').map(widget => `<div class="kpi-card" data-widget="${widget.id}"><span>${t(widget.label)}</span><strong>${data ? esc(String(kpis[widget.id])) : esc(t(failed ? 'apiError' : 'loading'))}</strong>${data && widget.id === 'kpi_booked_hours' ? hoursDetail : ''}</div>`).join('');
+  const cards = chosen.filter(widget => widget.kind === 'kpi').map(widget => {
+    const claim = { kpi_open_claims: 'open', kpi_settled_claims: 'settled' }[widget.id];
+    const coverage = data?.claims.coverage?.[claim];
+    const detail = coverage ? `<small>${esc(t('dashClaimCoverage').replace('{known}', coverage.known).replace('{total}', coverage.total))}</small>` : '';
+    return `<div class="kpi-card" data-widget="${widget.id}"><span>${t(widget.label)}</span><strong>${data ? esc(String(kpis[widget.id])) : esc(t(failed ? 'apiError' : 'loading'))}</strong>${widget.id === 'kpi_booked_hours' ? hoursDetail : detail}</div>`;
+  }).join('');
   const panels = chosen.filter(widget => widget.kind === 'panel').map(widget => `<div data-widget="${widget.id}">${content[widget.id] || panel(widget.label, unavailable)}</div>`).join('');
   target.innerHTML = (cards ? `<div class="kpi-row">${cards}</div>` : '') + (panels ? `<div class="dash-grid">${panels}</div>` : '');
 }
