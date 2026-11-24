@@ -20,6 +20,7 @@ export function taskVerificationOutcome(task) {
   if (task.closed_with_waiver) return 'waived';
   return task.verified_at ? 'verified' : 'legacy';
 }
+export const taskFormalAcceptance = task => task.acceptance_state === 'accepted' ? 'accepted' : 'not_recorded';
 export const TASK_COLUMNS = Object.freeze(['title', 'area', 'status', 'company', 'assignee', 'reviewer', 'due']);
 export const REPORT_PROGRESS_COLUMNS = ['reportArea', 'reportItems', 'reportActual', 'reportPlanned', 'reportSource'];
 export const REPORT_DEVIATION_COLUMNS = ['reportArea', 'reportTotal', 'reportOpen', 'reportClosed', 'reportByStatus'];

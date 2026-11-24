@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import assert from 'node:assert/strict';
 import { createApi, deviationFromApi, progressFromApi, bookingFromApi, impactFromApi } from '../app/api.mjs';
-import { offlineBannerState, DEVIATION_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, progressWithHours, flattenWbs, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, transitionRequirements, allowedTransitions, transitionPayload, counts, STATUSES, PRIORITIES, TASK_KINDS, taskKindLabelKey, taskVerificationOutcome } from '../app/domain.mjs';
+import { offlineBannerState, DEVIATION_STATUSES, IMPACT_RESULTS, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, progressWithHours, flattenWbs, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, transitionRequirements, allowedTransitions, transitionPayload, counts, STATUSES, PRIORITIES, TASK_KINDS, taskKindLabelKey, taskFormalAcceptance, taskVerificationOutcome } from '../app/domain.mjs';
 import { messages } from '../app/i18n.mjs';
 import './task-verification-ui.test.mjs';
 
@@ -230,7 +230,7 @@ async function lightUi(tasks, overrides = {}) {
     dateLabel: value => value || '—', timeLabel: value => value,
     empty: title => messages.it[title],
     lightTaskRows, transitionNeedsDialog, transitionRequirements, allowedTransitions, transitionPayload,
-    counts, STATUSES, PRIORITIES, TASK_KINDS, taskKindLabelKey, taskVerificationOutcome,
+    counts, STATUSES, PRIORITIES, TASK_KINDS, taskKindLabelKey, taskFormalAcceptance, taskVerificationOutcome,
     showModal: (title, html) => {
       dialogs.push({ title, html });
       if (html.includes('id="transition-form"')) {
@@ -247,6 +247,7 @@ async function lightUi(tasks, overrides = {}) {
   runInNewContext([
     section('const esc =', 'let session ='),
     section('const button =', 'function toast('),
+    section('const taskStatusLabel =', 'const priorityBadge ='),
     section('const notebookStates =', 'function todayTaskItem('),
     section('function filteredTasks()', 'const currentViewState ='),
     section('const canEditTask =', 'const canCreateSite ='),

@@ -4,7 +4,7 @@ import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
 import { messages } from './i18n.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
 import { hasOpenProgressSteps } from './domain.mjs';
-import { taskVerificationOutcome } from './domain.mjs';
+import { taskFormalAcceptance, taskVerificationOutcome } from './domain.mjs';
 import { INSPECTION_STATUSES, inspectionStatusLabelKey, filterHseAssets, sortHseAssets, hseAssetCounts, inspectionOutcomeLabelKey, inspectionModeLabelKey, inspectionItemResultLabelKey, inspectionTally, sortInspections, inspectionSuggestion, inspectionProgress, inspectionPayload } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, purgeScope, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
@@ -173,7 +173,9 @@ const paths = {
   execution:'<path d="m8 5 11 7-11 7V5Z"/>',review:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',closed:'<circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/>',overdue:'<path d="m12 3 10 18H2L12 3Zm0 6v5m0 3h.01"/>',
 };
 const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[key] || paths.tasks}</svg>`;
-const badge = status => `<span class="badge ${status}">${t(status)}</span>`;
+const badge = (status, label = t(status)) => `<span class="badge ${esc(status)}">${esc(label)}</span>`;
+const taskStatusLabel = status => t(status === 'closed' ? 'notebookClosed' : status);
+const formalAcceptanceLabel = task => t(taskFormalAcceptance(task) === 'accepted' ? 'evidenceAccepted' : 'evidenceAcceptanceNotRecorded');
 const priorityBadge = priority => priority !== 'normal' ? `<span class="badge ${esc(priority)}">${esc(t(priority))}</span>` : '';
 const button = (key, command, extra = '', css = '') => `<button type="button" class="${css}" data-command="${command}" ${extra}>${t(key)}</button>`;
 function toast(message) {
@@ -529,7 +531,7 @@ function renderAssistantChrome() {
 }
 function dueMarkup(task) { return `<span class="due ${task.status !== 'closed' && task.due && task.due < today() ? 'overdue' : ''}">${dateLabel(task.due)}</span>`; }
 function taskRow(task) {
-  return `<div class="task-row"><div><h3><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></h3><p>${esc(task.area || t('noArea'))} · ${esc(task.company)}</p>${badge(task.status)} ${priorityBadge(task.priority)} ${syncBadge(task)}</div><div class="subtitle">${dueMarkup(task)}</div></div>`;
+  return `<div class="task-row"><div><h3><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></h3><p>${esc(task.area || t('noArea'))} · ${esc(task.company)}</p>${badge(task.status, taskStatusLabel(task.status))} ${priorityBadge(task.priority)} ${syncBadge(task)}</div><div class="subtitle">${dueMarkup(task)}</div></div>`;
 }
 function todayResource(name) {
   const entry = coreCache.get(siteId)?.get(name);
@@ -3673,7 +3675,6 @@ function taskEvidence(task) {
   const document = files.find(file => file.id === task.acceptance_document_id);
   const canAccept = canTransitionTask() && !offline && !task.localOnly && (role() === 'owner' || (role() === 'verifier' && task.verifier_id === session?.user.id));
   const outcome = { pending: 'evidenceVerificationPending', waived: 'evidenceWaiver', verified: 'evidenceVerificationRecorded', legacy: 'evidenceVerificationLegacy' };
-  const accepted = task.acceptance_state === 'accepted';
   const form = canAccept && files.length ? `<form id="task-acceptance-form" data-id="${esc(task.id)}">
     <div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">
     ${field('evidenceAcceptanceDocument', 'documentId', '', { required: true, options: `<option value="">${t('coreChoose')}</option>` +
@@ -3683,7 +3684,7 @@ function taskEvidence(task) {
   return `<section><h3>${t('evidenceVerification')}</h3><p>${t(outcome[taskVerificationOutcome(task)])}</p>${coreFields({ declared: task.declared_at && timeLabel(task.declared_at),
     verified: task.verified_at && timeLabel(task.verified_at), reopenCount: task.reopen_count ?? 0 },
     [['declared', 'evidenceDeclared'], ['verified', 'evidenceVerified'], ['reopenCount', 'evidenceReopenCount']])}</section>
-    <section><h3>${t('evidenceAcceptance')}</h3><p>${t(accepted ? 'evidenceAccepted' : 'evidenceAcceptanceNotRecorded')}</p>
+    <section><h3>${t('evidenceAcceptance')}</h3><p>${formalAcceptanceLabel(task)}</p>
     ${task.acceptance_date ? `<p>${dateLabel(task.acceptance_date)}${document ? ` · ${esc(document.filename)}` : ''}</p>` : ''}
     ${(task.acceptance_events || []).map(event => `<p class="event-meta">${esc(t('evidenceAcceptance'))} · ${personName(event.actor)} · ${timeLabel(event.at)}</p>`).join('')}${form}</section>`;
 }
@@ -3963,7 +3964,10 @@ function exportCsv() {
   const tasks = filteredTasks();
   if (!tasks.length) return toast(t('emptyExport'));
   const header = ['title', 'area', 'company', 'assignee', 'reviewer', 'priority', 'kind', 'due', 'status'];
-  const rows = [header.map(t), ...tasks.map(task => header.map(key => key === 'kind' ? t(taskKindLabelKey(task.kind ?? 'ordinary')) : ['priority', 'status'].includes(key) ? t(task[key]) : task[key]))];
+  const rows = [[...header.map(t), t('evidenceAcceptance')], ...tasks.map(task => [
+    ...header.map(key => key === 'kind' ? t(taskKindLabelKey(task.kind ?? 'ordinary'))
+      : key === 'status' ? taskStatusLabel(task.status) : key === 'priority' ? t(task.priority) : task[key]), formalAcceptanceLabel(task),
+  ])];
   download('\ufeff' + rows.map(row => row.map(csvCell).join(',')).join('\r\n'), 'text/csv;charset=utf-8', `siteassistant-tasks-${today()}.csv`); toast(t('csvDone'));
 }
 document.addEventListener('click', event => {

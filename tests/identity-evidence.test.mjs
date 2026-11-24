@@ -281,6 +281,7 @@ for (const driver of ['sqlite', 'pg']) {
     const taskRow = text.split(/\r?\n/).find(line => line.startsWith('"task",'));
     assert.ok(taskRow.includes(uploadTask.body.id));
     assert.ok(taskRow.includes(formal.body.id));
+    assert.match(taskRow, /,"verified","accepted"$/);
     assert.match(text, /"deviation","[^"]+"[^\n]*Synthetic deviation/);
     assert.match(text, /"attachment","[^"]+"[^\n]*synthetic.pdf/);
     assert.doesNotMatch(text, new RegExp(digest));
