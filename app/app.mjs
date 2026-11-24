@@ -4488,14 +4488,6 @@ window.addEventListener('online', () => {
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) void syncQueue(); });
 
-// Mobile browsers may still expose pinch gestures despite the viewport meta.
-// Keep the app at its designed scale; normal panning and scrolling stay native.
-for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
-  document.addEventListener(type, event => event.preventDefault(), { passive: false });
-}
-document.addEventListener('touchmove', event => {
-  if (event.touches.length > 1) event.preventDefault();
-}, { passive: false });
 accountChannel?.addEventListener('message', () => { clearSession(); void loadData(); });
 navigator.serviceWorker?.addEventListener('message', event => {
   if (event.data?.scope !== offlineScope) return;
