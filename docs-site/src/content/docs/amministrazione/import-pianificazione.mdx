@@ -72,17 +72,32 @@ Se il tuo foglio usa nomi di colonna diversi, non riscriverlo a mano: apri **Map
 
 A cosa serve: aggiornare i dati del cantiere da un export, senza cancellare ciò che il file non contiene.
 
-1. Apri la **Panoramica** del cantiere e premi **Importa export di pianificazione**.
-2. Scegli il **Tipo di export** e il **File xlsx**.
-3. Se l'export usa intestazioni diverse da quelle canoniche, apri **Mappatura colonne** e configura gli alias (vedi sotto). Salva la mappatura prima di procedere.
-4. Premi **Anteprima** e attendi il riepilogo **Cosa cambierebbe**.
-5. Controlla i cinque conteggi e l'elenco delle righe rifiutate.
-6. Se i numeri tornano, premi **Conferma import**. Il pulsante cambia etichetta dopo l'anteprima.
+### 1. Apri l’import
+
+Nella **Panoramica** del cantiere, premi **Importa export di pianificazione**.
 
 <Shot
   src="/images/2026-11/overview-desktop.png"
   alt="Panoramica del cantiere con intestazione, selettore del cantiere, indicatori, grafici e i pulsanti Importa export di pianificazione e Nuova attività in alto a destra"
   caption="Il punto di partenza è la Panoramica: per owner ed editor i pulsanti Importa export di pianificazione e Nuova attività sono in alto a destra. Nella cattura l'account è owner." width="1440" height="1400" />
+
+### 2. Scegli il tipo e il file
+
+Seleziona il **Tipo di export** e il **File xlsx**. Se le intestazioni differiscono da quelle del modello, apri [Mappatura colonne](#mappatura-delle-colonne), configura gli alias e salva.
+
+<Shot
+  src="/images/2026-11/import-file-desktop.png"
+  alt="Modulo di import con Time Schedule selezionato, file di esempio allegato e pulsante Anteprima"
+  caption="Scegli la famiglia e allega il file. La mappatura è disponibile sotto i campi." width="760" height="504" />
+
+### 3. Controlla l’anteprima
+
+Premi **Anteprima** per vedere il riepilogo **Cosa cambierebbe**. Controlla i conteggi e gli eventuali rifiuti.
+
+<Shot
+  src="/images/2026-11/import-preview-desktop.png"
+  alt="Anteprima in italiano con due righe nuove, zero aggiornate, invariate, assenti o rifiutate e il pulsante Conferma import"
+  caption="Verifica le cinque voci del riepilogo prima di confermare." width="760" height="622" />
 
 L'anteprima mostra cinque conteggi:
 
@@ -95,6 +110,10 @@ L'anteprima mostra cinque conteggi:
 | rifiutate | Righe non importabili, elencate con riga di origine e motivo |
 
 Esempio: una riga di presenza con un numero dipendente che non esiste nel cantiere finisce tra le **rifiutate**; una voce già presente con gli stessi valori finisce tra le **invariate**.
+
+### 4. Conferma l’import
+
+Quando hai verificato l’anteprima, premi **Conferma import**. Cerca le righe aggiunte o aggiornate nella vista del modulo.
 
 :::caution[Se l'import non parte o non torna]
 - **Il pulsante non c'è:** il tuo ruolo non è owner o editor, oppure stai guardando un altro cantiere.

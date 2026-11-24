@@ -84,17 +84,13 @@ Every site declares a **jurisdiction**, `IT` or `UK`: it is the law that applies
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/diary?site_id=` | member | Site entries; `siteId` is accepted too |
-| POST | `/api/diary` | owner/editor/verifier with Diary access | One entry per site, day and shift |
-| PATCH | `/api/diary/{id}` | author within seven days or owner, with Diary access | Corrects content and archives the previous version |
-| GET | `/api/diary/{id}/versions` | member with Diary access | Versions in descending order |
+| POST | `/api/diary` | owner/editor/verifier | One entry per site/date/shift |
+| PATCH | `/api/diary/{id}` | owner or editor during the current operational day | Corrects content with a required reason |
+| GET | `/api/diary/{id}/versions` | site member with diary access | Previous snapshots, newest first |
 
 `POST /api/diary` uses the site's time zone and cutoff. Omit `operational_date` and `shift` to have the server assign both when it records the entry. If you supply a date and omit the shift, the server assigns the current shift. To record a specific date and shift, send `operational_date` in `YYYY-MM-DD` format and `shift` as `day` or `night`. Any supplied `time_zone` and `day_cutoff_time` must match the site settings, otherwise the response is `400 VALIDATION_ERROR`. The entry records both settings when it is created.
 
-The seven-day window compares `operational_date` with the current calendar date in the site's time zone. A future date returns `400 VALIDATION_ERROR`. For dates more than seven days old, `POST` requires the owner role and a `motivation` of at least 10 characters after trimming whitespace. The response includes `author_id`, `recorded_late` and `recording_motivation`.
-
-The `PATCH` requires at least one of `plan`, `actual`, `impediments` and `next_step`. Use an empty string to clear a field. The operational date and shift are fixed. Correcting another author's entry, an entry without a linked author or an entry more than seven days old requires an owner and the same `motivation` rule. Insufficient permissions return `403 FORBIDDEN`. A missing or too-short required reason returns `400 MOTIVATION_REQUIRED`. The response gives the updated entry with `updated_at`, `updated_by` and `updated_by_name`.
-
-The versions endpoint returns an array, empty until the first correction. Each item includes `version`, a `snapshot` of the entry before the correction, the person who corrected it in `author_id` and `author_name`, `created_at` and any supplied `motivation`.
+A correction accepts one or more of `plan`, `actual`, `impediments` and `next_step`. Every correction requires `motivation` with at least 10 characters after trimming, otherwise it returns `400 MOTIVATION_REQUIRED`. The operational date is fixed. At the next cutoff in the site’s current time zone an editor loses permission to correct the entry. Each correction archives the previous snapshot with its author (`author_id`), timestamp (`created_at`) and reason (`motivation`).
 
 Both lists accept `site_id` and `siteId`, because tasks and diary historically used the second name. An unexpected query parameter is rejected with `400 VALIDATION_ERROR` instead of being ignored: a mistyped filter never returns an unfiltered list.
 

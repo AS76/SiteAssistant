@@ -69,17 +69,32 @@ If your sheet uses different column names, do not rewrite it by hand: open **Col
 
 What it is for: refreshing site data from an export without deleting what the file does not contain.
 
-1. Open the site **Overview** and press **Import planning export**.
-2. Pick the **Export type** and the **xlsx file**.
-3. If the export uses headers other than the canonical ones, open **Column mapping** and configure the aliases (see below). Save the mapping before continuing.
-4. Press **Preview** and wait for the **What would change** summary.
-5. Check the five counts and the list of rejected rows.
-6. If the numbers look right, press **Confirm import**. The button label changes after the preview.
+### 1. Open the import form
+
+From the site **Overview**, select **Import planning export**.
 
 <Shot
   src="/images/2026-11/en/overview-desktop.png"
   alt="Site overview with the header, site selector, indicators, charts and the Import planning export and New task buttons at the top right"
   caption="The starting point is the Overview: for owners and editors the Import planning export and New task buttons are at the top right. In this capture the account is an owner." width="1440" height="1400" />
+
+### 2. Choose the type and file
+
+Select the **Export type** and the **xlsx file**. If its headers differ from the template, open [Column mapping](#column-mapping), configure the aliases and save.
+
+<Shot
+  src="/images/2026-11/en/import-file-desktop.png"
+  alt="Import form with Time schedule selected, an example file attached and the Preview button"
+  caption="Choose the export type and attach the file. Column mapping is below the fields." width="760" height="504" />
+
+### 3. Review the preview
+
+Select **Preview** to see **What would change**. Review the counts and any rejected rows.
+
+<Shot
+  src="/images/2026-11/en/import-preview-desktop.png"
+  alt="English preview showing two new rows, zero updated, unchanged, missing or rejected, and the Confirm import button"
+  caption="Review the five counts before confirming." width="760" height="622" />
 
 The preview shows five counts:
 
@@ -92,6 +107,10 @@ The preview shows five counts:
 | rejected | Rows that cannot be imported, listed with source row and reason |
 
 Example: a work-day row with an employee number that does not exist in the site ends up among the **rejected** rows; an item already present with the same values ends up among the **unchanged** rows.
+
+### 4. Confirm the import
+
+After reviewing the preview, select **Confirm import**. Find the added or updated rows in the module’s view.
 
 :::caution[If the import does not start or looks wrong]
 - **The button is missing:** your role is not owner or editor, or you are looking at another site.

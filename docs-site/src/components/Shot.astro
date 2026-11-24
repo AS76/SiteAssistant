@@ -1,4 +1,7 @@
 ---
+import { resolve } from 'node:path';
+import sharp from 'sharp';
+
 // Screenshot used in the manual. `src` is the site-absolute path of the file in
 // `public/`, for example `/images/2026-11/overview-desktop.png`; the component adds
 // the Astro base path so the image resolves both on the project site and in dev.
@@ -6,14 +9,19 @@ interface Props {
   src: string;
   alt: string;
   caption?: string;
-  width?: number;
-  height?: number;
+  width: number | string;
+  height: number | string;
   compact?: boolean;
 }
 
-const { src, alt, caption, width = 1440, height = 900, compact = false } = Astro.props;
+const { src, alt, caption, width, height, compact = false } = Astro.props;
+const file = src.replace(/^\/+/, '');
+const original = await sharp(resolve('public', file)).metadata();
+if (Number(width) !== original.width || Number(height) !== original.height) {
+  throw new Error(`Declare the original ${original.width} × ${original.height} dimensions for ${src}`);
+}
 const base = import.meta.env.BASE_URL.replace(/\/+$/, '');
-const url = `${base}${src.startsWith('/') ? src : `/${src}`}`;
+const url = `${base}/${file}`;
 ---
 
 <figure class:list={['docs-shot', { compact }]}>
