@@ -1,6 +1,6 @@
 import test from 'node:test';
 import { EventEmitter } from 'node:events';
-import { createSmtpMailer, MailNotConfiguredError, MailDeliveryError, signupNotifyEmail, welcomeEmail, resetEmail } from '../server/auth-mail.mjs';
+import { createSmtpMailer, createHttpMailer, MailNotConfiguredError, MailDeliveryError, signupNotifyEmail, welcomeEmail, resetEmail } from '../server/auth-mail.mjs';
 
 const env = { SMTP_HOST: 'smtp.example.invalid', SMTP_PORT: '587', EMAIL: 'sender@example.invalid', EMAIL_PASSWORD: 'Synthetic-smtp-password' };
 const message = { to: 'recipient@example.invalid', ...welcomeEmail({ password: 'Synthetic-password!' }) };
@@ -99,4 +99,29 @@ test('SMTP accepts acknowledged DATA even if QUIT fails; configuration and heade
     await t.assert.rejects(() => createSmtpMailer({ env: config, connect: noConnect })(message), MailNotConfiguredError);
   }
   await t.assert.rejects(() => createSmtpMailer({ env, connect: noConnect })({ ...message, to: 'victim@example.invalid\r\nBcc: another@example.invalid' }), MailDeliveryError);
+});
+
+test('HTTP mailer posts the message to the authenticated relay', async t => {
+  let call;
+  const mailer = createHttpMailer({
+    env: { MAIL_API_URL: 'https://relay.example.invalid/send', MAIL_API_TOKEN: 'synthetic-token' },
+    fetchImpl: async (url, options) => { call = { url, options }; return { ok: true, status: 202 }; },
+  });
+  await mailer(message);
+  t.assert.strictEqual(call.url, 'https://relay.example.invalid/send');
+  t.assert.strictEqual(call.options.method, 'POST');
+  t.assert.strictEqual(call.options.headers.authorization, 'Bearer synthetic-token');
+  t.assert.deepStrictEqual(JSON.parse(call.options.body), { to: message.to, subject: message.subject, text: message.text, html: message.html });
+});
+
+test('HTTP mailer fails closed on configuration, non-2xx and timeout', async t => {
+  t.assert.throws(() => createHttpMailer({ env: {} }).assertConfigured(), MailNotConfiguredError);
+  const rejected = createHttpMailer({ env: { MAIL_API_URL: 'https://relay.example.invalid/send', MAIL_API_TOKEN: 'x' }, fetchImpl: async () => ({ ok: false, status: 502 }) });
+  await t.assert.rejects(() => rejected(message), MailDeliveryError);
+  const stalled = createHttpMailer({
+    env: { MAIL_API_URL: 'https://relay.example.invalid/send', MAIL_API_TOKEN: 'x' },
+    timeoutMs: 10,
+    fetchImpl: (url, options) => new Promise((resolve, reject) => options.signal.addEventListener('abort', () => reject(new Error('aborted')))),
+  });
+  await t.assert.rejects(() => stalled(message), MailDeliveryError);
 });
