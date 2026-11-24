@@ -1,0 +1,15 @@
+{
+  "code_commit": "ef0b2b8daf2f48bc1f0d5fba30c44c44660e1350",
+  "reviewed_at": "2026-11-24",
+  "documentation_required": false,
+  "reason": "The API server now reads the bind address from the HOST environment variable, still defaulting to 127.0.0.1, and logs the address it actually bound. This only affects how the process is started in a container or on a host; no interface, role, state, message or workflow described by the manual changes, and the manual has no server-operation page where the variable would belong.",
+  "files_inspected": [
+    "server/index.mjs",
+    "tests/server-bind.test.mjs",
+    ".gitignore",
+    "docs-site/AUTOMATION.md",
+    "docs-site/src/content/docs/note/novita.md",
+    "docs-site/src/content/docs/note/rilascio.md",
+    "docs-site/src/content/docs/note/versione.md"
+  ]
+}
