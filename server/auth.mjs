@@ -25,7 +25,13 @@ export async function verifyPassword(password, encoded) {
   return timingSafeEqual(actual, Buffer.from(parts[5], 'hex'));
 }
 
-const loginKey = (ip, email) => `${ip}|${email}`;
+export function assertAuthBypassAllowed(authBypassUser = process.env.AUTH_BYPASS_USER || '', production = false) {
+  const environmentNames = [process.env.NODE_ENV, process.env.APP_ENV, process.env.RAILWAY_ENVIRONMENT_NAME, process.env.RAILWAY_ENVIRONMENT];
+  if (authBypassUser.trim() && (production || environmentNames.some(name =>
+    ['production', 'demo', 'staging'].includes(name?.trim().toLowerCase())))) {
+    throw new Error('AUTH_BYPASS_USER is disabled in production, demo and staging.');
+  }
+}
 
 export function createLoginLimiter({ now = Date.now } = {}) {
   const failures = new Map();
@@ -41,9 +47,11 @@ export function createLoginLimiter({ now = Date.now } = {}) {
         }
         lastSweep = at;
       }
-      const oldestOfTen = failures.get(loginKey(ip, email))?.at(-10);
-      if (oldestOfTen > cutoff) {
-        const retryAfter = Math.max(1, Math.ceil((oldestOfTen + windowMs - at) / 1000));
+      const account = failures.get(`account:${email}`)?.at(-10);
+      const address = failures.get(`ip:${ip}`)?.at(-50);
+      const oldest = Math.max(account ?? -Infinity, address ?? -Infinity);
+      if (oldest > cutoff) {
+        const retryAfter = Math.max(1, Math.ceil((oldest + windowMs - at) / 1000));
         const minutes = Math.max(1, Math.ceil(retryAfter / 60));
         const error = new RepositoryError(429, `Troppi tentativi di accesso. Riprova tra ${minutes} minuti.`, 'RATE_LIMITED');
         error.retryAfter = retryAfter;
@@ -51,11 +59,13 @@ export function createLoginLimiter({ now = Date.now } = {}) {
       }
     },
     fail(ip, email) {
-      const key = loginKey(ip, email), at = now();
-      const recent = (failures.get(key) || []).filter(time => time > at - windowMs);
-      failures.set(key, [...recent.slice(-9), at]);
+      const at = now();
+      for (const [key, max] of [[`account:${email}`, 10], [`ip:${ip}`, 50]]) {
+        const recent = (failures.get(key) || []).filter(time => time > at - windowMs);
+        failures.set(key, [...recent.slice(1 - max), at]);
+      }
     },
-    succeed(ip, email) { failures.delete(loginKey(ip, email)); },
+    succeed(_ip, email) { failures.delete(`account:${email}`); },
   };
 }
 
@@ -82,7 +92,8 @@ export async function login(db, input, { ip = '', userAgent = '', limiter }) {
   if (!email || email.length > 254 || typeof password !== 'string' || !password || password.length > 1024) {
     throw new RepositoryError(400, 'Valid email and password are required.', 'VALIDATION_ERROR');
   }
-  return withLoginTurn(limiter, loginKey(ip, email), () => verifyLogin(db, email, password, { ip, userAgent, limiter }));
+  return withLoginTurn(limiter, `ip:${ip}`, () =>
+    withLoginTurn(limiter, `account:${email}`, () => verifyLogin(db, email, password, { ip, userAgent, limiter })));
 }
 
 async function verifyLogin(db, email, password, { ip, userAgent, limiter }) {

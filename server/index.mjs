@@ -1,11 +1,13 @@
 import { openDb, closeDb } from './db.mjs';
 import { createServer } from './http.mjs';
+import { assertAuthBypassAllowed } from './auth.mjs';
 
 const rawPort = process.env.PORT ?? '8787';
 if (!/^\d+$/.test(rawPort) || Number(rawPort) > 65535) {
   throw new Error('PORT must be an integer between 0 and 65535.');
 }
 
+assertAuthBypassAllowed();
 const db = await openDb();
 const server = createServer(db);
 let closing;

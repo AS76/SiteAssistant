@@ -70,10 +70,10 @@ test('twelve consecutive successful logins leave the failure budget intact', asy
   t.assert.equal((await login(incorrect)).status, 401);
 });
 
-test('a successful login clears five failures only for its normalized IP and email pair', async t => {
+test('a successful login clears failures for the normalized account across IPs', async t => {
   const { login } = await fixture(t);
   const otherIp = '192.0.2.1';
-  for (let index = 0; index < 5; index++) {
+  for (let index = 0; index < 4; index++) {
     t.assert.equal((await login(incorrect)).status, 401);
     t.assert.equal((await login(incorrect, email, otherIp)).status, 401);
   }
@@ -83,7 +83,7 @@ test('a successful login clears five failures only for its normalized IP and ema
     t.assert.equal((await login(incorrect, email, otherIp)).status, 401);
   }
   t.assert.equal((await login(incorrect, email, otherIp)).status, 429);
-  t.assert.equal((await login(password)).status, 200);
+  t.assert.equal((await login(password)).status, 429);
 });
 
 test('unknown and disabled accounts return the same 401 as an incorrect password', async t => {
@@ -97,10 +97,10 @@ test('unknown and disabled accounts return the same 401 as an incorrect password
   }
 });
 
-test('simultaneous requests for one pair cannot admit an eleventh password check', async t => {
+test('simultaneous requests for one account across IPs cannot admit an eleventh password check', async t => {
   const { db, login } = await fixture(t);
   const lookup = t.mock.method(db, 'get');
-  const results = await Promise.all(Array.from({ length: 12 }, () => login(incorrect)));
+  const results = await Promise.all(Array.from({ length: 12 }, (_, index) => login(incorrect, email, `192.0.2.${index + 1}`)));
   t.assert.deepEqual(results.map(result => result.status).sort(), [...Array(10).fill(401), 429, 429]);
   t.assert.equal(lookup.mock.callCount(), 10);
 });

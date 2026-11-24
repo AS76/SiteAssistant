@@ -76,7 +76,7 @@ test('public health, protected routes, expiry, disabled users and revocation', a
   t.assert.strictEqual((await as('owner', '/api/auth/me')).status, 401);
 });
 
-test('login limiter isolates failures by IP/email and slides its window', async t => {
+test('login limiter limits IP and account independently and slides its window', async t => {
   let now = 0;
   const limiter = createLoginLimiter({ now: () => now });
   const { request } = await fixture(t, { limiter });
@@ -88,9 +88,12 @@ test('login limiter isolates failures by IP/email and slides its window', async 
   t.assert.strictEqual(limited.status, 429); t.assert.strictEqual(limited.body.code, 'RATE_LIMITED');
   t.assert.strictEqual(limited.headers['retry-after'], '890');
   t.assert.strictEqual((await attempt('another@example.invalid')).status, 401);
-  t.assert.strictEqual((await attempt('missing@example.invalid', '127.0.0.2')).status, 401);
+  t.assert.strictEqual((await attempt('missing@example.invalid', '127.0.0.2')).status, 429);
+  for (let n = 11; n < 50; n++) limiter.fail('127.0.0.1', `synthetic-${n}@example.invalid`);
+  t.assert.strictEqual((await attempt('fresh@example.invalid')).status, 429);
+  t.assert.strictEqual((await attempt('fresh@example.invalid', '127.0.0.2')).status, 401);
   now = 900000;
-  t.assert.strictEqual((await attempt()).status, 401);
+  t.assert.strictEqual((await attempt(undefined, '127.0.0.3')).status, 401);
   t.assert.strictEqual((await attempt()).status, 429);
   limiter.succeed('127.0.0.1', 'missing@example.invalid');
   t.assert.strictEqual((await attempt()).status, 401);

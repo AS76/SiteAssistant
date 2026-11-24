@@ -260,7 +260,7 @@ test('forgot rotates the password, revokes all sessions and hides unknown and di
   t.assert.deepStrictEqual(await f.db.all('SELECT * FROM sessions ORDER BY id'), sessions);
 });
 
-test('request and forgot use independent ten-attempt limits per IP/email; password uses user ID', async t => {
+test('request and forgot use independent account and IP limits; password uses user ID', async t => {
   const f = await fixture(t); await f.user(); const cookie = await f.login();
   for (const endpoint of ['request', 'forgot']) {
     for (let i = 0; i < 10; i++) t.assert.strictEqual((await f.post(endpoint, { email: 'absent@example.invalid' })).status, 202);
@@ -271,7 +271,7 @@ test('request and forgot use independent ten-attempt limits per IP/email; passwo
   for (let i = 0; i < 10; i++) t.assert.strictEqual((await f.post('password', { current_password: 'Wrong', new_password: newPassword }, cookie)).status, 401);
   const second = await f.login();
   t.assert.strictEqual((await f.post('password', { current_password: oldPassword, new_password: newPassword }, second)).status, 429);
-  t.assert.strictEqual((await f.request('/api/auth/password', { method: 'POST', cookie, ip: '127.0.0.2', body: { current_password: oldPassword, new_password: newPassword } })).status, 200);
+  t.assert.strictEqual((await f.request('/api/auth/password', { method: 'POST', cookie, ip: '127.0.0.2', body: { current_password: oldPassword, new_password: newPassword } })).status, 429);
 });
 
 test('missing OWNER_EMAIL returns 503 without creating rows or sending mail', async t => {

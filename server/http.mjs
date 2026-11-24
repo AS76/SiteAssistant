@@ -5,13 +5,13 @@ import { extname } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { pipeline } from 'node:stream/promises';
 import { S3Storage, ObjectStorageError, encodeS3Component } from './s3.mjs';
-import { authenticate, login, memberships, publicUser, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
+import { authenticate, assertAuthBypassAllowed, login, memberships, publicUser, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
 import { createWebAuthn } from './webauthn.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { createStaticHandler } from './static-dev.mjs';
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage } from './signup.mjs';
 import { createTaskResponse } from './idempotency.mjs';
-import { createRateLimiter } from './limits.mjs';
+import { createClientIpResolver, createRateLimiter } from './limits.mjs';
 import { readPagination } from './pagination.mjs';
 import { listAuditEvents, countAuditEvents, appendAttachmentRead } from './audit.mjs';
 import { listWbs, getWbs, importWbs, createWbs, updateWbs } from './wbs.mjs';
@@ -72,7 +72,7 @@ async function paginatedJson(response, url, db, list, count, filters, user) {
 const rateLimitExempt = new Set(['/api/auth/login', '/api/auth/forgot', '/api/auth/password', '/api/auth/request']);
 const authBypassExcluded = new Set([
   '/api/auth/login', '/api/auth/logout', '/api/auth/forgot', '/api/auth/request',
-  '/api/auth/request/decide', '/api/auth/password',
+  '/api/auth/request/decide', '/api/auth/password', '/api/auth/me', '/api/health',
 ]);
 
 async function readJson(request, { includeHash = false, maxBytes = 65536 } = {}) {
@@ -140,11 +140,14 @@ function siteFromQuery(url, allowed) {
   return url.searchParams.get('site_id') ?? url.searchParams.get('siteId');
 }
 
-function createAuthRequestLimiter() {
-  const limiter = createRateLimiter({ max: 10, windowMs: 15 * 60 * 1000 });
+function createAuthRequestLimiter({ ipMax = 50 } = {}) {
+  const windowMs = 15 * 60 * 1000;
+  const byIp = createRateLimiter({ max: ipMax, windowMs });
+  const byAccount = createRateLimiter({ max: 10, windowMs });
   return {
     attempt(ip, key) {
-      const { allowed, retryAfter } = limiter.attempt(`${ip}|${key}`);
+      let { allowed, retryAfter } = byIp.attempt(ip);
+      if (allowed && key) ({ allowed, retryAfter } = byAccount.attempt(key));
       if (allowed) return;
       const error = new RepositoryError(429, 'Too many login attempts.', 'RATE_LIMITED');
       error.retryAfter = retryAfter;
@@ -155,6 +158,7 @@ function createAuthRequestLimiter() {
 
 export function createServer(db, { limiter = createLoginLimiter(), production = process.env.NODE_ENV === 'production',
   authBypassUser = process.env.AUTH_BYPASS_USER || '',
+  trustedProxyIps = process.env.TRUSTED_PROXY_IPS || '',
   mailer = sendMail, ownerEmail = process.env.OWNER_EMAIL,
   publicUrl = process.env.PUBLIC_URL || 'https://api.siteassistant.asassi.cloud',
   requestLimiter = createAuthRequestLimiter(), forgotLimiter = createAuthRequestLimiter(), passwordLimiter = createAuthRequestLimiter(),
@@ -167,8 +171,11 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   // Development only: serve the browser client from the same origin as the API.
   staticDir = process.env.SERVE_APP === '1' ? new URL('../app/', import.meta.url).pathname : null,
 } = {}) {
+  assertAuthBypassAllowed(authBypassUser, production);
+  const clientIp = createClientIpResolver(trustedProxyIps);
   const passkeys = createWebAuthn(db, webauthn);
   const passkeyLimiter = createAuthRequestLimiter();
+  const passkeyVerifyLimiter = createAuthRequestLimiter({ ipMax: 10 });
   const serveStatic = staticDir ? createStaticHandler(staticDir) : null;
   const authBypassEmail = authBypassUser.trim().toLowerCase();
   let authBypassCount = 0, lastAuthBypassLog = -Infinity;
@@ -197,6 +204,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       path = url.pathname;
       const method = request.method;
+      const ip = clientIp(request);
       if (serveStatic && !path.startsWith('/api/')) {
         if (await serveStatic(request, response, url)) return;
         // A client-side route (hash routing aside) still gets the shell.
@@ -228,7 +236,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         }
         if (!rateLimitExempt.has(path)) {
           const result = user ? userLimiter.attempt(`user:${user.id}`)
-            : anonLimiter.attempt(`ip:${request.socket?.remoteAddress || ''}`);
+            : anonLimiter.attempt(`ip:${ip}`);
           response.setHeader('X-RateLimit-Remaining', String(result.remaining));
           if (!result.allowed) {
             response.setHeader('X-RateLimit-Remaining', '0');
@@ -253,7 +261,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (['/api/auth/request', '/api/auth/forgot'].includes(path) && method === 'POST') {
         const email = normalizeEmail((await readJson(request)).email);
         const signup = path === '/api/auth/request';
-        (signup ? requestLimiter : forgotLimiter).attempt(request.socket?.remoteAddress || '', email);
+        (signup ? requestLimiter : forgotLimiter).attempt(ip, email);
         // Preflight also covers no-op cases, keeping configuration errors uniform.
         if (signup && (typeof ownerEmail !== 'string' || !ownerEmail.trim())) throw new MailNotConfiguredError();
         mailer.assertConfigured?.();
@@ -266,20 +274,19 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       });
       if (path === '/api/auth/login' && method === 'POST') {
         const result = await login(db, await readJson(request), {
-          // Rate limiting uses the immediate peer, never X-Forwarded-For.
-          ip: request.socket?.remoteAddress || '', userAgent: request.headers['user-agent'] || '', limiter,
+          ip, userAgent: request.headers['user-agent'] || '', limiter,
         });
         response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user });
       }
-      const passkeyContext = { ip: request.socket?.remoteAddress || '', userAgent: request.headers['user-agent'] || '' };
+      const passkeyContext = { ip, userAgent: request.headers['user-agent'] || '' };
       if (path === '/api/auth/webauthn/login/options' && method === 'POST') {
         const input = await readJson(request);
         passkeyLimiter.attempt(passkeyContext.ip, typeof input.email === 'string' ? input.email.trim().toLowerCase() : '');
         return json(response, 200, await passkeys.loginOptions(input));
       }
       if (path === '/api/auth/webauthn/login/verify' && method === 'POST') {
-        passkeyLimiter.attempt(passkeyContext.ip, 'webauthn-verify');
+        passkeyVerifyLimiter.attempt(ip);
         const result = await passkeys.loginVerify(await readJson(request), passkeyContext);
         response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user, assurance: result.assurance });
@@ -491,7 +498,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, await importRequest(db, input, user, { apply: path === '/api/import/apply' }));
       }
       if (path === '/api/auth/password' && method === 'POST') {
-        passwordLimiter.attempt(request.socket?.remoteAddress || '', user.id);
+        passwordLimiter.attempt(ip, user.id);
         await changePassword(db, user, await readJson(request));
         return json(response, 200, { status: 'ok' });
       }
