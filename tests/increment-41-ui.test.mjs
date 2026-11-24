@@ -498,8 +498,7 @@ test('diary shows the selected date, chronological contributions and localized c
     assert.ok(register.includes(`2 ${messages[language].entries}`));
     assert.ok(register.indexOf('Synthetic earlier entry') < register.indexOf('Synthetic later entry'));
     assert.doesNotMatch(register, /data-command="new-entry"/);
-    assert.match(register, /data-command="diary-correct" data-id="earlier"/);
-    assert.doesNotMatch(register, /data-command="diary-correct" data-id="later"/);
+    assert.doesNotMatch(register, /data-command="diary-correct"/);
     assert.match(register, /data-command="diary-versions" data-id="later"/);
     assert.ok(register.includes('Synthetic editor'));
     t.mock.timers.setTime(Date.parse('2026-11-22T12:00:00Z'));
@@ -511,6 +510,34 @@ test('diary shows the selected date, chronological contributions and localized c
     assert.ok(app.node('#main').innerHTML.includes(messages[language].diaryRecordedLate.split('{date}')[0]));
     t.mock.timers.setTime(Date.parse('2026-11-21T12:00:00Z'));
   }
+});
+
+test('diary corrections follow the site cutoff for editors and are always available to owners', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-03-29T04:14:59.999Z') });
+  const entry = { id: 'entry', siteId: 'site-1', date: '2026-03-28', shift: 'night', author_id: 'other-user' };
+  const app = ui({ diary: [entry] });
+  Object.assign(app.context.state.sites[0], { time_zone: 'Europe/Rome', day_cutoff_time: '06:15' });
+  app.context.Date = Date;
+  app.context.reportDate = entry.date;
+  app.context.showModal = (_title, html) => { app.node('#dialog').innerHTML = html; };
+  app.context.formActions = () => '';
+  app.run(section('const diaryContentFields =', 'async function loadWbs()'));
+  app.run(section('function diaryMotivationField()', 'async function showDiaryVersions('));
+  const member = app.context.session.roles[0];
+  member.role = 'editor';
+  app.run('renderDiary(); showDiaryCorrection("entry")');
+  assert.match(app.node('#main').innerHTML, /data-command="diary-correct"/);
+  assert.match(app.node('#dialog').innerHTML, /<textarea name="motivation"[^>]*required/);
+  member.role = 'verifier';
+  app.run('renderDiary()');
+  assert.doesNotMatch(app.node('#main').innerHTML, /data-command="diary-correct"/);
+  member.role = 'editor';
+  t.mock.timers.setTime(Date.parse('2026-03-29T04:15:00.000Z'));
+  app.run('renderDiary()');
+  assert.doesNotMatch(app.node('#main').innerHTML, /data-command="diary-correct"/);
+  member.role = 'owner';
+  app.run('renderDiary()');
+  assert.match(app.node('#main').innerHTML, /data-command="diary-correct"/);
 });
 
 test('41.07 M2 — mobile pages keep their scale: no pinch zoom, no focus zoom, no text inflation', () => {

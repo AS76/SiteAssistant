@@ -1327,9 +1327,8 @@ function diaryDayAge(day) {
   const { year, month, day: localDay } = Object.fromEntries(parts.map(part => [part.type, part.value]));
   return (Date.parse(`${year}-${month}-${localDay}`) - Date.parse(day)) / 86_400_000;
 }
-const diaryAuthorInWindow = entry => entry.author_id === session?.user.id && diaryDayAge(entry.date) <= 7;
 const canCorrectDiary = entry => !offline && !entry.syncStatus && moduleVisible('diary') &&
-  (role() === 'owner' || (role() && diaryAuthorInWindow(entry)));
+  (role() === 'owner' || (role() === 'editor' && entry.date === operationalDay().date));
 const diaryTimestamp = (instant, entry) => new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: entry.time_zone || timeZoneForSite(currentSite()),
 }).format(new Date(instant));
@@ -3798,7 +3797,7 @@ async function runStatusTransition(taskId, to, control) {
   if (fromDetail && version === modalVersion && siteId === task.siteId) await showDetail(taskId);
 }
 function diaryMotivationField() {
-  return field('diaryMotivation', 'motivation', '', { type: 'textarea', required: true, full: true, hint: t('diaryMotivationHint') });
+  return field('diaryMotivation', 'motivation', '', { type: 'textarea', required: true, full: true, hint: 'diaryMotivationHint' });
 }
 function showDiaryCorrection(id) {
   const entry = state.diary.find(item => item.id === id && item.siteId === siteId);
@@ -3808,7 +3807,7 @@ function showDiaryCorrection(id) {
     <p class="note">${esc(t('diaryCorrectionGuide'))}</p>
     <div class="form-grid">${Object.keys(diaryContentFields).map(key =>
       field(key, key, entry[key], { type: 'textarea', full: true, max: 10000 })).join('')}
-      ${diaryAuthorInWindow(entry) ? '' : diaryMotivationField()}</div>${formActions()}</form>`, { notebook: true });
+      ${diaryMotivationField()}</div>${formActions()}</form>`, { notebook: true });
   $('#diary-correction-form').originalEntry = entry;
 }
 async function showDiaryVersions(id) {
@@ -4159,8 +4158,8 @@ document.addEventListener('submit', async event => {
   // Capture the selected context before waiting for the server.
   const selectedSite = siteId;
   try {
-    if (['entry-form', 'diary-correction-form'].includes(form.id) &&
-        data.motivation !== undefined && data.motivation.trim().length < 10) {
+    if ((form.id === 'diary-correction-form' || (form.id === 'entry-form' && data.motivation !== undefined)) &&
+        (data.motivation ?? '').trim().length < 10) {
       throw new Error('diaryMotivationHint');
     }
     if (form.id === 'deviation-owner-form' || form.id === 'deviation-attribution-form') {
@@ -4279,7 +4278,7 @@ document.addEventListener('submit', async event => {
         closeModal();
         return;
       }
-      if (data.motivation !== undefined) changes.motivation = data.motivation;
+      changes.motivation = data.motivation;
       const user = session?.user.id;
       const entry = await api.updateDiary(original.id, changes);
       if (user !== session?.user.id) return;

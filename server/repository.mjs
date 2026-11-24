@@ -614,11 +614,14 @@ export async function updateDiary(db, id, input, user) {
       const { updated_by_name, ...before } = await getDiary(tx, id);
       const role = await requireRole(tx, before.site_id, user);
       await requireModule(tx, before.site_id, user, 'diary');
-      const { time_zone: zone } = await getSite(tx, before.site_id);
       const updatedAt = new Date().toISOString();
-      const authorInWindow = before.author_id === user.id &&
-        calendarDayAge(before.operational_date, calendarDateFormatter(zone)(updatedAt)) <= 7;
-      if (!authorInWindow && role !== 'owner') fail(403, 'Insufficient site role.', 'FORBIDDEN');
+      if (role !== 'owner') {
+        if (role !== 'editor') fail(403, 'Insufficient site role.', 'FORBIDDEN');
+        const { time_zone: timeZone, day_cutoff_time: dayStart } = await getSite(tx, before.site_id);
+        if (before.operational_date !== operationalDate(updatedAt, { timeZone, dayStart })) {
+          fail(403, 'Insufficient site role.', 'FORBIDDEN');
+        }
+      }
       if (Object.hasOwn(input, 'operational_date') && input.operational_date !== before.operational_date) {
         fail(400, 'operational_date cannot be changed.', 'VALIDATION_ERROR');
       }
@@ -627,7 +630,7 @@ export async function updateDiary(db, id, input, user) {
         if (typeof input[key] !== 'string') fail(400, `${key} must be a string.`, 'VALIDATION_ERROR');
         return text(input[key], key);
       });
-      const motivation = diaryMotivation(input, !authorInWindow);
+      const motivation = diaryMotivation(input, true);
       const archived = await tx.run(`INSERT INTO diary_entry_versions
         (id, diary_id, version, snapshot, author_id, created_at, motivation)
         VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (diary_id, version) DO NOTHING`,
