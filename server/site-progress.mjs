@@ -55,9 +55,26 @@ function validId(value, field) {
   return value.toLowerCase();
 }
 
-async function siteProgressFilters(db, { siteId: input, wbsId }) {
+async function siteProgressFilters(db, { siteId: input, wbsId, includeDescendants = false }) {
   const site = validId(input, 'site_id'), clauses = ['s.site_id = ?'], values = [site];
-  if (wbsId != null) { clauses.push('s.wbs_id = ?'); values.push(validId(wbsId, 'wbs_id')); }
+  if (includeDescendants && wbsId == null) fail(400, 'include_descendants requires wbs_id.', 'VALIDATION_ERROR');
+  if (wbsId != null) {
+    const node = validId(wbsId, 'wbs_id');
+    if (includeDescendants) {
+      clauses.push(`s.wbs_id IN (WITH RECURSIVE subtree(id, site_id) AS (
+        SELECT id, site_id FROM project_structure WHERE id = ? AND site_id = ?
+        UNION
+        SELECT p.id, p.site_id FROM project_structure p
+        LEFT JOIN wbs_node_overrides o ON o.wbs_id = p.id AND o.site_id = p.site_id
+        JOIN subtree parent ON parent.site_id = p.site_id
+          AND parent.id = CASE WHEN o.parent_set THEN o.parent_id ELSE p.parent_id END
+      ) SELECT id FROM subtree)`);
+      values.push(node, site);
+    } else {
+      clauses.push('s.wbs_id = ?');
+      values.push(node);
+    }
+  }
   await getSite(db, site);
   return { where: clauses.join(' AND '), values };
 }

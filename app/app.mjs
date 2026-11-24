@@ -1935,8 +1935,16 @@ function renderDeviations() {
   return window.matchMedia('(max-width: 520px)').matches ? html + renderReconciliation() : renderReconciliation() + html;
 }
 function renderProgress() {
-  const rows = filterSortRecords(coreData('progress'), coreFilters.progress, [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
-  return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbs', coreData('wbs').map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), coreFilters.progress.wbsId, 'coreAllWbs')}</div>` +
+  const { wbsId, includeDescendants, id } = coreFilters.progress;
+  const nodes = coreData('wbs');
+  const selected = nodes.find(node => node.id === wbsId);
+  const scope = new Set(includeDescendants && selected ? flattenWbs([selected]).map(node => node.id) : [wbsId]);
+  const rows = filterSortRecords(coreData('progress').filter(row => !wbsId || scope.has(row.wbsId)), { id },
+    [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
+  const scopeLabel = t(!wbsId ? 'coreAllWbs' : includeDescendants ? 'wbsScopeSubtree' : 'wbsScopeExact');
+  return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbs', nodes.map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), wbsId, 'coreAllWbs')}
+      <label><input type="checkbox" data-core-filter="includeDescendants" ${includeDescendants ? 'checked' : ''} ${wbsId ? '' : 'disabled'}> ${t('wbsIncludeDescendants')}</label></div>
+    <p class="note" role="status">${scopeLabel} · ${coreNumber(rows.length, 'count')}</p>` +
     (rows.length ? coreTable(['wbsDescription', 'coreSection', 'area', 'coreProgressPct', 'coreBookedHours'], rows.map(row => [coreDetailButton('progress', row), coreValue(row.section), coreValue(row.plcArea),
       `<div>${progressBar(row.progressPct)}${row.progressPctSource === 'computed' ? ` <span class="badge">${t('coreComputed')}</span>` : ''}
       ${progressVerificationWarning(row)}</div>`, coreNumber(row.bookedHours, 'hours')])) : empty('noResults', 'noResultsHint'));
@@ -4334,7 +4342,13 @@ document.addEventListener('change', event => {
     if (event.target.dataset.coreFilter === 'order') hseAssetOrder = event.target.value;
     else hseAssetFilters[event.target.dataset.coreFilter] = event.target.value;
     render();
-  } else if (event.target.dataset.coreFilter && coreFilters[view]) { coreFilters[view][event.target.dataset.coreFilter] = event.target.value; render(); }
+  } else if (event.target.dataset.coreFilter && coreFilters[view]) {
+    const key = event.target.dataset.coreFilter;
+    coreFilters[view][key] = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
+    if (view === 'progress' && key === 'wbsId') coreFilters.progress.includeDescendants = false;
+    render();
+    if (view === 'progress') $(`[data-core-filter="${key}"]`)?.focus();
+  }
   if (event.target.matches('#impact-transition-form [name=to]')) {
     const closing = event.target.value === 'closed', result = $('#impact-transition-form [name=result]');
     $('#impact-result-field').hidden = !closing; result.required = closing; result.disabled = !closing; if (!closing) result.value = '';
