@@ -22,5 +22,5 @@
 <rect x="660" y="196" width="220" height="24" rx="3" fill="#F7EAE4" stroke="#8E2E24"/><text class="b" x="770" y="213" font-size="12" text-anchor="middle" style="fill:#8E2E24">padre sintetico · synthetic parent</text>
 <rect x="4" y="240" width="112" height="56" rx="3" fill="#FFFCF5" stroke="#CFC3AC" stroke-width="1.5"/><text class="mono" x="60.0" y="262" font-size="14" text-anchor="middle" style="fill:#1E1A15">1.1.1</text><text x="60.0" y="281" font-size="13" text-anchor="middle" style="fill:#544E46">Fondazioni</text>
 <rect x="164" y="240" width="112" height="56" rx="3" fill="#FFFCF5" stroke="#CFC3AC" stroke-width="1.5"/><text class="mono" x="220.0" y="262" font-size="14" text-anchor="middle" style="fill:#1E1A15">1.1.2</text><text x="220.0" y="281" font-size="13" text-anchor="middle" style="fill:#544E46">Tamponature</text>
-<text x="450" y="324" text-anchor="middle" font-size="13" style="fill:#544E46">Albero espandibile e tabella piatta · sola lettura · Expandable tree and flat table · read only</text>
+<text x="450" y="324" text-anchor="middle" font-size="13" style="fill:#544E46">Albero e tabella operativi · Operational tree and table</text>
 </svg>
