@@ -34,6 +34,7 @@ export default defineConfig({
       sidebar: [
         { label: 'Benvenuto', translations: { en: 'Welcome' }, link: '/' },
         { label: 'Supporto', translations: { en: 'Support' }, slug: 'supporto' },
+        { label: 'Versione', translations: { en: 'Version' }, slug: 'note/versione' },
         {
           label: 'Guida',
           translations: { en: 'Guide' },
