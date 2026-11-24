@@ -76,7 +76,7 @@ A cosa serve: registrare il passaggio di stato con la persona, l'ora e la nota c
 2. Guarda lo **stato corrente** e i pulsanti disponibili: cambiano con lo stato.
 3. Premi il pulsante del passaggio che devi fare — per esempio **Avvia**, **Sottoponi a verifica**, **Blocca**.
 4. Scrivi la **nota** o la **motivazione** richiesta dal passaggio.
-5. Premi **Salva**: la **cronologia** nel dettaglio registra chi, quando, da quale stato e con quale nota.
+5. Conferma nel modulo, quando richiesto. La **Cronologia** nel dettaglio registra chi ha cambiato lo stato, quando e con quale nota.
 
 | Da | A | Cosa fai | Cosa serve |
 | :-- | :-- | :-- | :-- |
@@ -84,15 +84,16 @@ A cosa serve: registrare il passaggio di stato con la persona, l'ora e la nota c
 | `todo` | `blocked` | **Blocca** | Motivazione |
 | `in_progress` | `to_verify` | **Sottoponi a verifica** | Nota di esecuzione |
 | `in_progress` | `blocked` | **Blocca** | Motivazione |
-| `to_verify` | `closed` | **Verifica** | Nota; solo il verificatore assegnato o un owner |
+| `to_verify` | `closed` | **Verifica** | Allegato e nota di verifica, oppure deroga motivata |
+| `to_verify` | `in_progress` | **Respingi** | Nota obbligatoria su cosa rifare |
 | `to_verify` | `blocked` | **Blocca** | Motivazione |
 | `closed` | `in_progress` | **Riapri** | Motivazione; solo il verificatore assegnato o un owner |
+| `blocked` | Stato precedente al blocco | **Riprendi** | Passaggio immediato se lo stato precedente è disponibile |
 
 :::caution[Se il passaggio non è disponibile]
 - **Nessun pulsante nel dettaglio:** lo stato corrente non prevede quel passaggio. Riapri il dettaglio per aggiornare i dati.
 - **Nota o motivazione mancante:** il modulo rifiuta il salvataggio e segnala il campo.
-- **Verifica negata:** solo il verificatore assegnato o un owner può chiudere o riaprire; chi ha eseguito il lavoro non può verificarlo.
-- **Attività bloccata:** la ripresa da `blocked` non è esposta nell'interfaccia in questa versione.
+- Per un’attività **Da verificare**, il dettaglio mostra un avviso se il tuo account non può verificare o respingere.
 :::
 
 ## Cambiare stato dalla bacheca
@@ -100,7 +101,7 @@ A cosa serve: registrare il passaggio di stato con la persona, l'ora e la nota c
 A cosa serve: fare il passaggio di stato più comune senza aprire il dettaglio.
 
 1. Nella bacheca, guarda l'angolo di una scheda attività: il pulsante **⋯** apre il menu **Cambia stato**.
-2. La finestra mostra lo stato corrente e i soli passaggi consentiti da quello stato, ciascuno con il pulsante **Passa a …**.
+2. La finestra mostra lo stato corrente e i soli passaggi consentiti da quello stato, con comandi come **Verifica**, **Respingi** e **Riprendi** quando disponibili.
 3. Premi il passaggio che ti serve: se richiede una nota o una motivazione si apre la finestra consueta, altrimenti il passaggio viene registrato subito.
 4. Il menu rispetta le stesse regole del dettaglio: permessi, transizioni consentite e cronologia sono gli stessi. Chi non può scrivere non vede il pulsante **⋯**.
 
@@ -122,13 +123,15 @@ Il collegamento si può cambiare in seguito riaprendo la stessa finestra. Se il 
 La chiusura richiede due atti distinti:
 
 1. l'**esecutore** dichiara il completamento con una nota di esecuzione;
-2. il **verificatore** conferma con la propria nota.
+2. il **verificatore** sceglie **Verifica** e conferma la chiusura. Il modulo richiede un allegato all’attività e una nota di verifica, oppure una motivazione di almeno 15 caratteri per la deroga.
 
-Solo il verificatore collegato all'attività (o un owner) può chiudere o riaprire. Se l'attività è stata assegnata con un nome libero non c'è un verificatore collegato: la verifica resta agli owner. Chi ha eseguito il lavoro non può mai verificarlo da solo.
+Se serve altro lavoro, premi **Respingi**, scrivi nella **Nota** obbligatoria che cosa va rifatto e conferma con **Respingi**. L’attività torna **In corso** e la nota compare nella **Cronologia**. Se il salvataggio fallisce, la finestra mostra l’errore e mantiene la nota inserita.
+
+**Verifica** e **Respingi** sono disponibili al verificatore collegato all’attività e agli owner, purché la dichiarazione abbia un autore registrato diverso da chi la esamina. Con un verificatore indicato solo per nome, questi comandi spettano agli owner.
 
 ## Allegati
 
-Nel dettaglio di un'attività puoi allegare foto o PDF, fino a **15 MiB** per file; il caricamento è riservato a owner ed editor. L'evidenza della verifica resta una **nota testuale**: l'allegato non sostituisce la nota.
+Nel dettaglio di un'attività puoi allegare foto o PDF, fino a **15 MiB** per file; il caricamento è riservato a owner ed editor. Per i requisiti di chiusura, vedi [La verifica](#la-verifica).
 
 ## Bacheca, elenco e attività leggere
 
@@ -196,4 +199,3 @@ Le viste sono **personali** per impostazione predefinita; una vista **condivisa*
 - Modificare un'attività dopo la creazione.
 - Criteri di accettazione, descrizioni lunghe, checklist.
 - Eliminare un'attività.
-- Rifiutare una sottomissione (rimandarla a `in_progress`) o riprendere un'attività bloccata: queste transizioni esistono solo via API, non sono ancora esposte nell'applicazione.

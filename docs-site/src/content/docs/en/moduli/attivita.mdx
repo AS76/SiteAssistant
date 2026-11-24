@@ -76,7 +76,7 @@ What it is for: recording the status change with the person, the time and the no
 2. Look at the **current status** and the available buttons: they change with the status.
 3. Press the button for the move you need — for example **Start**, **Submit for review**, **Block**.
 4. Write the **note** or **reason** the move requires.
-5. Press **Save**: the **history** in the detail records who, when, from which status and with which note.
+5. Confirm in the form when prompted. The task’s **History** records who changed the status, when and with which note.
 
 | From | To | What you do | What it requires |
 | :-- | :-- | :-- | :-- |
@@ -84,15 +84,16 @@ What it is for: recording the status change with the person, the time and the no
 | `todo` | `blocked` | **Block** | A reason |
 | `in_progress` | `to_verify` | **Submit for review** | An execution note |
 | `in_progress` | `blocked` | **Block** | A reason |
-| `to_verify` | `closed` | **Verify** | A note; only the designated reviewer or an owner |
+| `to_verify` | `closed` | **Verify** | An attachment and a verification note, or a waiver with a reason |
+| `to_verify` | `in_progress` | **Reject** | A required note explaining what to redo |
 | `to_verify` | `blocked` | **Block** | A reason |
 | `closed` | `in_progress` | **Reopen** | A reason; only the designated reviewer or an owner |
+| `blocked` | Status before the block | **Resume** | Takes effect immediately if the previous status is available |
 
 :::caution[If the move is not available]
 - **No buttons in the detail:** the current status does not allow that move. Reopen the detail to refresh the data.
 - **Missing note or reason:** the form rejects the save and points to the field.
-- **Verification denied:** only the designated reviewer or an owner can close or reopen; whoever executed the work cannot verify it.
-- **Blocked task:** resuming from `blocked` is not exposed in the interface in this version.
+- For a **To verify** task, the details show a message if your account cannot verify or reject it.
 :::
 
 ## Change a status from the board
@@ -100,7 +101,7 @@ What it is for: recording the status change with the person, the time and the no
 What it is for: making the most common status move without opening the detail.
 
 1. On the board, look at the corner of a task card: the **⋯** button opens the **Change status** menu.
-2. The dialog shows the current status and only the moves allowed from it, each with a **Move to …** button.
+2. The dialog shows the current status and only the moves allowed from it, with buttons such as **Verify**, **Reject** and **Resume** when available.
 3. Press the move you need: when it requires a note or a reason the usual dialog opens, otherwise the move is recorded straight away.
 4. The menu follows the same rules as the detail: permissions, allowed transitions and history are the same. Those who cannot write do not see the **⋯** button.
 
@@ -122,13 +123,15 @@ You can change the link later by reopening the same dialog. When the site has no
 Closing requires two distinct acts:
 
 1. the **executor** reports completion with an execution note;
-2. the **reviewer** confirms with their own note.
+2. the **reviewer** chooses **Verify** and confirms closure. The form requires a task attachment and a verification note, or a waiver reason of at least 15 characters.
 
-Only the reviewer linked to the task (or an owner) can close or reopen. When the task was assigned with a free name there is no linked reviewer: reviews stay with owners. Whoever executed the work can never verify it themselves.
+If the work needs another pass, choose **Reject**, explain what must be redone in the required **Note**, and confirm with **Reject**. The task returns to **In progress** and the note appears in **History**. If saving fails, the dialog shows the error and keeps your note.
+
+The reviewer linked to the task and site owners can **Verify** or **Reject** when the task has a recorded submitter other than themselves. If the reviewer was entered as a name only, these actions are reserved for owners.
 
 ## Attachments
 
-In a task detail you can attach photos or PDFs, up to **15 MiB** per file; uploading is reserved to owners and editors. The verification evidence remains a **text note**: the attachment does not replace the note.
+In a task detail you can attach photos or PDFs, up to **15 MiB** per file; uploading is reserved to owners and editors. For closure requirements, see [The review](#the-review).
 
 ## Board, list and light tasks
 
@@ -196,4 +199,3 @@ Views are **personal** by default; a **shared** view is visible to every member 
 - Editing a task after creation.
 - Acceptance criteria, long descriptions, checklists.
 - Deleting a task.
-- Rejecting a submission or resuming a blocked task from the interface: those transitions exist only via API and are not yet exposed in the application.

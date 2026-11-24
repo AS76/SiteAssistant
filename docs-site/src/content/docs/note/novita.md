@@ -7,6 +7,7 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 22 novembre 2026
 
+- **Verifica, Respingi e Riprendi.** In **Oggi** e nel dettaglio dell’attività, il verificatore assegnato o un owner può verificare o rimandare **In corso** il lavoro di un’altra persona. Per respingere serve una nota su cosa rifare. **Riprendi** riporta subito un’attività allo stato precedente al blocco. Vedi [Attività e verifiche](../../moduli/attivita/#la-verifica) e [Guida rapida mobile](../../guida/mobile/#la-schermata-oggi).
 - **Blocchi e prossimo passo in Oggi.** Le attività bloccate mostrano la scadenza, il motivo se registrato e i giorni di ritardo, con accesso diretto al dettaglio e alla **Cronologia**. Il **Prossimo passo** riprende il contributo più recente del Diario che lo contiene e apre il relativo giorno operativo. Se l'aggiornamento di Avanzamento o Deviazioni fallisce, le voci già caricate restano visibili quando l'accesso è ancora consentito. Vedi [Guida rapida mobile](../../guida/mobile/#la-schermata-oggi).
 
 - **Conto alla rovescia per l'accesso con password.** Il limite conta solo i tentativi falliti. Se scatta il blocco, **Accedi** mostra il tempo rimanente e si riattiva allo scadere dell'attesa. Vedi [Accesso e account](../../guida/accesso/#entrare).

@@ -1,0 +1,15 @@
+{
+  "code_commit": "25b069aea32dbb0d55fd95960aca86c44f730012",
+  "reviewed_at": "2026-11-24",
+  "documentation_required": true,
+  "pages": [
+    "docs-site/src/content/docs/en/guida/mobile.mdx",
+    "docs-site/src/content/docs/en/moduli/attivita.mdx",
+    "docs-site/src/content/docs/en/note/novita.md",
+    "docs-site/src/content/docs/en/note/rilascio.md",
+    "docs-site/src/content/docs/guida/mobile.mdx",
+    "docs-site/src/content/docs/moduli/attivita.mdx",
+    "docs-site/src/content/docs/note/novita.md",
+    "docs-site/src/content/docs/note/rilascio.md"
+  ]
+}
