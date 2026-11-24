@@ -73,6 +73,8 @@ async function run() {
       await page.locator('#wbs-form [name=description]').fill(`Synthetic browser section ${width}`); await save('wbs-form');
       const created = await db.get('SELECT * FROM project_structure WHERE site_id = ? AND wbs_code = ?', site.id, `SYN-${width}`); assert.ok(created);
       await page.locator(`[data-command=wbs-edit][data-id="${c03.id}"]`).first().click();
+      await page.locator('[data-wbs-source]').waitFor({ state: 'attached' });
+      assert.match(await page.locator('#wbs-form').textContent(), /Provenienza: Importato/);
       assert.equal(await page.locator('[data-wbs-source] input').count(), 0);
       await page.locator('#wbs-form [name=description]').fill(`Local C03 ${width}`);
       await page.locator('#wbs-form [name=parent_id]').selectOption(created.id);
@@ -85,6 +87,8 @@ async function run() {
       await page.locator('#wbs-form [name=resolve_description]').selectOption('keep'); await save('wbs-form');
       // Archive and restore a native node; linked imported C03 remains readable.
       await page.locator(`[data-command=wbs-edit][data-id="${created.id}"]`).first().click();
+      assert.match(await page.locator('#wbs-form').textContent(), /Provenienza: Creato in app/);
+      assert.equal(await page.locator('[data-wbs-source]').count(), 0);
       await page.locator('#wbs-form [name=archived]').check(); await save('wbs-form');
       assert.ok((await db.get('SELECT archived_at FROM project_structure WHERE id = ?', created.id)).archived_at);
       await page.locator('[data-command=wbs-view][data-value=flat]').click();

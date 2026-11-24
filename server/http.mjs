@@ -24,7 +24,7 @@ import {
 } from './deviations.mjs';
 import { evidenceExport } from './evidence-export.mjs';
 import { deviationReconciliation } from './deviation-reconciliation.mjs';
-import { listCostImpacts, getCostImpact, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
+import { listCostImpacts, getCostImpact, listImpactsForDeviation, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
 import {
   listPurchaseOrders, getPurchaseOrder, createPurchaseOrder, updatePurchaseOrder, transitionPurchaseOrder,
   addPurchaseOrderItem, updatePurchaseOrderItem, transitionPurchaseOrderItem,
@@ -787,7 +787,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const record = await getDeviation(db, deviation[1]);
         await requireRole(db, record.site_id, user);
         await requireModule(db, record.site_id, user, 'deviations');
-        return json(response, 200, record);
+        return json(response, 200, { ...record, impacts: await listImpactsForDeviation(db, record, user) });
       }
       if (path === '/api/attachments' && method === 'POST') {
         const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_ATTACHMENT_BYTES / 3) + 65536 });

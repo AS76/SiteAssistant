@@ -314,7 +314,22 @@ export async function getTask(db, id) {
   if (!task) fail(404, 'Task not found.', 'TASK_NOT_FOUND');
   const events = await db.all('SELECT * FROM task_events WHERE task_id = ? ORDER BY at, id', id);
   const history = events.map(event => Object.hasOwn(event, 'waiver') ? { ...event, waiver: Boolean(event.waiver) } : event);
-  return { ...await taskWithWbs(db, task), events: history,
+  // Formal acceptance has its own audit history and does not transition task status.
+  const acceptanceEvents = [];
+  if (task.acceptance_state === 'accepted') {
+    const updates = await db.all(`SELECT a.id, a.at, u.name AS actor, a.changes FROM audit_events a
+      LEFT JOIN users u ON u.id = a.actor
+      WHERE a.site_id = ? AND a.entity_type = 'task' AND a.entity_id = ? AND a.action = 'update'
+      ORDER BY a.at, a.id`, task.site_id, task.id);
+    for (const { changes, ...event } of updates) {
+      const diff = JSON.parse(changes);
+      if (diff.acceptance_state?.to !== 'accepted' && !diff.acceptance_document_id && !diff.acceptance_date) continue;
+      const previous = acceptanceEvents.at(-1);
+      acceptanceEvents.push({ ...event, document_id: diff.acceptance_document_id?.to ?? previous?.document_id ?? null,
+        date: diff.acceptance_date?.to ?? previous?.date ?? null });
+    }
+  }
+  return { ...await taskWithWbs(db, task), events: history, acceptance_events: acceptanceEvents,
     reopen_count: history.filter(event => event.from_status === 'closed' && event.to_status !== 'closed').length,
     closed_with_waiver: task.status === 'closed' && Boolean(history.findLast(event =>
       event.to_status === 'closed' && event.from_status !== 'closed')?.waiver) };
@@ -599,11 +614,14 @@ export async function updateDiary(db, id, input, user) {
       const { updated_by_name, ...before } = await getDiary(tx, id);
       const role = await requireRole(tx, before.site_id, user);
       await requireModule(tx, before.site_id, user, 'diary');
-      const { time_zone: zone } = await getSite(tx, before.site_id);
       const updatedAt = new Date().toISOString();
-      const authorInWindow = before.author_id === user.id &&
-        calendarDayAge(before.operational_date, calendarDateFormatter(zone)(updatedAt)) <= 7;
-      if (!authorInWindow && role !== 'owner') fail(403, 'Insufficient site role.', 'FORBIDDEN');
+      if (role !== 'owner') {
+        if (role !== 'editor') fail(403, 'Insufficient site role.', 'FORBIDDEN');
+        const { time_zone: timeZone, day_cutoff_time: dayStart } = await getSite(tx, before.site_id);
+        if (before.operational_date !== operationalDate(updatedAt, { timeZone, dayStart })) {
+          fail(403, 'Insufficient site role.', 'FORBIDDEN');
+        }
+      }
       if (Object.hasOwn(input, 'operational_date') && input.operational_date !== before.operational_date) {
         fail(400, 'operational_date cannot be changed.', 'VALIDATION_ERROR');
       }
@@ -612,7 +630,7 @@ export async function updateDiary(db, id, input, user) {
         if (typeof input[key] !== 'string') fail(400, `${key} must be a string.`, 'VALIDATION_ERROR');
         return text(input[key], key);
       });
-      const motivation = diaryMotivation(input, !authorInWindow);
+      const motivation = diaryMotivation(input, true);
       const archived = await tx.run(`INSERT INTO diary_entry_versions
         (id, diary_id, version, snapshot, author_id, created_at, motivation)
         VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (diary_id, version) DO NOTHING`,

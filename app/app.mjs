@@ -4,6 +4,7 @@ import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
 import { messages } from './i18n.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
 import { hasOpenProgressSteps } from './domain.mjs';
+import { taskFormalAcceptance, taskVerificationOutcome } from './domain.mjs';
 import { INSPECTION_STATUSES, inspectionStatusLabelKey, filterHseAssets, sortHseAssets, hseAssetCounts, inspectionOutcomeLabelKey, inspectionModeLabelKey, inspectionItemResultLabelKey, inspectionTally, sortInspections, inspectionSuggestion, inspectionProgress, inspectionPayload } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, purgeScope, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
@@ -63,7 +64,6 @@ const evidenceLabels = {
   evidenceFull: ['Completa', 'Full'],
   evidencePartial: ['Parziale', 'Partial'],
   evidenceNone: ['Assente', 'None'],
-  evidenceNoDeclaration: ['Nessuna dichiarazione', 'No declaration'],
   evidenceAbsence: ['Presenza nell’export', 'Export presence'],
   evidencePresent: ['Presente nell’export completo del {date} (perimetro: {scope})', 'Present in the complete export dated {date} (scope: {scope})'],
   evidenceAbsent: ['Assente dall’export completo del {date} (perimetro: {scope})', 'Absent from the complete export dated {date} (scope: {scope})'],
@@ -98,7 +98,11 @@ const evidenceLabels = {
   evidenceDeclared: ['Dichiarata il', 'Declared on'],
   evidenceVerified: ['Verificata il', 'Verified on'],
   evidenceAcceptance: ['Accettazione formale', 'Formal acceptance'],
-  evidenceAcceptanceHint: ['Stato della dichiarazione e della verifica del risultato.', 'Status of the result declaration and verification.'],
+  evidenceVerification: ['Verifica operativa', 'Operational verification'],
+  evidenceVerificationPending: ['Verifica da registrare', 'Verification pending'],
+  evidenceVerificationRecorded: ['Verifica registrata', 'Verification recorded'],
+  evidenceVerificationLegacy: ['Chiusura storica senza verifica documentata', 'Historical closure without documented verification'],
+  evidenceAcceptanceNotRecorded: ['Accettazione formale non registrata', 'Formal acceptance not recorded'],
   evidenceAccepted: ['Accettata', 'Accepted'],
   evidenceAcceptanceDocument: ['Documento di accettazione', 'Acceptance document'],
   evidenceAcceptanceDate: ['Data di accettazione', 'Acceptance date'],
@@ -169,7 +173,9 @@ const paths = {
   execution:'<path d="m8 5 11 7-11 7V5Z"/>',review:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',closed:'<circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/>',overdue:'<path d="m12 3 10 18H2L12 3Zm0 6v5m0 3h.01"/>',
 };
 const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[key] || paths.tasks}</svg>`;
-const badge = status => `<span class="badge ${status}">${t(status)}</span>`;
+const badge = (status, label = t(status)) => `<span class="badge ${esc(status)}">${esc(label)}</span>`;
+const taskStatusLabel = status => t(status === 'closed' ? 'notebookClosed' : status);
+const formalAcceptanceLabel = task => t(taskFormalAcceptance(task) === 'accepted' ? 'evidenceAccepted' : 'evidenceAcceptanceNotRecorded');
 const priorityBadge = priority => priority !== 'normal' ? `<span class="badge ${esc(priority)}">${esc(t(priority))}</span>` : '';
 const button = (key, command, extra = '', css = '') => `<button type="button" class="${css}" data-command="${command}" ${extra}>${t(key)}</button>`;
 function toast(message) {
@@ -525,7 +531,7 @@ function renderAssistantChrome() {
 }
 function dueMarkup(task) { return `<span class="due ${task.status !== 'closed' && task.due && task.due < today() ? 'overdue' : ''}">${dateLabel(task.due)}</span>`; }
 function taskRow(task) {
-  return `<div class="task-row"><div><h3><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></h3><p>${esc(task.area || t('noArea'))} · ${esc(task.company)}</p>${badge(task.status)} ${priorityBadge(task.priority)} ${syncBadge(task)}</div><div class="subtitle">${dueMarkup(task)}</div></div>`;
+  return `<div class="task-row"><div><h3><button data-command="detail" data-id="${esc(task.id)}">${esc(task.title)}</button></h3><p>${esc(task.area || t('noArea'))} · ${esc(task.company)}</p>${badge(task.status, taskStatusLabel(task.status))} ${priorityBadge(task.priority)} ${syncBadge(task)}</div><div class="subtitle">${dueMarkup(task)}</div></div>`;
 }
 function todayResource(name) {
   const entry = coreCache.get(siteId)?.get(name);
@@ -726,9 +732,10 @@ function openTodayAction(control) {
     target = currentTodayActions().find(row => row.id === id && row.kind === kind)?.target;
   }
   if (!target || !moduleVisible(target.view)) return;
+  if (target.view === 'deviations') { void showCoreDetail('deviations', id); return; }
   if (target.view === 'tasks') { resetSavedViews(); filters = { ...filters, ...target.filters }; taskView = 'list'; }
   else if (target.view === 'diary') reportDate = target.date;
-  else { coreFilters[target.view] = { ...Object.fromEntries(Object.keys(coreFilters[target.view]).map(key => [key, ''])), ...target.filters }; if (target.view === 'deviations') deviationView = 'list'; }
+  else coreFilters[target.view] = { ...Object.fromEntries(Object.keys(coreFilters[target.view]).map(key => [key, ''])), ...target.filters };
   go(target.view);
 }
 function runTodayQuick(action) {
@@ -769,10 +776,12 @@ function localOverviewWidgets() {
   }).slice(0, 5);
   const diaryDate = operationalDay().date;
   const lastEntry = state.diary.filter(item => item.siteId === siteId && item.date === diaryDate).at(-1);
+  const diaryLink = moduleVisible('diary') && lastEntry
+    ? `<a class="subtitle" href="#diary" data-command="go-diary">${t('openDiary')} →</a>` : '';
   return {
     priority_work: `<section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section>`,
     daily_pulse: `<section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack">${!count.blocked && !count.review ? `<p class="note">${t('pulseClear')}</p>` : `<div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div>`}${count.review ? `<div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div>` : ''}</div></div></section>`,
-    journal_today: `<section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2>${!lastEntry ? button('draft', 'go-diary') : ''}</div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}${lastEntry ? `<a class="subtitle" href="#diary">${t('openDiary')} →</a>` : ''}</div></section>`,
+    journal_today: `<section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2>${!lastEntry && moduleVisible('diary') ? button('draft', 'go-diary') : ''}</div><div class="panel-body"><p class="notebook-meta">${t('reportDate')} <time datetime="${esc(diaryDate)}">${esc(dateLabel(diaryDate))}</time></p><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}${diaryLink}</div></section>`,
   };
 }
 
@@ -1318,9 +1327,8 @@ function diaryDayAge(day) {
   const { year, month, day: localDay } = Object.fromEntries(parts.map(part => [part.type, part.value]));
   return (Date.parse(`${year}-${month}-${localDay}`) - Date.parse(day)) / 86_400_000;
 }
-const diaryAuthorInWindow = entry => entry.author_id === session?.user.id && diaryDayAge(entry.date) <= 7;
 const canCorrectDiary = entry => !offline && !entry.syncStatus && moduleVisible('diary') &&
-  (role() === 'owner' || (role() && diaryAuthorInWindow(entry)));
+  (role() === 'owner' || (role() === 'editor' && entry.date === operationalDay().date));
 const diaryTimestamp = (instant, entry) => new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: entry.time_zone || timeZoneForSite(currentSite()),
 }).format(new Date(instant));
@@ -1442,7 +1450,10 @@ async function showWbsForm(id = '') {
   try {
     const nodes = await freshApi.listWbs(selected, true), node = nodes.find(row => row.id === id);
     if (version !== modalVersion || selected !== siteId || user !== session?.user.id) return;
-    const editable = canWriteWbs(), value = node || {}, source = node?.source_values;
+    const editable = canWriteWbs(), value = node || {};
+    const origin = node?.is_synthetic ? 'synthetic' : node?.provenance?.origin;
+    const originLabel = { source: 'wbsImported', native: 'wbsNative', synthetic: 'wbsSyntheticOrigin' }[origin] || 'coreUnknown';
+    const source = origin === 'source' ? node.source_values : null;
     const descendants = new Set(id ? [id] : []);
     for (let n = 0; n < nodes.length; n++) for (const row of nodes) if (descendants.has(row.parent_id)) descendants.add(row.id);
     const parentOptions = `<option value="">${t('wbsNoParent')}</option>` + nodes.filter(row => !descendants.has(row.id)).map(row => `<option value="${esc(row.id)}" ${row.id === value.parent_id ? 'selected' : ''}>${esc(row.wbs_code)} · ${esc(row.description ?? '')}</option>`).join('');
@@ -1452,10 +1463,11 @@ async function showWbsForm(id = '') {
       return `<div><dt>${t(label)}</dt><dd>${esc(text ?? '—')}</dd></div>`;
     }).join('') : '';
     const resolutions = ['description', 'parent_id', 'sort_order'].filter(key => Object.hasOwn(node?.local_overrides || {}, key)).map(key =>
-      field(({ description: 'wbsDescription', parent_id: 'wbsParent', sort_order: 'wbsOrder' })[key], `resolve_${key}`, '', { options: `<option value="">${t('wbsLeaveLocal')}</option><option value="source">${t('wbsUseSource')}</option><option value="keep">${t('wbsKeepLocal')}</option>` })).join('');
+      field(({ description: 'wbsDescription', parent_id: 'wbsParent', sort_order: 'wbsOrder' })[key], `resolve_${key}`, '', { options: `<option value="">${t('wbsLeaveLocal')}</option><option value="source">${t(source ? 'wbsUseSource' : 'wbsUseInitial')}</option><option value="keep">${t('wbsKeepLocal')}</option>` })).join('');
     showModal(t(id ? 'wbsEdit' : 'wbsCreate'), `<form id="wbs-form" data-id="${esc(id)}" data-site="${esc(selected)}" data-user="${esc(user)}"><div class="form-error" role="alert" tabindex="-1" hidden></div>
       ${Object.keys(node?.conflicts || {}).length ? `<p role="alert" class="note">${t('wbsConflictHint')}</p>` : ''}
-      ${node ? `<p>${t('wbsOrigin')}: ${t(node.provenance?.origin === 'source' ? 'wbsImported' : 'wbsNative')}${wbsState(node)}</p><p>${t('wbsUpdated')}: ${esc(node.provenance?.updated_at ?? node.created_at)} UTC</p><details><summary>${t('wbsSource')}</summary><dl class="detail-grid" data-wbs-source>${sourceRows}</dl></details>` : ''}
+      ${node ? `<p>${t('wbsOrigin')}: ${t(originLabel)}${wbsState(node)}</p><p>${t('wbsUpdated')}: ${esc(node.provenance?.updated_at ?? node.created_at)} UTC</p>` : ''}
+      ${source ? `<details><summary>${t('wbsSource')}</summary><dl class="detail-grid" data-wbs-source>${sourceRows}</dl></details>` : ''}
       <fieldset ${editable ? '' : 'disabled'}><legend>${t('wbsLocal')}</legend><div class="form-grid">
       ${!id ? field('wbsCode', 'wbs_code', '', { required: true, max: 100 }) : ''}${field('wbsDescription', 'description', value.description ?? '')}${field('wbsParent', 'parent_id', '', { options: parentOptions })}${field('wbsOrder', 'sort_order', value.sort_order ?? '', { type: 'number' })}${resolutions}</div>
       ${id ? `<label class="view-checkbox"><input type="checkbox" name="archived" ${value.archived_at ? 'checked' : ''}>${t('wbsArchive')}</label>` : ''}</fieldset>
@@ -1987,15 +1999,20 @@ function renderProgress() {
   const nodes = coreData('wbs');
   const selected = nodes.find(node => node.id === wbsId);
   const scope = new Set(includeDescendants && selected ? flattenWbs([selected]).map(node => node.id) : [wbsId]);
-  const rows = filterSortRecords(coreData('progress').filter(row => !wbsId || scope.has(row.wbsId)), { id },
+  const all = coreData('progress');
+  const rows = filterSortRecords(all.filter(row => !wbsId || scope.has(row.wbsId)), { id },
     [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
   const scopeLabel = t(!wbsId ? 'coreAllWbs' : includeDescendants ? 'wbsScopeSubtree' : 'wbsScopeExact');
-  return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbs', nodes.map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), wbsId, 'coreAllWbs')}
+  return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbsFilterNode', nodes.map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), wbsId, 'coreAllWbs')}
       <label><input type="checkbox" data-core-filter="includeDescendants" ${includeDescendants ? 'checked' : ''} ${wbsId ? '' : 'disabled'}> ${t('wbsIncludeDescendants')}</label></div>
-    <p class="note" role="status">${scopeLabel} · ${coreNumber(rows.length, 'count')}</p>` +
+    <p class="note" role="status">${scopeLabel} · ${t(rows.length === 1 ? 'wbsVisibleItem' : 'wbsVisibleItems').replace('{count}', coreNumber(rows.length, 'count'))}</p>` +
     (rows.length ? coreTable(['wbsDescription', 'coreSection', 'area', 'coreProgressPct', 'coreBookedHours'], rows.map(row => [coreDetailButton('progress', row), coreValue(row.section), coreValue(row.plcArea),
-      `<div>${progressBar(row.progressPct)}${row.progressPctSource === 'computed' ? ` <span class="badge">${t('coreComputed')}</span>` : ''}
-      ${progressVerificationWarning(row)}</div>`, coreNumber(row.bookedHours, 'hours')])) : empty('noResults', 'noResultsHint'));
+      `<div>${progressValue(row)}${progressVerificationWarning(row)}</div>`, coreNumber(row.bookedHours, 'hours')]))
+      : all.length ? empty('noResults', 'noResultsHint') : empty('progressEmpty', 'progressEmptyHint'));
+}
+function progressValue(row) {
+  const source = { imported: 'coreImported', computed: 'coreComputed' }[row.progressPctSource];
+  return progressBar(row.progressPct) + (row.progressPct != null && source ? ` <span class="badge">${t(source)}</span>` : '');
 }
 function progressVerificationWarning(row, linkToTasks = true) {
   if (row.verificationConflict !== true) return '';
@@ -2053,15 +2070,28 @@ function renderWorkforcePresence(date) {
 }
 function renderBookings() {
   const days = coreData('workDays'), employees = coreData('employees'), items = coreData('progress');
-  const groups = groupBookings(coreData('bookings'), days, employees, items).filter(group => !coreFilters.bookings.date || group.date === coreFilters.bookings.date);
+  const { date, from, to, company } = coreFilters.bookings;
+  const allGroups = groupBookings(coreData('bookings'), days, employees, items);
+  const companyName = group => group.employee?.company || null;
+  const companyKey = group => JSON.stringify(companyName(group));
+  const companies = [...new Map(allGroups.map(group => [companyKey(group), companyName(group) ?? t('coreUnknown')]))]
+    .sort((a, b) => a[1].localeCompare(b[1], language));
+  const groups = allGroups.filter(group => (!company || companyKey(group) === company) && (!date || group.date === date)
+    && (!from || (group.date && group.date >= from)) && (!to || (group.date && group.date <= to)));
   const dates = [...new Set(days.map(day => day.operationalDate).filter(Boolean))].sort().reverse();
-  let html = `<div class="toolbar core-toolbar">${coreSelect('date', 'reportDate', dates.map(date => [date, dateLabel(date)]), coreFilters.bookings.date, 'coreAllDays')}</div>`;
+  const choices = dates.map(day => [day, dateLabel(day)]);
+  let html = `<div class="toolbar core-toolbar">${coreSelect('company', 'workforceCompany', companies, company, 'bookingAllCompanies')}
+    ${coreSelect('date', 'reportDate', choices, date, 'coreAllDays')}
+    ${coreSelect('from', 'hseFrom', choices, from, 'coreAllDays')}${coreSelect('to', 'hseTo', choices, to, 'coreAllDays')}</div>`;
+  if (from && to && from > to) return html + `<p role="alert">${t('hsePeriodInvalid')}</p>`;
+  const total = groups.reduce((sum, group) => sum + group.appBookedHours, 0);
+  html += `<p class="note" role="status">${t('bookingFilteredTotal')} <strong>${coreNumber(total, 'hours')} h</strong></p><p class="note">${t('bookingCompanySource')}</p>`;
   if (permissions().book) {
     if (!days.length || !items.length) html += `<p class="blank-message">${t('coreBookingPrerequisites')}</p>`;
     else html += `<form id="booking-form" class="panel panel-body core-booking-form"><h2>${t('coreBookHours')}</h2><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="core-entry-grid"><label class="field">${t('coreWorkDay')}<select name="workDayId" required><option value="">${t('coreChoose')}</option>${filterSortRecords(days, {}, [{ key: 'operationalDate', descending: true }, { key: 'employeeId' }]).map(day => `<option value="${esc(day.id)}">${esc(`${day.operationalDate} · ${employeeLabel(employees.find(employee => employee.id === day.employeeId))} · ${t(day.shift || 'coreUnknown')} · ${day.startTime ?? t('coreUnknown')}`)}</option>`).join('')}</select></label><label class="field">${t('coreProgressItem')}<select name="siteProgressItemId" required><option value="">${t('coreChoose')}</option>${items.map(item => `<option value="${esc(item.id)}">${esc(progressLabel(item))}</option>`).join('')}</select></label><label class="field">${t('coreAppBookedHours')}<input name="hours" type="number" min="0" step="0.5" value="1" required></label><div class="core-stepper">${button('coreMinusHalf', 'booking-step', 'data-step="-0.5"')}${button('corePlusHalf', 'booking-step', 'data-step="0.5"')}${button('corePlusOne', 'booking-step', 'data-step="1"')}</div></div><div class="form-actions"><button type="submit" class="primary">${t('coreBookHours')}</button></div></form>`;
   }
   html += `<p class="note booking-legend">${t('coreHoursLegendSource')}<br>${t('coreHoursLegendApp')}</p>`;
-  html += groups.length ? groups.map(group => `<section class="core-day"><h2>${group.date ? dateLabel(group.date) : t('coreUnknown')} · ${esc(employeeLabel(group.employee))}</h2>`
+  html += groups.length ? groups.map(group => `<section class="core-day"><h2>${group.date ? dateLabel(group.date) : t('coreUnknown')} · ${esc(employeeLabel(group.employee))} · ${coreValue(companyName(group))}</h2>`
     + '<div class="booking-summary">' + coreTable(['coreSourceWorkTime', 'coreSourceBookedHours', 'coreAppBookedHours', 'coreSourceOpenHours', 'coreVariance'], [[
       coreNumber(group.sourceWorkTime, 'hours'), coreNumber(group.sourceBookedHours, 'hours'), coreNumber(group.appBookedHours, 'hours'), coreNumber(group.sourceOpenHours, 'hours'), bookingVariance(group.variance),
     ]]) + '</div>'
@@ -3342,7 +3372,8 @@ async function showCoreDetail(module, id) {
     if (row.siteId !== selected) throw new Error('forbidden');
     if (['progress', 'deviations'].includes(module)) {
       const previous = todayResource(module);
-      const updated = { ...previous.find(item => item.id === row.id), ...row };
+      const { impacts, ...record } = row;
+      const updated = { ...previous.find(item => item.id === row.id), ...record };
       rememberTodayResource(module, [...previous.filter(item => item.id !== row.id), updated]);
     }
     let content;
@@ -3351,14 +3382,17 @@ async function showCoreDetail(module, id) {
       const typeLabels = { site_progress_item: 'coreProgressItem', task: 'tasks', diary: 'diary' };
       const details = coreFields(row, [['deviationNo', 'coreReference', deviationCode], ['status', 'status', deviationState], ['priority', 'priority'], ['problemDescription', 'coreDescription'], ['author', 'coreAuthor'], ['assignedTo', 'coreAssignedTo'], ['plcArea', 'area'], ['creationDate', 'coreCreated', coreDate], ['dueDate', 'due', coreDate], ['approvedDate', 'coreApprovedDate', coreDate], ['closedDate', 'coreClosed', coreDate], ['actualCost', 'coreActualCost'], ['claimQuantity', 'coreClaimQuantity'], ['laborHours', 'coreLaborHours'], ['completedTasksPct', 'coreCompletedPct']]);
       const references = row.links?.length ? `<ul class="core-links">${row.links.map(link => `<li>${esc(t(typeLabels[link.entityType] || 'coreReference'))}: ${esc(link.entityId)}</li>`).join('')}</ul>` : `<p>${t('coreNoReferences')}</p>`;
+      const linkedImpacts = moduleVisible('impacts') && row.impacts?.length
+        ? `<h3>${t('coreLinkedImpacts')}</h3><ul class="core-links">${row.impacts.map(impact =>
+          `<li>${coreDetailButton('impacts', impact)} ${coreStatus(impact.status, impactLabel(impact.status))}</li>`).join('')}</ul>` : '';
       // Two tabs keep the sheet readable: everything about the record, then what it points to.
       content = `<div class="detail-tabs" role="tablist">
         <button type="button" role="tab" aria-selected="true" class="selected" data-command="detail-tab" data-panel="data">${t('coreDetails')}</button>
         <button type="button" role="tab" aria-selected="false" data-command="detail-tab" data-panel="refs">${t('coreReferences')}</button>
-      </div><div class="detail-panel" data-detail-panel="data">${details}${deviationGovernance(row, events, members)}</div><div class="detail-panel" data-detail-panel="refs" hidden>${references}</div>`;
+      </div><div class="detail-panel" data-detail-panel="data">${details}${deviationGovernance(row, events, members)}</div><div class="detail-panel" data-detail-panel="refs" hidden>${references}${linkedImpacts}</div>`;
     } else if (module === 'progress') {
       const day = value => value ? dateLabel(String(value).slice(0, 10)) : null;
-      content = progressBar(row.progressPct) + progressVerificationWarning(row) + coreFields({ ...row, wbsId: [row.wbsCode, row.wbsDescription].filter(Boolean).join(' · ') || '—',
+      content = progressValue(row) + progressVerificationWarning(row) + coreFields({ ...row, wbsId: [row.wbsCode, row.wbsDescription].filter(Boolean).join(' · ') || '—',
         plannedStart: day(row.plannedStart), plannedFinish: day(row.plannedFinish), actualStart: day(row.actualStart) },
       [['description', 'coreDescription'], ['section', 'coreSection'], ['plcArea', 'area'], ['wbsId', 'wbs'], ['assignedTo', 'coreAssignedTo'], ['progressPct', 'coreProgressPct'], ['plannedProgressPct', 'corePlannedPct'], ['deltaProgressSource', 'coreDeltaPct'], ['bookedHours', 'coreBookedHours'], ['plannedStart', 'wbsPlannedStart'], ['plannedFinish', 'wbsPlannedFinish'], ['actualStart', 'coreActualStart'], ['expectedDelay', 'coreExpectedDelay'], ['hasFiles', 'coreHasFiles'], ['hasNotes', 'coreHasNotes'], ['hasDeviations', 'coreHasDeviations']]);
       content += progressStepsSection(row);
@@ -3626,7 +3660,7 @@ function wireTaskResponsibles(form) {
   };
 }
 async function showTaskForm() {
-  showModal(t('newTask'), `<form id="task-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', '', { full: true, required: true, max: 180 })}${field('area', 'area', '', { max: 100 })}${field('company', 'company', '', { max: 100 })}<div data-task-wbs>${field('wbs', 'wbsId', '', { options: `<option value="">${t('wbsUnassigned')}</option>` })}</div>${taskResponsibleFields()}${field('priority', 'priority', '', { options: PRIORITIES.map(priority => `<option value="${esc(priority)}">${esc(t(priority))}</option>`).join(''), required: true })}${field('kind', 'kind', 'ordinary', { options: TASK_KINDS.map(kind => `<option value="${esc(kind)}">${esc(t(taskKindLabelKey(kind)))}</option>`).join('') })}${field('due', 'due', today(), { type: 'date' })}</div>${formActions()}</form>`);
+  showModal(t('newTask'), `<form id="task-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', '', { full: true, required: true, max: 180 })}${field('area', 'area', '', { max: 100 })}${field('company', 'company', '', { max: 100 })}<div data-task-wbs>${field('wbs', 'wbsId', '', { options: `<option value="">${t('wbsUnassigned')}</option>` })}</div>${taskResponsibleFields()}${field('priority', 'priority', 'normal', { options: PRIORITIES.map(priority => `<option value="${esc(priority)}"${priority === 'normal' ? ' selected' : ''}>${esc(t(priority))}</option>`).join(''), required: true })}${field('kind', 'kind', 'ordinary', { options: TASK_KINDS.map(kind => `<option value="${esc(kind)}">${esc(t(taskKindLabelKey(kind)))}</option>`).join('') })}${field('due', 'due', today(), { type: 'date' })}</div>${formActions()}</form>`);
   const version = modalVersion, selectedSite = siteId;
   const form = $('#task-form');
   if (moduleVisible('wbs') && !offline) void taskWbsOptions(selectedSite).then(options => {
@@ -3645,22 +3679,22 @@ async function showTaskForm() {
   }
 }
 function taskEvidence(task) {
-  const label = { accepted: 'evidenceAccepted', declared: 'evidenceDeclared', none: 'evidenceNoDeclaration' };
   const files = state.attachments.filter(file => file.entity_type === 'task' && file.entity_id === task.id && !file.localOnly);
   const document = files.find(file => file.id === task.acceptance_document_id);
   const canAccept = canTransitionTask() && !offline && !task.localOnly && (role() === 'owner' || (role() === 'verifier' && task.verifier_id === session?.user.id));
-  const status = t(label[task.acceptance_state] || 'evidenceNoDeclaration');
+  const outcome = { pending: 'evidenceVerificationPending', waived: 'evidenceWaiver', verified: 'evidenceVerificationRecorded', legacy: 'evidenceVerificationLegacy' };
   const form = canAccept && files.length ? `<form id="task-acceptance-form" data-id="${esc(task.id)}">
     <div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">
     ${field('evidenceAcceptanceDocument', 'documentId', '', { required: true, options: `<option value="">${t('coreChoose')}</option>` +
       files.map(file => `<option value="${esc(file.id)}" ${file.id === document?.id ? 'selected' : ''}>${esc(file.filename)}</option>`).join('') })}
     ${field('evidenceAcceptanceDate', 'date', task.acceptance_date || '', { required: true, type: 'date' })}</div>
     <div class="form-actions"><button type="submit" class="primary">${t('evidenceAcceptance')}</button></div></form>` : '';
-  return `<section><h3>${t('evidenceAcceptance')}</h3><p class="note">${t('evidenceAcceptanceHint')}</p>${coreFields({ declared: task.declared_at && timeLabel(task.declared_at),
-    verified: task.verified_at && timeLabel(task.verified_at), statusLabel: status, reopenCount: task.reopen_count ?? 0 },
-    [['declared', 'evidenceDeclared'], ['verified', 'evidenceVerified'], ['statusLabel', 'status'], ['reopenCount', 'evidenceReopenCount']])}
+  return `<section><h3>${t('evidenceVerification')}</h3><p>${t(outcome[taskVerificationOutcome(task)])}</p>${coreFields({ declared: task.declared_at && timeLabel(task.declared_at),
+    verified: task.verified_at && timeLabel(task.verified_at), reopenCount: task.reopen_count ?? 0 },
+    [['declared', 'evidenceDeclared'], ['verified', 'evidenceVerified'], ['reopenCount', 'evidenceReopenCount']])}</section>
+    <section><h3>${t('evidenceAcceptance')}</h3><p>${formalAcceptanceLabel(task)}</p>
     ${task.acceptance_date ? `<p>${dateLabel(task.acceptance_date)}${document ? ` · ${esc(document.filename)}` : ''}</p>` : ''}
-    ${task.closed_with_waiver ? `<p><strong>${t('evidenceWaiver')}</strong></p>` : ''}${form}</section>`;
+    ${(task.acceptance_events || []).map(event => `<p class="event-meta">${esc(t('evidenceAcceptance'))} · ${personName(event.actor)} · ${timeLabel(event.at)}</p>`).join('')}${form}</section>`;
 }
 async function showDetail(taskId, { history = false } = {}) {
   const modalStyle = { notebook: true };
@@ -3763,7 +3797,7 @@ async function runStatusTransition(taskId, to, control) {
   if (fromDetail && version === modalVersion && siteId === task.siteId) await showDetail(taskId);
 }
 function diaryMotivationField() {
-  return field('diaryMotivation', 'motivation', '', { type: 'textarea', required: true, full: true, hint: t('diaryMotivationHint') });
+  return field('diaryMotivation', 'motivation', '', { type: 'textarea', required: true, full: true, hint: 'diaryMotivationHint' });
 }
 function showDiaryCorrection(id) {
   const entry = state.diary.find(item => item.id === id && item.siteId === siteId);
@@ -3773,7 +3807,7 @@ function showDiaryCorrection(id) {
     <p class="note">${esc(t('diaryCorrectionGuide'))}</p>
     <div class="form-grid">${Object.keys(diaryContentFields).map(key =>
       field(key, key, entry[key], { type: 'textarea', full: true, max: 10000 })).join('')}
-      ${diaryAuthorInWindow(entry) ? '' : diaryMotivationField()}</div>${formActions()}</form>`, { notebook: true });
+      ${diaryMotivationField()}</div>${formActions()}</form>`, { notebook: true });
   $('#diary-correction-form').originalEntry = entry;
 }
 async function showDiaryVersions(id) {
@@ -3938,14 +3972,17 @@ function exportCsv() {
   const tasks = filteredTasks();
   if (!tasks.length) return toast(t('emptyExport'));
   const header = ['title', 'area', 'company', 'assignee', 'reviewer', 'priority', 'kind', 'due', 'status'];
-  const rows = [header.map(t), ...tasks.map(task => header.map(key => key === 'kind' ? t(taskKindLabelKey(task.kind ?? 'ordinary')) : ['priority', 'status'].includes(key) ? t(task[key]) : task[key]))];
+  const rows = [[...header.map(t), t('evidenceAcceptance')], ...tasks.map(task => [
+    ...header.map(key => key === 'kind' ? t(taskKindLabelKey(task.kind ?? 'ordinary'))
+      : key === 'status' ? taskStatusLabel(task.status) : key === 'priority' ? t(task.priority) : task[key]), formalAcceptanceLabel(task),
+  ])];
   download('\ufeff' + rows.map(row => row.map(csvCell).join(',')).join('\r\n'), 'text/csv;charset=utf-8', `siteassistant-tasks-${today()}.csv`); toast(t('csvDone'));
 }
 document.addEventListener('click', event => {
   const target = event.target.closest('[data-command]'); if (!target) return;
   const command = target.dataset.command, id = target.dataset.id;
   const commands = {
-    'go-diary': () => { reportDate = operationalDay().date; go('diary'); },
+    'go-diary': () => { if (moduleVisible('diary')) { reportDate = operationalDay().date; go('diary'); } },
     'today-open': () => openTodayAction(target),
     'today-diary': () => { if (moduleVisible('diary')) { reportDate = operationalDay().date; go('diary'); } },
     'task-history': () => showDetail(id, { history: true }),
@@ -4121,8 +4158,8 @@ document.addEventListener('submit', async event => {
   // Capture the selected context before waiting for the server.
   const selectedSite = siteId;
   try {
-    if (['entry-form', 'diary-correction-form'].includes(form.id) &&
-        data.motivation !== undefined && data.motivation.trim().length < 10) {
+    if ((form.id === 'diary-correction-form' || (form.id === 'entry-form' && data.motivation !== undefined)) &&
+        (data.motivation ?? '').trim().length < 10) {
       throw new Error('diaryMotivationHint');
     }
     if (form.id === 'deviation-owner-form' || form.id === 'deviation-attribution-form') {
@@ -4241,7 +4278,7 @@ document.addEventListener('submit', async event => {
         closeModal();
         return;
       }
-      if (data.motivation !== undefined) changes.motivation = data.motivation;
+      changes.motivation = data.motivation;
       const user = session?.user.id;
       const entry = await api.updateDiary(original.id, changes);
       if (user !== session?.user.id) return;

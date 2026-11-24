@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { createSite } from '../server/repository.mjs';
 import { listCostImpacts, getCostImpact, createCostImpact, transitionCostImpact } from '../server/cost-impacts.mjs';
 import { createServer } from '../server/http.mjs';
+import { saveModuleAccess } from '../server/module-access.mjs';
 import { migrate, applyMigration } from '../server/migrations/index.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
 import { isPg, openTestDb, openSqliteTestDb } from './helpers/db.mjs';
@@ -34,6 +35,19 @@ for (const driver of ['sqlite', 'pg']) test(`Cost impacts ${driver}: writable cl
   const error = (response, status, code) => {
     t.assert.strictEqual(response.status, status); t.assert.strictEqual(response.body.code, code);
   };
+
+  await t.test('deviation detail shows only linked impacts with site and module access', async t => {
+    const f = await fixture(), other = await fixture();
+    const claim = await create(f.input), foreign = await create(other.input);
+    // The link table alone cannot establish the site boundary for historical data.
+    await db.run('INSERT INTO cost_impact_deviations VALUES (?, ?)', foreign.id, f.ids[0]);
+    const url = `/api/deviations/${f.ids[0]}`;
+    t.assert.deepStrictEqual((await request(url)).body.impacts, [{ id: claim.id, title: claim.title, status: 'open' }]);
+    await saveModuleAccess(db, { siteId: f.site.id, memberId: auth.users.viewer.id, module: 'impacts', allowed: false }, auth.users.owner);
+    const denied = await request(url);
+    t.assert.equal(denied.status, 200);
+    t.assert.deepStrictEqual(denied.body.impacts, []);
+  });
 
   await t.test('create, list, detail and full lifecycle preserve linked deviations and nullable amounts', async t => {
     const f = await fixture(), other = await fixture();

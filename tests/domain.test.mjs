@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STATUSES, sitePayload, taskPayload, diaryPayload, transitionPayload, allowedTransitions, transitionRequirements, counts, today, validDate, csvCell } from '../app/domain.mjs';
+import { STATUSES, sitePayload, taskPayload, diaryPayload, transitionPayload, allowedTransitions, transitionRequirements, counts, taskVerificationOutcome, today, validDate, csvCell } from '../app/domain.mjs';
 
 const input = { siteId: 'site-example', title: 'Example task', area: 'Area 1', company: 'Example company', assignee: 'Example executor', reviewer: 'Example verifier', priority: 'normal', due: '2026-01-01' };
 
@@ -74,4 +74,11 @@ test('local dates reject impossible days and retain local calendar semantics', (
   assert.equal(validDate('2024-02-29'), true);
   assert.equal(validDate('2026-13-01'), false);
   assert.equal(today(new Date(2026, 0, 2, 0, 5)), '2026-01-02');
+});
+
+test('operational verification classifies historical closure, waiver, verified closure and reopen', () => {
+  assert.equal(taskVerificationOutcome({ status: 'closed' }), 'legacy');
+  assert.equal(taskVerificationOutcome({ status: 'closed', closed_with_waiver: true }), 'waived');
+  assert.equal(taskVerificationOutcome({ status: 'closed', verified_at: '2026-01-01T10:00:00Z' }), 'verified');
+  assert.equal(taskVerificationOutcome({ status: 'in_progress', acceptance_state: 'accepted' }), 'pending');
 });

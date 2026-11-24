@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApi } from '../app/api.mjs';
+import { createLoginLimiter, login } from '../server/auth.mjs';
 import { createServer } from '../server/http.mjs';
 import { saveModuleAccess } from '../server/module-access.mjs';
 import { createSite } from '../server/repository.mjs';
@@ -13,7 +14,7 @@ for (const driver of ['sqlite', 'pg']) {
     // Rome is already on 30 March, while UTC is still on 29 March.
     const now = '2026-03-29T22:30:00.000Z';
     t.mock.timers.enable({ apis: ['Date'], now: Date.parse(now) });
-    const site = await createSite(db, { code: 'DIARY-TEST', name: 'Synthetic diary site', time_zone: 'Europe/Rome' });
+    const site = await createSite(db, { code: 'DIARY-TEST', name: 'Synthetic diary site', time_zone: 'Europe/Rome', day_cutoff_time: '06:15' });
     const { users, cookies } = await authFixture(db, site);
     const request = requestListener(createServer(db));
     const post = (day, role = 'editor', body = {}) => request('/api/diary', {
@@ -44,22 +45,38 @@ for (const driver of ['sqlite', 'pg']) {
     const boundary = await post('2026-03-23');
     assert.equal(boundary.status, 201);
     assert.equal(boundary.body.recorded_late, false);
-    const { id } = boundary.body;
+    expectError(await patch(boundary.body.id, { plan: 'Too late', motivation: reason }), 403, 'FORBIDDEN');
 
-    expectError(await patch(id, { operational_date: '2026-03-24', actual: 'Changed' }), 400, 'VALIDATION_ERROR');
-    expectError(await patch(id, { plan: 'Changed' }, 'verifier'), 403, 'FORBIDDEN');
+    t.mock.timers.setTime(Date.parse('2026-03-28T22:59:59.999Z'));
+    const entry = await post('2026-03-28', 'verifier');
+    assert.equal(entry.status, 201, JSON.stringify(entry.body));
+    const { id } = entry.body;
+    expectError(await patch(id, { operational_date: '2026-03-27', actual: 'Changed', motivation: reason }), 400, 'VALIDATION_ERROR');
+    expectError(await patch(id, { plan: 'Changed', motivation: reason }, 'verifier'), 403, 'FORBIDDEN');
+    expectError(await patch(id, { plan: 'Changed', motivation: reason }, 'viewer'), 403, 'FORBIDDEN');
     expectError(await patch(id, { plan: 'Changed' }, 'owner'), 400, 'MOTIVATION_REQUIRED');
+    expectError(await patch(id, { plan: 'Changed' }), 400, 'MOTIVATION_REQUIRED');
     assert.deepEqual((await versions(id)).body, []);
-    const correction = await patch(id, { plan: '', actual: 'Revised result' });
+
+    // The night shift keeps the same operational date across local midnight
+    // and the spring clock jump. Use a non-default cutoff to detect hardcoding.
+    for (const instant of ['2026-03-28T23:00:00.000Z', '2026-03-29T00:59:59.999Z', '2026-03-29T01:00:00.000Z']) {
+      t.mock.timers.setTime(Date.parse(instant));
+      expectError(await patch(id, { plan: 'Changed' }), 400, 'MOTIVATION_REQUIRED');
+    }
+    const beforeCutoff = '2026-03-29T04:14:59.999Z';
+    t.mock.timers.setTime(Date.parse(beforeCutoff));
+    const correction = await patch(id, { plan: '', actual: 'Revised result', motivation: `  ${reason}  ` });
     assert.equal(correction.status, 200, JSON.stringify(correction.body));
     assert.equal(correction.body.plan, '');
     assert.equal(correction.body.updated_by, users.editor.id);
     assert.equal(correction.body.updated_by_name, users.editor.name);
-    assert.equal(correction.body.updated_at, now);
+    assert.equal(correction.body.updated_at, beforeCutoff);
+    assert.equal(correction.body.operational_date, '2026-03-28');
     assert.equal((await db.get('SELECT COUNT(*) AS count FROM diary_entry_versions WHERE diary_id = ?', id)).count.toString(), '1');
 
-    t.mock.timers.setTime(Date.parse('2026-03-30T22:30:00.000Z'));
-    expectError(await patch(id, { plan: 'Too late' }), 403, 'FORBIDDEN');
+    t.mock.timers.setTime(Date.parse('2026-03-29T04:15:00.000Z'));
+    expectError(await patch(id, { plan: 'Too late', motivation: reason }), 403, 'FORBIDDEN');
     expectError(await patch(id, { plan: 'Changed', motivation: ' 123456789 ' }, 'owner'), 400, 'MOTIVATION_REQUIRED');
     const ownerEdit = await patch(id, { next_step: 'Verify tomorrow', motivation: reason }, 'owner');
     assert.equal(ownerEdit.status, 200);
@@ -73,9 +90,11 @@ for (const driver of ['sqlite', 'pg']) {
     assert.equal(history.status, 200);
     assert.deepEqual(history.body.map(row => [row.version, row.author_id, row.author_name, row.motivation, row.snapshot.plan]), [
       [2, users.owner.id, users.owner.name, reason, ''],
-      [1, users.editor.id, users.editor.name, null, 'Original plan'],
+      [1, users.editor.id, users.editor.name, reason, 'Original plan'],
     ]);
     assert.equal(history.body[1].snapshot.updated_at, null);
+    assert.equal(history.body[1].snapshot.author_id, users.verifier.id);
+    assert.equal(history.body[1].created_at, beforeCutoff);
     assert.equal(history.body[0].snapshot.updated_at, history.body[1].created_at);
     assert.equal(history.body[0].created_at, ownerEdit.body.updated_at);
 
@@ -96,6 +115,18 @@ for (const driver of ['sqlite', 'pg']) {
     expectError(await versions(id), 403, 'MODULE_FORBIDDEN');
     await db.run('DELETE FROM site_members WHERE site_id = ? AND user_id = ?', site.id, users.verifier.id);
     expectError(await versions(id, 'verifier'), 403, 'FORBIDDEN');
+
+    t.mock.timers.setTime(Date.parse('2026-10-24T21:00:00.000Z'));
+    const session = await login(db, { email: users.editor.email, password: 'Synthetic-test-password!' }, { limiter: createLoginLimiter() });
+    cookies.editor = `sa_session=${session.token}`;
+    const autumn = await post('2026-10-24');
+    assert.equal(autumn.status, 201, JSON.stringify(autumn.body));
+    for (const instant of ['2026-10-25T00:30:00.000Z', '2026-10-25T01:30:00.000Z', '2026-10-25T05:14:59.999Z']) {
+      t.mock.timers.setTime(Date.parse(instant));
+      assert.equal((await patch(autumn.body.id, { actual: instant, motivation: reason })).status, 200);
+    }
+    t.mock.timers.setTime(Date.parse('2026-10-25T05:15:00.000Z'));
+    expectError(await patch(autumn.body.id, { actual: 'Too late', motivation: reason }), 403, 'FORBIDDEN');
   });
 }
 
@@ -107,9 +138,9 @@ test('diary client sends partial corrections and fetches history', async () => {
     }
     assert.equal(url, '/api/diary/entry');
     assert.equal(options.method, 'PATCH');
-    assert.deepEqual(JSON.parse(options.body), { impediments: '' });
+    assert.deepEqual(JSON.parse(options.body), { impediments: '', motivation: 'Corrected shift log' });
     return Response.json({ id: 'entry', impediments: '', operational_date: '2026-03-29' });
   } });
-  assert.equal((await api.updateDiary('entry', { impediments: '' })).blockers, '');
+  assert.equal((await api.updateDiary('entry', { impediments: '', motivation: 'Corrected shift log' })).blockers, '');
   assert.equal((await api.listDiaryVersions('entry'))[0].snapshot.impediments, 'Old obstruction');
 });

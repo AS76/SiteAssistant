@@ -12,9 +12,15 @@ export function formatDisplayNumber(value, { kind = 'number', language = 'it', c
 }
 
 export const STATUSES = ['todo', 'in_progress', 'to_verify', 'closed', 'blocked'];
-export const PRIORITIES = ['normal', 'high', 'urgent'];
+export const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 export const TASK_KINDS = Object.freeze(['ordinary', 'corrective']);
 export const taskKindLabelKey = kind => kind === 'corrective' ? 'kindCorrective' : 'kindOrdinary';
+export function taskVerificationOutcome(task) {
+  if (task.status !== 'closed') return 'pending';
+  if (task.closed_with_waiver) return 'waived';
+  return task.verified_at ? 'verified' : 'legacy';
+}
+export const taskFormalAcceptance = task => task.acceptance_state === 'accepted' ? 'accepted' : 'not_recorded';
 export const TASK_COLUMNS = Object.freeze(['title', 'area', 'status', 'company', 'assignee', 'reviewer', 'due']);
 export const REPORT_PROGRESS_COLUMNS = ['reportArea', 'reportItems', 'reportActual', 'reportPlanned', 'reportSource'];
 export const REPORT_DEVIATION_COLUMNS = ['reportArea', 'reportTotal', 'reportOpen', 'reportClosed', 'reportByStatus'];
