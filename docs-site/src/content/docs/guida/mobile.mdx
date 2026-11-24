@@ -41,16 +41,20 @@ Sotto i **640 px** di larghezza l'applicazione si apre su **Oggi** quando l'indi
 La schermata è organizzata in sezioni:
 
 1. **Adesso**: mette in evidenza la prima voce da consultare. Se in cima c'è un'attività bloccata o il prossimo passo del diario, li mostra come righe selezionabili.
-2. **Da verificare**: le attività che aspettano il tuo controllo.
+2. **Da verificare** comprende le attività in attesa di controllo e quelle bloccate durante la verifica.
 3. **Lavoro di oggi**: le attività e le voci di avanzamento del giorno.
 4. **In arrivo**: ciò che scade dopo il giorno operativo, separato dal lavoro di adesso.
 5. **Azioni rapide**: **Elenco verifiche**, **Scrivi diario**, **Scatta foto**, **Apri avanzamento**. Portano alla vista giusta in uno o due tocchi e rispettano i permessi: un comando che non puoi usare è disabilitato.
 6. **Ultime azioni**: le ultime tre attività chiuse, con la data di chiusura.
 7. **Stato della connessione**: se sei offline, una riga dice quante modifiche sono in coda.
 
-- Una riga **Bloccata** mostra il titolo, la scadenza, il **Motivo** più recente se registrato e il numero di giorni di ritardo rispetto al giorno operativo del cantiere. Un'attività che scade oggi mostra **0 giorni di ritardo**. Tocca la riga per aprire il dettaglio o **Cronologia** per vedere i passaggi di stato.
+- Una riga **Bloccata** mostra il titolo, la scadenza o **Senza scadenza**, e il **Motivo** più recente se registrato. Per una scadenza entro il giorno operativo mostra anche i giorni di ritardo. Un'attività che scade oggi mostra **0 giorni di ritardo**. Tocca la riga per aprire il dettaglio o **Cronologia** per vedere i passaggi di stato.
 - La riga **Prossimo passo** riprende il testo dall'ultimo contributo del **Diario** del cantiere selezionato che contiene un prossimo passo. Se i contributi più recenti hanno il campo vuoto, la riga riprende un contributo precedente. La riga mostra il giorno operativo e il turno. Toccala per aprire il **Diario** su quel giorno.
 - Le altre righe aprono la vista di destinazione sul record: **Attività**, **Avanzamento** o **Deviazioni** in elenco filtrato, oppure **Diario** nel giorno indicato. Usa **Azzera filtri** per togliere la selezione dagli elenchi.
+
+Da **Adesso** o **Da verificare**, usa **Verifica** per confermare la chiusura oppure **Respingi** per spiegare nella nota obbligatoria cosa rifare e riportare l’attività **In corso**. Dopo il salvataggio resti in **Oggi**, con l’elenco aggiornato. Puoi intervenire anche prima della scadenza. Se non puoi verificare o respingere un’attività visibile in attesa di controllo, la scheda mostra un avviso sui permessi.
+
+Se un’attività è stata bloccata mentre era **Da verificare**, **Riprendi** la riporta subito in quello stato quando il comando è disponibile. Vedi [Attività e verifiche](../../moduli/attivita/#la-verifica).
 
 :::caution[Se Oggi sembra incompleto]
 - **Avanzamento** e **Deviazioni** si caricano in modo indipendente. Durante il caricamento compaiono righe segnaposto.
@@ -74,7 +78,7 @@ Aprendo l'applicazione su un telefono, la prima schermata è **Oggi** (sul deskt
 />
 
 1. **Adesso** — la prima voce da consultare, con il comando adatto alla voce mostrata. Per un blocco o un prossimo passo del diario, tocca direttamente la riga. Se non ci sono voci, la schermata propone il diario o le viste disponibili.
-2. **Da verificare** — le attività che aspettano il tuo controllo, con la scadenza.
+2. **Da verificare** — le altre attività da controllare o bloccate durante la verifica.
 3. **Lavoro di oggi** — le attività e le voci di avanzamento del giorno; **In arrivo** tiene separate quelle che scadono dopo il giorno operativo.
 4. **Azioni rapide** — **Elenco verifiche**, **Scrivi diario**, **Scatta foto**, **Apri avanzamento**.
 5. **Ultime azioni** — le tre attività chiuse più di recente.

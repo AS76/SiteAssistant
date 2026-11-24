@@ -12,7 +12,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Ruoli per cantiere: `owner`, `editor`, `verifier`, `viewer`.
 - Creazione di cantieri riservata agli owner; codice univoco.
 - Attività con esecutore e verificatore separati, priorità, scadenza, area, impresa e tipo ordinaria o correttiva; la vista **Attività leggere** chiude e riapre le ordinarie con un solo comando.
-- Transizioni di stato con note e motivazioni, cronologia completa.
+- Transizioni di stato con note, motivazioni e cronologia. Dal dettaglio dell’attività puoi verificare, respingere o riprendere il lavoro quando il comando è disponibile.
 - Verifica separata: chi esegue non può chiudere il proprio lavoro.
 - Diario per giorno operativo e turno, con piano, consuntivo, impedimenti e prossimo passo.
 - Foto e PDF allegati ad attività, voci di diario e deviazioni, anche trascinati dal desktop, fino a 15 MiB per file; gli eventi HSE accettano foto e PDF dalla finestra di modifica.
@@ -43,7 +43,6 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Creazione ed eliminazione dei tipi di avanzamento e dei loro pesi.
 - **Impatti economici**: consultazione e chiusura con esito sono disponibili anche dall'interfaccia; creazione e aggiornamento degli importi restano via API.
 - **Allegati al cantiere** e **eliminazione degli allegati**: il caricamento al cantiere e la rimozione restano via API.
-- Ripristino di un'attività bloccata e rifiuto di una sottomissione (transizioni non ancora esposte nell'app).
 
 ## Non disponibile
 

@@ -12,7 +12,7 @@ This page describes the currently published version. It is deliberately explicit
 - Per-site roles: `owner`, `editor`, `verifier`, `viewer`.
 - Site creation reserved to owners; unique code.
 - Tasks with separate executor and reviewer, priority, due date, area, company and ordinary or corrective type; the **Light tasks** view closes and reopens ordinary ones with a single command.
-- Status transitions with notes and reasons, full history.
+- Status transitions with notes, reasons and history. From the task details you can verify, reject or resume work when the button is available.
 - Separate review: whoever executes cannot close their own work.
 - Diary per operational day and shift, with plan, actual results, blockers and next step.
 - Photos and PDFs attached to tasks, diary entries and deviations, including drag and drop from the desktop, up to 15 MiB per file; HSE events accept photos and PDFs from the edit window.
@@ -43,7 +43,6 @@ This page describes the currently published version. It is deliberately explicit
 - Creating and deleting progress types and their weights.
 - **Cost impacts**: viewing and closing with a result are also available in the interface; creating an impact and updating amounts stay API only.
 - **Site attachments** and **attachment deletion**: uploading to a site and removal stay API only.
-- Resuming a blocked task and rejecting a submission (transitions not yet exposed in the app).
 
 ## Not available
 

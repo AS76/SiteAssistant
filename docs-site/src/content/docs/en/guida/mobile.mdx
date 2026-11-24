@@ -41,16 +41,20 @@ Below **640 px** wide the application opens on **Today** when the address does n
 The screen is organised in sections:
 
 1. **Now** highlights the first item to look at. When that item is a blocked task or a diary next step, it appears as a row you can tap.
-2. **To verify**: the tasks waiting for your check.
+2. **To verify** includes tasks awaiting review and tasks that were blocked during review.
 3. **Today's work**: the tasks and progress items for the day.
 4. **Upcoming**: what is due after the operational day, kept separate from current work.
-5. **Quick actions**: **Task list**, **Write diary**, **Take photo**, **Open progress**. They land on the right view within one or two taps and follow permissions: a command you cannot use is disabled.
+5. **Quick actions**: **Verification list**, **Write diary**, **Take photo**, **Open progress**. They land on the right view within one or two taps and follow permissions: a command you cannot use is disabled.
 6. **Latest actions**: the last three closed tasks, with their closing date.
 7. **Connection status**: offline, one line says how many changes are queued.
 
-- A **Blocked** row shows the title, due date, most recent recorded **Reason**, if available, and how many days overdue the task is as of the site's operational day. A task due today shows **0 days overdue**. Tap the row to open the task details or **History** to see its status changes.
+- A **Blocked** row shows the title, the due date or **No due date**, and the most recent recorded **Reason**, if available. If the task is due on or before the operational day, the row also shows how many days overdue it is. A task due today shows **0 days overdue**. Tap the row to open the task details or **History** to see its status changes.
 - The **Next step** row shows the text from the most recent **Diary** contribution for the selected site with a next step. If newer contributions leave the field blank, the row uses an earlier contribution. The row also shows its operational day and shift. Tap it to open the **Diary** on that day.
 - Other rows open the corresponding view for the record, either a filtered list in **Tasks**, **Site progress** or **Deviations**, or the **Diary** on the given day. Use **Clear filters** to remove the selection from a list.
+
+From **Now** or **To verify**, use **Verify** to confirm closure, or **Reject** to explain what needs redoing in the required note and return the task to **In progress**. After saving, you stay on **Today** and the list updates. You can act before the due date. If a task awaiting review is visible to you and you cannot verify or reject it, the card shows a permissions message.
+
+If a task was blocked while it was **To verify**, **Resume** returns it to that status immediately when the button is available. See [Tasks and verification](../../moduli/attivita/#the-review).
 
 :::caution[If Today looks incomplete]
 - **Site progress** and **Deviations** load independently. Placeholder rows appear while they load.
@@ -74,9 +78,9 @@ On a phone the first screen is **Today** (on desktop it stays the Overview).
 />
 
 1. **Now** shows the first item and the action it supports. For a blocked task or a diary next step, tap the row itself. If there are no items, the screen offers the diary or the available views.
-2. **To verify** — the tasks waiting for your check, with their due date.
+2. **To verify** — the other tasks awaiting review or blocked during review.
 3. **Today's work** — the tasks and progress items for the day; **Upcoming** keeps separate what is due after the operational day.
-4. **Quick actions** — **Task list**, **Write diary**, **Take photo**, **Open progress**.
+4. **Quick actions** — **Verification list**, **Write diary**, **Take photo**, **Open progress**.
 5. **Latest actions** — the three tasks closed most recently.
 6. **Connection status** — offline, one line says how many changes are queued; the list stays the last loaded one and says so.
 
