@@ -26,7 +26,7 @@ SiteAssistant comes from direct experience managing industrial automation and in
 
 The primary focus is industrial automation and intralogistics, although some workflows may apply to other installation environments.
 
-## Try the live demo
+## Try the demo
 
 **[Read the demo access guide](https://as76.github.io/SiteAssistant/en/guida/accesso/)**
 
