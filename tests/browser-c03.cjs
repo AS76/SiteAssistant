@@ -47,6 +47,13 @@ async function signIn(page, role, site) {
   await page.locator('#login-form [type=submit]').click();
   await page.locator('#login-form').waitFor({ state: 'detached' });
   await selectSite(page, site);
+  const select = page.getByRole('combobox', { name: 'Cantiere', exact: true });
+  const label = page.locator('label[for=site-select]');
+  assert.equal(await select.getAttribute('id'), 'site-select');
+  assert.ok(await label.isVisible());
+  await label.click();
+  assert.ok(await select.evaluate(node => node === document.activeElement));
+  assert.ok((await select.boundingBox()).height >= 44);
 }
 async function noOverflow(page) {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),

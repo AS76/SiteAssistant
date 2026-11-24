@@ -61,7 +61,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:pan-x pan-
   border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface);
 }
 #site-label {
-  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+  flex: none; font-weight: 650; font-size: 12px; color: var(--ink-2);
 }
 .topbar-code {
   flex: none; max-width: 40%; overflow-wrap: anywhere;
@@ -70,7 +70,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:pan-x pan-
 }
 .site-choice { flex: 1; min-width: 0; }
 #site-select {
-  width: 100%; min-height: 32px; padding-block: 3px;
+  width: 100%; min-height: 44px; padding-block: 3px;
   border: 0; border-radius: var(--radius); background: transparent;
   color: var(--ink); font-size: 15px; font-weight: 600; text-overflow: ellipsis;
 }
