@@ -3,6 +3,7 @@ import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
 import { messages } from './i18n.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
+import { hasOpenProgressSteps } from './domain.mjs';
 import { INSPECTION_STATUSES, inspectionStatusLabelKey, filterHseAssets, sortHseAssets, hseAssetCounts, inspectionOutcomeLabelKey, inspectionModeLabelKey, inspectionItemResultLabelKey, inspectionTally, sortInspections, inspectionSuggestion, inspectionProgress, inspectionPayload } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
@@ -508,10 +509,15 @@ function rememberTodayResource(name, data, selected = siteId) {
     if (scope === offlineScope) await persistState();
   }).catch(() => { storageError = true; });
 }
+function progressPlannedDay(item) {
+  const start = item.plannedStart;
+  if (validDate(start)) return start;
+  return start && Number.isFinite(Date.parse(start)) ? operationalDay(new Date(start)).date : null;
+}
 function currentTodayActions(day = operationalDay().date) {
   return todayActions({ progress: todayResource('progress'),
     diary: state.diary.filter(entry => entry.siteId === siteId), deviations: todayResource('deviations'),
-    userId: session?.user.id, today: day, modules: currentModules() });
+    userId: session?.user.id, today: day, modules: currentModules(), plannedDay: progressPlannedDay });
 }
 function canCloseTodayTask(task) {
   return task.status !== 'closed' && canRunLightTransition(task);
@@ -616,8 +622,12 @@ function renderToday() {
   const review = tasks.filter(item => item.inVerification);
   const verify = review.filter(item => item.status === 'to_verify');
   const work = tasks.filter(item => item.status !== 'to_verify' && !item.inVerification && validDate(item.due) && item.due <= day);
-  const upcoming = tasks.filter(item => !item.inVerification && validDate(item.due) && item.due > day)
-    .map(item => ({ ...item, status: 'upcoming' }));
+  const upcomingProgress = moduleVisible('progress') ? todayResource('progress').filter(hasOpenProgressSteps).map(item => ({
+    kind: 'progress', id: item.id, title: item.description, due: progressPlannedDay(item), meta: [t('todayOpenSteps')],
+  })).filter(item => item.due > day) : [];
+  const upcoming = filterSortRecords([
+    ...tasks.filter(item => !item.inVerification && validDate(item.due) && item.due > day), ...upcomingProgress,
+  ], {}, [{ key: 'due' }, { key: 'title' }]).map(item => ({ ...item, status: 'upcoming' }));
   const other = currentTodayActions(day).filter(item => item.meta.label !== 'todayDiaryMissing').map(item => ({
     kind: item.kind, id: item.id, title: item.title || t('journalToday'),
     status: item.meta.status,
@@ -659,7 +669,7 @@ function renderToday() {
     </section>
     ${section('today-verify', 'to_verify', review.filter(item => item !== now))}
     ${section('today-work', 'todayWork', [...work, ...other].filter(item => item !== now))}
-    ${tasksVisible ? `<section id="today-upcoming" class="today-upcoming" aria-labelledby="today-upcoming-title">
+    ${tasksVisible || upcoming.length ? `<section id="today-upcoming" class="today-upcoming" aria-labelledby="today-upcoming-title">
       <div class="notebook-section-head"><h2 id="today-upcoming-title" tabindex="-1">${t('todayUpcoming')}</h2><span>${t('todayOutsideDay')}</span></div>
       ${upcoming.length ? `<ul class="today-list">${upcoming.map(item => notebookRow(item, true)).join('')}</ul>`
         : `<p class="notebook-meta">${t('todayUpcomingEmpty')}</p>`}</section>` : ''}
@@ -675,6 +685,8 @@ function openTodayAction(control) {
   let target;
   if (kind === 'task' || kind === 'recent') {
     if (siteTasks().some(task => task.id === id)) target = { view: 'tasks', filters: { id } };
+  } else if (kind === 'progress') {
+    if (todayResource('progress').some(item => item.id === id)) target = { view: 'progress', filters: { id } };
   } else {
     target = currentTodayActions().find(row => row.id === id && row.kind === kind)?.target;
   }
