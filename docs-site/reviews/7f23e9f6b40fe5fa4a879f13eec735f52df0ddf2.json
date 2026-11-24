@@ -1,0 +1,13 @@
+{
+  "code_commit": "7f23e9f6b40fe5fa4a879f13eec735f52df0ddf2",
+  "reviewed_at": "2026-11-24",
+  "documentation_required": true,
+  "pages": [
+    "docs-site/src/content/docs/en/guida/accesso.mdx",
+    "docs-site/src/content/docs/en/guida/dati-dimostrativi.mdx",
+    "docs-site/src/content/docs/en/note/novita.md",
+    "docs-site/src/content/docs/guida/accesso.mdx",
+    "docs-site/src/content/docs/guida/dati-dimostrativi.mdx",
+    "docs-site/src/content/docs/note/novita.md"
+  ]
+}
