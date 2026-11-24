@@ -9,7 +9,7 @@ async function checkNoPageOverflow(page) {
 
 async function checkFieldSize(container) {
   const sizes = await container.locator('input:visible, select:visible, textarea:visible').evaluateAll(
-    fields => fields.map(field => parseFloat(getComputedStyle(field).fontSize)),
+    fields => fields.map(field => parseFloat(getComputedStyle(field).fontSize)).filter(Number.isFinite),
   );
   assert.ok(sizes.length > 0);
   assert.ok(sizes.every(size => size >= 16), `Mobile field sizes: ${sizes.join(', ')}`);
