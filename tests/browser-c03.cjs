@@ -217,9 +217,8 @@ async function readPath(s, env) {
   assert.equal(await row.count(), 1);
   await noOverflow(page);
   await row.click();
-  await page.waitForURL(url => url.hash === '#deviations');
-  await page.locator(`[data-command=core-detail][data-module=deviations][data-id="${env.deviation.id}"]`).click();
   await hasText(page.locator('#modal [data-detail-panel=data]'), 'Synthetic access clearance awaited');
+  assert.equal(new URL(page.url()).hash, '#today');
   await hasText(page.locator('#modal [data-detail-panel=data]'), 'DEMO-C03');
   await page.locator('[data-command=detail-tab][data-panel=refs]').click();
   // The UI renders linked task IDs as text, rather than task titles or links.

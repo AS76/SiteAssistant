@@ -730,9 +730,10 @@ function openTodayAction(control) {
     target = currentTodayActions().find(row => row.id === id && row.kind === kind)?.target;
   }
   if (!target || !moduleVisible(target.view)) return;
+  if (target.view === 'deviations') { void showCoreDetail('deviations', id); return; }
   if (target.view === 'tasks') { resetSavedViews(); filters = { ...filters, ...target.filters }; taskView = 'list'; }
   else if (target.view === 'diary') reportDate = target.date;
-  else { coreFilters[target.view] = { ...Object.fromEntries(Object.keys(coreFilters[target.view]).map(key => [key, ''])), ...target.filters }; if (target.view === 'deviations') deviationView = 'list'; }
+  else coreFilters[target.view] = { ...Object.fromEntries(Object.keys(coreFilters[target.view]).map(key => [key, ''])), ...target.filters };
   go(target.view);
 }
 function runTodayQuick(action) {

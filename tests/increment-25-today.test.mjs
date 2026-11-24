@@ -267,16 +267,18 @@ test('denied task module hides tasks, recent closures and task photo destination
   assert.deepEqual(routes, []);
 });
 
-test('row targets reset unrelated filters and open tasks, progress, diary and read-only deviation lists directly', () => {
+test('row targets reset task and progress filters and open the deviation record directly', () => {
   const { context, routes } = todayUi({ tasks: [task('mine')], snapshots: { 'site-a': { progress: [progress('p')], deviations: [{ id: 'd', title: 'Synthetic deviation', status: 'open' }] } } });
+  const details = [];
+  context.showCoreDetail = (...args) => details.push(args);
   const open = (kind, id) => context.openTodayAction({ dataset: { kind, id } });
   context.filters = { ...context.filters, search: 'old', priority: 'urgent', closable: true };
   open('task', 'mine'); assert.deepEqual(ids(context.filteredTasks()), ['mine']); assert.equal(context.taskView, 'list');
   open('progress', 'p'); assert.deepEqual(plain(context.coreFilters.progress), { wbsId: '', id: 'p' });
   open('diary', day); assert.equal(context.reportDate, day);
-  open('deviation', 'd'); assert.equal(context.deviationView, 'list'); assert.equal(context.coreFilters.deviations.id, 'd');
-  assert.equal(context.coreFilters.deviations.status, ''); assert.equal(context.coreFilters.deviations.priority, '');
-  assert.deepEqual(routes, ['tasks', 'progress', 'diary', 'deviations']);
+  open('deviation', 'd'); assert.deepEqual(details, [['deviations', 'd']]);
+  assert.equal(context.coreFilters.deviations.status, 'closed');
+  assert.deepEqual(routes, ['tasks', 'progress', 'diary']);
 });
 
 test('close shortcut filters actual ordinary, permitted, independent reviews and respects pending operations', () => {
