@@ -460,3 +460,16 @@ test('Today keeps yesterday and current operational progress actionable and puts
   todayClick(ui.context, { command: 'today-open', kind: 'progress', id: 'future-step' });
   assert.equal(ui.routes.at(-1), 'progress');
 });
+
+test('future diary next steps stay out of Now even when a future night shift has the newest entry', () => {
+  const diary = [
+    { date: '2026-04-16', shift: 'night', next: 'Future handover', createdAt: '2026-04-15T14:00:00Z' },
+    { date: day, shift: 'night', next: 'Current handover', createdAt: '2026-04-16T03:00:00Z' },
+    { date: day, shift: 'day', next: 'Day shift handover', createdAt: '2026-04-15T15:00:00Z' },
+  ];
+  const ui = todayUi({ diary: diary.map(entry => ({ ...entry, siteId: 'site-a' })) });
+  ui.context.renderToday();
+  assert.match(ui.nodes['#main'].innerHTML, /Current handover/);
+  assert.doesNotMatch(ui.nodes['#main'].innerHTML, /Future handover/);
+  assert.equal(todayActions(input({ diary: diary.slice(0, 1) })).some(row => row.kind === 'diary-next'), false);
+});

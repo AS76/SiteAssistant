@@ -243,7 +243,7 @@ export function todayActions({ tasks = [], progress = [], diary = [], deviations
   }
   const selected = rows.slice(0, 5);
   if (!visibleModules(['diary'], modules).length) return selected;
-  const diaryByTime = diary.filter(entry => entry.next?.trim()).map(entry => {
+  const diaryByTime = diary.filter(entry => validDate(entry.date) && entry.date <= day && entry.next?.trim()).map(entry => {
     const createdTime = Date.parse(entry.createdAt);
     return { ...entry, createdTime: Number.isFinite(createdTime) ? createdTime : null };
   });
