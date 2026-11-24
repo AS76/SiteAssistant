@@ -180,7 +180,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       response.setHeader('Access-Control-Allow-Credentials', 'true');
       response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
       response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Idempotency-Key, Authorization, Cookie');
-      response.setHeader('Access-Control-Expose-Headers', 'X-Total-Count, X-Limit, X-Offset, X-RateLimit-Remaining, Retry-After, X-Content-SHA256, Link');
+      response.setHeader('Access-Control-Expose-Headers', 'X-Total-Count, X-Limit, X-Offset, X-WBS-Scope, X-RateLimit-Remaining, Retry-After, X-Content-SHA256, Link');
     }
     if (request.method === 'OPTIONS') {
       response.writeHead(204);
@@ -557,8 +557,13 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         }
         await requireRole(db, siteId.toLowerCase(), user);
         await requireModule(db, siteId.toLowerCase(), user, 'progress');
+        const wbsId = url.searchParams.get('wbs_id'), descendants = url.searchParams.get('include_descendants');
+        if (descendants != null && !['true', 'false'].includes(descendants)) {
+          throw new RepositoryError(400, 'include_descendants must be true or false.', 'VALIDATION_ERROR');
+        }
+        response.setHeader('X-WBS-Scope', wbsId == null ? 'all' : descendants === 'true' ? 'subtree' : 'exact');
         return await paginatedJson(response, url, db, listSiteProgress, countSiteProgress,
-          { siteId, wbsId: url.searchParams.get('wbs_id') });
+          { siteId, wbsId, includeDescendants: descendants === 'true' });
       }
       if (path === '/api/site-progress/import' && method === 'POST') {
         const input = await readJson(request);

@@ -3,6 +3,7 @@ import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
 import { messages } from './i18n.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
+import { hasOpenProgressSteps } from './domain.mjs';
 import { INSPECTION_STATUSES, inspectionStatusLabelKey, filterHseAssets, sortHseAssets, hseAssetCounts, inspectionOutcomeLabelKey, inspectionModeLabelKey, inspectionItemResultLabelKey, inspectionTally, sortInspections, inspectionSuggestion, inspectionProgress, inspectionPayload } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
 import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
@@ -508,10 +509,15 @@ function rememberTodayResource(name, data, selected = siteId) {
     if (scope === offlineScope) await persistState();
   }).catch(() => { storageError = true; });
 }
+function progressPlannedDay(item) {
+  const start = item.plannedStart;
+  if (validDate(start)) return start;
+  return start && Number.isFinite(Date.parse(start)) ? operationalDay(new Date(start)).date : null;
+}
 function currentTodayActions(day = operationalDay().date) {
   return todayActions({ progress: todayResource('progress'),
     diary: state.diary.filter(entry => entry.siteId === siteId), deviations: todayResource('deviations'),
-    userId: session?.user.id, today: day, modules: currentModules() });
+    userId: session?.user.id, today: day, modules: currentModules(), plannedDay: progressPlannedDay });
 }
 function canCloseTodayTask(task) {
   return task.status !== 'closed' && canRunLightTransition(task);
@@ -616,8 +622,12 @@ function renderToday() {
   const review = tasks.filter(item => item.inVerification);
   const verify = review.filter(item => item.status === 'to_verify');
   const work = tasks.filter(item => item.status !== 'to_verify' && !item.inVerification && validDate(item.due) && item.due <= day);
-  const upcoming = tasks.filter(item => !item.inVerification && validDate(item.due) && item.due > day)
-    .map(item => ({ ...item, status: 'upcoming' }));
+  const upcomingProgress = moduleVisible('progress') ? todayResource('progress').filter(hasOpenProgressSteps).map(item => ({
+    kind: 'progress', id: item.id, title: item.description, due: progressPlannedDay(item), meta: [t('todayOpenSteps')],
+  })).filter(item => item.due > day) : [];
+  const upcoming = filterSortRecords([
+    ...tasks.filter(item => !item.inVerification && validDate(item.due) && item.due > day), ...upcomingProgress,
+  ], {}, [{ key: 'due' }, { key: 'title' }]).map(item => ({ ...item, status: 'upcoming' }));
   const other = currentTodayActions(day).filter(item => item.meta.label !== 'todayDiaryMissing').map(item => ({
     kind: item.kind, id: item.id, title: item.title || t('journalToday'),
     status: item.meta.status,
@@ -659,7 +669,7 @@ function renderToday() {
     </section>
     ${section('today-verify', 'to_verify', review.filter(item => item !== now))}
     ${section('today-work', 'todayWork', [...work, ...other].filter(item => item !== now))}
-    ${tasksVisible ? `<section id="today-upcoming" class="today-upcoming" aria-labelledby="today-upcoming-title">
+    ${tasksVisible || upcoming.length ? `<section id="today-upcoming" class="today-upcoming" aria-labelledby="today-upcoming-title">
       <div class="notebook-section-head"><h2 id="today-upcoming-title" tabindex="-1">${t('todayUpcoming')}</h2><span>${t('todayOutsideDay')}</span></div>
       ${upcoming.length ? `<ul class="today-list">${upcoming.map(item => notebookRow(item, true)).join('')}</ul>`
         : `<p class="notebook-meta">${t('todayUpcomingEmpty')}</p>`}</section>` : ''}
@@ -675,6 +685,8 @@ function openTodayAction(control) {
   let target;
   if (kind === 'task' || kind === 'recent') {
     if (siteTasks().some(task => task.id === id)) target = { view: 'tasks', filters: { id } };
+  } else if (kind === 'progress') {
+    if (todayResource('progress').some(item => item.id === id)) target = { view: 'progress', filters: { id } };
   } else {
     target = currentTodayActions().find(row => row.id === id && row.kind === kind)?.target;
   }
@@ -896,7 +908,12 @@ function renderOverviewWidgets(target, widgets, data, failed = false) {
       + `<p class="note">${t('dashEfficiencyCoverage')}</p><p class="note">${source}</p>`);
   }
   const chosen = widgets.map(id => DASHBOARD_WIDGETS.find(widget => widget.id === id));
-  const cards = chosen.filter(widget => widget.kind === 'kpi').map(widget => `<div class="kpi-card" data-widget="${widget.id}"><span>${t(widget.label)}</span><strong>${data ? esc(String(kpis[widget.id])) : esc(t(failed ? 'apiError' : 'loading'))}</strong>${data && widget.id === 'kpi_booked_hours' ? hoursDetail : ''}</div>`).join('');
+  const cards = chosen.filter(widget => widget.kind === 'kpi').map(widget => {
+    const claim = { kpi_open_claims: 'open', kpi_settled_claims: 'settled' }[widget.id];
+    const coverage = data?.claims.coverage?.[claim];
+    const detail = coverage ? `<small>${esc(t('dashClaimCoverage').replace('{known}', coverage.known).replace('{total}', coverage.total))}</small>` : '';
+    return `<div class="kpi-card" data-widget="${widget.id}"><span>${t(widget.label)}</span><strong>${data ? esc(String(kpis[widget.id])) : esc(t(failed ? 'apiError' : 'loading'))}</strong>${widget.id === 'kpi_booked_hours' ? hoursDetail : detail}</div>`;
+  }).join('');
   const panels = chosen.filter(widget => widget.kind === 'panel').map(widget => `<div data-widget="${widget.id}">${content[widget.id] || panel(widget.label, unavailable)}</div>`).join('');
   target.innerHTML = (cards ? `<div class="kpi-row">${cards}</div>` : '') + (panels ? `<div class="dash-grid">${panels}</div>` : '');
 }
@@ -1930,8 +1947,16 @@ function renderDeviations() {
   return window.matchMedia('(max-width: 520px)').matches ? html + renderReconciliation() : renderReconciliation() + html;
 }
 function renderProgress() {
-  const rows = filterSortRecords(coreData('progress'), coreFilters.progress, [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
-  return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbs', coreData('wbs').map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), coreFilters.progress.wbsId, 'coreAllWbs')}</div>` +
+  const { wbsId, includeDescendants, id } = coreFilters.progress;
+  const nodes = coreData('wbs');
+  const selected = nodes.find(node => node.id === wbsId);
+  const scope = new Set(includeDescendants && selected ? flattenWbs([selected]).map(node => node.id) : [wbsId]);
+  const rows = filterSortRecords(coreData('progress').filter(row => !wbsId || scope.has(row.wbsId)), { id },
+    [{ key: 'section' }, { key: 'plcArea' }, { key: 'description' }]);
+  const scopeLabel = t(!wbsId ? 'coreAllWbs' : includeDescendants ? 'wbsScopeSubtree' : 'wbsScopeExact');
+  return `<div class="toolbar core-toolbar">${coreSelect('wbsId', 'wbs', nodes.map(node => [node.id, `${node.wbs_code} · ${node.description ?? ''}`]), wbsId, 'coreAllWbs')}
+      <label><input type="checkbox" data-core-filter="includeDescendants" ${includeDescendants ? 'checked' : ''} ${wbsId ? '' : 'disabled'}> ${t('wbsIncludeDescendants')}</label></div>
+    <p class="note" role="status">${scopeLabel} · ${coreNumber(rows.length, 'count')}</p>` +
     (rows.length ? coreTable(['wbsDescription', 'coreSection', 'area', 'coreProgressPct', 'coreBookedHours'], rows.map(row => [coreDetailButton('progress', row), coreValue(row.section), coreValue(row.plcArea),
       `<div>${progressBar(row.progressPct)}${row.progressPctSource === 'computed' ? ` <span class="badge">${t('coreComputed')}</span>` : ''}
       ${progressVerificationWarning(row)}</div>`, coreNumber(row.bookedHours, 'hours')])) : empty('noResults', 'noResultsHint'));
@@ -3132,7 +3157,10 @@ function renderImportPreview(preview) {
   const rows = [['added', 'importAdded'], ['updated', 'importUpdated'], ['unchanged', 'importUnchanged'], ['removed', 'importRemoved'], ['rejected', 'importRejected']]
     .map(([key, label]) => `<li><strong>${counts[key] ?? 0}</strong> ${t(label)}</li>`).join('');
   const rejected = (preview.samples?.rejected || []).slice(0, 8)
-    .map(row => `<li>${esc(row.source_row ?? '')} — ${esc(row.rejected || '')}${row.reason ? `: ${esc(row.reason)}` : ''}</li>`).join('');
+    .map(row => {
+      const reason = row.rejected === 'AMBIGUOUS_NUMBER' ? t('importAmbiguousNumber') : row.reason;
+      return `<li>${esc(row.source_row ?? '')} — ${esc(row.rejected || '')}${reason ? `: ${esc(reason)}` : ''}</li>`;
+    }).join('');
   return `<h3>${t('importPreviewTitle')}</h3><ul class="import-counts">${rows}</ul>` +
     (rejected ? `<h4>${t('importRejectedRows')}</h4><ul class="import-rejected">${rejected}</ul>` : '');
 }
@@ -4326,7 +4354,13 @@ document.addEventListener('change', event => {
     if (event.target.dataset.coreFilter === 'order') hseAssetOrder = event.target.value;
     else hseAssetFilters[event.target.dataset.coreFilter] = event.target.value;
     render();
-  } else if (event.target.dataset.coreFilter && coreFilters[view]) { coreFilters[view][event.target.dataset.coreFilter] = event.target.value; render(); }
+  } else if (event.target.dataset.coreFilter && coreFilters[view]) {
+    const key = event.target.dataset.coreFilter;
+    coreFilters[view][key] = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
+    if (view === 'progress' && key === 'wbsId') coreFilters.progress.includeDescendants = false;
+    render();
+    if (view === 'progress') $(`[data-core-filter="${key}"]`)?.focus();
+  }
   if (event.target.matches('#impact-transition-form [name=to]')) {
     const closing = event.target.value === 'closed', result = $('#impact-transition-form [name=result]');
     $('#impact-result-field').hidden = !closing; result.required = closing; result.disabled = !closing; if (!closing) result.value = '';

@@ -96,3 +96,21 @@ test('dashboard window includes empty recent workday weeks and matches the clien
   assert.deepEqual(result.body.hours.map(week => [week.week, week.hours, week.hoursExact]), recent.map(week => [week, 0, 0]));
   assert.equal(result.body.hoursCoverage.appBookedHours, 8);
 });
+
+test('dashboard amounts preserve unknown and explicit zero with coverage per aggregate', async t => {
+  const { db, close } = await openTestDb(); t.after(close);
+  const auth = await authFixture(db), request = requestListener(createServer(db));
+  const site = await createSite(db, { code: 'SYN-CLAIM-COVERAGE', name: 'Synthetic cost impact coverage' });
+  await db.run('INSERT INTO site_members VALUES (?, ?, ?)', site.id, auth.users.owner.id, 'owner');
+  const ids = [randomUUID(), randomUUID()];
+  for (const id of ids) await db.run(`INSERT INTO cost_impacts (id, site_id, title, status, created_by, created_at)
+    VALUES (?, ?, 'Synthetic impact', 'open', ?, ?)`, id, site.id, auth.users.owner.id, '2026-01-01T00:00:00.000Z');
+  const read = async () => (await request(`/api/dashboard?site_id=${site.id}`, { cookie: auth.cookies.owner })).body.claims;
+  assert.deepEqual(await read(), { claimed: null, settled: null, open: null,
+    coverage: { claimed: { known: 0, total: 2 }, settled: { known: 0, total: 2 }, open: { known: 0, total: 2 } } });
+  await db.run("UPDATE cost_impacts SET claim_amount = 0, status = 'closed', result = 'settled', settlement_amount = 1.25, closed_at = ? WHERE id = ?", '2026-01-02T00:00:00.000Z', ids[0]);
+  assert.deepEqual(await read(), { claimed: 0, settled: 1.25, open: null,
+    coverage: { claimed: { known: 1, total: 2 }, settled: { known: 1, total: 2 }, open: { known: 0, total: 1 } } });
+  await db.run('UPDATE cost_impacts SET claim_amount = 0 WHERE id = ?', ids[1]);
+  assert.equal((await read()).open, 0);
+});

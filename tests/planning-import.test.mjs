@@ -56,7 +56,7 @@ const column = index => {
 function xlsx(header, rows) {
   return zip({ 'xl/worksheets/sheet1.xml': `<worksheet><sheetData>${[header, ...rows].map((row, r) =>
     `<row r="${r + 1}">${row.map((value, c) => value == null ? '' :
-      `<c r="${column(c)}${r + 1}" t="str"><v>${escape(value)}</v></c>`).join('')}</row>`).join('')}</sheetData></worksheet>` });
+      `<c r="${column(c)}${r + 1}" t="${typeof value === 'number' ? 'n' : 'str'}"><v>${escape(value)}</v></c>`).join('')}</row>`).join('')}</sheetData></worksheet>` });
 }
 const samples = {
   employees: { header: ['employee_id', 'given_name', 'family_name', 'start_date'], rows: [['E-1', 'Synthetic', 'Employee', '2026-01-15']] },
@@ -115,13 +115,24 @@ test('planning parser: explicit rejection reasons and empty/invalid input', () =
   assert.deepEqual(invalidDates.rejected.map(row => row.rejected), ['INVALID_DATE', 'INVALID_DATE']);
   const days = parseFamily(xlsx(['log_date'], [['2026-01-15'], [' 2026-01-15 ']]), 'daily_log');
   assert.equal(days.rows.length, 1); assert.equal(days.rejected[0].rejected, 'DUPLICATE_DAY');
-  const statuses = [' OPEN ', 'in_progress', 'Completed', 'closed', 'rejected'];
+  const statuses = [' OPEN ', ' Approved ', 'in_progress', 'Completed', 'closed', 'rejected'];
   assert.deepEqual(parseFamily(xlsx(['deviation_id', 'status'], statuses.map((s, i) => [`D-${i}`, s])), 'deviations')
-    .rows.map(row => row.values.status), ['open', 'in_progress', 'work_completed', 'closed', 'rejected']);
+    .rows.map(row => row.values.status), ['open', 'approved', 'in_progress', 'work_completed', 'closed', 'rejected']);
   for (const wall of ['2026-03-29T02:30:00', '2026-10-25T02:30:00', '2026-02-30T00:00:00Z']) {
     assert.equal(parseFamily(xlsx(['item_id', 'planned_start'], [['1', wall]]), 'time_schedule').rejected[0].rejected, 'INVALID_DATE');
   }
   assert.equal(parseFamily(xlsx(['item_id', 'progress_percent'], [['1', 'invalid']]), 'time_schedule').rejected[0].rejected, 'INVALID_NUMBER');
+});
+
+test('numeric columns recognize grouped IT and EN text and preserve native XLSX decimals', () => {
+  const values = ['1.234,56', '1,234.56', 1.234, 1234.56, '1.234.567', '1,234,567', '1.234', '1,234', '12,34.56', 0, null];
+  const file = xlsx(['deviation_id', 'status', 'actual_cost'],
+    values.map((value, index) => [`D-${index}`, ' approved ', value]));
+  const result = parseFamily(file, 'deviations');
+  assert.deepEqual(result.rows.map(row => row.values.actual_cost), [1234.56, 1234.56, 1.234, 1234.56, 1234567, 1234567, 0, null]);
+  assert.deepEqual(result.rows.map(row => row.values.status), Array(8).fill('approved'));
+  assert.deepEqual(result.rejected.map(row => [row.source_row, row.rejected]),
+    [[8, 'AMBIGUOUS_NUMBER'], [9, 'AMBIGUOUS_NUMBER'], [10, 'INVALID_NUMBER']]);
 });
 
 test('default contract rejects a legacy required header', () => {

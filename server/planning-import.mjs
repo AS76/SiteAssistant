@@ -12,10 +12,25 @@ const tokenSecret = process.env.PLANNING_IMPORT_TOKEN_SECRET || randomBytes(32);
 const text = value => value == null || String(value).trim() === '' ? null : String(value).trim();
 const sourceText = value => value == null ? null : String(value);
 const number = value => {
-  if (text(value) === null) return null;
-  const raw = text(value).replace(',', '.');
-  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(raw) || !Number.isFinite(Number(raw))) fail('INVALID_NUMBER', 'Expected a finite decimal number.');
-  return Number(raw);
+  const input = text(value);
+  if (input === null) return null;
+  let result = value;
+  if (typeof value !== 'number') {
+    if (/^[+-]?\d{1,3}[.,]\d{3}$/.test(input)) {
+      fail('AMBIGUOUS_NUMBER', 'Ambiguous decimal or thousands separator. Use a numeric XLSX cell or write the number unambiguously.');
+    }
+    let decimal = input;
+    if (/^[+-]?\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(input)) {
+      decimal = input.replaceAll('.', '').replace(',', '.');
+    } else if (/^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(input)) {
+      decimal = input.replaceAll(',', '');
+    } else {
+      decimal = input.replace(',', '.');
+    }
+    result = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(decimal) ? Number(decimal) : NaN;
+  }
+  if (!Number.isFinite(result)) fail('INVALID_NUMBER', 'Expected a finite decimal number.');
+  return result;
 };
 const boolean = value => {
   if (text(value) === null) return null;
@@ -58,7 +73,7 @@ const integer = value => {
   if (result !== null && (!Number.isSafeInteger(result) || result < 0 || result > 2147483647)) fail('INVALID_NUMBER', 'Expected a nonnegative 32-bit integer.');
   return result;
 };
-const statuses = new Set(['open', 'in_progress', 'completed', 'closed', 'rejected']);
+const statuses = new Set(['open', 'approved', 'in_progress', 'completed', 'closed', 'rejected']);
 const status = value => {
   const label = text(value)?.toLowerCase();
   if (!statuses.has(label)) fail('UNKNOWN_STATUS', 'Unrecognized deviation status.');
@@ -230,7 +245,9 @@ export function parseFamily(buffer, family, { timeZone = 'Europe/Rome', mapping 
   if (!Buffer.isBuffer(buffer) || !buffer.length) fail('EMPTY_FILE', 'An XLSX file is required.');
   if (buffer.length > MAX_IMPORT_BYTES) fail('FILE_TOO_LARGE', 'File exceeds 20 MiB.', 413);
   let workbook;
-  try { workbook = readWorkbook(buffer); }
+  const numericHeaders = new Set(Object.entries(mapping.columns)
+    .filter(([, column]) => [number, integer].includes(column.normalize)).map(([header]) => header));
+  try { workbook = readWorkbook(buffer, { numericHeaders }); }
   catch (error) {
     if (error instanceof XlsxLimitError) {
       fail('XLSX_LIMIT_EXCEEDED', 'The workbook exceeds the supported size or complexity.', 400);
