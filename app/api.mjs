@@ -96,7 +96,7 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     let data;
     try { data = await response.json(); }
     catch { throw new ApiError('apiError', { status: response.status, code: 'INVALID_RESPONSE', retryAfter }); }
-    if (response.status === 401 && path !== '/api/auth/login' && !path.startsWith('/api/auth/webauthn/login/') && path !== '/api/auth/webauthn/register/verify' && !(path === '/api/auth/password' && data.code === 'INVALID_CREDENTIALS')) onUnauthorized();
+    if (response.status === 401 && !['/api/auth/login', '/api/auth/logout'].includes(path) && !path.startsWith('/api/auth/webauthn/login/') && path !== '/api/auth/webauthn/register/verify' && !(path === '/api/auth/password' && data.code === 'INVALID_CREDENTIALS')) onUnauthorized();
     if (!response.ok) throw new ApiError(data.error || 'apiError', { status: response.status, code: data.code || 'API_ERROR',
       retryAfter: retryAfter ?? (response.status === 429 ? retrySeconds(data.retry_after) : undefined),
     });

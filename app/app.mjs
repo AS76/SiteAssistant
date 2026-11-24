@@ -5,7 +5,7 @@ import { messages } from './i18n.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
 import { INSPECTION_STATUSES, inspectionStatusLabelKey, filterHseAssets, sortHseAssets, hseAssetCounts, inspectionOutcomeLabelKey, inspectionModeLabelKey, inspectionItemResultLabelKey, inspectionTally, sortInspections, inspectionSuggestion, inspectionProgress, inspectionPayload } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
-import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
+import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, purgeScope, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
 
 const api = createApi({ baseUrl: new URL(document.querySelector('meta[name=siteassistant-api-base]')?.content || DEFAULT_BASE_URL, location.href).href, onUnauthorized: () => clearSession(true) });
 const freshApi = createApi({ baseUrl: api.baseUrl, fresh: true, onUnauthorized: () => clearSession(true) });
@@ -30,6 +30,8 @@ const money = value => {
 let offlineScope, pendingOps = [], offline = !navigator.onLine, storageReady = false, storageError = false, swUnavailable = false, swRegistration, syncRun;
 const accountChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('siteassistant-session') : null;
 const accountLock = run => navigator.locks ? withSyncLock(run) : run();
+const logoutKey = `logout:${api.baseUrl}`;
+let logoutPending = false;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 let session = null;
@@ -196,13 +198,35 @@ async function forgetActive() {
   if (storageReady) await setMirror('active', null);
   if ('caches' in window) for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.includes('-data-')) await caches.delete(key);
 }
+async function flushLogout() {
+  if (!logoutPending && !(storageReady && await getMirror(logoutKey))) return;
+  try { await api.logout(); }
+  catch (error) { if (error.status !== 401) throw error; }
+  if (storageReady) await setMirror(logoutKey, null);
+  logoutPending = false;
+}
 async function logout() {
   try {
-    await accountLock(async () => { await api.logout(); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
+    await accountLock(async () => {
+      const active = storageReady ? await getMirror('active') : null;
+      const scope = offlineScope ?? active?.scope;
+      const current = !active || active.scope === scope;
+      if (storageReady) await purgeScope(scope, current ? logoutKey : undefined);
+      if ('caches' in window && scope) {
+        const suffix = `-data-${encodeURIComponent(scope)}`;
+        try {
+          for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.endsWith(suffix)) await caches.delete(key);
+        } catch { storageError = true; }
+      }
+      clearSession(); accountChannel?.postMessage('changed');
+      if (!current) return;
+      logoutPending = !storageReady;
+      if (navigator.onLine) await flushLogout();
+    });
   } catch (error) { toast(errorMessage(error)); }
 }
 async function persistState() {
-  if (!storageReady || !offlineScope) return;
+  if (!storageReady || !offlineScope || (await getMirror('active'))?.scope !== offlineScope) return;
   await setMirror(`state:${offlineScope}`, {
     ...state,
     tasks: state.tasks.filter(item => !item.localOnly), diary: state.diary.filter(item => !item.localOnly),
@@ -226,6 +250,10 @@ async function loadData() {
   loading = true; loadError = null; render();
   try {
     await accountLock(async () => {
+      if (logoutPending || (storageReady && await getMirror(logoutKey))) {
+        if (navigator.onLine) await flushLogout().catch(() => {});
+        return;
+      }
       let active = storageReady ? await getMirror('active') : null;
       try {
         session = await freshApi.me(); actor = session.user.name; offline = false;
@@ -297,7 +325,7 @@ async function writeOperation(op_type, payload, entity_id) {
     if (op_type === 'create_attachment') { const file = await api.createAttachment(payload); state.attachments.push(file); return file; }
     return;
   }
-  const op = await enqueue({ op_type, payload, entity_id, scope: offlineScope });
+  const op = await enqueue({ op_type, payload, entity_id, scope: offlineScope }, { requireActive: true });
   await refreshPending();
   if (navigator.onLine && !offline) await syncQueue(op_type === 'create_diary' ? op.id : undefined);
   if (pendingOps.some(item => item.status !== 'failed')) await registerSync(swRegistration);
@@ -2968,6 +2996,7 @@ async function passkeyLogin(discoverable) {
   controls.forEach(control => { control.disabled = true; });
   try {
     await accountLock(async () => {
+      await flushLogout();
       await runPasskey(api, 'login', discoverable ? { discoverable: true } : { email: email.value.trim() });
       await forgetActive(); clearSession(); accountChannel?.postMessage('changed');
     });
@@ -4155,7 +4184,7 @@ document.addEventListener('submit', async event => {
     if (['hse-form', 'hse-delete-form'].includes(form.id)) { await submitHse(form, data); return; }
     if (['cert-form', 'cert-delete-form'].includes(form.id)) { await submitCertification(form, data); return; }
     if (form.id === 'login-form') {
-      await accountLock(async () => { await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
+      await accountLock(async () => { await flushLogout(); await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
       await loadData(); await syncQueue(); return;
     }
     if (form.id === 'password-form') {
@@ -4379,7 +4408,12 @@ window.addEventListener('offline', () => { offline = true; renderOffline(); if (
 for (const breakpoint of ['(width < 640px)', '(min-width: 1180px)']) {
   window.matchMedia(breakpoint).addEventListener('change', renderChrome);
 }
-window.addEventListener('online', () => { offline = false; coreCache.clear(); renderOffline(); if (moduleResources[view] || view === 'today' || view === 'tasks') render(); void syncQueue(); });
+window.addEventListener('online', () => {
+  offline = false; coreCache.clear(); renderOffline();
+  if (moduleResources[view] || view === 'today' || view === 'tasks') render();
+  if (session) void syncQueue();
+  else void accountLock(flushLogout).catch(error => toast(errorMessage(error)));
+});
 document.addEventListener('visibilitychange', () => { if (!document.hidden) void syncQueue(); });
 
 // Mobile browsers may still expose pinch gestures despite the viewport meta.

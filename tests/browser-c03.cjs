@@ -382,8 +382,27 @@ async function offline(env) {
     await hasText(page.locator('.diary-entry').filter({ hasText: plan }), actual);
     assert.equal((await rows()).length, 1);
     assert.equal(await pending(page), 0);
+    await s.setOffline(true);
+    const scope = await page.evaluate(async () => {
+      const { getMirror, enqueue } = await import('/offline.mjs');
+      const { scope } = await getMirror('active');
+      await enqueue({ scope, op_type: 'create_task', payload: { title: 'Discarded at sign-out' } });
+      return scope;
+    });
+    await page.locator('#logout').click();
+    await page.locator('#login-form').waitFor();
+    assert.deepEqual(await page.evaluate(async scope => {
+      const { getMirror, listOps } = await import('/offline.mjs');
+      return [(await getMirror(`state:${scope}`)) ?? null, (await getMirror('active')) ?? null, (await listOps(scope)).length];
+    }, scope), [null, null, 0]);
+    const revocation = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/logout');
+    await s.setOffline(false);
+    assert.equal((await revocation).status(), 200);
+    await page.reload();
+    await page.locator('#login-form').waitFor();
+    assert.equal((await env.db.get("SELECT count(*) AS count FROM tasks WHERE title = 'Discarded at sign-out'")).count, 0);
     s.check();
-    console.log('PASS offline: editor C03 night diary queued locally with zero DB writes, replayed exactly once on reconnect, pending count zero after reconnect and reload');
+    console.log('PASS offline: C03 diary replays once, sign-out purges IndexedDB and reconnect revokes the session');
   } finally { await s.context.close(); }
 }
 

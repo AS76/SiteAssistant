@@ -33,7 +33,7 @@ For every control, document an **owner, result, evidence, date, corrective actio
 
 **Erasure and rights requests.** Some entities can be permanently deleted, some are only hidden while remaining in audit history, and others cannot be edited or deleted through normal application functions. There is no complete person-specific export or cross-system erasure workflow. Until such features are implemented and tested, appropriately authorised administration procedures and, where necessary, technical changes are required. Assess the applicable legal exceptions individually rather than promising automatic deletion.
 
-**Offline devices.** The PWA stores data lists and attachment metadata, **not** attached binary files, in Cache Storage and IndexedDB. Signing out clears the service worker's data cache but leaves `pending_ops` and `state:<scope>` copies in IndexedDB. Establish and test a device-cleanup procedure for personal, shared, replaced or lost devices; signing out is not complete local erasure.
+**Offline devices.** Signing out clears the account’s offline copy, service worker data cache and queued changes. Offline sign-out clears local data immediately. Server session revocation is sent when the connection returns. Sync pending changes before signing out if you need to keep them.
 
 **Health data and free text.** Fitness includes medical checks, outcomes and notes; files and free text in other modules can also identify people or disclose health information. Restrict or exclude such information until necessity, lawful basis, authorisations, retention and tested processes are in place.
 
