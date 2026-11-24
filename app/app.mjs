@@ -4151,7 +4151,7 @@ document.addEventListener('submit', async event => {
       render(); toast(t('passwordChanged')); return;
     }
     if (['request-form', 'forgot-form'].includes(form.id)) {
-      await (form.id === 'request-form' ? api.requestAccess(data) : api.forgotPassword(data));
+      await (form.id === 'request-form' ? api.requestAccess(data) : api.forgotPassword({ ...data, language }));
       if (version === modalVersion) closeModal();
       toast(t('emailAccepted')); return;
     }

@@ -9,7 +9,7 @@ import { authenticate, assertAuthBypassAllowed, login, memberships, publicUser, 
 import { createWebAuthn } from './webauthn.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { createStaticHandler } from './static-dev.mjs';
-import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage } from './signup.mjs';
+import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage, RESET_PATH, readPasswordReset, confirmPasswordReset, resetPage } from './signup.mjs';
 import { createTaskResponse } from './idempotency.mjs';
 import { createClientIpResolver, createRateLimiter } from './limits.mjs';
 import { readPagination } from './pagination.mjs';
@@ -72,7 +72,7 @@ async function paginatedJson(response, url, db, list, count, filters, user) {
 const rateLimitExempt = new Set(['/api/auth/login', '/api/auth/forgot', '/api/auth/password', '/api/auth/request']);
 const authBypassExcluded = new Set([
   '/api/auth/login', '/api/auth/logout', '/api/auth/forgot', '/api/auth/request',
-  '/api/auth/request/decide', '/api/auth/password', '/api/auth/me', '/api/health',
+  '/api/auth/request/decide', '/api/auth/password', '/api/auth/me', '/api/health', RESET_PATH,
 ]);
 
 async function readJson(request, { includeHash = false, maxBytes = 65536 } = {}) {
@@ -108,7 +108,7 @@ async function readJson(request, { includeHash = false, maxBytes = 65536 } = {})
   return includeHash ? { input, requestHash: hash.digest('hex') } : input;
 }
 
-async function readForm(request) {
+async function readForm(request, maxBytes = 4096) {
   const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
   if (contentType !== 'application/x-www-form-urlencoded') {
     throw new RepositoryError(400, 'Content-Type must be application/x-www-form-urlencoded.', 'INVALID_FORM');
@@ -117,10 +117,10 @@ async function readForm(request) {
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size <= 4096) chunks.push(chunk);
+    if (size <= maxBytes) chunks.push(chunk);
     else chunks.length = 0;
   }
-  if (size > 4096) throw new RepositoryError(400, 'Form body exceeds 4096 bytes.', 'INVALID_FORM');
+  if (size > maxBytes) throw new RepositoryError(400, `Form body exceeds ${maxBytes} bytes.`, 'INVALID_FORM');
   return new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
 }
 
@@ -175,6 +175,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   const clientIp = createClientIpResolver(trustedProxyIps);
   const passkeys = createWebAuthn(db, webauthn);
   const passkeyLimiter = createAuthRequestLimiter();
+  const resetLimiter = createAuthRequestLimiter();
   const passkeyVerifyLimiter = createAuthRequestLimiter({ ipMax: 10 });
   const serveStatic = staticDir ? createStaticHandler(staticDir) : null;
   const authBypassEmail = authBypassUser.trim().toLowerCase();
@@ -258,15 +259,37 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const decision = await decideSignup(db, form.get('token'), form.get('decision'), { mailer });
         return html(response, 200, decision === 'approve' ? 'Request approved. A temporary password has been emailed to the applicant.' : 'Request rejected. No account was created.');
       }
+      if (path === RESET_PATH && ['GET', 'POST'].includes(method)) {
+        response.setHeader('Referrer-Policy', 'no-referrer');
+        response.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+        const form = method === 'POST' ? await readForm(request, 20000) : url.searchParams;
+        const token = form.get('token'), language = form.get('lang');
+        let status = 200, state = method === 'GET' ? 'ready' : 'done';
+        try {
+          if (method === 'GET') await readPasswordReset(db, token);
+          else {
+            resetLimiter.attempt(ip);
+            await confirmPasswordReset(db, token, form.get('password'), form.get('confirmation'));
+          }
+        } catch (error) {
+          state = ({ RESET_LINK_EXPIRED: 'expired', RESET_PASSWORD_INVALID: 'invalid', RATE_LIMITED: 'limited' })[error.code];
+          if (!state) throw error;
+          status = error.status;
+          if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
+        }
+        response.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8' });
+        return response.end(resetPage(language, state, token));
+      }
       if (['/api/auth/request', '/api/auth/forgot'].includes(path) && method === 'POST') {
-        const email = normalizeEmail((await readJson(request)).email);
+        const input = await readJson(request);
+        const email = normalizeEmail(input.email);
         const signup = path === '/api/auth/request';
         (signup ? requestLimiter : forgotLimiter).attempt(ip, email);
         // Preflight also covers no-op cases, keeping configuration errors uniform.
         if (signup && (typeof ownerEmail !== 'string' || !ownerEmail.trim())) throw new MailNotConfiguredError();
         mailer.assertConfigured?.();
         if (signup) await requestSignup(db, email, { mailer, ownerEmail, publicUrl });
-        else await forgotPassword(db, email, { mailer });
+        else await forgotPassword(db, email, { mailer, publicUrl, language: input.language });
         return json(response, 202, { status: 'accepted' });
       }
       if (path === '/api/health' && method === 'GET') return json(response, 200, {

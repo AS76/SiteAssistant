@@ -14,8 +14,8 @@ const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp
 // Read once; templates are pure functions of their arguments and this cached asset.
 let logo = '';
 try { logo = readFileSync(new URL('../app/assets/logo.svg', import.meta.url)).toString('base64'); } catch { /* Text wordmark below remains available. */ }
-function template(subject, content, text) {
-  return { subject, text, html: `<!doctype html><html lang="en"><body style="margin:0;padding:24px;background:#d1e7c0;color:#142c30;font-family:Arial,sans-serif"><main style="max-width:560px;margin:auto;padding:28px;background:white;border-radius:12px">${logo ? `<img src="data:image/svg+xml;base64,${logo}" width="250" height="66" alt="SiteAssistant">` : '<strong style="color:#126c57;font-size:24px">SiteAssistant</strong>'}<h1 style="font-size:22px;color:#126c57">${escapeHtml(subject)}</h1>${content}<p style="font-size:12px">SiteAssistant</p></main></body></html>` };
+function template(subject, content, text, language = 'en') {
+  return { subject, text, html: `<!doctype html><html lang="${language}"><body style="margin:0;padding:24px;background:#d1e7c0;color:#142c30;font-family:Arial,sans-serif"><main style="max-width:560px;margin:auto;padding:28px;background:white;border-radius:12px">${logo ? `<img src="data:image/svg+xml;base64,${logo}" width="250" height="66" alt="SiteAssistant">` : '<strong style="color:#126c57;font-size:24px">SiteAssistant</strong>'}<h1 style="font-size:22px;color:#126c57">${escapeHtml(subject)}</h1>${content}<p style="font-size:12px">SiteAssistant</p></main></body></html>` };
 }
 export function signupNotifyEmail({ email, reviewUrl }) {
   return template('SiteAssistant access request', `<p>Access requested for <strong>${escapeHtml(email)}</strong>.</p><p>This link expires in 72 hours. Review the request before approving or rejecting it:</p><p><a style="color:#126c57" href="${escapeHtml(reviewUrl)}">Review request</a></p>`, `SiteAssistant access request\nEmail: ${email}\nLink expires in 72 hours. Review the request before approving or rejecting it.\nReview request: ${reviewUrl}`);
@@ -23,8 +23,14 @@ export function signupNotifyEmail({ email, reviewUrl }) {
 export function welcomeEmail({ password }) {
   return template('Welcome to SiteAssistant', `<p>Your access request has been approved.</p><p>Temporary password: <strong>${escapeHtml(password)}</strong></p><p>Sign in and change this password using the password banner.</p>`, `Your SiteAssistant access request has been approved.\nTemporary password: ${password}\nSign in and change this password using the password banner.`);
 }
-export function resetEmail({ password }) {
-  return template('SiteAssistant password reset', `<p>A password reset was requested for your account. Previous sessions have been revoked.</p><p>Temporary password: <strong>${escapeHtml(password)}</strong></p><p>Sign in and change this password using the password banner.</p>`, `A SiteAssistant password reset was requested for your account. Previous sessions have been revoked.\nTemporary password: ${password}\nSign in and change this password using the password banner.`);
+export function resetEmail({ resetUrl, language }) {
+  const link = escapeHtml(resetUrl);
+  if (language === 'it') return template('Reimposta la password di SiteAssistant',
+    `<p>Il link scade tra 30 minuti.</p><p><a href="${link}">Reimposta la password</a></p><p>Se non hai richiesto il reset, puoi ignorare questo messaggio.</p>`,
+    `Il link scade tra 30 minuti: ${resetUrl}\nSe non hai richiesto il reset, puoi ignorare questo messaggio.`, 'it');
+  return template('SiteAssistant password reset',
+    `<p>This link expires in 30 minutes.</p><p><a href="${link}">Reset your password</a></p><p>Ignore this message if you did not request a reset.</p>`,
+    `This link expires in 30 minutes: ${resetUrl}\nIgnore this message if you did not request a reset.`);
 }
 
 const mailbox = value => typeof value === 'string' && value.length <= 254 && /^[^\s@<>\x00-\x1f\x7f]+@[^\s@<>\x00-\x1f\x7f]+\.[^\s@<>\x00-\x1f\x7f]+$/.test(value);

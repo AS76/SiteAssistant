@@ -22,13 +22,19 @@ async function fixture(t, options = {}) {
     method: 'POST', rawBody: new URLSearchParams({ token: url.searchParams.get('token'), decision }).toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
+  const confirm = (url, password = newPassword, confirmation = password) => request('/api/auth/reset', {
+    method: 'POST', rawBody: new URLSearchParams({
+      token: url.searchParams.get('token'), lang: url.searchParams.get('lang') ?? 'en', password, confirmation,
+    }).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
   const user = () => createUser(database.db, { email, name: 'Synthetic applicant', password: oldPassword });
   const login = async (password = oldPassword) => {
     const result = await post('login', { email, password });
     t.assert.strictEqual(result.status, 200);
     return result.headers['set-cookie'].split(';')[0];
   };
-  return { db: database.db, request, post, decide, mail, user, login };
+  return { db: database.db, request, post, decide, confirm, mail, user, login };
 }
 const links = mail => [...mail.text.matchAll(/https:\/\/[^\s]+/g)].map(match => new URL(match[0]));
 const path = url => url.pathname + url.search;
@@ -237,27 +243,55 @@ test('password change validates credentials/policy, clears flag and preserves on
   t.assert.strictEqual(f.mail.length, 0);
 });
 
-test('forgot rotates the password, revokes all sessions and hides unknown and disabled accounts', async t => {
+test('forgot changes the password and revokes sessions only after one successful confirmation', async t => {
   const f = await fixture(t); await f.user();
   const cookies = [await f.login(), await f.login()];
-  const reset = await f.post('forgot', { email: email.toUpperCase() });
+  const before = await f.db.get('SELECT password_hash FROM users');
+  const reset = await f.post('forgot', { email: email.toUpperCase(), language: 'it' });
   t.assert.strictEqual(reset.status, 202); t.assert.deepStrictEqual(reset.body, accepted);
   t.assert.strictEqual(f.mail.length, 1); t.assert.strictEqual(f.mail[0].to, email);
+  const [url] = links(f.mail[0]);
+  const token = url.searchParams.get('token');
+  t.assert.strictEqual(url.pathname, '/api/auth/reset');
+  t.assert.strictEqual((await f.db.get('SELECT token_hash FROM password_resets')).token_hash, tokenHash(token));
+  t.assert.deepStrictEqual(await f.db.get('SELECT password_hash FROM users'), before);
+  const page = await f.request(path(url));
+  t.assert.strictEqual(page.status, 200);
+  assertDecisionHeaders(t, page);
+  t.assert.match(page.body, /lang="it".*Reimposta la password/s);
+  t.assert.strictEqual((await f.confirm(url, 'short')).status, 400);
+  t.assert.strictEqual((await f.confirm(url, newPassword, oldPassword)).status, 400);
+  for (const cookie of cookies) t.assert.strictEqual((await f.request('/api/auth/me', { cookie })).status, 200);
+  const results = await Promise.all([f.confirm(url), f.confirm(url)]);
+  t.assert.deepStrictEqual(results.map(result => result.status).sort(), [200, 410]);
+  t.assert.strictEqual((await f.request(path(url))).status, 410);
+  t.assert.deepStrictEqual(await f.db.all('SELECT * FROM password_resets'), []);
   for (const cookie of cookies) t.assert.strictEqual((await f.request('/api/auth/me', { cookie })).status, 401);
   t.assert.strictEqual((await f.post('login', { email, password: oldPassword })).status, 401);
-  const password = temporary(f.mail[0]);
-  t.assert.match(password, /^[A-HJ-NP-Za-km-z2-9]{16}$/);
-  const cookie = await f.login(password);
-  t.assert.strictEqual((await f.request('/api/auth/me', { cookie })).body.password_change_required, true);
+  const cookie = await f.login(newPassword);
+  t.assert.strictEqual((await f.request('/api/auth/me', { cookie })).body.password_change_required, false);
+  const events = await f.db.all('SELECT event, outcome, detail_json FROM auth_events ORDER BY created_at');
+  t.assert.deepStrictEqual(events.map(event => event.event), ['password_reset.requested', 'password_reset.completed']);
+  t.assert.ok(events.every(event => event.outcome === 'success' && event.detail_json === '{}'));
+});
+
+test('expired, replaced and disabled reset links fail without changing credentials', async t => {
+  const f = await fixture(t); await f.user();
+  const before = await f.db.get('SELECT password_hash FROM users');
+  await f.post('forgot', { email }); const [expired] = links(f.mail.at(-1));
+  await f.db.run('UPDATE password_resets SET expires_at = ?', '2000-01-01T00:00:00.000Z');
+  t.assert.strictEqual((await f.confirm(expired)).status, 410);
+  await f.post('forgot', { email }); const [replaced] = links(f.mail.at(-1));
+  await f.post('forgot', { email }); const [disabled] = links(f.mail.at(-1));
+  t.assert.strictEqual((await f.confirm(replaced)).status, 410);
   await f.db.run('UPDATE users SET disabled_at = ?', new Date().toISOString());
-  const before = await f.db.get('SELECT * FROM users'), sessions = await f.db.all('SELECT * FROM sessions ORDER BY id');
+  t.assert.strictEqual((await f.confirm(disabled)).status, 410);
   for (const address of [email, 'absent@example.invalid']) {
-    const result = await f.post('forgot', { email: address });
-    t.assert.strictEqual(result.status, reset.status); t.assert.deepStrictEqual(result.body, reset.body);
+    const response = await f.post('forgot', { email: address });
+    t.assert.strictEqual(response.status, 202); t.assert.deepStrictEqual(response.body, accepted);
   }
-  t.assert.strictEqual(f.mail.length, 1);
-  t.assert.deepStrictEqual(await f.db.get('SELECT * FROM users'), before);
-  t.assert.deepStrictEqual(await f.db.all('SELECT * FROM sessions ORDER BY id'), sessions);
+  t.assert.strictEqual(f.mail.length, 3);
+  t.assert.deepStrictEqual(await f.db.get('SELECT password_hash FROM users'), before);
 });
 
 test('request and forgot use independent account and IP limits; password uses user ID', async t => {
@@ -324,6 +358,8 @@ test('mail failure rolls back request, approval and password reset, permitting a
   const cookie = await f.login(temporary(mail[1]));
   const before = await f.db.get('SELECT * FROM users');
   fail = true; t.assert.strictEqual((await f.post('forgot', { email })).status, 503);
+  t.assert.deepStrictEqual(await f.db.all('SELECT * FROM password_resets'), []);
+  t.assert.deepStrictEqual(await f.db.all('SELECT * FROM auth_events'), []);
   t.assert.deepStrictEqual(await f.db.get('SELECT * FROM users'), before);
   t.assert.strictEqual((await f.request('/api/auth/me', { cookie })).status, 200);
 });
@@ -342,6 +378,7 @@ test('a login already verifying an old password cannot create a session after re
   const rejected = t.assert.rejects(pending, error => error.code === 'INVALID_CREDENTIALS');
   await ready;
   t.assert.strictEqual((await f.post('forgot', { email })).status, 202);
+  t.assert.strictEqual((await f.confirm(links(f.mail.at(-1))[0])).status, 200);
   release(); await rejected;
   t.assert.deepStrictEqual(await f.db.all('SELECT * FROM sessions'), []);
 });
