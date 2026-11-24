@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
-import { readWorkbook, readSheetNames } from '../server/xlsx.mjs';
+import { readWorkbook, readSheetNames, XlsxLimitError } from '../server/xlsx.mjs';
 
-// Minimal in-memory xlsx writer: a stored (uncompressed) zip with the parts the reader needs.
+// Minimal in-memory xlsx writer: a ZIP archive with the parts the reader needs.
 const CRC_TABLE = Array.from({ length: 256 }, (_, index) => {
   let value = index;
   for (let bit = 0; bit < 8; bit++) value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
@@ -15,21 +15,22 @@ const crc32 = buffer => {
   return (crc ^ 0xffffffff) >>> 0;
 };
 
-function zip(parts) {
+function zip(parts, { method = 0 } = {}) {
   const locals = [], centrals = [];
   let offset = 0;
   for (const [name, content] of Object.entries(parts)) {
-    const data = Buffer.from(content, 'utf8');
+    const plain = Buffer.from(content, 'utf8');
+    const data = method === 8 ? deflateRawSync(plain) : plain;
     const nameBuffer = Buffer.from(name, 'utf8');
-    const crc = crc32(data);
+    const crc = crc32(plain);
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(0, 6);
-    local.writeUInt16LE(0, 8); local.writeUInt32LE(crc, 14); local.writeUInt32LE(data.length, 18);
-    local.writeUInt32LE(data.length, 22); local.writeUInt16LE(nameBuffer.length, 26); local.writeUInt16LE(0, 28);
+    local.writeUInt16LE(method, 8); local.writeUInt32LE(crc, 14); local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(plain.length, 22); local.writeUInt16LE(nameBuffer.length, 26); local.writeUInt16LE(0, 28);
     locals.push(local, nameBuffer, data);
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6);
-    central.writeUInt32LE(crc, 16); central.writeUInt32LE(data.length, 20); central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(method, 10); central.writeUInt32LE(crc, 16); central.writeUInt32LE(data.length, 20); central.writeUInt32LE(plain.length, 24);
     central.writeUInt16LE(nameBuffer.length, 28); central.writeUInt32LE(offset, 42);
     centrals.push(central, nameBuffer);
     offset += 30 + nameBuffer.length + data.length;
@@ -79,30 +80,95 @@ test('xlsx reader: deflated entries are inflated', () => {
     'xl/_rels/workbook.xml.rels': `<Relationship Id="rId1" Target="worksheets/sheet1.xml"/>`,
     'xl/worksheets/sheet1.xml': `<sheetData><row r="1"><c r="A1" t="str"><v>Only</v></c></row><row r="2"><c r="A2"><v>1</v></c></row></sheetData>`,
   };
-  const locals = [], centrals = [];
-  let offset = 0;
-  for (const [name, content] of Object.entries(parts)) {
-    const data = deflateRawSync(Buffer.from(content, 'utf8'));
-    const nameBuffer = Buffer.from(name, 'utf8');
-    const crc = crc32(Buffer.from(content, 'utf8'));
-    const local = Buffer.alloc(30);
-    local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(8, 8);
-    local.writeUInt32LE(crc, 14); local.writeUInt32LE(data.length, 18);
-    local.writeUInt32LE(Buffer.byteLength(content), 22); local.writeUInt16LE(nameBuffer.length, 26);
-    locals.push(local, nameBuffer, data);
-    const central = Buffer.alloc(46);
-    central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6);
-    central.writeUInt16LE(8, 10); central.writeUInt32LE(crc, 16); central.writeUInt32LE(data.length, 20);
-    central.writeUInt32LE(Buffer.byteLength(content), 24); central.writeUInt16LE(nameBuffer.length, 28);
-    central.writeUInt32LE(offset, 42);
-    centrals.push(central, nameBuffer);
-    offset += 30 + nameBuffer.length + data.length;
-  }
-  const centralBuffer = Buffer.concat(centrals);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(3, 8); end.writeUInt16LE(3, 10);
-  end.writeUInt32LE(centralBuffer.length, 12); end.writeUInt32LE(offset, 16);
-  const { header, rows } = readWorkbook(Buffer.concat([...locals, centralBuffer, end]));
+  const { header, rows } = readWorkbook(zip(parts, { method: 8 }));
   assert.deepEqual(header, ['Only']);
   assert.deepEqual(rows, [['1']]);
+});
+
+const worksheet = (body, options) => zip({ 'xl/worksheets/sheet1.xml': body }, options);
+const centralOffset = buffer => buffer.readUInt32LE(buffer.length - 6);
+const limitError = { name: 'XlsxLimitError', code: 'XLSX_LIMIT_EXCEEDED' };
+
+test('xlsx reader: a workbook at its configured limits still parses', () => {
+  const limits = { maxEntries: 5, maxRows: 3, maxCells: 18, maxEntryBytes: Buffer.byteLength(SHEET) };
+  assert.deepEqual(readWorkbook(workbook, { sheet: 'Sheet', limits }), readWorkbook(workbook));
+});
+
+test('xlsx reader and sheet names reject too many central-directory entries', () => {
+  for (const read of [readWorkbook, readSheetNames]) {
+    assert.throws(() => read(workbook, { limits: { maxEntries: 1 } }), XlsxLimitError);
+  }
+});
+
+test('xlsx reader rejects oversized stored entries even with a smaller declared size', () => {
+  const buffer = worksheet('x'.repeat(128));
+  buffer.writeUInt32LE(1, centralOffset(buffer) + 24);
+  buffer.writeUInt32LE(1, 22);
+  assert.throws(() => readWorkbook(buffer, { limits: { maxEntryBytes: 64 } }), limitError);
+});
+
+test('xlsx reader caps declared and actual deflated bytes', () => {
+  const buffer = worksheet('x'.repeat(128), { method: 8 });
+  const limits = { maxEntryBytes: 64 };
+  assert.throws(() => readWorkbook(buffer, { limits }), limitError);
+  buffer.writeUInt32LE(1, centralOffset(buffer) + 24);
+  buffer.writeUInt32LE(1, 22);
+  assert.throws(() => readWorkbook(buffer, { limits }), limitError);
+});
+
+test('xlsx reader caps the cumulative bytes of parts read', () => {
+  const buffer = zip({
+    'xl/workbook.xml': '<sheets/>',
+    'xl/worksheets/sheet1.xml': '<row></row>',
+  }, { method: 8 });
+  assert.throws(() => readWorkbook(buffer, { limits: { maxTotalBytes: 19 } }), limitError);
+  assert.deepEqual(readWorkbook(buffer, { limits: { maxTotalBytes: 20 } }), { header: [], rows: [] });
+});
+
+test('xlsx reader rejects too many rows, including the header', () => {
+  assert.throws(() => readWorkbook(workbook, { limits: { maxRows: 1 } }), limitError);
+});
+
+test('xlsx reader rejects too many cells even at duplicate references', () => {
+  const buffer = worksheet('<row><c r="A1"/><c r="A1"><v>1</v></c></row>');
+  assert.throws(() => readWorkbook(buffer, { limits: { maxCells: 1 } }), limitError);
+});
+
+test('xlsx reader caps sparse references and padding before allocating cells', () => {
+  const sparse = worksheet('<row><c r="ZZZZZZZZ1"><v>1</v></c></row>');
+  assert.throws(() => readWorkbook(sparse, { limits: { maxCells: 2 } }), limitError);
+  const padded = worksheet('<row><c r="B1"><v>1</v></c></row><row></row>');
+  assert.throws(() => readWorkbook(padded, { limits: { maxCells: 3 } }), limitError);
+});
+
+test('xlsx reader reports malformed central and local offsets as ZIP errors', () => {
+  const corruptCentral = Buffer.from(workbook);
+  corruptCentral.writeUInt32LE(0xffffffff, corruptCentral.length - 6);
+  assert.throws(() => readWorkbook(corruptCentral), { name: 'Error', message: /central directory/ });
+
+  const corruptLocal = Buffer.from(workbook);
+  corruptLocal.writeUInt32LE(0xffffffff, centralOffset(corruptLocal) + 42);
+  assert.throws(() => readWorkbook(corruptLocal), { name: 'Error', message: /Corrupt zip entry/ });
+
+  const corruptData = Buffer.from(workbook);
+  corruptData.writeUInt16LE(0xffff, 28);
+  assert.throws(() => readWorkbook(corruptData), { name: 'Error', message: /Corrupt zip entry/ });
+});
+
+test('XLSX limits must be positive safe integers', () => {
+  for (const read of [readWorkbook, readSheetNames]) {
+    for (const maxEntries of [0, -1, 1.5, Infinity, Number.MAX_SAFE_INTEGER + 1, '1']) {
+      assert.throws(() => read(workbook, { limits: { maxEntries } }), TypeError);
+    }
+  }
+});
+
+test('XLSX readers enforce a deadline during parsing', t => {
+  const now = t.mock.method(performance, 'now', () => 0);
+  for (const read of [readWorkbook, readSheetNames]) {
+    let checks = 0;
+    now.mock.mockImplementation(() => checks++ < 2 ? 0 : 2);
+    assert.throws(() => read(workbook, { limits: { maxParseMs: 1 } }), limitError);
+    assert.equal(checks, 3);
+  }
 });

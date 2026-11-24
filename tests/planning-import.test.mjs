@@ -129,6 +129,17 @@ test('default contract rejects a legacy required header', () => {
   assert.throws(() => parseFamily(buffer, 'employees'), errorCode('MISSING_COLUMNS'));
 });
 
+test('planning and tracked deviation parsers report XLSX limits as HTTP 400', () => {
+  const workbook = zip(Object.fromEntries(Array.from({ length: 1025 }, (_, index) => [`part-${index}`, ''])));
+  const error = {
+    status: 400,
+    code: 'XLSX_LIMIT_EXCEEDED',
+    message: 'The workbook exceeds the supported size or complexity.',
+  };
+  assert.throws(() => parseFamily(workbook, 'employees'), error);
+  assert.throws(() => parseFamily(workbook, 'deviations', { trackedDeviations: true }), error);
+});
+
 const customMapping = (family, aliases, identity = DEFAULT_IDENTITIES[family]) => resolveMapping(family,
   { aliases_json: JSON.stringify(aliases), identity_json: JSON.stringify(identity) });
 
