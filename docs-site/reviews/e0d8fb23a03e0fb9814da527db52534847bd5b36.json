@@ -1,0 +1,13 @@
+{
+  "code_commit": "e0d8fb23a03e0fb9814da527db52534847bd5b36",
+  "reviewed_at": "2026-11-24",
+  "documentation_required": false,
+  "reason": "The demo seeder now inserts the same files, notes, and deviations flags as SQL boolean literals so SQLite can accept them. The node_modules symlink points to a machine-local dependency directory. Demo contents and the workflows described by the manual are unaffected.",
+  "files_inspected": [
+    "node_modules",
+    "server/seed-demo.mjs",
+    "README.md",
+    "docs-site/src/content/docs/guida/dati-dimostrativi.mdx",
+    "docs-site/src/content/docs/en/guida/dati-dimostrativi.mdx"
+  ]
+}
