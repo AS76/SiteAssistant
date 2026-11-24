@@ -50,6 +50,7 @@ Nessuno di questi stati è un errore dell'applicazione: **Aggiorna** riprova la 
 Il modulo `reporting` segue le regole degli altri moduli: è **attivo per impostazione predefinita** e un owner lo toglie dalla colonna **Stato importazioni** della tabella **Accessi per modulo** della vista **Cantieri**. Senza il modulo la voce non compare nella navigazione e un collegamento diretto mostra **Modulo non disponibile**; l'endpoint risponde `403 MODULE_FORBIDDEN`. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/#accessi-per-modulo).
 
 Ogni ruolo di cantiere può leggere i riepiloghi entro il proprio perimetro. Solo gli owner abilitati esplicitamente sul server al reporting globale vedono tutti gli ambiti, compresi quelli senza associazioni.
+Il solo ruolo owner non attiva l'accesso globale e non esiste un ruolo admin globale che lo abiliti automaticamente: serve l'ID dell'utente owner nell'elenco esplicito sul server. La variabile è intenzionalmente non configurata in produzione.
 
 :::caution[Configurazione del server]
 La connessione al database di reporting si imposta sul server, con la variabile `REPORTING_DATABASE_URL`; non si configura dall'interfaccia. Senza quella variabile la vista mostra **Stato importazioni non configurato** e non esegue nessuna lettura. Chiedi a chi amministra l'ambiente.

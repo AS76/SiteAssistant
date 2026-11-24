@@ -50,6 +50,7 @@ None of these states is an application error: **Refresh** retries the read and c
 The `reporting` module follows the rules of the other modules: it is **on by default** and an owner clears it from the **Import status** column of the **Module access** table in the **Sites** view. Without the module the entry does not appear in the navigation and a direct link shows **Module unavailable**; the endpoint answers `403 MODULE_FORBIDDEN`. See [Users and roles](../../amministrazione/utenti-e-ruoli/#module-access).
 
 Every site role can read summaries within its authorized scope. Only owners explicitly enabled for global reporting on the server see every scope, including unlinked ones.
+The owner role alone does not enable global access, and there is no global admin role that enables it automatically: the owner's user ID must be in the explicit server list. The variable is intentionally unconfigured in production.
 
 :::caution[Server configuration]
 The reporting database connection is set on the server, with the `REPORTING_DATABASE_URL` variable; it is not configured from the interface. Without that variable the view shows **Import status not configured** and performs no read. Ask whoever administers the environment.
