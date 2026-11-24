@@ -70,6 +70,7 @@ for (const driver of ['sqlite', 'pg']) {
     assert.equal(legacy.status, 'closed');
     assert.equal(legacy.verified_at, null);
     assert.equal(legacy.acceptance_state, 'none');
+    assert.deepEqual(legacy.acceptance_events, []);
     assert.equal(legacy.events.find(event => event.action === 'verify').waiver, false);
     const copy = await getAttachment(db, attachment.id, users.viewer, storage);
     assert.deepEqual(await streamBytes(copy.stream), fileContent);
@@ -222,6 +223,7 @@ for (const driver of ['sqlite', 'pg']) {
     assert.equal(waived.body.acceptance_state, declared.body.acceptance_state);
     assert.equal(waived.body.events.at(-1).waiver, true);
     assert.equal(waived.body.events.at(-1).action, 'close');
+    assert.deepEqual(waived.body.acceptance_events, []);
     assert.deepEqual((await listTasks(db, { siteId: site.id, closedWithWaiver: true })).map(item => item.id), [task.id]);
     const reopened = await transition('verifier', 'in_progress', { reason: 'Synthetic follow-up' });
     assert.equal(reopened.body.reopen_count, 1);
@@ -239,9 +241,17 @@ for (const driver of ['sqlite', 'pg']) {
     await assert.rejects(() => deleteAttachment(db, uploadTask.body.id, users.editor, storage), { code: 'TASK_VERIFICATION_DOCUMENT_IN_USE' });
     assert.equal((await accept('verifier', { documentId: uploadTask.body.id, date: '2026-02-30' })).status, 422);
     assert.equal((await accept('editor', { documentId: uploadTask.body.id, date: '2026-11-17' })).status, 403);
-    assert.equal((await accept('verifier', { documentId: uploadTask.body.id, date: '2026-11-17' })).body.acceptance_state, 'accepted');
+    const formal = await upload('editor', 'task', task.id);
+    assert.equal(formal.status, 201);
+    const acceptance = { documentId: formal.body.id, date: '2026-11-17' };
+    assert.equal((await accept('verifier', acceptance)).body.acceptance_state, 'accepted');
+    assert.equal((await accept('verifier', acceptance)).body.acceptance_events.length, 1);
     const accepted = await getTask(db, task.id);
-    assert.equal(accepted.acceptance_document_id, uploadTask.body.id);
+    assert.equal(accepted.acceptance_document_id, formal.body.id);
+    assert.equal(new Date(accepted.verified_at).toISOString(), new Date(verified.body.verified_at).toISOString());
+    assert.deepEqual(accepted.events.map(event => event.action), verified.body.events.map(event => event.action));
+    assert.equal(accepted.acceptance_events[0].document_id, formal.body.id);
+    assert.equal(String(accepted.acceptance_events[0].date).slice(0, 10), acceptance.date);
     assert.equal(accepted.reopen_count, 1);
     assert.equal(accepted.events.find(event => event.action === 'close').waiver, true);
 
@@ -268,6 +278,9 @@ for (const driver of ['sqlite', 'pg']) {
     assert.match(text, /generated_at/);
     assert.match(text, /SYN-EVIDENCE/);
     assert.match(text, /"task","[^"]+"[^\n]*Synthetic check/);
+    const taskRow = text.split(/\r?\n/).find(line => line.startsWith('"task",'));
+    assert.ok(taskRow.includes(uploadTask.body.id));
+    assert.ok(taskRow.includes(formal.body.id));
     assert.match(text, /"deviation","[^"]+"[^\n]*Synthetic deviation/);
     assert.match(text, /"attachment","[^"]+"[^\n]*synthetic.pdf/);
     assert.doesNotMatch(text, new RegExp(digest));
@@ -299,6 +312,11 @@ for (const driver of ['sqlite', 'pg']) {
     assert.equal((await request(listing, { cookie: cookies.viewer })).status, 403);
     await assert.rejects(() => getAttachment(db, attached.body.id, users.viewer, storage), { status: 403 });
     assert.equal((await request(exportPath, { cookie: cookies.viewer })).status, 403);
+    const reopenedAfterAcceptance = await transition('verifier', 'in_progress', { reason: 'Synthetic additional work' });
+    assert.equal(reopenedAfterAcceptance.body.verified_at, null);
+    assert.equal(reopenedAfterAcceptance.body.acceptance_document_id, formal.body.id);
+    assert.deepEqual(reopenedAfterAcceptance.body.acceptance_events, (await request(path, { cookie: cookies.viewer })).body.acceptance_events);
+    assert.equal(reopenedAfterAcceptance.body.acceptance_events.length, 1);
   });
 }
 
