@@ -1,0 +1,16 @@
+{
+  "code_commit": "e0d8fb23a03e0fb9814da527db52534847bd5b36",
+  "reviewed_at": "2026-11-24",
+  "documentation_required": false,
+  "reason": "The demo seed uses SQL boolean literals so node:sqlite can insert the existing progress flags for files, notes and deviations. The flag values, seed command and documented demo workflows stay the same. The dependency symlink is specific to the source checkout and has no effect on the user manual.",
+  "files_inspected": [
+    "node_modules",
+    "server/seed-demo.mjs",
+    "server/storage/sqlite.mjs",
+    "server/storage/pg.mjs",
+    "package.json",
+    "README.md",
+    "docs-site/src/content/docs/guida/dati-dimostrativi.mdx",
+    "docs-site/src/content/docs/en/guida/dati-dimostrativi.mdx"
+  ]
+}
