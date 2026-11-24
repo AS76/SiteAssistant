@@ -1,0 +1,11 @@
+{
+  "code_commit": "bca664fb0130ad97d0f259c63a6bf6fd0af5b29a",
+  "reviewed_at": "2026-11-24",
+  "documentation_required": true,
+  "pages": [
+    "docs-site/src/content/docs/en/guida/mobile.mdx",
+    "docs-site/src/content/docs/en/note/novita.md",
+    "docs-site/src/content/docs/guida/mobile.mdx",
+    "docs-site/src/content/docs/note/novita.md"
+  ]
+}
