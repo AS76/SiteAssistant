@@ -524,7 +524,7 @@ function canCloseTodayTask(task) {
 }
 function todayPhotoTargets() {
   const day = operationalDay().date;
-  const entries = moduleVisible('diary') && ['owner', 'editor'].includes(role())
+  const entries = canAttachDiary()
     ? state.diary.filter(entry => entry.siteId === siteId && entry.date === day)
     .map(entry => ({ type: 'diary', id: entry.id, title: `${t('journalToday')} · ${t(entry.shift)}` })) : [];
   const tasks = canEditTask() ? filterSortRecords(siteTasks().filter(task => task.status !== 'closed'), {}, [{ key: 'due' }, { key: 'title' }, { key: 'id' }])
@@ -1029,6 +1029,7 @@ const selectedSavedView = () => savedViewsCache?.data?.find(item => item.id === 
 const canCreateView = () => ['owner', 'editor', 'verifier'].includes(role());
 const canWriteTask = () => ['owner', 'editor', 'verifier'].includes(role());
 const canEditTask = () => canWriteTask() && ['owner', 'editor'].includes(role()) && moduleVisible('tasks');
+const canAttachDiary = () => ['owner', 'editor'].includes(role()) && moduleVisible('diary');
 const canTransitionTask = () => canWriteTask() && moduleVisible('tasks');
 const savingTaskTransitions = new Set();
 function canReviewTask(task) {
@@ -1296,7 +1297,7 @@ function renderDiary() {
   const shownShifts = shifts.length || current.date !== reportDate ? shifts : [current.shift];
   const age = diaryDayAge(reportDate);
   const canWrite = canWriteTask() && availableShifts.length > 0 && age >= 0 && (age <= 7 || role() === 'owner');
-  const canAttach = ['owner', 'editor'].includes(role());
+  const canAttach = canAttachDiary();
   const count = (number, single, multiple) => `<span class="num">${number} ${t(number === 1 ? single : multiple)}</span>`;
   $('#main').innerHTML = `<div class="notebook diary-notebook">
     <header class="notebook-page-head">
@@ -3739,6 +3740,7 @@ async function showDiaryVersions(id) {
   }
 }
 function showEntryForm(preferredShift = '') {
+  if (!canWriteTask() || !moduleVisible('diary')) return;
   const age = diaryDayAge(reportDate);
   if (age < 0 || (age > 7 && role() !== 'owner')) return;
   const current = operationalDay();
@@ -3748,9 +3750,9 @@ function showEntryForm(preferredShift = '') {
     required: true, options: ['day', 'night'].map(value => `<option value="${value}"${value === shift ? ' selected' : ''}>${t(value)}</option>`).join(''),
   });
   showModal(t(view === 'diary' ? 'diaryCloseShift' : 'newEntry'), `<form id="entry-form" data-date="${esc(reportDate)}" data-current="${isCurrent}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p class="note">${t('forDate')} ${dateLabel(reportDate)}${isCurrent ? ` · ${t(shift)}` : ''}</p><p class="note">${t('dayRuleNote')}</p><div class="form-grid">${shiftField}${field('plan', 'plan', '', { type: 'textarea', full: true })}${field('actual', 'actual', '', { type: 'textarea', full: true })}${field('blockers', 'blockers', '', { type: 'textarea', full: true })}${field('next', 'next', '', { type: 'textarea', full: true })}${age > 7 ? diaryMotivationField() : ''}</div>
-      <label class="dropzone" id="entry-drop" for="entry-photos"><strong>${t('diaryPhotos')}</strong><span>${t('diaryPhotosHint')}</span>
+      ${canAttachDiary() ? `<label class="dropzone" id="entry-drop" for="entry-photos"><strong>${t('diaryPhotos')}</strong><span>${t('diaryPhotosHint')}</span>
         <input id="entry-photos" name="photos" type="file" accept="image/*,application/pdf" multiple hidden></label>
-      <p class="note" id="entry-photos-count" hidden></p>${formActions()}</form>`);
+      <p class="note" id="entry-photos-count" hidden></p>` : ''}${formActions()}</form>`);
   wireDropzone();
 }
 // Photos: pick from the dialog or drop files straight from the desktop (Windows/macOS).
@@ -3794,7 +3796,8 @@ function attachmentSection(entityType, entityId) {
   const inspection = entityType === 'hse_inspection';
   const hse = inspection || entityType === 'hse_event';
   const write = entityType === 'task' ? canEditTask()
-    : entityType === 'deviation' ? deviationWrite() : !hse || permissions().hseWrite;
+    : entityType === 'deviation' ? deviationWrite()
+    : entityType === 'diary' ? canAttachDiary() : !hse || permissions().hseWrite;
   const sync = entityType === 'task' || entityType === 'deviation' ? notebookSync : syncBadge;
   const files = (state.attachments || []).filter(file => file.entity_type === entityType && file.entity_id === entityId);
   return `<section class="attachment-section"><h3>${t('attachments')}</h3>${hse ? `<p class="note">${t('hseAttachmentRule')}</p><p class="note">${t('hseAttachmentAlternative')}</p>` : ''}${files.map(file => inspection && file.mime?.startsWith('image/') && !file.blob
@@ -3803,7 +3806,8 @@ function attachmentSection(entityType, entityId) {
 }
 function showAttachmentForm(entityType, entityId, { camera = false } = {}) {
   const hse = ['hse_event', 'hse_inspection'].includes(entityType);
-  if ((entityType === 'task' && !canEditTask()) || (hse && !permissions().hseWrite) || (entityType === 'deviation' && !deviationWrite())) return toast(t('forbidden'));
+  if ((entityType === 'task' && !canEditTask()) || (hse && !permissions().hseWrite) ||
+      (entityType === 'diary' && !canAttachDiary()) || (entityType === 'deviation' && !deviationWrite())) return toast(t('forbidden'));
   showModal(t('addAttachment'), `<form id="attachment-form" data-entity-type="${entityType}" data-entity-id="${esc(entityId)}"><div class="form-error" role="alert" tabindex="-1" hidden></div>${hse ? `<p class="note">${t('hseAttachmentRule')}</p><p class="note">${t('hseAttachmentAlternative')}</p>` : ''}<label class="field">${t('attachmentFile')}<input type="file" name="file" accept="${camera ? 'image/*' : 'image/*,application/pdf'}" ${camera ? 'capture="environment"' : ''} required></label><p class="note">${t('attachmentHint')}</p>${hse ? `<label class="field">${t('hseAttachmentDescription')}<textarea name="description" maxlength="200"></textarea></label><p class="note" data-hse-attachment-warning role="status" aria-live="polite" hidden>${t('hseAttachmentWarning')} ${t('hseAttachmentRule')}</p>` : ''}${formActions()}</form>`);
   if (hse) {
     const form = $('#attachment-form');
@@ -4192,13 +4196,14 @@ document.addEventListener('submit', async event => {
       message = 'entrySaved';
     }
     if (form.id === 'entry-form') {
+      const photos = [...(form.querySelector('[name=photos]')?.files || [])];
+      if (photos.length && !canAttachDiary()) throw new Error('forbidden');
       const payload = { ...data, siteId: selectedSite, date: form.dataset.date,
         useServerDay: form.dataset.current === 'true' && !offline };
       delete payload.photos;
       diaryPayload(payload);
       const entry = await writeOperation('create_diary', payload);
       if (entry?.date && siteId === selectedSite && version === modalVersion) reportDate = entry.date;
-      const photos = [...(form.querySelector('[name=photos]')?.files || [])];
       for (const file of photos) {
         if (!file.size || file.size > 15 * 1024 * 1024 || !/^(image\/[a-z0-9.+-]+|application\/pdf)$/i.test(file.type)) throw new Error('attachmentInvalid');
       }
@@ -4231,8 +4236,9 @@ document.addEventListener('submit', async event => {
       message = 'actionSaved';
     }
     if (form.id === 'attachment-form') {
-      if ((form.dataset.entityType === 'task' && !canEditTask()) || (form.dataset.entityType === 'hse_inspection' && !permissions().hseWrite) ||
-          (form.dataset.entityType === 'deviation' && !deviationWrite())) throw new Error('forbidden');
+      const { entityType } = form.dataset;
+      if ((entityType === 'task' && !canEditTask()) || (['hse_event', 'hse_inspection'].includes(entityType) && !permissions().hseWrite) ||
+          (entityType === 'diary' && !canAttachDiary()) || (entityType === 'deviation' && !deviationWrite())) throw new Error('forbidden');
       const blob = data.file;
       if (!blob?.size || blob.size > 15 * 1024 * 1024 || !/^(image\/[a-z0-9.+-]+|application\/pdf)$/i.test(blob.type)) throw new Error('attachmentInvalid');
       await writeOperation('create_attachment', { site_id: selectedSite, entity_type: form.dataset.entityType, entity_id: form.dataset.entityId, filename: blob.name, blob });
