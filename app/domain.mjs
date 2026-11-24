@@ -201,8 +201,15 @@ export function todayBlockedTaskMeta(task, day) {
   };
 }
 
+export function hasOpenProgressSteps(item) {
+  return Array.isArray(item.steps) ? item.steps.some(step => step.percent == null || Number(step.percent) < 100)
+    // List responses expose the computed aggregate, detail responses expose steps.
+    : item.progressTypeId != null && item.progressPct != null && Number(item.progressPct) < 100;
+}
+
 // Targets and metadata contain contract fields and translation keys, never UI text.
-export function todayActions({ tasks = [], progress = [], diary = [], deviations = [], userId, today: day, modules = {} }) {
+export function todayActions({ tasks = [], progress = [], diary = [], deviations = [], userId, today: day, modules = {},
+  plannedDay = item => item.plannedStart?.slice(0, 10) } = {}) {
   const rows = [], seen = new Set();
   const orderedTasks = filterSortRecords(tasks, {}, [{ key: 'due' }, { key: 'title' }, { key: 'id' }]);
   const addTask = (task, label) => {
@@ -218,10 +225,7 @@ export function todayActions({ tasks = [], progress = [], diary = [], deviations
     for (const task of orderedTasks) if (userId && task.verifier_id === userId && task.status === 'to_verify') addTask(task, 'todayVerify');
   }
   if (visibleModules(['progress'], modules).length) {
-    const open = progress.filter(item => Array.isArray(item.steps)
-      ? item.steps.some(step => step.percent == null || Number(step.percent) < 100)
-      // List responses expose the computed aggregate, detail responses expose steps.
-      : item.progressTypeId != null && item.progressPct != null && Number(item.progressPct) < 100);
+    const open = progress.filter(item => hasOpenProgressSteps(item) && !(plannedDay(item) > day));
     for (const item of filterSortRecords(open, {}, [{ key: 'description' }, { key: 'id' }]).slice(0, 2)) {
       rows.push({ kind: 'progress', id: item.id, title: item.description, meta: { label: 'todayOpenSteps' },
         target: { view: 'progress', filters: { id: item.id } } });
@@ -241,7 +245,7 @@ export function todayActions({ tasks = [], progress = [], diary = [], deviations
   }
   const selected = rows.slice(0, 5);
   if (!visibleModules(['diary'], modules).length) return selected;
-  const diaryByTime = diary.filter(entry => entry.next?.trim()).map(entry => {
+  const diaryByTime = diary.filter(entry => validDate(entry.date) && entry.date <= day && entry.next?.trim()).map(entry => {
     const createdTime = Date.parse(entry.createdAt);
     return { ...entry, createdTime: Number.isFinite(createdTime) ? createdTime : null };
   });

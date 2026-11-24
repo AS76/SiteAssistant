@@ -134,7 +134,7 @@ Le voci di avanzamento importate dal sistema di cantiere sono visibili nella vis
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/site-progress?site_id=&wbs_id=` | membro | Voci del cantiere; filtro opzionale per voce WBS |
+| GET | `/api/site-progress?site_id=&wbs_id=&include_descendants=true` | membro | `wbs_id` filtra il nodo esatto per impostazione predefinita. `include_descendants=true` include anche i discendenti della gerarchia operativa. `X-WBS-Scope` indica `all`, `exact` o `subtree`. `X-Total-Count` conta le voci nel perimetro. |
 | GET | `/api/site-progress/{id}` | membro | Voce con `booked_hours` (somma delle ore prenotate), `planned_hours` e gli step |
 | PATCH | `/api/site-progress/{id}` | owner/editor | `{ planned_hours }`: aggiorna solo le ore pianificate |
 | POST | `/api/site-progress/import` | owner | Promuove uno snapshot di avanzamento |

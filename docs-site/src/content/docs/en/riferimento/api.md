@@ -134,7 +134,7 @@ Progress items imported from the site system are visible in the **Site progress*
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
-| GET | `/api/site-progress?site_id=&wbs_id=` | member | Site items; optional filter by WBS item |
+| GET | `/api/site-progress?site_id=&wbs_id=&include_descendants=true` | member | `wbs_id` selects the exact node by default. `include_descendants=true` also includes descendants in the operational hierarchy. `X-WBS-Scope` is `all`, `exact` or `subtree`. `X-Total-Count` counts items in that scope. |
 | GET | `/api/site-progress/{id}` | member | Item with `booked_hours` (sum of booked hours), `planned_hours` and its steps |
 | PATCH | `/api/site-progress/{id}` | owner/editor | `{ planned_hours }`: updates the planned hours only |
 | POST | `/api/site-progress/import` | owner | Promotes a progress snapshot |

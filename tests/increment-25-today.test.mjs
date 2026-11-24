@@ -6,6 +6,7 @@ import { validDate, initialView, todayActions, todayBlockedTaskMeta, recentActio
 import { messages } from '../app/i18n.mjs';
 import { createOfflineStore, overlayPending } from '../app/offline.mjs';
 import { mockIndexedDB, mockLocks } from './helpers/indexeddb.mjs';
+import { hasOpenProgressSteps } from '../app/domain.mjs';
 
 const day = '2026-04-15', userId = 'synthetic-user';
 const task = (id, extra = {}) => ({ id, title: `Synthetic ${id}`, siteId: 'site-a', kind: 'ordinary', status: 'todo', due: day, executor_id: userId, ...extra });
@@ -148,7 +149,7 @@ function todayUi({ tasks = [], diary = [], snapshots = {}, modules = {}, memberR
     coreCache: new Map(), role: () => memberRole, canWriteTask: () => ['owner', 'editor', 'verifier'].includes(memberRole),
     permissions: () => corePermissions(memberRole), currentModules: () => modules,
     moduleVisible: module => visibleModules([module], modules).length > 0,
-    todayActions, todayBlockedTaskMeta, recentActions, filterSortRecords, allowedTransitions,
+    todayActions, todayBlockedTaskMeta, recentActions, filterSortRecords, allowedTransitions, hasOpenProgressSteps,
     today: () => day, diaryDayAge: () => 0, operationalDay: () => ({ date: day, shift: 'day' }), validDate, notebookTime: () => '',
     language, t: key => messages[context.language][key], timeLabel: value => value,
     siteTasks: () => context.state.tasks.filter(row => row.siteId === context.siteId),
