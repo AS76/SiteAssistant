@@ -774,10 +774,12 @@ function localOverviewWidgets() {
   }).slice(0, 5);
   const diaryDate = operationalDay().date;
   const lastEntry = state.diary.filter(item => item.siteId === siteId && item.date === diaryDate).at(-1);
+  const diaryLink = moduleVisible('diary') && lastEntry
+    ? `<a class="subtitle" href="#diary" data-command="go-diary">${t('openDiary')} →</a>` : '';
   return {
     priority_work: `<section class="panel"><div class="panel-header"><h2>${t('priorityWork')}</h2><a class="subtitle" href="#tasks">${t('seeAll')} →</a></div>${attention.length ? attention.map(taskRow).join('') : empty('noTasks', 'noTasksHint')}</section>`,
     daily_pulse: `<section class="panel"><div class="panel-header"><h2>${t('dailyPulse')}</h2></div><div class="panel-body"><div class="metrics">${['execution', 'review', 'closed', 'overdue'].map(key => `<div class="metric ${key === 'overdue' ? 'alert' : key === 'closed' ? 'complete' : key}"><div class="metric-top">${t(key)}${icon(key)}</div><strong data-metric="${key}">${count[key]}</strong><small>${t(`${key}Hint`)}</small></div>`).join('')}</div><div class="progress-label"><span>${t('verifiedProgress')}</span><strong>${count.closed} / ${total}</strong></div><div class="progress-track"><span style="width:${total ? count.closed / total * 100 : 0}%"></span></div><p class="note">${total - count.closed} ${t('nonClosed')}</p><div class="summary-stack">${!count.blocked && !count.review ? `<p class="note">${t('pulseClear')}</p>` : `<div class="summary-line"><strong>${count.blocked} ${t('blockedPlural')}</strong><p>${count.review} ${t('reviewPlural')}</p></div>`}${count.review ? `<div class="summary-line"><strong>${t('workingRule')}</strong><p>${t('workingRuleNote')}</p></div>` : ''}</div></div></section>`,
-    journal_today: `<section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2>${!lastEntry ? button('draft', 'go-diary') : ''}</div><div class="panel-body"><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}${lastEntry ? `<a class="subtitle" href="#diary">${t('openDiary')} →</a>` : ''}</div></section>`,
+    journal_today: `<section class="panel"><div class="panel-header"><h2>${t('journalToday')}</h2>${!lastEntry && moduleVisible('diary') ? button('draft', 'go-diary') : ''}</div><div class="panel-body"><p class="notebook-meta">${t('reportDate')} <time datetime="${esc(diaryDate)}">${esc(dateLabel(diaryDate))}</time></p><p class="subtitle prewrap">${lastEntry ? esc(lastEntry.actual) : t('noDiary')}</p>${syncBadge(lastEntry)}${diaryLink}</div></section>`,
   };
 }
 
@@ -3951,7 +3953,7 @@ document.addEventListener('click', event => {
   const target = event.target.closest('[data-command]'); if (!target) return;
   const command = target.dataset.command, id = target.dataset.id;
   const commands = {
-    'go-diary': () => { reportDate = operationalDay().date; go('diary'); },
+    'go-diary': () => { if (moduleVisible('diary')) { reportDate = operationalDay().date; go('diary'); } },
     'today-open': () => openTodayAction(target),
     'today-diary': () => { if (moduleVisible('diary')) { reportDate = operationalDay().date; go('diary'); } },
     'task-history': () => showDetail(id, { history: true }),

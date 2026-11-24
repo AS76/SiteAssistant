@@ -57,6 +57,7 @@ function ui({ language = 'it', width = 1440, tasks = [], diary = [], reconciliat
     ['const esc =', 'let session ='], ['const money =', 'let offlineScope'], ['const dateLabel =', 'const paths ='], ['const button =', 'function toast('],
     ['function heading(', 'function renderChrome('], ['function renderChrome()', 'function dueMarkup('],
     ['const role =', 'const currentModules ='],
+    ['const canAttachDiary =', 'const canTransitionTask ='],
     ['const notebookStates =', 'function todayTaskItem('],
     ['const coreValue =', 'function renderCore('], ['function localOverviewWidgets()', '// Every report opening'],
     ['function earnedValueSummary(', 'const STATUS_COLORS'],
@@ -204,12 +205,19 @@ test('41.08 M4 — today diary has exactly one invitation: a button when empty, 
     assert.equal((empty.match(/data-command="go-diary"/g) || []).length, 1);
     assert.equal((empty.match(/<button/g) || []).length, 1);
     assert.ok(empty.includes(messages[language].noDiary)); assert.doesNotMatch(empty, /href="#diary"/);
+    assert.match(empty, /datetime="2026-11-14"/);
     app.context.state.diary.push({ siteId: 'site-1', date: '2026-11-14', actual: 'Synthetic work completed' });
     const filled = app.run('localOverviewWidgets().journal_today');
     assert.equal((filled.match(/href="#diary"/g) || []).length, 1);
+    assert.match(filled, /href="#diary" data-command="go-diary"/);
     assert.doesNotMatch(filled, /<button/); assert.match(filled, /Synthetic work completed/);
+    app.context.siteId = 'other-site';
+    app.context.operationalDay = () => ({ date: '2026-11-15' });
+    const changed = app.run('localOverviewWidgets().journal_today');
+    assert.match(changed, /datetime="2026-11-15"/);
+    assert.doesNotMatch(changed, /Synthetic work completed|Other synthetic entry/);
   }
-  assert.match(source, /'go-diary': \(\) => \{ reportDate = operationalDay\(\).date; go\('diary'\); \}/);
+  assert.match(source, /'go-diary': .*reportDate = operationalDay\(\).date; go\('diary'\)/);
 });
 
 test('41.09 M5 — person is plain text populated from the signed-in identity', () => {
