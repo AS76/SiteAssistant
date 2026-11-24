@@ -14,7 +14,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Attività con esecutore e verificatore separati, priorità, scadenza, area, impresa e tipo ordinaria o correttiva; la vista **Attività leggere** chiude e riapre le ordinarie con un solo comando.
 - Transizioni di stato con note, motivazioni e cronologia. Dal dettaglio dell’attività puoi verificare, respingere o riprendere il lavoro quando il comando è disponibile.
 - Verifica separata: chi esegue non può chiudere il proprio lavoro.
-- Diario per giorno operativo e turno, con piano, consuntivo, impedimenti e prossimo passo.
+- Diario per giorno operativo e turno, con piano, consuntivo, impedimenti e prossimo passo. Puoi registrare turni passati, correggere le voci e leggerne lo storico online secondo i [permessi del Diario](../../moduli/diario/).
 - Foto e PDF allegati ad attività, voci di diario e deviazioni, anche trascinati dal desktop, fino a 15 MiB per file; gli eventi HSE accettano foto e PDF dalla finestra di modifica.
 - Vista **Struttura progetto (WBS)** operativa: albero e tabella piatta, modifica dei nodi, collegamento delle attività e riconciliazione con l'export di origine; i nodi sintetici restano generati dal sistema.
 - Viste **Deviazioni**, **Avanzamento**, **Prenotazioni ore** e **Impatti economici**.
@@ -32,7 +32,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - Tabelle ordinabili, filtri per colonna opzionali e card su telefono.
 - Navigazione mobile con barra in basso.
 - Navigazione desktop raggruppata in **Operazioni**, **Cantiere** e **Gestione**.
-- Attività e diario disponibili offline; le modifiche restano in coda e vengono sincronizzate al ritorno della rete.
+- Attività e diario consultabili offline. Le modifiche alle attività e i nuovi contributi del diario restano in coda fino alla sincronizzazione. Correzioni e storico del diario richiedono la connessione.
 - Panoramica, bacheca, elenco con filtri, esportazione CSV, stampa del diario.
 - Interfaccia italiano/inglese e layout responsive.
 
@@ -47,7 +47,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 ## Non disponibile
 
 - Eliminazione dei cantieri e modifica di nome, date o ubicazione.
-- Modifica o eliminazione di attività e voci di diario.
+- Modifica o eliminazione di attività ed eliminazione delle voci di diario.
 - Modifica o eliminazione dei dati importati: avanzamento, deviazioni e presenze restano in sola lettura, salvo le ore pianificate delle voci di avanzamento.
 - Eliminazione di ordini di acquisto, colli, spedizioni e ricezioni.
 - Criteri di accettazione, descrizioni lunghe, checklist.

@@ -1,6 +1,6 @@
 ---
 title: Site diary
-description: Record the shift plan and results, attach photos and how the operational day works.
+description: Record past shifts, correct contributions, view their version history and attach photos.
 ---
 
 import Shot from '../../../../components/Shot.astro';
@@ -24,7 +24,7 @@ What it is for: leaving the next shift the plan, the results and what is still o
 2. Press **Close the shift**.
 3. If you are recording the current shift online, the form shows the date and shift. For another day or shift, or when working offline, choose **Day shift** or **Night shift** in the form.
 4. Fill in **shift plan**, **actual results**, **blockers** and **next step**. The text fields are optional, but a contribution without results tells very little.
-5. Attach photos if you need them (see the next section).
+5. Attach photos if you need them (see [Adding photos to the diary](#adding-photos-to-the-diary)). If the selected day is more than seven days ago, also enter a **Reason** of at least 10 characters.
 6. Press **Save**. For the current shift online, the server assigns the day and shift when it records the entry. If the operational day changes in the meantime, the Diary opens on the recorded date.
 
 | Field | Required | Notes |
@@ -37,14 +37,21 @@ What it is for: leaving the next shift the plan, the results and what is still o
 
 There is **one entry per site, day and shift**: a second entry on the same combination is rejected.
 
-Recording a contribution is reserved to **owners**, **editors** and **verifiers**. Users with the `viewer` role read the diary but do not see the **Close the shift** button.
+**Owners**, **editors** and **verifiers** with Diary access can record a contribution dated today or on any of the previous seven days. Older dates require an **owner**, and the entry shows **Recorded late on** with the actual date and time of recording. Future dates are excluded. The limit uses calendar days in the site's time zone, starting at local midnight.
 
 :::caution[If the contribution is not saved]
-- **Missing button:** your role is `viewer`. Ask an owner to record the contribution or to change your role on the site.
-- **Duplicate contribution:** an entry already exists for that day and shift. Choose the other shift or open the existing entry.
-- **Wrong day:** to record a past shift, select its operational day before opening the form.
-- **Saving offline:** the contribution stays queued on the device with the selected date and shift. It keeps both when sent after the connection returns. The status is visible next to the entry.
+- **Missing Close the shift button.** Check your role, the selected date and whether both shifts already have contributions.
+- **Duplicate contribution.** Choose the other shift if that is the one you need to record, or use **Correct** on the existing entry if you have permission.
+- **Saving offline.** The contribution stays queued on the device with the selected date and shift. When the connection returns, the server applies the seven-day limit at the time of synchronisation. The status is visible next to the entry.
 :::
+
+## Correcting an entry and viewing its history
+
+1. When online, select the entry's day and press **Correct**. You can correct your own contribution up to seven calendar days after its operational date in the site's time zone. An **owner** can correct any entry and must enter a **Reason** of at least 10 characters for entries by other authors, entries without a linked author and their own entries older than seven days.
+2. Update the **Shift plan**, **Actual results**, **Blockers / variances** or **Next step**. You can also clear a field. The operational day and shift stay as recorded.
+3. Press **Save**. The entry shows the updated text, along with when the last correction was made and who made it.
+
+**Version history** appears after the first correction and is available online to anyone with Diary access. Each version shows the content before the correction, who made the correction, when they made it and any reason they entered. The most recent corrections appear first.
 
 ## Adding photos to the diary
 
@@ -80,7 +87,7 @@ The **Print diary** button uses the browser's print dialog. There is no server-g
 
 ## What is not available yet
 
-- Editing or deleting an entry after saving.
+- Deleting an entry after saving.
 - Linking a diary entry to a task.
 - Removing an attachment from the interface: removal is available via API only.
 - Closing or formally signing the diary: **Close the shift** records a contribution, not a signature; contributions stay open and are saved on the server.

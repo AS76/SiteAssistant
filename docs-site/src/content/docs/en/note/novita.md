@@ -7,6 +7,8 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 22 November 2026
 
+- **Past diary entries and version history.** Owners, editors and verifiers can record contributions up to seven days back. Older dates require an owner and a reason. Use **Correct** to update your own contribution within seven days and **Version history** to view previous content. See [Site diary](../../moduli/diario/).
+
 - **Verify, Reject and Resume.** In **Today** and in the task details, the assigned reviewer or a site owner can verify someone else’s work or return it to **In progress**. Rejecting requires a note explaining what to redo. **Resume** immediately returns a task to its status before the block. See [Tasks and verification](../../moduli/attivita/#the-review) and [Mobile quick guide](../../guida/mobile/#the-today-screen).
 - **Blockers and the next step in Today.** Blocked tasks show their due date, any recorded reason and the number of days overdue, with direct access to the task details and **History**. The **Next step** row uses the latest Diary contribution with a next step and opens its operational day. If Site progress or Deviations fails to refresh, previously loaded items stay visible while access is still allowed. See [Mobile quick guide](../../guida/mobile/#the-today-screen).
 

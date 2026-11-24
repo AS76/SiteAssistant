@@ -11,7 +11,10 @@ I permessi in SiteAssistant sono **per cantiere**, non globali: la stessa person
 | :-- | :-: | :-: | :-: | :-: |
 | Vedere cantieri, attività e diario | Sì | Sì | Sì | Sì |
 | Creare e far avanzare attività | Sì | Sì | Sì | No |
-| Scrivere il diario | Sì | Sì | Sì | No |
+| Registrare un contributo per oggi o per i sette giorni precedenti | Sì | Sì | Sì | No |
+| Registrare un contributo per una data più vecchia | Con motivazione | No | No | No |
+| Correggere una voce di diario | Qualsiasi voce | Solo proprie entro sette giorni | Solo proprie entro sette giorni | Solo proprie entro sette giorni |
+| Consultare lo storico delle versioni del diario | Sì | Sì | Sì | Sì |
 | Verificare o riaprire | Sì* | No | Sì* | No |
 | Gestire i membri del cantiere | Sì | No | No | No |
 | Creare nuovi cantieri | Sì | No | No | No |
@@ -32,6 +35,8 @@ I permessi in SiteAssistant sono **per cantiere**, non globali: la stessa person
 | Far avanzare o chiudere un impatto economico | Sì | No | Sì | No |
 
 \* Solo se designato verificatore dell'attività, e mai sul proprio lavoro. L'owner può verificare anche attività di cui non è il verificatore designato, ma non può verificare ciò che ha eseguito lui stesso. Un'attività assegnata con un nome libero, senza account collegato, può essere verificata solo da un owner.
+
+Le operazioni sul diario richiedono l'accesso al modulo **Diario**. Un autore mantiene il diritto di correggere una propria voce nella finestra di sette giorni anche se il suo ruolo diventa `viewer`. La motivazione dell'owner è obbligatoria per correggere voci altrui, senza autore associato o più vecchie di sette giorni. Vedi [Diario di cantiere](../../moduli/diario/#correggere-una-voce-e-consultarne-lo-storico).
 
 ## Come nasce un account
 

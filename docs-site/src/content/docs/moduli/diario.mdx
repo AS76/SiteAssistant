@@ -1,6 +1,6 @@
 ---
 title: Diario di cantiere
-description: Registrare piano e consuntivo del turno, allegare foto e come funziona il giorno operativo.
+description: Registrare anche turni passati, correggere i contributi, consultarne lo storico e allegare foto.
 ---
 
 import Shot from '../../../components/Shot.astro';
@@ -24,7 +24,7 @@ A cosa serve: lasciare al turno successivo il piano, il consuntivo e ciò che è
 2. Premi **Chiudi il turno**.
 3. Se registri online il turno corrente, il modulo mostra data e turno. Per un altro giorno o turno, oppure se lavori offline, scegli **Turno diurno** o **Turno notturno** nel modulo.
 4. Compila **piano del turno**, **consuntivo**, **impedimenti** e **prossimo passo**. I campi testuali sono facoltativi, ma un contributo senza consuntivo racconta poco.
-5. Allega le foto, se servono (vedi il paragrafo seguente).
+5. Allega le foto, se servono (vedi [Aggiungere foto al diario](#aggiungere-foto-al-diario)). Se il giorno scelto risale a più di sette giorni fa, compila anche **Motivazione** con almeno 10 caratteri.
 6. Premi **Salva**. Per il turno corrente online, il server assegna giorno e turno al momento della registrazione. Se nel frattempo è cambiato il giorno operativo, il Diario si apre sulla data registrata.
 
 | Campo | Obbligatorio | Note |
@@ -37,14 +37,21 @@ A cosa serve: lasciare al turno successivo il piano, il consuntivo e ciò che è
 
 Esiste **una sola voce per cantiere, giorno e turno**: un secondo inserimento sulla stessa combinazione viene rifiutato.
 
-Registrare un contributo è riservato a **owner**, **editor** e **verificatori**. Chi ha il ruolo `viewer` consulta il diario ma non vede il pulsante **Chiudi il turno**.
+**Owner**, **editor** e **verificatori** con accesso al Diario possono registrare un contributo per la data di oggi o per uno dei sette giorni precedenti. Per date ancora più vecchie serve un **owner** e la voce mostra **Registrata in ritardo il** con la data e l'ora effettive di registrazione. Le date future sono escluse. Il limite si conta in giorni di calendario nel fuso del cantiere, a partire dalla mezzanotte locale.
 
 :::caution[Se il contributo non viene salvato]
-- **Il pulsante Chiudi il turno non c'è:** il tuo ruolo è `viewer`. Chiedi a un owner di registrare il contributo o di cambiare il tuo ruolo sul cantiere.
-- **Contributo duplicato:** per quel giorno e quel turno esiste già una voce. Scegli l'altro turno o apri la voce esistente.
-- **Giorno sbagliato:** per registrare un turno passato, seleziona il giorno operativo a cui appartiene prima di aprire il modulo.
-- **Salvataggio offline:** il contributo resta in coda sul dispositivo con il giorno e il turno scelti. Li mantiene quando viene inviato al ritorno della rete. Lo stato è visibile accanto alla voce.
+- **Pulsante Chiudi il turno assente.** Verifica il ruolo, la data selezionata e se entrambi i turni hanno già un contributo.
+- **Contributo duplicato.** Scegli l'altro turno se è quello da registrare oppure usa **Correggi** sulla voce esistente, se hai il permesso.
+- **Salvataggio offline.** Il contributo resta in coda sul dispositivo con il giorno e il turno scelti. Al ritorno della rete il server applica il limite dei sette giorni al momento della sincronizzazione. Lo stato è visibile accanto alla voce.
 :::
+
+## Correggere una voce e consultarne lo storico
+
+1. Quando sei online, seleziona il giorno della voce e premi **Correggi**. Puoi correggere un tuo contributo fino a sette giorni dopo la sua data operativa, conteggiati nel calendario del cantiere. Un **owner** può correggere qualsiasi voce e deve inserire una **Motivazione** di almeno 10 caratteri per le voci di altri autori, per quelle senza autore associato e per le proprie voci oltre i sette giorni.
+2. Aggiorna **Piano del turno**, **Consuntivo**, **Impedimenti / scostamenti** o **Prossimo passo**. Puoi anche svuotare un campo. Giorno operativo e turno restano quelli della voce.
+3. Premi **Salva**. La voce mostra il testo aggiornato, con data, ora e autore dell'ultima correzione.
+
+**Storico versioni** compare dopo la prima correzione ed è consultabile online da chi ha accesso al Diario. Ogni versione mostra i contenuti precedenti alla correzione, chi l'ha eseguita, quando e la motivazione, se presente. Le correzioni più recenti compaiono per prime.
 
 ## Aggiungere foto al diario
 
@@ -80,7 +87,7 @@ Il pulsante **Stampa diario** usa la stampa del browser. Non esiste un PDF gener
 
 ## Cosa non è ancora disponibile
 
-- Modificare o cancellare una voce dopo il salvataggio.
+- Cancellare una voce dopo il salvataggio.
 - Collegare una voce di diario a un'attività.
 - Rimuovere un allegato dall'interfaccia: la rimozione è disponibile solo via API.
 - Chiudere o firmare formalmente il diario: **Chiudi il turno** registra un contributo, non una firma; i contributi restano aperti e salvati sul server.
