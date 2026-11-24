@@ -1,7 +1,7 @@
 import { requireModule } from './module-access.mjs';
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { deviationImportMeta, recordDeviationImportEvent, registeredDeviationExport, storeDeviationExport } from './deviations.mjs';
-import { readWorkbook } from './xlsx.mjs';
+import { readWorkbook, XlsxLimitError } from './xlsx.mjs';
 import { RepositoryError, getSite, requireRole } from './repository.mjs';
 import { sourceTimestamp, stableId, reconcileWbsSource, reconcileWbsMissing } from './wbs.mjs';
 
@@ -231,7 +231,12 @@ export function parseFamily(buffer, family, { timeZone = 'Europe/Rome', mapping 
   if (buffer.length > MAX_IMPORT_BYTES) fail('FILE_TOO_LARGE', 'File exceeds 20 MiB.', 413);
   let workbook;
   try { workbook = readWorkbook(buffer); }
-  catch { fail('INVALID_XLSX', 'Cannot read the XLSX workbook.'); }
+  catch (error) {
+    if (error instanceof XlsxLimitError) {
+      fail('XLSX_LIMIT_EXCEEDED', 'The workbook exceeds the supported size or complexity.', 400);
+    }
+    fail('INVALID_XLSX', 'Cannot read the XLSX workbook.');
+  }
   const { header, rows } = workbook;
   if (!trackedDeviations && !rows.length) fail('EMPTY_FILE', 'The first worksheet has no data rows.');
   if (trackedDeviations && !header.includes('source_id')) {
