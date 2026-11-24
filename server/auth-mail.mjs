@@ -133,4 +133,30 @@ export function createSmtpMailer({ env = process.env, connect = netConnect, conn
   send.assertConfigured = () => { configuration(env); };
   return send;
 }
-export const sendMail = createSmtpMailer();
+export function createHttpMailer({ env = process.env, fetchImpl = fetch, timeoutMs = 20000 } = {}) {
+  const configured = () => {
+    if (!env.MAIL_API_URL || !env.MAIL_API_TOKEN) throw new MailNotConfiguredError();
+    return { url: env.MAIL_API_URL, token: env.MAIL_API_TOKEN };
+  };
+  const send = async message => {
+    const { url, token } = configured();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetchImpl(url, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ to: message.to, subject: message.subject, text: message.text, html: message.html }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new MailDeliveryError();
+    } catch {
+      throw new MailDeliveryError();
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  send.assertConfigured = () => { configured(); };
+  return send;
+}
+export const sendMail = process.env.MAIL_API_URL || process.env.MAIL_API_TOKEN ? createHttpMailer() : createSmtpMailer();
