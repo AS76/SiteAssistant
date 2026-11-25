@@ -12,12 +12,25 @@ const MAX_ROWS = 20;
 
 // Optional provider-routing policy for OpenAI-compatible gateways. OpenRouter uses
 // this to enforce ZDR and a provider allowlist per request; direct providers ignore it.
-function providerPolicy(value = process.env.ASSISTANT_PROVIDER_JSON) {
+function validProvider(parsed) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || JSON.stringify(parsed).length > 4000) return false;
+  const strings = value => Array.isArray(value) && value.length <= 20 && value.every(item => typeof item === 'string' && item.length <= 120);
+  const allowed = new Set(['order', 'allow_fallbacks', 'only', 'ignore', 'data_collection', 'zdr', 'sort', 'max_price', 'quantizations', 'require_parameters']);
+  for (const [key, item] of Object.entries(parsed)) {
+    if (!allowed.has(key)) return false;
+    if (['order', 'only', 'ignore', 'quantizations'].includes(key) && !strings(item)) return false;
+    if (['allow_fallbacks', 'zdr', 'require_parameters'].includes(key) && typeof item !== 'boolean') return false;
+    if (key === 'data_collection' && !['allow', 'deny'].includes(item)) return false;
+    if (key === 'sort' && (typeof item !== 'string' || item.length > 40)) return false;
+    if (key === 'max_price' && !((typeof item === 'number' && Number.isFinite(item) && item >= 0) || (item && typeof item === 'object' && !Array.isArray(item)))) return false;
+  }
+  return true;
+}
+export function providerPolicy(value = process.env.ASSISTANT_PROVIDER_JSON) {
   if (!value) return null;
   try {
     const parsed = JSON.parse(value);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { invalid: true };
-    return parsed;
+    return validProvider(parsed) ? parsed : { invalid: true };
   } catch {
     return { invalid: true };
   }
@@ -175,7 +188,7 @@ export async function chat(db, { siteId, user, messages, view, language = 'it' }
   const site = await getSite(db, siteId);
   if (!site.assistant_enabled) fail('ASSISTANT_DISABLED', 'Assistente disattivato per questo cantiere.', 409);
   if (!apiKey) fail('ASSISTANT_NOT_CONFIGURED', 'Assistente non configurato.', 503);
-  if (provider?.invalid) fail('ASSISTANT_NOT_CONFIGURED', 'Configurazione del provider non valida.', 503);
+  if (provider && (!validProvider(provider) || provider.invalid)) fail('ASSISTANT_NOT_CONFIGURED', 'Configurazione del provider non valida.', 503);
   if (!allowRequest(user.id)) fail('ASSISTANT_RATE_LIMITED', 'Troppe richieste: riprova tra qualche minuto.', 429);
   const history = (Array.isArray(messages) ? messages : []).slice(-8)
     .filter(message => ['user', 'assistant'].includes(message?.role) && typeof message.content === 'string')
