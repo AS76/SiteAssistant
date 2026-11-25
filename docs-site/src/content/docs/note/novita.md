@@ -7,7 +7,7 @@ Questa pagina raccoglie le modifiche visibili a chi usa l'applicazione. Non è u
 
 ## 22 novembre 2026
 
-- **Avviso e limiti del demo.** Alla prima apertura, **Dati dimostrativi** segnala il ripristino periodico dei dati e offre un link per inviare feedback su GitHub. Puoi chiudere l'avviso con **×** e consultare in seguito **Informazioni sul demo** in fondo alla pagina. Vedi [Dati dimostrativi](../../guida/dati-dimostrativi/#avviso-e-limiti-del-demo).
+- **Avviso e limiti della demo.** Alla prima apertura, **Dati dimostrativi** segnala il ripristino periodico dei dati e offre un link per inviare feedback su GitHub. Puoi chiudere l'avviso con **×** e consultare in seguito **Informazioni sul demo** in fondo alla pagina. Vedi [Dati dimostrativi](../../guida/dati-dimostrativi/#avviso-e-limiti-della-demo).
 
 - **Diario retroattivo e storico versioni.** Owner, editor e verificatori possono registrare contributi fino a sette giorni indietro. Per giorni più vecchi serve un owner con motivazione. Da **Correggi** puoi aggiornare un tuo contributo entro sette giorni e **Storico versioni** mostra i contenuti precedenti. Vedi [Diario di cantiere](../../moduli/diario/).
 
