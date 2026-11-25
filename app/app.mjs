@@ -3574,6 +3574,8 @@ function render() {
       </form>
       <div class="heading-actions">${button('requestAccess', 'request-access', 'data-login-text="requestAccess"')}${button('forgotPassword', 'forgot-password', 'data-login-text="forgotPassword"')}</div>
     </div></section>`;
+    if (typeof localizeLogin === 'function') localizeLogin($('#login-form'));
+    else if (typeof updateLoginRetry === 'function') updateLoginRetry($('#login-form'));
     return;
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }

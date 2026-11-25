@@ -130,7 +130,7 @@ async function verifyLogin(db, email, password, { ip, userAgent, limiter }) {
     // A reset may finish while scrypt runs: serialize session creation with
     // password writers so an old credential cannot resurrect a revoked login.
     const current = await tx.get(`UPDATE users SET id = id
-      WHERE id = ? AND password_hash = ? AND disabled_at IS NULL RETURNING id, email, name, language, shared_demo`, user.id, user.password_hash);
+      WHERE id = ? AND password_hash = ? AND disabled_at IS NULL RETURNING *`, user.id, user.password_hash);
     if (!current) throw invalid();
     await tx.run(`INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, user_agent, ip)
       VALUES (?, ?, ?, ?, ?, ?, ?)`, randomUUID(), user.id, tokenHash(token), at.toISOString(),
@@ -160,7 +160,7 @@ export async function authenticate(db, cookie = '') {
   if (tokens.length !== 1) throw unauthorized();
   const token = tokens[0].slice('sa_session='.length);
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw unauthorized();
-  const row = await db.get(`SELECT u.id, u.email, u.name, u.language, u.shared_demo, u.password_change_required, s.id AS session_id
+  const row = await db.get(`SELECT u.*, s.id AS session_id
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND u.disabled_at IS NULL`,
   tokenHash(token), new Date().toISOString());
