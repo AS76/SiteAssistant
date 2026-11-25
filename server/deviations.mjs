@@ -1,6 +1,6 @@
 import { appendAuditEvent } from './audit.mjs';
 import { requireModule } from './module-access.mjs';
-import { RepositoryError, getSite, requireRole } from './repository.mjs';
+import { EDIT_ROLES, RepositoryError, getSite, requireRole } from './repository.mjs';
 import { sourceTimestamp, stableId } from './wbs.mjs';
 
 const fail = (status, message, code) => { throw new RepositoryError(status, message, code); };
@@ -157,10 +157,10 @@ async function governDeviation(db, id, user, action, change) {
   if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
   return db.transaction(async tx => {
     const { site_id: site, id: deviation } = await deviationRow(tx, id);
-    await requireRole(tx, site, user, ['owner', 'editor']);
+    await requireRole(tx, site, user, EDIT_ROLES);
     await requireModule(tx, site, user, 'deviations');
     await tx.run('UPDATE sites SET id = id WHERE id = ?', site);
-    await requireRole(tx, site, user, ['owner', 'editor']);
+    await requireRole(tx, site, user, EDIT_ROLES);
     await requireModule(tx, site, user, 'deviations');
     const before = await deviationRow(tx, deviation), at = new Date().toISOString();
     const note = await change(tx, before, at);
@@ -180,7 +180,7 @@ export function updateDeviationOwner(db, id, input, user) {
       fail(422, 'A site member UUID or null is required.', 'DEVIATION_OWNER_INVALID');
     }
     const owner = input.userId?.toLowerCase() ?? null;
-    const member = owner && await tx.get(`SELECT u.name FROM site_members m JOIN users u ON u.id = m.user_id
+    const member = owner && await tx.get(`SELECT u.name FROM accessible_site_members m JOIN users u ON u.id = m.user_id
       WHERE m.site_id = ? AND m.user_id = ? AND u.disabled_at IS NULL`, before.site_id, owner);
     if (owner && !member) {
       fail(422, 'The owner must be an active member of this site.', 'DEVIATION_OWNER_INVALID');

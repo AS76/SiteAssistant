@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createSession, hashPassword, tokenHash } from './auth.mjs';
 import { deliver, invitationEmail, MailNotConfiguredError } from './auth-mail.mjs';
 import { canManageInvitations, INVITATION_PERMISSION } from './admin.mjs';
-import { RepositoryError, ROLES } from './repository.mjs';
+import { DEMO_ROLE, RepositoryError, ROLES } from './repository.mjs';
 import { normalizeEmail } from './signup.mjs';
 
 export const ACTIVATION_PATH = '/attiva';
@@ -119,12 +119,13 @@ async function sendInvitation(db, id, token, url, mailer, actor, { retryFrom } =
   });
 }
 
-export async function createInvitation(db, email, actor, { mailer, publicUrl, locale, cantiere_id, role }) {
+export async function createInvitation(db, email, actor, { mailer, publicUrl, locale, cantiere_id, role, demoSandbox = false }) {
   const url = deliveryUrl(mailer, publicUrl);
   locale = normalizeLocale(locale);
-  if ((cantiere_id === undefined) !== (role === undefined) ||
-      (cantiere_id !== undefined && (typeof cantiere_id !== 'string' || !idPattern.test(cantiere_id) || !ROLES.includes(role)))) {
-    throw new RepositoryError(400, 'Supply a site UUID and a valid role together.', 'INVITATION_SITE_INVALID');
+  const invalidSite = () => new RepositoryError(400, 'Supply a site UUID and a valid role together.', 'INVITATION_SITE_INVALID');
+  if ((role !== undefined && !ROLES.includes(role)) ||
+      (cantiere_id !== undefined && (typeof cantiere_id !== 'string' || !idPattern.test(cantiere_id)))) {
+    throw invalidSite();
   }
   const siteId = cantiere_id?.toLowerCase() ?? null;
   const token = randomBytes(32).toString('base64url');
@@ -134,10 +135,19 @@ export async function createInvitation(db, email, actor, { mailer, publicUrl, lo
     const expired = await tx.get(`UPDATE invitations SET revoked_at = ?
       WHERE email = ? AND ${pending} AND expires_at <= ? RETURNING id`, at, email, at);
     if (!await canManageInvitations(tx, actor)) throw forbidden();
-    if (siteId && !await tx.get("SELECT site_id FROM site_members WHERE site_id = ? AND user_id = ? AND role = 'owner'", siteId, actor)) {
+    const site = siteId && await tx.get(`SELECT s.demo_sandbox FROM sites s JOIN accessible_site_members m ON m.site_id = s.id
+      WHERE s.id = ? AND m.user_id = ? AND m.role = 'owner'`, siteId, actor);
+    if (siteId && !site) {
+      if (role === undefined) throw invalidSite();
       throw new RepositoryError(403, 'Site owner authority is required.', 'FORBIDDEN');
     }
-    const id = await insertInvitation(tx, { email, created_by: actor, locale, site_id: siteId, site_role: role ?? null }, tokenHash(token), now);
+    const sandbox = siteId ? Boolean(site.demo_sandbox) : demoSandbox;
+    const siteRole = role ?? (sandbox ? DEMO_ROLE : null);
+    if ((siteRole === DEMO_ROLE && !sandbox) || (siteId && !siteRole) ||
+        (!siteId && siteRole !== null && siteRole !== DEMO_ROLE)) throw invalidSite();
+    const id = await insertInvitation(tx, {
+      email, created_by: actor, locale, site_id: siteId, site_role: siteRole,
+    }, tokenHash(token), now);
     if (expired) await auditInvitation(tx, actor, 'invitation_revoked', expired.id, at);
     await auditInvitation(tx, actor, 'invitation_created', id, at);
     return id;
@@ -165,18 +175,19 @@ export async function activateInvitation(db, invitation, password, confirmation,
       WHERE token_hash = ? AND ${pending} AND expires_at > ?
       RETURNING id, email, expires_at, locale, created_by, site_id, site_role`, timestamp, invitation.token_hash, timestamp);
     if (!row || Date.parse(row.expires_at) <= Date.now()) throw gone(invitation.locale);
-    const user = await tx.get(`INSERT INTO users (id, email, name, password_hash, password_algo, created_at, language)
-      VALUES (?, ?, ?, ?, 'scrypt', ?, ?) ON CONFLICT DO NOTHING
-      RETURNING id, email, name, language, shared_demo`, randomUUID(), row.email, row.email, encoded, timestamp, row.locale);
+    const user = await tx.get(`INSERT INTO users (id, email, name, password_hash, password_algo, created_at, language, demo_sandbox)
+      VALUES (?, ?, ?, ?, 'scrypt', ?, ?, ?) ON CONFLICT DO NOTHING
+      RETURNING id, email, name, language, shared_demo, demo_sandbox`, randomUUID(), row.email, row.email, encoded, timestamp, row.locale, row.site_role === DEMO_ROLE);
     if (!user) throw gone(row.locale);
     if (row.site_id) {
       // Membership edits also lock this site row. Recheck the original inviter's authority.
       await tx.run('UPDATE sites SET id = id WHERE id = ?', row.site_id);
       await tx.run(`INSERT INTO site_members (site_id, user_id, role)
-        SELECT m.site_id, ?, ? FROM site_members m JOIN users u ON u.id = m.user_id
+        SELECT m.site_id, ?, ? FROM accessible_site_members m JOIN users u ON u.id = m.user_id
         JOIN user_permissions p ON p.user_id = u.id AND p.permission = ? AND p.revoked_at IS NULL
-        WHERE m.site_id = ? AND m.user_id = ? AND m.role = 'owner' AND u.disabled_at IS NULL`,
-      user.id, row.site_role, INVITATION_PERMISSION, row.site_id, row.created_by);
+        WHERE m.site_id = ? AND m.user_id = ? AND m.role = 'owner' AND u.disabled_at IS NULL
+          AND (NOT ? OR EXISTS (SELECT 1 FROM sites s WHERE s.id = m.site_id AND s.demo_sandbox))`,
+      user.id, row.site_role, INVITATION_PERMISSION, row.site_id, row.created_by, row.site_role === DEMO_ROLE);
     }
     await auditInvitation(tx, user.id, 'invitation_used', row.id, timestamp);
     return createSession(tx, user, { ip, userAgent, at });

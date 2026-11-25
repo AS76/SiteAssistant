@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { RepositoryError, requireRole } from './repository.mjs';
+import { REVIEW_ROLES, RepositoryError, requireRole } from './repository.mjs';
 
 const entityTypes = ['hse_event', 'certification', 'tool', 'site', 'hse_asset', 'hse_inspection', 'purchase_order', 'purchase_order_item', 'package', 'package_item', 'shipment', 'shipment_receipt', 'deviation', 'task'];
 const actions = ['create', 'update', 'delete'];
@@ -47,7 +47,7 @@ async function filters(db, { siteId, entityType, entityId }, user) {
   if (!user?.id) throw new RepositoryError(401, 'Authentication required.', 'UNAUTHENTICATED');
   const site = validId(siteId, 'site_id');
   // Deliberately no module gate: audit access is a site permission.
-  await requireRole(db, site, user, ['owner', 'verifier']);
+  await requireRole(db, site, user, REVIEW_ROLES);
   const clauses = ['site_id = ?'], values = [site];
   if (entityType != null && entityType !== '') {
     if (!entityTypes.includes(entityType)) invalid('Invalid entity_type.');

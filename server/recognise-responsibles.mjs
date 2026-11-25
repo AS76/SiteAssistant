@@ -1,16 +1,16 @@
 import { stat } from 'node:fs/promises';
 import { SqliteStorage, PgStorage } from './storage/index.mjs';
-import { getSite, WRITE_ROLES } from './repository.mjs';
+import { getSite, REVIEW_ROLES, WRITE_ROLES } from './repository.mjs';
 
 const normaliseName = name => name.trim().replace(/\s+/gu, ' ').toLowerCase();
-const assignments = [['executor', 'executor_id', WRITE_ROLES], ['verifier', 'verifier_id', ['owner', 'verifier']]];
+const assignments = [['executor', 'executor_id', WRITE_ROLES], ['verifier', 'verifier_id', REVIEW_ROLES]];
 
 // Counts describe unlinked assignment fields, so a task can contribute twice.
 // Existing links, name snapshots, submission identity and task history stay untouched.
 export async function recogniseResponsibles(db, siteId, { apply = false } = {}) {
   return await db.transaction(async tx => {
     await getSite(tx, siteId);
-    const members = await tx.all(`SELECT u.id AS user_id, u.name, m.role FROM site_members m
+    const members = await tx.all(`SELECT u.id AS user_id, u.name, m.role FROM accessible_site_members m
       JOIN users u ON u.id = m.user_id WHERE m.site_id = ? AND u.disabled_at IS NULL
       ORDER BY u.id`, siteId);
     const names = new Map();

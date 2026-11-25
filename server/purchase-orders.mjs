@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { RepositoryError, requireRole } from './repository.mjs';
+import { EDIT_ROLES, RepositoryError, requireRole } from './repository.mjs';
 import { requireModule } from './module-access.mjs';
 import { appendAuditEvent } from './audit.mjs';
 
-const WRITE_ROLES = ['owner', 'editor'];
 const STATUSES = ['open', 'template_generated', 'in_execution', 'completed', 'not_relevant'];
 const FINAL = ['completed', 'not_relevant'];
 const ORDER_COLUMNS = `id, site_id, po_no, supplier_name, CAST(ordered_on AS TEXT) AS ordered_on,
@@ -87,10 +86,10 @@ async function items(db, poId) {
 }
 
 async function lockSite(tx, siteId, user) {
-  await access(tx, siteId, user, WRITE_ROLES);
+  await access(tx, siteId, user, EDIT_ROLES);
   // Site first, as in the other domain writers. Recheck authorization after waiting.
   await tx.run('UPDATE sites SET id = id WHERE id = ?', siteId);
-  await access(tx, siteId, user, WRITE_ROLES);
+  await access(tx, siteId, user, EDIT_ROLES);
 }
 
 async function lockOrder(tx, id, user) {
