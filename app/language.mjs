@@ -12,3 +12,11 @@ export function resolveLanguage({ profile, device, browser } = {}) {
   }
   return 'en';
 }
+
+export function resolveSessionLanguage({ profile, device, browser, sharedDemo, chosen, pending } = {}) {
+  return normalizeLanguage(chosen) ?? normalizeLanguage(pending) ?? resolveLanguage(
+    sharedDemo === true
+      ? { profile: device, device: profile, browser }
+      : { profile, device, browser },
+  );
+}
