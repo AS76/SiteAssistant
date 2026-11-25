@@ -462,7 +462,7 @@ function renderChrome() {
   renderOffline();
   const accountReady = Boolean(session && !session.password_change_required);
   document.documentElement.lang = language;
-  document.documentElement.dataset.lang = language;
+  if (document.documentElement.dataset) document.documentElement.dataset.lang = language;
   document.title = `SiteAssistant · ${t(session ? view : 'login')}`;
   renderAssistantChrome();
   const nav = $('#navigation');
@@ -3574,7 +3574,6 @@ function render() {
       </form>
       <div class="heading-actions">${button('requestAccess', 'request-access', 'data-login-text="requestAccess"')}${button('forgotPassword', 'forgot-password', 'data-login-text="forgotPassword"')}</div>
     </div></section>`;
-    localizeLogin($('#login-form'));
     return;
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
