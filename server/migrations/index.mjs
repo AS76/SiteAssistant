@@ -38,6 +38,7 @@ export async function applyMigration(tx, file, { driver, demoSandbox = isDemoSan
     if (demoSandbox) await migrateDemoSandbox(tx);
     return;
   }
+  // SQL-only migrations, including 052_auth_activity.sql, use the normal replay.
   if (driver !== 'sqlite' || file !== '004_physical_types.sql') return await tx.exec(sql);
   for (const statement of sql.split(';').filter(part => part.trim())) {
     const match = /^\s*ALTER TABLE (\w+) ADD COLUMN (\w+)\s/i.exec(statement);

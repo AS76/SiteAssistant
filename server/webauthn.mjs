@@ -1,7 +1,8 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 // Load the production verifier only when passkey functionality is invoked.
 const library = () => import('@simplewebauthn/server');
-import { tokenHash, SESSION_TTL, publicUser } from './auth.mjs';
+import { createSession, tokenHash } from './auth.mjs';
+import { recordAuthEvent, recordLoginFailure } from './auth-events.mjs';
 import { RepositoryError } from './repository.mjs';
 
 const invalid = () => new RepositoryError(401, 'Passkey verification failed.', 'INVALID_CREDENTIALS');
@@ -22,9 +23,7 @@ export function createWebAuthn(db, {
     if (!rpID || !origin) throw new RepositoryError(503, 'Passkey authentication is not configured.', 'WEBAUTHN_NOT_CONFIGURED');
   }
   async function audit(tx, userId, event, outcome, context = {}) {
-    await tx.run(`INSERT INTO auth_events (id, user_id, event, outcome, ip, user_agent, detail_json, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, randomUUID(), userId || null, event, outcome,
-    String(context.ip || '').slice(0, 100), String(context.userAgent || '').slice(0, 1000), '{}', new Date(now()).toISOString());
+    await recordAuthEvent(tx, event, { ...context, userId, outcome, at: new Date(now()).toISOString() });
   }
   async function challenge(options, userId, kind, unknown = false) {
     const id = randomUUID(), at = now();
@@ -108,6 +107,7 @@ export function createWebAuthn(db, {
       let userId = null;
       try {
         const row = await consume(input, 'authentication');
+        userId = row.user_id;
         const credential = await db.get('SELECT * FROM webauthn_credentials WHERE credential_id = ?', input.response.id);
         if (row.challenge_hash.startsWith('unknown:')) throw invalid();
         if (!credential || (row.user_id && credential.user_id !== row.user_id)) throw invalid();
@@ -121,22 +121,22 @@ export function createWebAuthn(db, {
           requireUserVerification: true, credential: { id: credential.credential_id, publicKey: new Uint8Array(credential.public_key),
             counter: Number(credential.sign_count), transports: JSON.parse(credential.transports) } });
         if (!result.verified || !result.authenticationInfo?.userVerified) throw invalid();
-        const token = randomBytes(32).toString('base64url'), at = new Date(now()).toISOString();
-        const user = await db.transaction(async tx => {
+        const at = new Date(now());
+        return await db.transaction(async tx => {
           const user = await lockUser(tx, userId);
           const updated = await tx.run(`UPDATE webauthn_credentials SET sign_count = ?, last_used_at = ?, backup_state = ?, user_verified = ?
-            WHERE id = ? AND sign_count = ?`, result.authenticationInfo.newCounter, at, bool(result.authenticationInfo.credentialBackedUp), 1, credential.id, credential.sign_count);
+            WHERE id = ? AND sign_count = ?`, result.authenticationInfo.newCounter, at.toISOString(), bool(result.authenticationInfo.credentialBackedUp), 1, credential.id, credential.sign_count);
           if (!updated.rowCount) throw invalid();
-          await tx.run(`INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, ip, user_agent,
-            auth_method, assurance, last_seen_at, credential_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          randomUUID(), userId, tokenHash(token), at, new Date(now() + SESSION_TTL).toISOString(),
-          String(context.ip || '').slice(0, 100), String(context.userAgent || '').slice(0, 1000), 'webauthn', 'passkey', at, credential.id);
+          const session = await createSession(tx, user, { ...context, at, method: 'webauthn', credentialId: credential.id });
           await audit(tx, userId, 'webauthn.authentication', 'success', context);
-          return user;
+          return { ...session, assurance: 'passkey' };
         });
-        return { token, user: publicUser(user), assurance: 'passkey' };
       } catch (error) {
-        await audit(db, userId, 'webauthn.authentication', 'failure', context);
+        await db.transaction(async tx => {
+          await audit(tx, userId, 'webauthn.authentication', 'failure', context);
+          await recordLoginFailure(tx, error.code === 'VALIDATION_ERROR' ? 'invalid_request' : 'passkey_verification_failed',
+            { ...context, userId, at: new Date(now()).toISOString(), method: 'webauthn' });
+        });
         if (error instanceof RepositoryError) throw error;
         throw invalid();
       }

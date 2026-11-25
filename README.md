@@ -199,6 +199,24 @@ Rate limiting uses the connection peer by default. Set `TRUSTED_PROXY_IPS` to th
 
 See [technical architecture](docs/architecture.md), the files under [`docs/`](docs/) and the API reference for implementation and deployment considerations.
 
+### Authentication activity
+
+Run the report from the server environment after the application has applied migration 052.
+
+```sh
+npm run stats -- --from 2026-11-01 --to 2026-11-07
+```
+
+You can also invoke the script directly.
+
+```sh
+node server/stats.mjs --from 2026-11-01 --to 2026-11-07
+```
+
+The JSON report includes both dates in UTC and returns the number of successful accesses, distinct users, accesses on each day with activity, the last access per user within the range, and login failures. Password sign-ins, passkey sign-ins and first-time invitation activations each count once when they create a session. The command reads the configured database (`DATA_DIR` for SQLite or `DB_DRIVER=pg` and `DATABASE_URL` for PostgreSQL).
+
+The documented retention period for authentication activity is 180 days. The application does not automatically purge records.
+
 ## Development and testing
 
 ```sh

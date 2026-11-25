@@ -32,7 +32,7 @@ for (const driver of ['sqlite', 'pg']) {
     const user = await createUser(db, { email: 'upgrade@example.invalid', name: 'Synthetic upgrade', password: 'Synthetic-password!' });
     await db.run('INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)', randomUUID(), user.id, 'a'.repeat(64), '2026-01-01T00:00:00.000Z', '2026-01-08T00:00:00.000Z');
     const before = await db.get('SELECT * FROM users'), sessions = await db.all('SELECT * FROM sessions');
-    t.assert.strictEqual(await migrate(db, { driver }), 40);
+    t.assert.strictEqual(await migrate(db, { driver }), 41);
     const after = await db.get('SELECT * FROM users');
     t.assert.strictEqual(Boolean(after.password_change_required), false);
     t.assert.strictEqual(after.language, null);
@@ -45,14 +45,14 @@ for (const driver of ['sqlite', 'pg']) {
     before.email_verified_at = null;
     t.assert.deepStrictEqual(after, before);
     for (const session of sessions) Object.assign(session, {
-      auth_method: null, assurance: null, last_seen_at: null, credential_id: null,
+      auth_method: null, assurance: null, last_seen_at: null, credential_id: null, expiry_logged_at: null,
     });
     t.assert.deepStrictEqual(await db.all('SELECT * FROM sessions'), sessions);
     for (let i = 0; i < 2; i++) {
       if (driver === 'pg') await db.transaction(tx => applyMigration(tx, '006_signup.sql', { driver }));
       t.assert.strictEqual(await migrate(db, { driver }), 0);
     }
-    t.assert.deepStrictEqual((await db.all('SELECT version FROM schema_migrations ORDER BY version')).map(row => row.version), ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020', '021', '022', '023', '024', '025', '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '040', '045', '047', '048', '049', '050', '051']);
+    t.assert.deepStrictEqual((await db.all('SELECT version FROM schema_migrations ORDER BY version')).map(row => row.version), ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020', '021', '022', '023', '024', '025', '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '040', '045', '047', '048', '049', '050', '051', '052']);
     if (driver === 'pg') {
       const columns = await db.all("SELECT table_name, column_name, udt_name FROM information_schema.columns WHERE table_schema = 'public'");
       for (const [table, column, type] of [['users', 'password_change_required', 'bool'], ['users', 'language', 'text'], ['users', 'shared_demo', 'bool'], ['signup_requests', 'language', 'text'], ['signup_requests', 'id', 'uuid'], ['signup_requests', 'requested_at', 'timestamptz'], ['signup_requests', 'decided_at', 'timestamptz']]) {
