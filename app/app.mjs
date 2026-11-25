@@ -210,14 +210,18 @@ function clearSession(invalidate = false) {
   state = { sites: [], tasks: [], diary: [], attachments: [] };
   filters = { search: '', status: '', person: '', priority: '', kind: '' };
   closeModal();
-  if (invalidate) void forgetActive().catch(() => { storageError = true; });
+  if (invalidate) void accountLock(forgetActive).catch(() => { storageError = true; });
   if (!loading) render();
 }
 async function forgetActive() {
   const active = storageReady ? await getMirror('active') : null;
   if (storageReady) {
-    if (active?.scope) await quarantineScope(active.scope);
-    await setMirror('active', null);
+    if (active?.scope && (await listOps(active.scope)).length === 0) {
+      await purgeScope(active.scope);
+    } else {
+      if (active?.scope) await quarantineScope(active.scope);
+      await setMirror('active', null);
+    }
   }
   if ('caches' in window) for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.includes('-data-')) await caches.delete(key);
 }
@@ -4624,7 +4628,7 @@ navigator.serviceWorker?.addEventListener('message', event => {
   if (event.data.type === 'offline-access-denied') {
     if (event.data.status === 401) clearSession(true);
     else if (event.data.code === 'MODULE_FORBIDDEN') { wbsCache.clear(); void loadData(); }
-    else { void forgetActive(); state = { sites: [], tasks: [], diary: [], attachments: [] }; loadError = { status: 403 }; render(); }
+    else { void accountLock(forgetActive).catch(() => { storageError = true; }); state = { sites: [], tasks: [], diary: [], attachments: [] }; loadError = { status: 403 }; render(); }
   }
 });
 setInterval(() => { if (pendingOps.some(op => op.status !== 'failed') && navigator.onLine) void syncQueue(); }, 30000);
