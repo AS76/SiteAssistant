@@ -2,7 +2,7 @@ import { formatDisplayNumber, formatDateInput, parseDateInput, initialView, toda
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
 import { messages } from './i18n.mjs';
-import { resolveLanguage } from './language.mjs';
+import { resolveSessionLanguage } from './language.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
 import { hasOpenProgressSteps } from './domain.mjs';
 import { taskFormalAcceptance, taskVerificationOutcome } from './domain.mjs';
@@ -40,9 +40,9 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&'
 let session = null;
 const LANGUAGE_KEY = 'sa-language';
 let deviceLanguage, language = 'it', loginLanguage, pendingLanguage;
-function interfaceLanguage(profile) {
-  return resolveLanguage({
-    profile, device: deviceLanguage, browser: navigator.languages?.length ? navigator.languages : navigator.language,
+function interfaceLanguage({ profile, sharedDemo, chosen, pending } = {}) {
+  return resolveSessionLanguage({
+    profile, sharedDemo, chosen, pending, device: deviceLanguage, browser: navigator.languages?.length ? navigator.languages : navigator.language,
   });
 }
 function initLanguage() {
@@ -301,7 +301,10 @@ async function loadData({ signedIn = false } = {}) {
         const chosen = signedIn ? loginLanguage : null;
         loginLanguage = undefined;
         if (chosen) pendingLanguage = { userId: session.user.id, language: chosen };
-        language = chosen ?? pendingLanguage?.language ?? interfaceLanguage(session.user.language);
+        language = interfaceLanguage({
+          profile: session.user.language, sharedDemo: session.user.shared_demo,
+          chosen, pending: pendingLanguage?.language,
+        });
         renderChrome();
         offlineScope = scopeFor(api.baseUrl, session.user.id);
         await saveLanguagePreference();
@@ -313,7 +316,10 @@ async function loadData({ signedIn = false } = {}) {
         const saved = await getMirror(`state:${active.scope}`);
         if (!saved && !active.session.password_change_required) throw error;
         offline = true; session = active.session; actor = session.user.name; offlineScope = active.scope; state = saved;
-        language = pendingLanguage?.userId === session.user.id ? pendingLanguage.language : interfaceLanguage(session.user.language);
+        language = interfaceLanguage({
+          profile: session.user.language, sharedDemo: session.user.shared_demo,
+          pending: pendingLanguage?.userId === session.user.id ? pendingLanguage.language : undefined,
+        });
       }
       if (session.password_change_required) {
         state = { sites: [], tasks: [], diary: [], attachments: [] };
