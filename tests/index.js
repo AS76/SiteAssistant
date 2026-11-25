@@ -23,6 +23,7 @@ import './secure-cookie.test.mjs';
 
 import './signup.test.mjs';
 import './signup-schema.test.mjs';
+import './invitations.test.mjs';
 import './auth-mail.test.mjs';
 import './attachments.test.mjs';
 import './attachments-schema.test.mjs';

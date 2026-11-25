@@ -11,6 +11,7 @@ import { createWebAuthn } from './webauthn.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { createStaticHandler } from './static-dev.mjs';
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage, RESET_PATH, readPasswordReset, confirmPasswordReset, resetPage } from './signup.mjs';
+import { ACTIVATION_PATH, activationPage, activateInvitation, createInvitation, readInvitation, revokeInvitation } from './invitations.mjs';
 import { createTaskResponse } from './idempotency.mjs';
 import { createClientIpResolver, createRateLimiter } from './limits.mjs';
 import { readPagination } from './pagination.mjs';
@@ -70,10 +71,12 @@ async function paginatedJson(response, url, db, list, count, filters, user) {
   return json(response, 200, rows);
 }
 
-const rateLimitExempt = new Set(['/api/auth/login', '/api/auth/forgot', '/api/auth/password', '/api/auth/request']);
+const activatePath = '/api/auth/activate';
+const invitationsPath = '/api/admin/invitations';
+const rateLimitExempt = new Set(['/api/auth/login', '/api/auth/forgot', '/api/auth/password', '/api/auth/request', activatePath, invitationsPath]);
 const authBypassExcluded = new Set([
   '/api/auth/login', '/api/auth/logout', '/api/auth/forgot', '/api/auth/request',
-  '/api/auth/request/decide', '/api/auth/password', '/api/auth/me', '/api/auth/me/preferences', '/api/health', RESET_PATH,
+  '/api/auth/request/decide', '/api/auth/password', '/api/auth/me', '/api/auth/me/preferences', '/api/health', RESET_PATH, activatePath,
 ]);
 const browserPolicy = [
   "default-src 'self'", "base-uri 'none'", "frame-ancestors 'none'", "object-src 'none'",
@@ -135,6 +138,15 @@ function html(response, status, message, review) {
   response.end(decisionPage(message, review));
 }
 
+function serveActivationPage(response, status, page) {
+  response.writeHead(status, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Referrer-Policy': 'no-referrer',
+    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+  });
+  response.end(activationPage(page));
+}
+
 // The caller owns the connection and closes it after the HTTP server stops.
 // The task and diary lists historically read `siteId`; every other list reads
 // `site_id`. Accept both and refuse unknown parameters, so a mistyped filter is
@@ -150,14 +162,17 @@ function createAuthRequestLimiter({ ipMax = 50 } = {}) {
   const windowMs = 15 * 60 * 1000;
   const byIp = createRateLimiter({ max: ipMax, windowMs });
   const byAccount = createRateLimiter({ max: 10, windowMs });
+  function check({ allowed, retryAfter }) {
+    if (allowed) return;
+    const error = new RepositoryError(429, 'Too many login attempts.', 'RATE_LIMITED');
+    error.retryAfter = retryAfter;
+    throw error;
+  }
   return {
+    attemptAccount(key) { check(byAccount.attempt(key)); },
     attempt(ip, key) {
-      let { allowed, retryAfter } = byIp.attempt(ip);
-      if (allowed && key) ({ allowed, retryAfter } = byAccount.attempt(key));
-      if (allowed) return;
-      const error = new RepositoryError(429, 'Too many login attempts.', 'RATE_LIMITED');
-      error.retryAfter = retryAfter;
-      throw error;
+      check(byIp.attempt(ip));
+      if (key) check(byAccount.attempt(key));
     },
   };
 }
@@ -184,6 +199,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   const passkeyLimiter = createAuthRequestLimiter();
   const resetLimiter = createAuthRequestLimiter();
   const passkeyVerifyLimiter = createAuthRequestLimiter({ ipMax: 10 });
+  const inviteLimiter = createAuthRequestLimiter({ ipMax: 10 });
+  const invitePageLimiter = createAuthRequestLimiter({ ipMax: 10 });
+  const activateLimiter = createAuthRequestLimiter({ ipMax: 10 });
+  const revokeLimiter = createAuthRequestLimiter({ ipMax: 10 });
   const serveStatic = staticDir ? createStaticHandler(staticDir) : null;
   const authBypassEmail = authBypassUser.trim().toLowerCase();
   const globalReportingOwners = new Set(reportingGlobalOwnerIds.split(',').map(id => id.trim().toLowerCase()));
@@ -217,6 +236,20 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       path = url.pathname;
       const method = request.method;
       const ip = clientIp(request);
+      const revoke = /^\/api\/admin\/invitations\/([^/]+)\/revoke$/.exec(path);
+      if (path === ACTIVATION_PATH && method === 'GET') {
+        const token = url.searchParams.get('token');
+        try {
+          invitePageLimiter.attempt(ip);
+          const invitation = await readInvitation(db, token);
+          invitePageLimiter.attemptAccount(invitation.email);
+          return serveActivationPage(response, 200, { token });
+        } catch (error) {
+          if (!['INVITATION_UNAVAILABLE', 'RATE_LIMITED'].includes(error.code)) throw error;
+          if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
+          return serveActivationPage(response, error.status, { message: error.message });
+        }
+      }
       if (serveStatic && !path.startsWith('/api/')) {
         if (await serveStatic(request, response, url)) return;
         // A client-side route (hash routing aside) still gets the shell.
@@ -229,7 +262,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         try { user = await authenticate(db, request.headers.cookie); }
         catch (error) {
           if (!(error instanceof RepositoryError) || error.status !== 401) throw error;
-          if (authBypassEmail && !authBypassExcluded.has(path)) {
+          if (authBypassEmail && !authBypassExcluded.has(path) && path !== invitationsPath && !revoke) {
             user = await db.get(`SELECT id, email, name, password_change_required FROM users
               WHERE lower(email) = ? AND disabled_at IS NULL`, authBypassEmail);
             if (user) {
@@ -246,7 +279,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           // Public routes retain anonymous access; protected routes rethrow below.
           if (!user) authError = error;
         }
-        if (!rateLimitExempt.has(path)) {
+        if (!rateLimitExempt.has(path) && !revoke) {
           const result = user ? userLimiter.attempt(`user:${user.id}`)
             : anonLimiter.attempt(`ip:${ip}`);
           response.setHeader('X-RateLimit-Remaining', String(result.remaining));
@@ -316,6 +349,36 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user });
       }
+      if (path === activatePath && method === 'POST') {
+        const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
+        const isForm = contentType === 'application/x-www-form-urlencoded';
+        let token;
+        try {
+          activateLimiter.attempt(ip);
+          if (isForm && (request.headers['sec-fetch-site']
+            ? request.headers['sec-fetch-site'] !== 'same-origin'
+            : request.headers.origin !== new URL(publicUrl).origin)) {
+            throw new RepositoryError(403, 'Apri il link di invito per attivare l’account.', 'FORBIDDEN');
+          }
+          const input = isForm ? Object.fromEntries(await readForm(request, 25000)) : await readJson(request);
+          token = input.token;
+          const invitation = await readInvitation(db, token);
+          activateLimiter.attemptAccount(invitation.email);
+          const result = await activateInvitation(db, invitation, input.password, isForm ? input.confirmation : input.password, {
+            ip, userAgent: request.headers['user-agent'] || '',
+          });
+          response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
+          if (!isForm) return json(response, 200, { user: result.user });
+          response.writeHead(303, { Location: '/', 'Referrer-Policy': 'no-referrer' });
+          return response.end();
+        } catch (error) {
+          if (!isForm || !(error instanceof RepositoryError)) throw error;
+          if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
+          return serveActivationPage(response, error.status, {
+            message: error.message, token: error.code === 'INVITATION_PASSWORD_INVALID' ? token : undefined,
+          });
+        }
+      }
       const passkeyContext = { ip, userAgent: request.headers['user-agent'] || '' };
       if (path === '/api/auth/webauthn/login/options' && method === 'POST') {
         const input = await readJson(request);
@@ -349,6 +412,17 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         }
       }
       if (authError) throw authError;
+      if (method === 'POST' && (path === invitationsPath || revoke)) {
+        if (!user.is_admin) throw new RepositoryError(403, 'Administrator access is required.', 'FORBIDDEN');
+        if (revoke) {
+          revokeLimiter.attempt(ip);
+          return json(response, 200, await revokeInvitation(db, revoke[1], user.id, revokeLimiter.attemptAccount));
+        }
+        inviteLimiter.attempt(ip);
+        const email = normalizeEmail((await readJson(request)).email);
+        inviteLimiter.attemptAccount(email);
+        return json(response, 201, await createInvitation(db, email, user.id, { mailer, publicUrl }));
+      }
       if (path === '/api/reporting/overview' && method === 'GET') {
         const scopeIds = await reportingScopeIds(db, user, globalReportingOwners);
         return json(response, 200, await reporting({ scopeIds }));

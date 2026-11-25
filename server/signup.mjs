@@ -1,7 +1,7 @@
 import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { hashPassword, tokenHash, verifyPassword } from './auth.mjs';
 import { RepositoryError } from './repository.mjs';
-import { MailNotConfiguredError, MailDeliveryError, signupNotifyEmail, welcomeEmail, resetEmail } from './auth-mail.mjs';
+import { deliver, signupNotifyEmail, welcomeEmail, resetEmail } from './auth-mail.mjs';
 
 export const RESET_TTL = 30 * 60 * 1000;
 export const RESET_PATH = '/api/auth/reset';
@@ -16,14 +16,6 @@ export function normalizeEmail(value) {
   if (email.length > 254 || !/^[^\s@<>\x00-\x1f\x7f]+@[^\s@<>\x00-\x1f\x7f]+\.[^\s@<>\x00-\x1f\x7f]+$/.test(email)) throw invalid('A valid email is required.');
   return email;
 }
-async function deliver(mailer, message) {
-  try { await mailer(message); }
-  catch (error) {
-    if (error instanceof MailNotConfiguredError) throw error;
-    throw new MailDeliveryError();
-  }
-}
-
 export async function requestSignup(db, email, { mailer, ownerEmail, publicUrl, language = null }) {
   await db.transaction(async tx => {
     // Disabled identities are also reserved: self-service cannot reactivate them.

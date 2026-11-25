@@ -3,7 +3,7 @@ title: Utenti e ruoli
 description: I ruoli per cantiere, come si creano gli account e come si gestiscono le appartenenze.
 ---
 
-I permessi in SiteAssistant sono **per cantiere**, non globali: la stessa persona può essere `owner` su un cantiere e `viewer` su un altro. Senza appartenenza, il cantiere non esiste per quell'utente.
+I permessi di cantiere dipendono dall'appartenenza. La stessa persona può essere `owner` su un cantiere e `viewer` su un altro. Senza appartenenza, il cantiere non esiste per quell'utente.
 
 ## I ruoli
 
@@ -40,10 +40,11 @@ Le operazioni sul diario richiedono l'accesso al modulo **Diario**. Un autore ma
 
 ## Come nasce un account
 
-Un account può nascere in due modi:
+Un account può nascere in tre modi:
 
 1. **Richiesta autonoma.** Dal modulo di accesso, chiunque può premere **Richiedi accesso** e inserire la propria email; un owner la approva e l'utente riceve una password temporanea (vedi [Accesso e account](../../guida/accesso/)).
-2. **Creazione dall'amministratore.** Chi gestisce il server può creare account e assegnarli subito a un cantiere con la CLI `create-user`:
+2. **Invito via email.** Un amministratore invia un link monouso. Il destinatario sceglie la password e l'account nasce all'attivazione. L'owner del cantiere può poi assegnargli un ruolo.
+3. **Creazione dall'amministratore.** Chi gestisce il server può creare account e assegnarli subito a un cantiere con la CLI `create-user`:
 
 ```sh
 npm run create-user -- \
@@ -65,6 +66,12 @@ Regole principali:
 Le capacità marcate **solo API** si usano chiamando gli endpoint descritti in [API REST](../../riferimento/api/).
 
 L'import dall'interfaccia è descritto in [Importare un export di pianificazione](../import-pianificazione/). I passaggi di stato degli impatti economici e la chiusura con esito sono disponibili anche nel dettaglio dell'impatto.
+
+## Inviare e revocare un invito
+
+Chi gestisce il database concede il permesso globale impostando `users.is_admin` a `TRUE` per l'account amministrativo. Il ruolo `owner` gestisce le appartenenze del proprio cantiere.
+
+Con la sessione amministrativa, invia l'email del destinatario a `POST /api/admin/invitations` e conserva l'identificativo dell'invito restituito dall'API. Il link scade dopo **72 ore**. Se l'invito è ancora in attesa, usa `POST /api/admin/invitations/{id}/revoke` per invalidarlo prima di inviarne un altro. Dopo la scadenza puoi inviare direttamente un nuovo invito. Vedi [API REST](../../riferimento/api/#autenticazione-e-account).
 
 ## Gestire i membri
 
