@@ -10,6 +10,20 @@ const DEFAULT_MODEL = process.env.ASSISTANT_MODEL || 'deepseek-flash';
 const MAX_TOOL_ROUNDS = 4;
 const MAX_ROWS = 20;
 
+// Optional provider-routing policy for OpenAI-compatible gateways. OpenRouter uses
+// this to enforce ZDR and a provider allowlist per request; direct providers ignore it.
+function providerPolicy(value = process.env.ASSISTANT_PROVIDER_JSON) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { invalid: true };
+    return parsed;
+  } catch {
+    return { invalid: true };
+  }
+}
+const DEFAULT_PROVIDER = providerPolicy();
+
 const FAMILIES = {
   deviations: { table: 'deviations', label: 'deviation_no',
     columns: 'id, deviation_no, title, status, priority, assigned_to, creation_date, closed_date',
@@ -155,12 +169,13 @@ function citationsFrom(calls, results) {
 }
 
 export async function chat(db, { siteId, user, messages, view, language = 'it' }, { fetchImpl = fetch, apiKey = process.env.DEEPSEEK_API_KEY,
-  baseUrl = DEFAULT_BASE, model = DEFAULT_MODEL } = {}) {
+  baseUrl = DEFAULT_BASE, model = DEFAULT_MODEL, provider = DEFAULT_PROVIDER } = {}) {
   if (!user?.id) fail('UNAUTHENTICATED', 'Authentication required.', 401);
   await requireRole(db, siteId, user);
   const site = await getSite(db, siteId);
   if (!site.assistant_enabled) fail('ASSISTANT_DISABLED', 'Assistente disattivato per questo cantiere.', 409);
   if (!apiKey) fail('ASSISTANT_NOT_CONFIGURED', 'Assistente non configurato.', 503);
+  if (provider?.invalid) fail('ASSISTANT_NOT_CONFIGURED', 'Configurazione del provider non valida.', 503);
   if (!allowRequest(user.id)) fail('ASSISTANT_RATE_LIMITED', 'Troppe richieste: riprova tra qualche minuto.', 429);
   const history = (Array.isArray(messages) ? messages : []).slice(-8)
     .filter(message => ['user', 'assistant'].includes(message?.role) && typeof message.content === 'string')
@@ -182,18 +197,19 @@ export async function chat(db, { siteId, user, messages, view, language = 'it' }
   });
   try {
     return await Promise.race([deadline, completeChat(db, { siteId, user, lang, conversation },
-      { fetchImpl, apiKey, baseUrl, model, signal: controller.signal })]);
+      { fetchImpl, apiKey, baseUrl, model, provider, signal: controller.signal })]);
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function providerCompletion(conversation, { fetchImpl, apiKey, baseUrl, model, signal }) {
+async function providerCompletion(conversation, { fetchImpl, apiKey, baseUrl, model, provider, signal }) {
   signal.throwIfAborted();
   try {
     const response = await fetchImpl(`${baseUrl}/chat/completions`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages: conversation, tools: TOOLS, tool_choice: 'auto', temperature: 0.2, max_tokens: 700 }),
+      body: JSON.stringify({ model, messages: conversation, tools: TOOLS, tool_choice: 'auto', temperature: 0.2, max_tokens: 700,
+        ...(provider ? { provider } : {}) }),
       signal,
     });
     if (!response.ok) {

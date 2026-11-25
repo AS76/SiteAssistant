@@ -47,6 +47,30 @@ test('assistant: without a key the endpoint refuses instead of failing open', as
     { apiKey: '', fetchImpl: async () => reply({ content: 'x' }) }), { status: 503, code: 'ASSISTANT_NOT_CONFIGURED' });
 });
 
+test('assistant: provider routing policy is sent only when explicitly configured', async t => {
+  const { db, auth, site, close } = await fixture();
+  t.after(close);
+  const bodies = [];
+  const fetchImpl = async (url, options) => {
+    bodies.push(JSON.parse(options.body));
+    return reply({ role: 'assistant', content: 'OK' });
+  };
+  await chat(db, { siteId: site.id, user: auth.users.viewer, messages: [{ role: 'user', content: 'x' }] },
+    { fetchImpl, apiKey: 'test-key', provider: { zdr: true, data_collection: 'deny', allow_fallbacks: false, only: ['together'] } });
+  assert.deepEqual(bodies[0].provider, { zdr: true, data_collection: 'deny', allow_fallbacks: false, only: ['together'] });
+  await chat(db, { siteId: site.id, user: auth.users.viewer, messages: [{ role: 'user', content: 'x' }] },
+    { fetchImpl, apiKey: 'test-key', provider: null });
+  assert.equal(bodies[1].provider, undefined);
+});
+
+test('assistant: malformed provider routing policy fails closed', async t => {
+  const { db, auth, site, close } = await fixture();
+  t.after(close);
+  await assert.rejects(() => chat(db, { siteId: site.id, user: auth.users.viewer, messages: [{ role: 'user', content: 'x' }] },
+    { apiKey: 'test-key', fetchImpl: async () => reply({ content: 'x' }), provider: { invalid: true } }),
+  { status: 503, code: 'ASSISTANT_NOT_CONFIGURED' });
+});
+
 test('assistant: a tool error is returned to the model, not thrown at the user', async t => {
   const { db, auth, site, close } = await fixture();
   t.after(close);
