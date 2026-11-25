@@ -1,0 +1,50 @@
+{
+  "updatedAt": "2026-11-25",
+  "operator": {
+    "name": "Andrea Sassi",
+    "address": "Italia",
+    "privacyEmail": "privacy@asassi.cloud",
+    "dpo": ""
+  },
+  "legalBases": [
+    "Art. 6(1)(b) GDPR — esecuzione del contratto o misure precontrattuali: creazione e gestione dell’account, autenticazione, email transazionali, preferenze necessarie al servizio.",
+    "Art. 6(1)(f) GDPR — legittimo interesse: sicurezza, prevenzione di abusi, integrità operativa e log tecnici nella misura necessaria, con bilanciamento rispetto ai diritti degli interessati.",
+    "Art. 6(1)(c) GDPR — obbligo legale: solo quando e nella misura in cui un obbligo specifico sia applicabile al titolare; non è usato come base generale.",
+    "Assistente AI — valutazione specifica da completare prima dell’attivazione: la base dipende dalla finalità e dal contesto; non viene usato un consenso generico e l’accettazione dell’informativa non costituisce consenso."
+  ],
+  "services": [
+    {
+      "name": "Railway",
+      "purpose": "Hosting dell’applicazione e database PostgreSQL della demo",
+      "location": "Regione dichiarata ams (Europa); contratto, subfornitori e trasferimenti da verificare"
+    },
+    {
+      "name": "Hostinger / relay SMTP",
+      "purpose": "Invio delle email transazionali di accesso, benvenuto e reset",
+      "location": "Localizzazione e contratto da verificare"
+    },
+    {
+      "name": "OpenRouter / Together",
+      "purpose": "Assistente AI, se configurato; provider e modello soggetti a policy ZDR e senza addestramento nella configurazione della demo",
+      "location": "Endpoint e paese effettivo da verificare; possibile trasferimento fuori dallo SEE"
+    },
+    {
+      "name": "Nominatim / OpenStreetMap; Google Maps se configurato",
+      "purpose": "Ricerca indirizzi, quando usata",
+      "location": "Servizio esterno; localizzazione e garanzie da verificare"
+    },
+    {
+      "name": "GitHub Pages",
+      "purpose": "Pubblicazione della manualistica; non riceve dati operativi dell’account",
+      "location": "Globale"
+    }
+  ],
+  "retention": {
+    "activeSessions": "7 giorni",
+    "expiredSessions": "30 giorni dalla scadenza o revoca",
+    "authEvents": "90 giorni (baseline; cancellazione privilegiata non ancora attiva)",
+    "signupRequests": "30 giorni dalla conclusione",
+    "applicationLogs": "30 giorni, se gestiti dall’hosting",
+    "backups": "secondo la configurazione dell’hosting; retention da confermare"
+  }
+}
