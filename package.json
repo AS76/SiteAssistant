@@ -18,7 +18,9 @@
     "test:pg": "DB_DRIVER=pg node --test tests/",
     "seed:demo": "node server/seed-demo.mjs --apply",
     "seed:demo:reset": "node server/seed-demo.mjs --reset",
-    "dev": "SERVE_APP=1 NODE_ENV=development node server/index.mjs"
+    "dev": "SERVE_APP=1 NODE_ENV=development node server/index.mjs",
+    "admin": "node server/admin.mjs",
+    "invitations": "node server/invitations-cli.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.15"

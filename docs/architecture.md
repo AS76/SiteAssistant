@@ -14,7 +14,7 @@ Webapp for the site manager: connects planning, work performed, verification and
 | --- | --- | --- |
 | Frontend | Static SPA in `app/` (native HTML/CSS/JS, no framework) | views: Overview, Sites, Tasks (board/list), Project structure (tree), Diary; IT/EN |
 | Backend | **Node.js 24 + `node:http`** (no framework) | `server/http.mjs`, `repository.mjs`, domain modules |
-| Data access | **Plain `pg`** + `Storage` abstraction (SQLite/pg drivers, PGlite in tests, no ORM) | explicit SQL queries, versioned migrations 001–045 + 047 (046 reserved) |
+| Data access | **Plain `pg`** + `Storage` abstraction (SQLite/pg drivers, PGlite in tests, no ORM) | explicit SQL queries, versioned migration pairs, including 050 for invitations on this branch |
 | Database | **PostgreSQL (Neon, `eu-central-1`)** in production; **SQLite** in development/tests | same contract via `Storage` |
 | Identity | **Local**: email+password (`scrypt`), `HttpOnly` cookie sessions, **WebAuthn passkeys** (035), site roles (owner/editor/verifier/viewer), **per-module access per member** (023), self-service signup with approval | no OIDC provider for now |
 | Files | **iDrive e2 S3**, `siteassistant` bucket | hand-rolled SigV4 client (`node:crypto`), SHA-256 readback |
@@ -38,6 +38,16 @@ flowchart LR
 The backend checks identity, site, role and module before every operation; DB and S3 credentials stay only on the server. The binding decision is made in the backend.
 
 **Offline-first (increment 15, spec ready):** without a network the browser loads the app from the Service Worker cache, reads previously opened data and queues writes (tasks, diary, photos) in IndexedDB; when connectivity returns Background Sync replays the queue with idempotency (`Idempotency-Key`) and last-write-wins; transitions remain server-side.
+
+## Invitations and first sign-in
+
+Migration 050 adds `invitations` and `user_permissions` on SQLite and PostgreSQL. The migration starts with zero grants. A partial unique index permits one active grant per user and permission. Site membership continues to live in `site_members`. Invitation management routes check `invitations.manage` on each request. Site assignments require ownership at issuance and current ownership, an enabled account and the invitation permission at acceptance. Acceptance creates the user, any authorized membership, the session and the audit event in one transaction. The PWA shows an explicit no-site state in the profile language when the account has no memberships.
+
+Server operators use `npm run admin -- grant invitations.manage <email>` or `npm run admin -- revoke invitations.manage <email>`. Repeating a command reports the resulting state and audits whether it changed. CLI audit records use `source: "cli"` and a null actor. A null `granted_by` denotes the trusted server operator.
+
+The API commits the invitation before attempting mail. A second transaction claims delivery and increments the attempt counter. The existing mail transport runs outside these transactions. Successful delivery records `sent` and the time the transport accepted the message. A controlled failure records `failed` and a safe error code. Commands under `npm run invitations --` are `list`, `retry <id|email>`, `reissue <id|email>` and `revoke <id|email>`. Mail commands use the configured mail service and HTTPS `PUBLIC_URL`.
+
+Each retry replaces the hash on the same failed invitation and preserves the expiry. A pending invitation may have been interrupted before sending or after provider acceptance. Check its status with `list`. Use `reissue` to atomically revoke the outstanding invitation and replace it with a new link and expiry. This manual recovery leaves at most one valid link even if an earlier email arrives. Configure any reverse proxy and request tracing to omit query strings or redact the token on `/attiva`, and omit activation request bodies. Activation pages set no-store and no-referrer headers. Invitation and audit records have no automatic retention schedule.
 
 ## Implemented modules (core)
 

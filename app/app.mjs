@@ -3585,7 +3585,7 @@ function render() {
     return;
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
-  if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
+  if (!state.sites.length) { $('#main').innerHTML = empty('noSites', 'noSitesHint'); return; }
   if (!moduleVisible(view)) { $('#main').innerHTML = empty('moduleUnavailable', 'moduleUnavailableHint'); return; }
   ({ today: renderToday, report: renderReport, reporting: renderReporting, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, workforce_presence: renderCore, impacts: renderCore, tools: renderCore, certifications: renderCore, hse: renderCore, logistics: renderCore })[view]();
 }
@@ -4614,6 +4614,12 @@ async function start() {
     }
   }
   await loadData();
+  try {
+    if (session && sessionStorage.getItem('sa-activated')) {
+      sessionStorage.removeItem('sa-activated');
+      toast(t('invitationActivated'));
+    }
+  } catch { /* The session works without browser storage. */ }
   if (pendingOps.length) { await registerSync(swRegistration); await syncQueue(); }
 }
 void start();

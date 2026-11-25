@@ -1,7 +1,7 @@
 import { createApi } from './api.mjs';
 import { getMirror, replayOps, SYNC_TAG } from './offline.mjs';
 
-const VERSION = 'siteassistant-v15-55';
+const VERSION = 'siteassistant-v15-56';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data-`;
 const shellUrls = [
@@ -53,6 +53,7 @@ self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
+  if (url.pathname === '/attiva') return;
   if (shellUrls.includes(url.href) || (request.mode === 'navigate' && url.origin === self.location.origin && url.pathname.startsWith(new URL(self.registration.scope).pathname) && !url.pathname.includes('/api/'))) {
     event.respondWith((async () => {
       const cache = await caches.open(SHELL);

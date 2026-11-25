@@ -124,21 +124,25 @@ async function verifyLogin(db, email, password, { ip, userAgent, limiter }) {
     : `scrypt$${N}$${r}$${p}$${'0'.repeat(32)}$${'0'.repeat(128)}`;
   const valid = await verifyPassword(password, encoded);
   if (!valid || !user || user.disabled_at) throw invalid();
-  const token = randomBytes(32).toString('base64url');
   const at = new Date();
-  const current = await db.transaction(async tx => {
+  const result = await db.transaction(async tx => {
     // A reset may finish while scrypt runs: serialize session creation with
     // password writers so an old credential cannot resurrect a revoked login.
     const current = await tx.get(`UPDATE users SET id = id
       WHERE id = ? AND password_hash = ? AND disabled_at IS NULL RETURNING *`, user.id, user.password_hash);
     if (!current) throw invalid();
-    await tx.run(`INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, user_agent, ip)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`, randomUUID(), user.id, tokenHash(token), at.toISOString(),
-    new Date(at.getTime() + SESSION_TTL).toISOString(), userAgent.slice(0, 1000), ip);
-    return current;
+    return createSession(tx, current, { ip, userAgent, at });
   });
   limiter.succeed(ip, email);
-  return { token, user: publicUser(current) };
+  return result;
+}
+
+export async function createSession(tx, user, { ip, userAgent, at }) {
+  const token = randomBytes(32).toString('base64url');
+  await tx.run(`INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, user_agent, ip)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`, randomUUID(), user.id, tokenHash(token), at.toISOString(),
+  new Date(at.getTime() + SESSION_TTL).toISOString(), userAgent.slice(0, 1000), ip);
+  return { token, user: publicUser(user) };
 }
 
 export function isSecureRequest(request, { production = false } = {}) {

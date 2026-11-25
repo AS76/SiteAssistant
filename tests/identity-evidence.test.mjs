@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from '../server/http.mjs';
+import { changePermission, INVITATION_PERMISSION } from '../server/admin.mjs';
+import { createInvitation } from '../server/invitations.mjs';
 import { applyMigration } from '../server/migrations/index.mjs';
 import { importDeviationWorkbook } from '../server/planning-import.mjs';
 import {
@@ -10,6 +12,7 @@ import {
 import { createAttachment, deleteAttachment, getAttachment, createSite, createTask, getTask, listTasks } from '../server/repository.mjs';
 import { writeWorkbook } from '../server/xlsx-write.mjs';
 import { apply as seedDemo, reset as resetDemo } from '../server/seed-demo.mjs';
+import { seed } from '../server/seed.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
 import { deviationsDatabase, deviationsSource } from './helpers/deviations.mjs';
 import { MemoryObjectStorage } from './helpers/object-storage.mjs';
@@ -323,6 +326,8 @@ for (const driver of ['sqlite', 'pg']) {
 
 test('synthetic evidence seed presents comparable and incomparable exports and a waiver, and resets cleanly', async t => {
   const db = await wbsDatabase(t, 'sqlite');
+  await seed(db, { environment: 'test' });
+  const baseDiary = await db.get('SELECT * FROM diary');
   await db.transaction(seedDemo);
   const site = await db.get("SELECT id FROM sites WHERE code = 'FITT-01'");
   const all = await listDeviations(db, { siteId: site.id });
@@ -333,9 +338,18 @@ test('synthetic evidence seed presents comparable and incomparable exports and a
   assert.equal((await listTasks(db, { siteId: site.id, closedWithWaiver: true })).length, 1);
   await db.transaction(seedDemo);
   assert.deepEqual(await listDeviations(db, { siteId: site.id }), all);
+  const account = await db.get("SELECT id, email FROM users WHERE email = 'demo-responsible@example.invalid'");
+  assert.deepEqual(await db.all('SELECT user_id FROM user_permissions'), []);
+  await changePermission(db, 'grant', INVITATION_PERMISSION, account.email);
+  const invitation = await createInvitation(db, 'reset-check@example.invalid', account.id,
+    { mailer: async () => {}, publicUrl: 'https://invite.example.invalid' });
+  await changePermission(db, 'revoke', INVITATION_PERMISSION, account.email);
   await db.transaction(resetDemo);
   assert.deepEqual(await db.all('SELECT * FROM deviation_exports'), []);
   assert.deepEqual(await db.all('SELECT * FROM deviation_export_rows'), []);
+  assert.deepEqual(await db.get('SELECT * FROM diary WHERE id = ?', baseDiary.id), baseDiary);
+  assert.equal((await db.get('SELECT created_by FROM invitations WHERE id = ?', invitation.id)).created_by, account.id);
+  assert.ok((await db.get('SELECT revoked_at FROM user_permissions WHERE user_id = ?', account.id)).revoked_at);
 });
 
 async function streamBytes(stream) {

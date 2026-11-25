@@ -28,6 +28,7 @@ Questi ruoli si valutano in base alle attività effettive, non semplicemente al 
 ## Quali dati possono essere presenti
 
 - **Persone e lavoro:** account, nomi, imprese, qualifiche, presenze, ore, assegnazioni, cronologie e identificativi di chi ha effettuato operazioni.
+- **Inviti:** email del destinatario, identità dell'invitante, lingua, eventuali cantiere e ruolo, esiti di invio e registrazioni di audit. Il database conserva l'hash del token. Il link scade dopo 72 ore, mentre i record e l'audit seguono la politica di conservazione dell'installazione.
 - **Dati di cantiere:** attività, diario, WBS, avanzamento, deviazioni, HSE, impatti economici e report. I campi liberi possono contenere dati personali anche quando non sono previsti come tali.
 - **Dati potenzialmente sanitari:** certificazioni, visite, esiti di idoneità, note o fotografie che rivelino condizioni di salute. Anche un'informazione sintetica di idoneità può richiedere tutele particolari.
 - **Copie e metadati:** allegati, esportazioni, backup, dati memorizzati nel browser e operazioni accodate offline. Le sessioni conservano anche indirizzo IP, user-agent e metadati di autenticazione; i registri di audit possono contenere attore, data, valori precedenti e successivi dei record modificati o eliminati e accessi agli allegati HSE. Le copie offline della PWA includono elenchi e metadati degli allegati, **non** i relativi file binari.
@@ -42,7 +43,7 @@ Il database applicativo è **SQLite per impostazione predefinita**, con PostgreS
 | --- | --- |
 | Database | Dati nell'installazione configurata dall'organizzazione: SQLite o PostgreSQL. |
 | Allegati | Richiedono storage oggetti compatibile S3 configurato; nella versione esaminata non c'è un'alternativa automatica su disco. |
-| Invio email | Signup e recupero password dipendono da un servizio SMTP configurato. |
+| Invio email | Richieste di accesso, recupero password e inviti usano il servizio email configurato. Per gli inviti il servizio riceve l'indirizzo del destinatario e il link monouso. |
 | Assistente AI | Funzione opzionale: senza chiave del provider non risponde. Se abilitata, invia domande e risultati delle interrogazioni al servizio LLM. Con la chiave `DEEPSEEK_API_KEY` e senza `ASSISTANT_BASE_URL`, l'endpoint predefinito è **DeepSeek**; un endpoint compatibile può essere configurato, anche auto-ospitato. Per disattivare l'assistente si rimuove la chiave dalla configurazione del server e si riavvia il servizio: non esiste un interruttore nella UI, né per utente o cantiere. |
 | Ricerca indirizzi | Quando viene utilizzata, interroga per impostazione predefinita il servizio pubblico **Nominatim** (basato sui dati OpenStreetMap). Con `GOOGLE_MAPS_API_KEY` tenta Google Maps, ma in assenza di risultati o in caso di errore può ricorrere a Nominatim. La versione esaminata non offre un interruttore applicativo dedicato per disattivare tutte le ricerche esterne. |
 | Reporting | Può usare un database separato opzionale. |
