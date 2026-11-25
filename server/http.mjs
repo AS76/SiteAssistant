@@ -10,6 +10,7 @@ import { authenticate, assertAuthBypassAllowed, login, memberships, publicUser, 
 import { createWebAuthn } from './webauthn.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { createStaticHandler } from './static-dev.mjs';
+import { loadPrivacyConfig, privacyResponse } from './privacy.mjs';
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage, RESET_PATH, readPasswordReset, confirmPasswordReset, resetPage } from './signup.mjs';
 import { createTaskResponse } from './idempotency.mjs';
 import { createClientIpResolver, createRateLimiter } from './limits.mjs';
@@ -164,6 +165,7 @@ function createAuthRequestLimiter({ ipMax = 50 } = {}) {
 
 export function createServer(db, { limiter = createLoginLimiter(), production = process.env.NODE_ENV === 'production',
   authBypassUser = process.env.AUTH_BYPASS_USER || '',
+  privacyConfig = loadPrivacyConfig(),
   trustedProxyIps = process.env.TRUSTED_PROXY_IPS || '',
   mailer = sendMail, ownerEmail = process.env.OWNER_EMAIL,
   publicUrl = process.env.PUBLIC_URL || 'https://api.siteassistant.asassi.cloud',
@@ -217,6 +219,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       path = url.pathname;
       const method = request.method;
       const ip = clientIp(request);
+      if (!path.startsWith('/api/') && privacyResponse(request, response, url, privacyConfig)) return;
       if (serveStatic && !path.startsWith('/api/')) {
         if (await serveStatic(request, response, url)) return;
         // A client-side route (hash routing aside) still gets the shell.
