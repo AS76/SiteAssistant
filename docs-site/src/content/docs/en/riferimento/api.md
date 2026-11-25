@@ -54,6 +54,7 @@ Registration and sign-in options return the browser options plus a server-genera
 | POST | `/api/sites` | owner | `code`, `name`, `location`, `start_date`, `end_date`, `jurisdiction`, `time_zone`, `day_cutoff_time` |
 | GET | `/api/sites/{id}` | member | Site detail |
 | PATCH | `/api/sites/{id}` | owner | Updates one or more of `jurisdiction`, `time_zone` and `day_cutoff_time` |
+| PATCH | `/api/sites/{id}/assistant` | owner | Updates the assistant status and response timeout |
 | GET | `/api/sites/{id}/members` | owner | Members and roles, with emails |
 | POST | `/api/sites/{id}/members` | owner | `{ user_id, role }`; `role: null` removes |
 | GET | `/api/sites/{id}/assignable` | owner/editor/verifier | Active members with `user_id`, `name` and `role`, without emails |
@@ -63,6 +64,10 @@ Registration and sign-in options return the browser options plus a server-genera
 Every site declares a **jurisdiction**, `IT` or `UK`: it is the law that applies to the site and does not depend on the interface language. If `POST /api/sites` omits it the value is `IT`, which is also the value of rows created before the field existed. `GET /api/sites` and `GET /api/sites/{id}` return `jurisdiction`, `time_zone` and `day_cutoff_time`. Both are optional on creation. The default time zone is `Europe/Rome` for `IT` and `Europe/London` for `UK`. The default cutoff is `06:00`.
 
 `PATCH /api/sites/{id}` is restricted to owners and accepts one or more of `jurisdiction` (`IT` or `UK`), `time_zone` (IANA identifier) and `day_cutoff_time` (local time in `HH:MM` format). Omitted fields keep their current values. An empty body, unknown field or invalid value returns `400 VALIDATION_ERROR`. Saving writes an `update` event with `entity_type` `site` to the audit log. The jurisdiction is set through the API.
+
+Site list and detail responses include `assistant_enabled` (boolean) and `assistant_timeout_ms` (integer). The defaults are `false` and `20000`, including for sites that existed when the fields were introduced.
+
+`PATCH /api/sites/{id}/assistant` requires a boolean `enabled` and accepts an optional integer `timeout_ms` between `5000` and `60000`, inclusive. Omit `timeout_ms` to keep the current timeout. An invalid body returns `400 VALIDATION_ERROR`. A caller without the owner role receives `403 FORBIDDEN`. The `200` response contains the updated site. A change to either value writes an `update` event with `entity_type` `site` to the audit log.
 
 `GET /api/member-access` returns `members`, each with `user_id`, `email`, `name`, `role` and `modules`, the map of modules with the effective value. `PUT` accepts the modules `overview`, `tasks`, `deviations`, `diary`, `progress`, `bookings`, `wbs`, `impacts`, `tools`, `certifications`, `hse`, `sites`, `logistics`, `reporting`, `workforce_names` and `workforce_presence`; `overview` and `sites` stay always allowed and an owner cannot exclude themselves, otherwise the answer is `400 ACCESS_INVALID`. An excluded module answers `403 MODULE_FORBIDDEN` on reads and writes; the Overview, the report and the assistant do not read excluded modules.
 
@@ -379,9 +384,20 @@ Deletion is therefore **logical** for the four deletable types — HSE events, c
 | PUT | `/api/dashboard/layout` | member | `{ site_id, widgets }`; saves the personal layout |
 | DELETE | `/api/dashboard/layout?site_id=` | member | Restores the default layout |
 | GET | `/api/report?site_id=` | member | Two tables and an earned value block: progress and deviations by macro-area |
-| POST | `/api/assistant/chat` | member | `{ site_id, messages, view, language }`; read-only answer with citations |
+| POST | `/api/assistant/chat` | member of a site with the assistant on | `{ site_id, messages, view, language }`; read-only answer with citations |
 
-The dashboard computes values from the site tables: deviations by status, average effective progress by section (with planned), hours per week, claim amounts and the `earnedValue` block. The per-section average also includes items without a progress type, using their imported value. The assistant answers in the requested language (`it` or `en`) and cites records with `family`, `id` and `label`; if the provider is not configured it returns `503 ASSISTANT_NOT_CONFIGURED`.
+The dashboard computes values from the site tables: deviations by status, average effective progress by section (with planned), hours per week, claim amounts and the `earnedValue` block. The per-section average also includes items without a progress type, using their imported value.
+
+The assistant answers in the requested language (`it` or `en`) and cites records with `family`, `id` and `label`. The site's timeout covers all provider calls and data lookups needed to answer.
+
+| Response | Condition |
+| :-- | :-- |
+| `409 ASSISTANT_DISABLED` | The assistant is off for the site. |
+| `504 ASSISTANT_TIMEOUT` | The response deadline expired. |
+| `503 ASSISTANT_NOT_CONFIGURED` | The model provider is missing from the server configuration. |
+| `503 ASSISTANT_AUTH` | The provider rejected authentication. |
+| `429 ASSISTANT_RATE_LIMITED` | A request limit was reached. |
+| `502 ASSISTANT_UNAVAILABLE` | The provider could not be reached or returned an error or invalid response. |
 
 The Overview layout is personal per user and per site. `widgets` is a list of 1 to 11 distinct identifiers from the fixed catalogue: four indicators (`kpi_open_deviations`, `kpi_booked_hours`, `kpi_open_claims`, `kpi_settled_claims`) and seven panels (`deviations_by_status`, `progress_by_section`, `hours_by_week`, `earned_value`, `priority_work`, `daily_pulse`, `journal_today`). Without a saved layout the answer is the default with `custom: false`; an empty list, duplicates or unknown identifiers are rejected with `400 LAYOUT_INVALID`.
 

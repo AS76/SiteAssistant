@@ -49,6 +49,10 @@ Fuso orario e ora di taglio del cantiere determinano a quale giorno operativo ap
 
 I valori iniziali valgono anche per i cantieri già esistenti al momento dell'introduzione di queste impostazioni. Gli **owner** possono modificare entrambi i valori per il cantiere selezionato. Ogni salvataggio viene registrato nell'audit. Le voci di diario già salvate mantengono il fuso e l'ora di taglio registrati alla creazione. Vedi [Impostazioni cantiere](../../guida/impostazioni/#impostazioni-cantiere).
 
+## Assistente dati
+
+Il proprietario può attivare l'assistente per il singolo cantiere e impostare il tempo massimo di risposta. L’assistente è disattivato per impostazione predefinita e il salvataggio delle modifiche viene registrato nell’audit. Vedi [Assistente nelle Impostazioni](../../guida/impostazioni/#assistente).
+
 ## Cosa non è configurabile
 
 - Logo, colori o dominio per cantiere.

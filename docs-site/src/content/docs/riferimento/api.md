@@ -54,6 +54,7 @@ Le opzioni di registrazione e di accesso restituiscono le opzioni per il browser
 | POST | `/api/sites` | owner | `code`, `name`, `location`, `start_date`, `end_date`, `jurisdiction`, `time_zone`, `day_cutoff_time` |
 | GET | `/api/sites/{id}` | membro | Dettaglio cantiere |
 | PATCH | `/api/sites/{id}` | owner | Aggiorna uno o più campi tra `jurisdiction`, `time_zone` e `day_cutoff_time` |
+| PATCH | `/api/sites/{id}/assistant` | owner | Aggiorna lo stato e il tempo massimo di risposta dell’assistente |
 | GET | `/api/sites/{id}/members` | owner | Elenco membri e ruoli, con le email |
 | POST | `/api/sites/{id}/members` | owner | `{ user_id, role }`; `role: null` rimuove |
 | GET | `/api/sites/{id}/assignable` | owner/editor/verifier | Membri attivi con `user_id`, `name` e `role`, senza email |
@@ -63,6 +64,10 @@ Le opzioni di registrazione e di accesso restituiscono le opzioni per il browser
 Ogni cantiere dichiara una **giurisdizione**, `IT` o `UK`: è il diritto che si applica al cantiere e non dipende dalla lingua dell'interfaccia. Se `POST /api/sites` non la indica vale `IT`, che è anche il valore delle righe create prima dell'introduzione del campo. `GET /api/sites` e `GET /api/sites/{id}` restituiscono `jurisdiction`, `time_zone` e `day_cutoff_time`. In creazione questi campi sono facoltativi. Il fuso predefinito è `Europe/Rome` per `IT` e `Europe/London` per `UK`. L'ora di taglio predefinita è `06:00`.
 
 `PATCH /api/sites/{id}` è riservato agli owner e accetta uno o più dei campi `jurisdiction` (`IT` o `UK`), `time_zone` (identificatore IANA) e `day_cutoff_time` (ora locale in formato `HH:MM`). I campi omessi conservano il valore corrente. Un corpo vuoto, un campo sconosciuto o un valore non valido restituisce `400 VALIDATION_ERROR`. Il salvataggio scrive un evento `update` con `entity_type` `site` nel registro di audit. La giurisdizione si imposta via API.
+
+Le risposte di elenco e dettaglio dei cantieri includono `assistant_enabled` (booleano) e `assistant_timeout_ms` (intero). I valori predefiniti sono `false` e `20000` anche per i cantieri esistenti al momento dell'introduzione dei campi.
+
+`PATCH /api/sites/{id}/assistant` richiede `enabled` come booleano e accetta `timeout_ms` come intero facoltativo tra `5000` e `60000`, estremi inclusi. Se ometti `timeout_ms`, resta il valore corrente. Il corpo non valido restituisce `400 VALIDATION_ERROR`; chi ha un ruolo diverso da owner riceve `403 FORBIDDEN`. La risposta `200` contiene il cantiere aggiornato. Una modifica dei valori scrive un evento `update` con `entity_type` `site` nell'audit.
 
 `GET /api/member-access` restituisce `members`, ognuno con `user_id`, `email`, `name`, `role` e `modules`, la mappa dei moduli con il valore effettivo. `PUT` accetta i moduli `overview`, `tasks`, `deviations`, `diary`, `progress`, `bookings`, `wbs`, `impacts`, `tools`, `certifications`, `hse`, `sites`, `logistics`, `reporting`, `workforce_names` e `workforce_presence`; `overview` e `sites` restano sempre consentiti e un owner non può escludere se stesso, altrimenti la risposta è `400 ACCESS_INVALID`. Un modulo escluso risponde `403 MODULE_FORBIDDEN` in lettura e in scrittura; Panoramica, report e assistente non leggono i moduli esclusi.
 
@@ -379,9 +384,20 @@ L'eliminazione è quindi **logica** per i quattro tipi eliminabili — eventi HS
 | PUT | `/api/dashboard/layout` | membro | `{ site_id, widgets }`; salva il layout personale |
 | DELETE | `/api/dashboard/layout?site_id=` | membro | Ripristina il layout predefinito |
 | GET | `/api/report?site_id=` | membro | Due tabelle e un blocco earned value: avanzamento e deviazioni per macro-area |
-| POST | `/api/assistant/chat` | membro | `{ site_id, messages, view, language }`; risposta in sola lettura con citazioni |
+| POST | `/api/assistant/chat` | membro di un cantiere con assistente attivo | `{ site_id, messages, view, language }`; risposta in sola lettura con citazioni |
 
-La dashboard calcola i valori dalle tabelle del cantiere: deviazioni per stato, media dell'avanzamento effettivo per sezione (con il pianificato), ore per settimana, importi dei reclami e blocco `earnedValue`. La media per sezione include anche le voci senza tipo di avanzamento, per le quali vale il valore importato. L'assistente risponde nella lingua richiesta (`it` o `en`) e cita i record con `family`, `id` e `label`; se il provider non è configurato risponde `503 ASSISTANT_NOT_CONFIGURED`.
+La dashboard calcola i valori dalle tabelle del cantiere: deviazioni per stato, media dell'avanzamento effettivo per sezione (con il pianificato), ore per settimana, importi dei reclami e blocco `earnedValue`. La media per sezione include anche le voci senza tipo di avanzamento, per le quali vale il valore importato.
+
+L'assistente risponde nella lingua richiesta (`it` o `en`) e cita i record con `family`, `id` e `label`. Il tempo massimo del cantiere copre tutte le chiamate al provider e le consultazioni dei dati necessarie alla risposta.
+
+| Risposta | Condizione |
+| :-- | :-- |
+| `409 ASSISTANT_DISABLED` | L'assistente è disattivato per il cantiere. |
+| `504 ASSISTANT_TIMEOUT` | È scaduto il tempo massimo di risposta. |
+| `503 ASSISTANT_NOT_CONFIGURED` | Il provider non è configurato sul server. |
+| `503 ASSISTANT_AUTH` | Il provider ha rifiutato l'autenticazione. |
+| `429 ASSISTANT_RATE_LIMITED` | È stato raggiunto un limite di richieste. |
+| `502 ASSISTANT_UNAVAILABLE` | Il provider è irraggiungibile, restituisce un errore o una risposta non valida. |
 
 Il layout della Panoramica è personale per utente e cantiere. `widgets` è un elenco da 1 a 11 identificativi distinti del catalogo fisso: quattro indicatori (`kpi_open_deviations`, `kpi_booked_hours`, `kpi_open_claims`, `kpi_settled_claims`) e sette pannelli (`deviations_by_status`, `progress_by_section`, `hours_by_week`, `earned_value`, `priority_work`, `daily_pulse`, `journal_today`). Senza layout salvato la risposta è il predefinito con `custom: false`; un elenco vuoto, con duplicati o con identificativi sconosciuti è rifiutato con `400 LAYOUT_INVALID`.
 

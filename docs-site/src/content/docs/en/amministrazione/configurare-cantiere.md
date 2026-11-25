@@ -49,6 +49,10 @@ The site's time zone and cutoff determine which operational day a diary entry be
 
 These initial values also apply to sites that existed when the settings were introduced. **Owners** can change both values for the selected site. Each save is recorded in the audit log. Saved diary entries keep the time zone and cutoff recorded when they were created. See [Site settings](../../guida/impostazioni/#site-settings).
 
+## Data assistant
+
+The owner can enable the assistant for each site and set the response timeout. The assistant is off by default, and changes are recorded in the audit log. See [Assistant settings](../../guida/impostazioni/#assistant).
+
 ## What is not configurable
 
 - Per-site logo, colours or domain.

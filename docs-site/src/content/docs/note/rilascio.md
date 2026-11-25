@@ -27,7 +27,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - **Lavoro prodotto** nella Panoramica e nel report: pianificato a oggi, prodotto, ore prenotate, efficienza e rispetto dei tempi, calcolati dalle ore pianificate e dalle ore prenotate.
 - Panoramica con quattro indicatori, ciambella delle deviazioni, avanzamento per sezione, ore per settimana e pannello **Lavoro prodotto**.
 - Import degli export di pianificazione dall'interfaccia, con anteprima e conferma, per sei famiglie di dati e con mappatura delle colonne per cantiere.
-- Assistente dati in sola lettura, con citazioni dei record.
+- Assistente dati in sola lettura, con citazioni dei record. Il proprietario può attivarlo per singolo cantiere e impostarne il tempo massimo di risposta. Vedi [Assistente nelle Impostazioni](../../guida/impostazioni/#assistente).
 - Impostazioni di valuta, decimali e separatori per gli importi. Gli owner possono impostare anche il fuso e l'inizio del giorno operativo del cantiere.
 - Tabelle ordinabili, filtri per colonna opzionali e card su telefono.
 - Navigazione mobile con barra in basso.
@@ -70,7 +70,7 @@ Questa pagina descrive la versione attualmente pubblicata. È deliberatamente es
 - La mappatura delle colonne è per cantiere e famiglia: non si eredita tra cantieri e non aggiunge campi al modello.
 - La valuta nelle impostazioni cambia simbolo e formato, non converte gli importi.
 - L'anteprima di import vale 15 minuti: oltre, va ripetuta. Cambiare file o mappatura la invalida subito.
-- L'assistente dati legge i dati del cantiere selezionato e non scrive nulla; richiede la connessione.
+- L’assistente dati è disattivato per impostazione predefinita. Per rispondere usa i dati del cantiere selezionato e richiede una connessione e un provider configurato sul server.
 - Il collegamento tra avanzamento e WBS avviene solo con una corrispondenza univoca di area PLC e sezione: senza corrispondenza la voce resta scollegata.
 - Gli stati delle deviazioni arrivano dal sistema di origine; uno stato non riconosciuto resta vuoto invece di essere interpretato.
 - L'eliminazione di attrezzature, certificazioni ed eventi HSE è **logica**: la riga sparisce dalle viste, dai contatori e dai dettagli, ma resta nel registro di audit con autore e data, leggibile dal pannello **Ultime modifiche** delle tre viste e via API da owner e verificatori. Le certificazioni restano riservate a owner, editor e verificatori: il ruolo `viewer` non le consulta. Le persone coinvolte negli eventi HSE sono **solo un numero**: il registro non contiene nomi né dati sanitari e non è collegato alla scheda del dipendente.

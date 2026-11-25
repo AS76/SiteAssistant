@@ -1,11 +1,11 @@
 ---
 title: Settings
-description: Account, password change, passkeys, the site's operational day, currency and separators.
+description: Account, password change, passkeys, the site's operational day, data assistant, currency and separators.
 ---
 
 import Shot from '../../../../components/Shot.astro';
 
-The gear at the top right opens **Settings**. Your account is at the top. Below it are your display preferences and, if you own the selected site, the site settings.
+The gear at the top right opens **Settings**. Your account is at the top. Below it are the settings for the selected site and your display preferences.
 
 ## Your account
 
@@ -32,6 +32,17 @@ To change the time zone and the start of the operational day, you need an intern
 4. Press **Save site settings**.
 
 The saved settings apply to all members of the site. See [The operational day](../../amministrazione/configurare-cantiere/#the-operational-day).
+
+## Assistant
+
+The **Assistant** section shows the selected site's name in the heading. Editors, Reviewers and Viewers see the **On** or **Off** status. Changing the settings requires a connection and the **Owner** role.
+
+1. Select the site and open **Settings** using the gear.
+2. Under **Assistant**, use **Enable the assistant for this site** to turn it on or off.
+3. In **Response timeout (ms)**, enter a whole number between **5000** and **60000**. The default is **20000 ms** (20 seconds), and the limit covers the entire time spent processing the question.
+4. Press **Save assistant settings**.
+
+Changes apply to all members of that site and are recorded in the audit log. Answering questions also requires a model provider configured on the server. See [Data assistant](../assistente-ai/).
 
 ## Setting currency and format
 
