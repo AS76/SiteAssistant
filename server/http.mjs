@@ -6,7 +6,7 @@ import { extname } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { pipeline } from 'node:stream/promises';
 import { S3Storage, ObjectStorageError, encodeS3Component } from './s3.mjs';
-import { authenticate, assertAuthBypassAllowed, login, memberships, publicUser, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
+import { authenticate, assertAuthBypassAllowed, login, memberships, publicUser, updateLanguage, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
 import { createWebAuthn } from './webauthn.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { createStaticHandler } from './static-dev.mjs';
@@ -73,7 +73,7 @@ async function paginatedJson(response, url, db, list, count, filters, user) {
 const rateLimitExempt = new Set(['/api/auth/login', '/api/auth/forgot', '/api/auth/password', '/api/auth/request']);
 const authBypassExcluded = new Set([
   '/api/auth/login', '/api/auth/logout', '/api/auth/forgot', '/api/auth/request',
-  '/api/auth/request/decide', '/api/auth/password', '/api/auth/me', '/api/health', RESET_PATH,
+  '/api/auth/request/decide', '/api/auth/password', '/api/auth/me', '/api/auth/me/preferences', '/api/health', RESET_PATH,
 ]);
 const browserPolicy = [
   "default-src 'self'", "base-uri 'none'", "frame-ancestors 'none'", "object-src 'none'",
@@ -295,11 +295,14 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const input = await readJson(request);
         const email = normalizeEmail(input.email);
         const signup = path === '/api/auth/request';
+        if (signup && input.language != null && !['it', 'en'].includes(input.language)) {
+          throw new RepositoryError(400, 'Language must be it, en or null.', 'VALIDATION_ERROR');
+        }
         (signup ? requestLimiter : forgotLimiter).attempt(ip, email);
         // Preflight also covers no-op cases, keeping configuration errors uniform.
         if (signup && (typeof ownerEmail !== 'string' || !ownerEmail.trim())) throw new MailNotConfiguredError();
         mailer.assertConfigured?.();
-        if (signup) await requestSignup(db, email, { mailer, ownerEmail, publicUrl });
+        if (signup) await requestSignup(db, email, { mailer, ownerEmail, publicUrl, language: input.language });
         else await forgotPassword(db, email, { mailer, publicUrl, language: input.language });
         return json(response, 202, { status: 'accepted' });
       }
@@ -327,6 +330,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (user?.password_change_required && !(
         (path === '/api/auth/me' && method === 'GET') ||
+        (path === '/api/auth/me/preferences' && method === 'PATCH') ||
         (['/api/auth/password', '/api/auth/logout'].includes(path) && method === 'POST')
       )) throw new RepositoryError(403, 'Change the temporary password to continue.', 'PASSWORD_CHANGE_REQUIRED');
       if (path.startsWith('/api/auth/webauthn/register/') || path === '/api/auth/credentials' || path.startsWith('/api/auth/credentials/')) {
@@ -534,6 +538,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         passwordLimiter.attempt(ip, user.id);
         await changePassword(db, user, await readJson(request));
         return json(response, 200, { status: 'ok' });
+      }
+      if (path === '/api/auth/me/preferences' && method === 'PATCH') {
+        const { language } = await readJson(request);
+        return json(response, 200, { user: await updateLanguage(db, user.id, language) });
       }
       if (path === '/api/auth/me' && method === 'GET') {
         return json(response, 200, { user: publicUser(user), roles: await memberships(db, user.id), password_change_required: Boolean(user.password_change_required) });

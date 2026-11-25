@@ -59,6 +59,7 @@ test('request stores only a decision hash, sends one review link, normalizes and
   t.assert.strictEqual(rows.length, 1);
   t.assert.strictEqual(rows[0].email, email);
   t.assert.strictEqual(rows[0].status, 'pending');
+  t.assert.strictEqual(rows[0].language, null);
   t.assert.strictEqual(rows[0].decision_token_hash, tokenHash(token));
   t.assert.strictEqual(rows[0].completion_token_hash, null);
   t.assert.strictEqual(rows[0].decided_at, null);
@@ -89,6 +90,8 @@ test('approval creates a login-capable temporary password, exposes me flag and c
   t.assert.ok(!approved.body.includes(urls[0].searchParams.get('token')));
   const row = await f.db.get('SELECT * FROM users WHERE email = ?', email);
   t.assert.strictEqual(Boolean(row.password_change_required), true);
+  t.assert.strictEqual(f.mail[1].subject, 'Welcome to SiteAssistant');
+  t.assert.match(f.mail[1].html, /<html lang="en">/);
   const password = temporary(f.mail[1]);
   t.assert.match(password, /^[A-HJ-NP-Za-km-z2-9]{16}$/);
   t.assert.strictEqual(f.mail[1].to, email);
@@ -110,6 +113,22 @@ test('approval creates a login-capable temporary password, exposes me flag and c
   t.assert.strictEqual(rowAfter.status, 'approved');
   t.assert.ok(rowAfter.decided_at);
   t.assert.strictEqual(f.mail.length, 2);
+});
+
+test('signup validates the language and uses the saved language for the welcome email', async t => {
+  const f = await fixture(t);
+  for (const language of ['it-IT', 'de', true, ['it']]) {
+    const invalid = await f.post('request', { email, language });
+    t.assert.strictEqual(invalid.status, 400);
+    t.assert.strictEqual(invalid.body.code, 'VALIDATION_ERROR');
+  }
+  t.assert.strictEqual((await f.post('request', { email, language: 'it' })).status, 202);
+  t.assert.strictEqual((await f.db.get('SELECT language FROM signup_requests')).language, 'it');
+  t.assert.strictEqual(f.mail[0].subject, 'SiteAssistant access request');
+  t.assert.strictEqual((await f.decide(links(f.mail[0])[0])).status, 200);
+  t.assert.strictEqual(f.mail[1].subject, 'Benvenuto in SiteAssistant');
+  t.assert.match(f.mail[1].html, /<html lang="it">/);
+  t.assert.match(f.mail[1].text, /Password temporanea: /);
 });
 
 test('reject consumes the link without creating a user or sending another email', async t => {

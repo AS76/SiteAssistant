@@ -24,15 +24,15 @@ async function deliver(mailer, message) {
   }
 }
 
-export async function requestSignup(db, email, { mailer, ownerEmail, publicUrl }) {
+export async function requestSignup(db, email, { mailer, ownerEmail, publicUrl, language = null }) {
   await db.transaction(async tx => {
     // Disabled identities are also reserved: self-service cannot reactivate them.
     if (await tx.get('SELECT id FROM users WHERE lower(email) = ?', email)) return;
     const token = randomBytes(32).toString('base64url');
     const result = await tx.run(`INSERT INTO signup_requests
-      (id, email, decision_token_hash, status, requested_at)
-      VALUES (?, ?, ?, 'pending', ?) ON CONFLICT DO NOTHING`,
-    randomUUID(), email, tokenHash(token), new Date().toISOString());
+      (id, email, decision_token_hash, status, requested_at, language)
+      VALUES (?, ?, ?, 'pending', ?, ?) ON CONFLICT DO NOTHING`,
+    randomUUID(), email, tokenHash(token), new Date().toISOString(), language);
     if (!result.rowCount) return;
     const url = new URL('/api/auth/request/decide', publicUrl);
     url.searchParams.set('token', token);
@@ -69,7 +69,7 @@ export async function decideSignup(db, token, decision, { mailer }) {
         VALUES (?, ?, ?, ?, 'scrypt', ?, true) ON CONFLICT DO NOTHING`,
       randomUUID(), row.email, row.email, await hashPassword(password), at.toISOString());
       if (!created.rowCount) throw gone();
-      await deliver(mailer, { to: row.email, ...welcomeEmail({ password }) });
+      await deliver(mailer, { to: row.email, ...welcomeEmail({ password, language: row.language }) });
     }
     return decision;
   });

@@ -133,6 +133,7 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     deleteCredential: id => request(`/api/auth/credentials/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' }),
     logout: () => request('/api/auth/logout', {}),
     me: () => request('/api/auth/me'),
+    updatePreferences: input => request('/api/auth/me/preferences', input, { method: 'PATCH' }),
     changePassword: input => request('/api/auth/password', input),
     requestAccess: input => request('/api/auth/request', input),
     forgotPassword: input => request('/api/auth/forgot', input),

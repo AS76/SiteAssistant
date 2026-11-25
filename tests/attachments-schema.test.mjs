@@ -173,7 +173,7 @@ for (const driver of ['sqlite', 'pg']) {
     }
     const after = await db.all('SELECT * FROM attachments ORDER BY id');
     const applied = await db.all('SELECT * FROM schema_migrations ORDER BY version');
-    t.assert.strictEqual(applied.at(-1).version, '048');
+    t.assert.strictEqual(applied.at(-1).version, '049');
     t.assert.strictEqual(await migrate(db, { driver }), 0);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM attachments ORDER BY id'), after);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM schema_migrations ORDER BY version'), applied);

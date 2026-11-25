@@ -2,6 +2,7 @@ import { formatDisplayNumber, formatDateInput, parseDateInput, initialView, toda
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
 import { messages } from './i18n.mjs';
+import { resolveLanguage } from './language.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
 import { hasOpenProgressSteps } from './domain.mjs';
 import { taskFormalAcceptance, taskVerificationOutcome } from './domain.mjs';
@@ -36,8 +37,15 @@ const logoutKey = `logout:${api.baseUrl}`;
 let logoutPending = false;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+const LANGUAGE_KEY = 'sa-language';
+let deviceLanguage;
+try { deviceLanguage = localStorage.getItem(LANGUAGE_KEY); } catch { /* storage can be unavailable */ }
+const interfaceLanguage = profile => resolveLanguage({
+  profile, device: deviceLanguage, browser: navigator.languages?.length ? navigator.languages : navigator.language,
+});
+let language = interfaceLanguage(), loginLanguage, pendingLanguage;
 let session = null;
-let state = { sites: [], tasks: [], diary: [], attachments: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
+let state = { sites: [], tasks: [], diary: [], attachments: [] }, siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
 let view = initialView({ width: window.innerWidth, hash: location.hash });
 let filters = { search: '', status: '', person: '', priority: '', kind: '' };
 let taskView = 'board';
@@ -187,14 +195,14 @@ const errorKeys = {
   TASK_CLOSURE_EVIDENCE_REQUIRED: 'taskEvidenceRequired', TASK_ACCEPTANCE_EVIDENCE_REQUIRED: 'evidenceAcceptanceMissing',
   DEVIATION_OWNER_INVALID: 'evidenceOwnerError', DEVIATION_IDENTITY_UNRESOLVED: 'evidenceIdentityError',
   DEVIATION_EXPORT_META_INVALID: 'evidenceImportError', DEVIATION_EXPORT_INVALID: 'evidenceImportError',
-  DEVIATION_EXPORT_CHECKSUM_MISMATCH: 'evidenceImportError', SHIPMENT_NOT_FOUND: 'shpNotFound', SHIPMENT_DUPLICATE_NUMBER: 'shpDuplicateNumber', SHIPMENT_PACKAGE_NOT_FOUND: 'shpPackageUnavailable', SHIPMENT_PACKAGE_SITE_MISMATCH: 'shpPackageUnavailable', SHIPMENT_PACKAGE_TAKEN: 'shpPackageTaken', SHIPMENT_STATUS_CONFLICT: 'shpStatusConflict', SHIPMENT_ITEM_NOT_FOUND: 'shpItemNotFound', PACKAGE_NOT_FOUND: 'pkgNotFound', PACKAGE_ITEM_NOT_FOUND: 'poItemNotFound', PACKAGE_DUPLICATE_NUMBER: 'pkgDuplicateNumber', PACKAGE_QUANTITY_EXCEEDED: 'pkgQuantityExceeded', PACKAGE_STATUS_CONFLICT: 'pkgStatusConflict', PO_STATUS_CONFLICT: 'poStatusConflict', PO_DUPLICATE_NUMBER: 'poDuplicateNumber', PO_DUPLICATE_LINE: 'poDuplicateLine', PO_NOT_FOUND: 'poNotFound', PO_ITEM_NOT_FOUND: 'poItemNotFound', HSE_INVALID: 'hseInvalid', HSE_FORBIDDEN: 'forbidden', HSE_NOT_FOUND: 'hseNotFound', MODULE_FORBIDDEN: 'moduleUnavailable', ACCESS_INVALID: 'accessInvalid', LAYOUT_INVALID: 'layoutInvalid', MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
+  DEVIATION_EXPORT_CHECKSUM_MISMATCH: 'evidenceImportError', SHIPMENT_NOT_FOUND: 'shpNotFound', SHIPMENT_DUPLICATE_NUMBER: 'shpDuplicateNumber', SHIPMENT_PACKAGE_NOT_FOUND: 'shpPackageUnavailable', SHIPMENT_PACKAGE_SITE_MISMATCH: 'shpPackageUnavailable', SHIPMENT_PACKAGE_TAKEN: 'shpPackageTaken', SHIPMENT_STATUS_CONFLICT: 'shpStatusConflict', SHIPMENT_ITEM_NOT_FOUND: 'shpItemNotFound', PACKAGE_NOT_FOUND: 'pkgNotFound', PACKAGE_ITEM_NOT_FOUND: 'poItemNotFound', PACKAGE_DUPLICATE_NUMBER: 'pkgDuplicateNumber', PACKAGE_QUANTITY_EXCEEDED: 'pkgQuantityExceeded', PACKAGE_STATUS_CONFLICT: 'pkgStatusConflict', PO_STATUS_CONFLICT: 'poStatusConflict', PO_DUPLICATE_NUMBER: 'poDuplicateNumber', PO_DUPLICATE_LINE: 'poDuplicateLine', PO_NOT_FOUND: 'poNotFound', PO_ITEM_NOT_FOUND: 'poItemNotFound', HSE_INVALID: 'hseInvalid', HSE_FORBIDDEN: 'forbidden', HSE_NOT_FOUND: 'hseNotFound', MODULE_FORBIDDEN: 'moduleUnavailable', ACCESS_INVALID: 'accessInvalid', LAYOUT_INVALID: 'layoutInvalid', MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', SHARED_DEMO_PREFERENCE: 'sharedDemoPreference', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { if (error.code === 'PASSWORD_CHANGE_REQUIRED') return t('passwordChangeNotice'); if (error.code === 'MODULE_FORBIDDEN') return t('moduleUnavailable'); if (error.code === 'PAGINATION_LIMIT') return t('paginationLimit'); return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
   reportPrintIntent = null; lastReport = null;
   resetSavedViews();
   overviewCache.clear();
   wbsCache.clear(); wbsLoad = null; resetCore();
-  session = null; actor = ''; siteId = undefined; loadError = null; offlineScope = undefined; pendingOps = [];
+  session = null; pendingLanguage = undefined; language = interfaceLanguage(); actor = ''; siteId = undefined; loadError = null; offlineScope = undefined; pendingOps = [];
   state = { sites: [], tasks: [], diary: [], attachments: [] };
   filters = { search: '', status: '', person: '', priority: '', kind: '' };
   closeModal();
@@ -252,7 +260,28 @@ async function loadPages(load) {
     if (page.length < limit) return rows;
   }
 }
-async function loadData() {
+async function saveLanguagePreference() {
+  const choice = pendingLanguage;
+  const user = session?.user;
+  if (!choice || choice.userId !== user?.id || user.shared_demo !== false) return;
+  if (user.language === choice.language) {
+    pendingLanguage = undefined;
+    return;
+  }
+  try {
+    const { user: updated } = await api.updatePreferences({ language: choice.language });
+    if (session?.user.id !== choice.userId) return;
+    session.user = updated;
+    if (pendingLanguage === choice) pendingLanguage = undefined;
+    if (storageReady && offlineScope && (await getMirror('active'))?.scope === offlineScope) {
+      await setMirror('active', { scope: offlineScope, baseUrl: api.baseUrl, session });
+    }
+  } catch (error) {
+    if (session?.user.id === choice.userId) toast(errorMessage(error));
+  }
+}
+
+async function loadData({ signedIn = false } = {}) {
   coreCache.clear(); overviewCache.clear();
   loading = true; loadError = null; render();
   try {
@@ -264,7 +293,15 @@ async function loadData() {
       let active = storageReady ? await getMirror('active') : null;
       try {
         session = await freshApi.me(); actor = session.user.name; offline = false;
+        if (pendingLanguage?.userId !== session.user.id) pendingLanguage = undefined;
+        const chosen = signedIn ? loginLanguage : null;
+        loginLanguage = undefined;
+        if (chosen) pendingLanguage = { userId: session.user.id, language: chosen };
+        language = chosen ?? pendingLanguage?.language ?? interfaceLanguage(session.user.language);
+        renderChrome();
         offlineScope = scopeFor(api.baseUrl, session.user.id);
+        await saveLanguagePreference();
+        if (!session) return;
         active = { scope: offlineScope, baseUrl: api.baseUrl, session };
         if (storageReady) await setMirror('active', active);
       } catch (error) {
@@ -272,6 +309,7 @@ async function loadData() {
         const saved = await getMirror(`state:${active.scope}`);
         if (!saved && !active.session.password_change_required) throw error;
         offline = true; session = active.session; actor = session.user.name; offlineScope = active.scope; state = saved;
+        language = pendingLanguage?.userId === session.user.id ? pendingLanguage.language : interfaceLanguage(session.user.language);
       }
       if (session.password_change_required) {
         state = { sites: [], tasks: [], diary: [], attachments: [] };
@@ -420,7 +458,8 @@ function renderChrome() {
   renderOffline();
   const accountReady = Boolean(session && !session.password_change_required);
   document.documentElement.lang = language;
-  document.title = `SiteAssistant · ${t(view)}`;
+  document.documentElement.dataset.lang = language;
+  document.title = `SiteAssistant · ${t(session ? view : 'login')}`;
   renderAssistantChrome();
   const nav = $('#navigation');
   const rail = window.matchMedia('(min-width: 1180px)').matches;
@@ -445,7 +484,7 @@ function renderChrome() {
   $('#settings-button').hidden = Boolean(session?.password_change_required);
   $('#settings-button').setAttribute('aria-label', t('settingsTitle'));
   $('#manual-link').textContent = t('manual');
-  $('#manual-link').href = `https://as76.github.io/SiteAssistant/${language === 'en' ? 'en/' : ''}${manualPages[view] || ''}`;
+  $('#manual-link').href = `https://as76.github.io/SiteAssistant/${language === 'en' ? 'en/' : ''}${session ? manualPages[view] || '' : 'guida/accesso/'}`;
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
   const site = currentSite();
   $('#site-select').title = site?.name || '';
@@ -485,6 +524,7 @@ function renderChrome() {
   $('#site-select').disabled = loading || !state.sites.length;
   $('#language').textContent = language === 'it' ? 'EN' : 'IT';
   $('#language').setAttribute('aria-label', language === 'it' ? 'Switch to English' : 'Passa all’italiano');
+  $('#language').lang = language === 'it' ? 'en' : 'it';
   renderDemoNotice();
   let loginLegend = $('#login-demo-language');
   if (!loginLegend) {
@@ -3016,8 +3056,18 @@ function passkeyError(error) {
     ? `${errorMessage(error)} (${error.code}): ${error.message}` : errorMessage(error);
 }
 function passkeyFormError(form, error) {
-  const target = form.querySelector('.form-error');
-  target.textContent = passkeyError(error); target.hidden = false; target.focus();
+  formError(form, error, passkeyError);
+}
+
+function localizeLogin(form) {
+  $('#main').querySelectorAll('[data-login-text]').forEach(element => {
+    element.textContent = t(element.dataset.loginText);
+  });
+  form.querySelector('.password-toggle').setAttribute('aria-label',
+    t(form.elements.password.type === 'password' ? 'showPassword' : 'hidePassword'));
+  const error = form.querySelector('.form-error');
+  if (!error.hidden) error.textContent = error.localizedMessage();
+  updateLoginRetry(form);
 }
 
 let loginRetryUntil = 0, loginRetryTimer;
@@ -3056,7 +3106,7 @@ async function passkeyLogin(discoverable) {
       await runPasskey(api, 'login', discoverable ? { discoverable: true } : { email: email.value.trim() });
       await forgetActive(); clearSession(); accountChannel?.postMessage('changed');
     });
-    await loadData(); await syncQueue();
+    await loadData({ signedIn: true }); await syncQueue();
   } catch (error) { if (form.isConnected) passkeyFormError(form, error); }
   finally {
     delete form.dataset.saving;
@@ -3499,8 +3549,28 @@ function render() {
   }
   if (session?.password_change_required) { $('#main').innerHTML = ''; return; }
   if (!session && (!loadError || loadError.status === 401)) {
-    $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div id="login-rate-limit" class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<span class="password-row"><input name="password" type="password" autocomplete="current-password" required maxlength="1024"><button type="button" class="text-button password-toggle" data-command="toggle-password" aria-label="${t('showPassword')}">◉</button></span></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button>${button('passkeyLogin', 'passkey-login', supportsPasskeys() ? '' : 'disabled')}</div>${button('passkeyDiscoverable', 'passkey-discoverable', supportsPasskeys() ? '' : 'disabled')}${!supportsPasskeys() ? `<p class="note">${t('passkeyUnsupported')}</p>` : ''}</form><div class="heading-actions">${button('requestAccess', 'request-access')}${button('forgotPassword', 'forgot-password')}</div></div></section>`;
-    if (loginRetryUntil > Date.now()) updateLoginRetry();
+    const passkeys = supportsPasskeys();
+    $('#main').innerHTML = `<section class="panel"><div class="panel-body">
+      <h1 data-login-text="login"></h1>
+      <form id="login-form">
+        <div class="form-error" role="alert" tabindex="-1" hidden></div>
+        <div id="login-rate-limit" class="form-error" role="alert" tabindex="-1" hidden></div>
+        <div class="form-grid">
+          <label class="field"><span data-login-text="email"></span><input name="email" type="email" autocomplete="username" required></label>
+          <label class="field"><span data-login-text="password"></span><span class="password-row">
+            <input name="password" type="password" autocomplete="current-password" required maxlength="1024">
+            <button type="button" class="text-button password-toggle" data-command="toggle-password">◉</button>
+          </span></label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="primary"></button>${button('passkeyLogin', 'passkey-login', `data-login-text="passkeyLogin" ${passkeys ? '' : 'disabled'}`)}
+        </div>
+        ${button('passkeyDiscoverable', 'passkey-discoverable', `data-login-text="passkeyDiscoverable" ${passkeys ? '' : 'disabled'}`)}
+        ${passkeys ? '' : '<p class="note" data-login-text="passkeyUnsupported"></p>'}
+      </form>
+      <div class="heading-actions">${button('requestAccess', 'request-access', 'data-login-text="requestAccess"')}${button('forgotPassword', 'forgot-password', 'data-login-text="forgotPassword"')}</div>
+    </div></section>`;
+    localizeLogin($('#login-form'));
     return;
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
@@ -3576,9 +3646,10 @@ function dateFormData(form) {
   return data;
 }
 const formActions = (label = 'save') => `<div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="primary">${t(label)}</button></div>`;
-function formError(form, error) {
+function formError(form, error, format = errorMessage) {
   const target = form.querySelector('.form-error');
-  target.textContent = errorMessage(error); target.hidden = false; target.focus();
+  if (form.id === 'login-form') target.localizedMessage = () => format(error);
+  target.textContent = format(error); target.hidden = false; target.focus();
 }
 function showPasswordForm() {
   showModal(t('changePassword'), `<form id="password-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('passwordPolicy')}</p><div class="form-grid">${['current_password', 'new_password', 'confirm_password'].map((name, index) => `<label class="field">${t(['currentPassword', 'newPassword', 'confirmPassword'][index])}<input name="${name}" type="password" autocomplete="${index ? 'new-password' : 'current-password'}" required maxlength="1024" ${index ? 'minlength="12"' : ''}></label>`).join('')}</div>${formActions()}</form>`);
@@ -4251,7 +4322,7 @@ document.addEventListener('submit', async event => {
     if (['cert-form', 'cert-delete-form'].includes(form.id)) { await submitCertification(form, data); return; }
     if (form.id === 'login-form') {
       await accountLock(async () => { await flushLogout(); await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
-      await loadData(); await syncQueue(); return;
+      await loadData({ signedIn: true }); await syncQueue(); return;
     }
     if (form.id === 'password-form') {
       if (data.new_password !== data.confirm_password) throw new Error('passwordMismatch');
@@ -4261,7 +4332,7 @@ document.addEventListener('submit', async event => {
       await loadData(); await syncQueue(); toast(t('passwordChanged')); return;
     }
     if (['request-form', 'forgot-form'].includes(form.id)) {
-      await (form.id === 'request-form' ? api.requestAccess(data) : api.forgotPassword({ ...data, language }));
+      await (form.id === 'request-form' ? api.requestAccess({ ...data, language }) : api.forgotPassword({ ...data, language }));
       if (version === modalVersion) closeModal();
       toast(t('emailAccepted')); return;
     }
@@ -4472,7 +4543,23 @@ document.addEventListener('input', event => {
     invalidateImportPreview(form);
   }
   if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
-$('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
+$('#language').addEventListener('click', () => {
+  if ($('#modal').open) return toast(t('saveDraftFirst'));
+  language = deviceLanguage = language === 'it' ? 'en' : 'it';
+  try { localStorage.setItem(LANGUAGE_KEY, deviceLanguage); } catch { /* keep the in-memory choice */ }
+  const form = $('#login-form');
+  if (form) {
+    loginLanguage = language;
+    renderChrome();
+    localizeLogin(form);
+  } else {
+    render();
+  }
+  if (session) {
+    pendingLanguage = { userId: session.user.id, language };
+    if (session.user.shared_demo === false) void accountLock(saveLanguagePreference);
+  }
+});
 window.addEventListener('resize', updateDeviationBoardScroll);
 window.matchMedia('(max-width: 520px)').addEventListener('change', () => { if (view === 'deviations') render(); });
 window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = initialView({ width: window.innerWidth, hash: next ? `#${next}` : '#overview' }); if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
@@ -4501,6 +4588,7 @@ navigator.serviceWorker?.addEventListener('message', event => {
 setInterval(() => { if (pendingOps.some(op => op.status !== 'failed') && navigator.onLine) void syncQueue(); }, 30000);
 async function start() {
   initDemoNotice();
+  render();
   try { await openDb(); storageReady = true; } catch { storageError = true; }
   if ('serviceWorker' in navigator) {
     try {
