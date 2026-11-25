@@ -8,7 +8,7 @@ import { hasOpenProgressSteps } from './domain.mjs';
 import { taskFormalAcceptance, taskVerificationOutcome } from './domain.mjs';
 import { INSPECTION_STATUSES, inspectionStatusLabelKey, filterHseAssets, sortHseAssets, hseAssetCounts, inspectionOutcomeLabelKey, inspectionModeLabelKey, inspectionItemResultLabelKey, inspectionTally, sortInspections, inspectionSuggestion, inspectionProgress, inspectionPayload } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
-import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, purgeScope, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
+import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, purgeScope, quarantineScope, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
 
 const api = createApi({ baseUrl: new URL(document.querySelector('meta[name=siteassistant-api-base]')?.content || DEFAULT_BASE_URL, location.href).href, onUnauthorized: () => clearSession(true) });
 const freshApi = createApi({ baseUrl: api.baseUrl, fresh: true, onUnauthorized: () => clearSession(true) });
@@ -214,7 +214,11 @@ function clearSession(invalidate = false) {
   if (!loading) render();
 }
 async function forgetActive() {
-  if (storageReady) await setMirror('active', null);
+  const active = storageReady ? await getMirror('active') : null;
+  if (storageReady) {
+    if (active?.scope) await quarantineScope(active.scope);
+    await setMirror('active', null);
+  }
   if ('caches' in window) for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.includes('-data-')) await caches.delete(key);
 }
 async function flushLogout() {
@@ -229,6 +233,10 @@ async function logout() {
     await accountLock(async () => {
       const active = storageReady ? await getMirror('active') : null;
       const scope = offlineScope ?? active?.scope;
+      if (storageReady && scope && (await listOps(scope)).length) {
+        toast(t('logoutPending'));
+        return;
+      }
       const current = !active || active.scope === scope;
       if (storageReady) await purgeScope(scope, current ? logoutKey : undefined);
       if ('caches' in window && scope) {
