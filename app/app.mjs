@@ -37,14 +37,18 @@ const logoutKey = `logout:${api.baseUrl}`;
 let logoutPending = false;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-const LANGUAGE_KEY = 'sa-language';
-let deviceLanguage;
-try { deviceLanguage = localStorage.getItem(LANGUAGE_KEY); } catch { /* storage can be unavailable */ }
-const interfaceLanguage = profile => resolveLanguage({
-  profile, device: deviceLanguage, browser: navigator.languages?.length ? navigator.languages : navigator.language,
-});
-let language = interfaceLanguage(), loginLanguage, pendingLanguage;
 let session = null;
+const LANGUAGE_KEY = 'sa-language';
+let deviceLanguage, language = 'it', loginLanguage, pendingLanguage;
+function interfaceLanguage(profile) {
+  return resolveLanguage({
+    profile, device: deviceLanguage, browser: navigator.languages?.length ? navigator.languages : navigator.language,
+  });
+}
+function initLanguage() {
+  try { deviceLanguage = localStorage.getItem(LANGUAGE_KEY); } catch { /* storage can be unavailable */ }
+  language = interfaceLanguage();
+}
 let state = { sites: [], tasks: [], diary: [], attachments: [] }, siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
 let view = initialView({ width: window.innerWidth, hash: location.hash });
 let filters = { search: '', status: '', person: '', priority: '', kind: '' };
@@ -4588,6 +4592,7 @@ navigator.serviceWorker?.addEventListener('message', event => {
 setInterval(() => { if (pendingOps.some(op => op.status !== 'failed') && navigator.onLine) void syncQueue(); }, 30000);
 async function start() {
   initDemoNotice();
+  initLanguage();
   render();
   try { await openDb(); storageReady = true; } catch { storageError = true; }
   if ('serviceWorker' in navigator) {
