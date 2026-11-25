@@ -1,5 +1,5 @@
 import { requireModule } from './module-access.mjs';
-import { RepositoryError, getSite, requireRole } from './repository.mjs';
+import { EDIT_ROLES, RepositoryError, getSite, requireRole } from './repository.mjs';
 import { sourceTimestamp, stableId } from './wbs.mjs';
 
 const fail = (status, message, code) => { throw new RepositoryError(status, message, code); };
@@ -121,7 +121,7 @@ export async function updateSiteProgressItem(db, id, input, user) {
   if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
   return db.transaction(async tx => {
     const item = await getSiteProgressItem(tx, id);
-    await requireRole(tx, item.site_id, user, ['owner', 'editor']);
+    await requireRole(tx, item.site_id, user, EDIT_ROLES);
     await requireModule(tx, item.site_id, user, 'progress');
     if (!input || typeof input !== 'object' || Array.isArray(input)
       || Object.keys(input).length !== 1 || !Object.hasOwn(input, 'planned_hours')) {

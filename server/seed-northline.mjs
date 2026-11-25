@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { hashPassword } from './auth.mjs';
+import { isDemoSandbox } from './demo-sandbox.mjs';
 import { findTemplate } from './checklists.mjs';
 import { closeDb, openDb } from './db.mjs';
 
@@ -588,7 +589,7 @@ async function lockSites(tx, sites) {
   for (const site of sites) await tx.run('UPDATE sites SET id = id WHERE id = ?', site.id);
 }
 
-export async function apply(db, { password = process.env.NORTHLINE_SEED_PASSWORD } = {}) {
+export async function apply(db, { password = process.env.NORTHLINE_SEED_PASSWORD, demoSandbox = isDemoSandbox() } = {}) {
   if (password !== undefined && (typeof password !== 'string' || !password || password.length > 1024)) {
     throw new Error('Invalid NORTHLINE_SEED_PASSWORD.');
   }
@@ -596,6 +597,11 @@ export async function apply(db, { password = process.env.NORTHLINE_SEED_PASSWORD
   return db.transaction(async tx => {
     const counts = { sites: await insert(tx, 'sites', tables.get('sites')) };
     await lockSites(tx, tables.get('sites'));
+    if (demoSandbox) {
+      for (const site of tables.get('sites')) {
+        await tx.run('UPDATE sites SET demo_sandbox = TRUE WHERE id = ? AND NOT demo_sandbox', site.id);
+      }
+    }
     for (const [table, plannedRows] of tables) {
       if (table === 'sites') continue;
       let rows = plannedRows;

@@ -1,6 +1,6 @@
 import { requireModule } from './module-access.mjs';
 import { createHash, randomUUID } from 'node:crypto';
-import { RepositoryError, getSite, requireRole } from './repository.mjs';
+import { EDIT_ROLES, RepositoryError, getSite, requireRole } from './repository.mjs';
 
 const fail = (status, message, code = 'WBS_RECONCILIATION_REQUIRED') => { throw new RepositoryError(status, message, code); };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -65,10 +65,10 @@ export async function getWbs(db, id) {
 }
 async function writer(tx, site, user) {
   if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
-  await requireRole(tx, site, user, ['owner', 'editor']);
+  await requireRole(tx, site, user, EDIT_ROLES);
   await requireModule(tx, site, user, 'wbs');
   await tx.run('UPDATE sites SET id = id WHERE id = ?', site);
-  await requireRole(tx, site, user, ['owner', 'editor']);
+  await requireRole(tx, site, user, EDIT_ROLES);
   await requireModule(tx, site, user, 'wbs');
 }
 function editInput(input, create = false) {

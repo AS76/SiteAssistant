@@ -134,10 +134,10 @@ test('create actions are gated by role in the UI source', async () => {
   const source = await readFile(new URL('../app/app.mjs', import.meta.url), 'utf8');
   // Tasks: viewers must not see a create button the server would refuse.
   assert.match(source, /canWriteTask\(\) \? button\('newTask'/);
-  // Sites: only an owner may create one.
+  // Site creation is available to an owner or a sandbox account.
   assert.match(source, /canCreateSite\(\) \? button\('newSite'/);
-  assert.match(source, /const canWriteTask = \(\) => \['owner', 'editor', 'verifier'\]\.includes\(role\(\)\)/);
-  assert.match(source, /const canCreateSite = \(\) => role\(\) === 'owner'/);
+  assert.match(source, /const canWriteTask = \(\) => \['owner', 'editor', 'verifier', 'demo_user'\]\.includes\(role\(\)\)/);
+  assert.match(source, /const canCreateSite = \(\) => role\(\) === 'owner' \|\| \(!offline && session\?\.user.demo_sandbox === true\)/);
 });
 
 test('task classification is selectable, filterable and exported', async () => {

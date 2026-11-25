@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { RepositoryError, requireRole } from './repository.mjs';
+import { EDIT_ROLES, RepositoryError, requireRole } from './repository.mjs';
 import { requireModule } from './module-access.mjs';
 import { appendAuditEvent } from './audit.mjs';
 
-const WRITE_ROLES = ['owner', 'editor'];
 const STATUSES = ['planned', 'in_transit', 'arrived', 'received'];
 const COLUMNS = `id, site_id, shipment_no, carrier, CAST(shipped_on AS TEXT) AS shipped_on,
   CAST(expected_on AS TEXT) AS expected_on, CAST(arrived_on AS TEXT) AS arrived_on,
@@ -57,9 +56,9 @@ async function access(db, siteId, user, roles) {
 }
 
 async function lockSite(tx, siteId, user) {
-  await access(tx, siteId, user, WRITE_ROLES);
+  await access(tx, siteId, user, EDIT_ROLES);
   await tx.run('UPDATE sites SET id = id WHERE id = ?', siteId);
-  await access(tx, siteId, user, WRITE_ROLES);
+  await access(tx, siteId, user, EDIT_ROLES);
 }
 
 async function findShipment(db, id) {

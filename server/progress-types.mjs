@@ -1,7 +1,9 @@
 import { requireModule } from './module-access.mjs';
 import { randomUUID } from 'node:crypto';
-import { RepositoryError, getSite, requireRole } from './repository.mjs';
+import { DEMO_ROLE, EDIT_ROLES, RepositoryError, getSite, requireRole } from './repository.mjs';
 import { getSiteProgressItem } from './site-progress.mjs';
+
+const MANAGE_ROLES = ['owner', DEMO_ROLE];
 
 const fail = (status, message, code = 'VALIDATION_ERROR') => { throw new RepositoryError(status, message, code); };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -63,7 +65,7 @@ export async function createProgressType(db, input, user) {
   requireUser(user);
   const site = validId(input?.site_id, 'site_id');
   return db.transaction(async tx => {
-    await lockSite(tx, site, user, ['owner']);
+    await lockSite(tx, site, user, MANAGE_ROLES);
     const code = nonempty(input.code, 'code'), name = nonempty(input.name, 'name');
     const codes = new Set(), positions = new Set();
     const steps = entries(input.steps).map(step => {
@@ -97,7 +99,7 @@ export async function createProgressType(db, input, user) {
 export async function assignProgressType(db, itemId, progressTypeId, user) {
   requireUser(user);
   return db.transaction(async tx => {
-    const item = await lockedItem(tx, itemId, user, ['owner']);
+    const item = await lockedItem(tx, itemId, user, MANAGE_ROLES);
     const typeId = progressTypeId === null ? null : validId(progressTypeId, 'progress_type_id');
     if (typeId !== null && (await getType(tx, typeId)).site_id !== item.site_id) {
       fail(400, 'Progress type must belong to the item site.', 'PROGRESS_TYPE_SITE_MISMATCH');
@@ -110,7 +112,7 @@ export async function assignProgressType(db, itemId, progressTypeId, user) {
 export async function setStepProgress(db, itemId, steps, user) {
   requireUser(user);
   return db.transaction(async tx => {
-    const item = await lockedItem(tx, itemId, user, ['editor', 'owner']);
+    const item = await lockedItem(tx, itemId, user, EDIT_ROLES);
     const values = entries(steps), seen = new Set();
     if (!item.progress_type_id) fail(400, 'Assign a progress type before writing steps.', 'PROGRESS_TYPE_NOT_ASSIGNED');
     const type = await getType(tx, item.progress_type_id);
@@ -148,7 +150,7 @@ export async function deleteProgressType(db, inputId, user) {
   const id = validId(inputId, 'progress_type_id');
   return db.transaction(async tx => {
     const type = await getType(tx, id);
-    await lockSite(tx, type.site_id, user, ['owner']);
+    await lockSite(tx, type.site_id, user, MANAGE_ROLES);
     await getType(tx, id);
     if (await tx.get('SELECT id FROM site_progress_items WHERE progress_type_id = ? LIMIT 1', id)) {
       fail(409, 'Progress type is assigned to an item.', 'PROGRESS_TYPE_IN_USE');

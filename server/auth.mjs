@@ -10,6 +10,7 @@ export const tokenHash = token => createHash('sha256').update(token).digest('hex
 const unauthorized = () => new RepositoryError(401, 'A valid session is required.', 'AUTH_REQUIRED');
 export const publicUser = user => ({
   id: user.id, email: user.email, name: user.name, language: user.language, shared_demo: Boolean(user.shared_demo),
+  ...(user.demo_sandbox ? { demo_sandbox: true } : {}),
 });
 
 export async function updateLanguage(db, userId, language) {
@@ -19,8 +20,8 @@ export async function updateLanguage(db, userId, language) {
   }
   const user = await db.get(`UPDATE users SET language = ?
     WHERE id = ? AND disabled_at IS NULL AND NOT shared_demo AND language IS DISTINCT FROM ?
-    RETURNING id, email, name, language, shared_demo`, language, userId, language)
-    ?? await db.get('SELECT id, email, name, language, shared_demo FROM users WHERE id = ? AND disabled_at IS NULL', userId);
+    RETURNING id, email, name, language, shared_demo, demo_sandbox`, language, userId, language)
+    ?? await db.get('SELECT id, email, name, language, shared_demo, demo_sandbox FROM users WHERE id = ? AND disabled_at IS NULL', userId);
   if (!user) throw unauthorized();
   if (user.shared_demo) throw new RepositoryError(409, 'Shared demo accounts cannot save a language preference.', 'SHARED_DEMO_PREFERENCE');
   return publicUser(user);
@@ -215,5 +216,5 @@ export async function logout(db, user, { ip, userAgent }) {
 }
 
 export async function memberships(db, userId) {
-  return await db.all('SELECT site_id, role FROM site_members WHERE user_id = ? ORDER BY site_id', userId);
+  return await db.all('SELECT site_id, role FROM accessible_site_members WHERE user_id = ? ORDER BY site_id', userId);
 }

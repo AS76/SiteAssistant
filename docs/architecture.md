@@ -53,7 +53,7 @@ Each retry replaces the hash on the same failed invitation and preserves the exp
 
 The append-only `auth_events` table records `login.success`, `login.failure`, `logout`, `session.expired`, `activation.used`, `invitation.sent` and `invitation.used`. Password and passkey failures carry a reason class. An unidentified account has a null `user_id`. Rate-limited password attempts can reuse an account ID from a recent failure without querying the account. For invitation delivery the user is the sending administrator, when applicable. Sending from the server CLI has no HTTP metadata or authenticated actor. Invitation delivery is recorded when the mail transport accepts the message.
 
-The server stores only the IPv4 `/24` network address or the IPv6 `/48` prefix in new authentication events and sessions. Each event stores a UTC timestamp and the User-Agent when available. Migration 051 adds the report index and the marker that lets the server record one expiry event when an expired session is presented. It leaves historical data intact. Authentication activity has a documented retention period of **180 days** and no automatic purge.
+The server stores only the IPv4 `/24` network address or the IPv6 `/48` prefix in new authentication events and sessions. Each event stores a UTC timestamp and the User-Agent when available. Migration 052 adds the report index and the marker that lets the server record one expiry event when an expired session is presented. It leaves historical data intact. Authentication activity has a documented retention period of **180 days** and no automatic purge.
 
 ## Implemented modules (core)
 

@@ -8,6 +8,7 @@
 //   node server/seed-demo.mjs --reset    # delete only the rows created here
 import { createHash } from 'node:crypto';
 import process from 'node:process';
+import { isDemoSandbox } from './demo-sandbox.mjs';
 import { openDb, closeDb } from './db.mjs';
 import { registeredDeviationExport, storeDeviationExport } from './deviations.mjs';
 import { TEMPLATES } from './checklists.mjs';
@@ -783,7 +784,7 @@ export async function reset(db) {
   return removed;
 }
 
-export async function apply(db) {
+export async function apply(db, { demoSandbox = isDemoSandbox() } = {}) {
   await db.exec(`CREATE TABLE IF NOT EXISTS demo_seed_records (table_name TEXT NOT NULL, record_id TEXT NOT NULL, PRIMARY KEY (table_name, record_id))`);
   const storage = db;
   db = { ...storage, run: async (sql, ...args) => {
@@ -793,18 +794,20 @@ export async function apply(db) {
       VALUES (?, ?) ON CONFLICT DO NOTHING`, insert[1], args[0]);
     return result;
   } };
+  const referenceSite = await db.get('SELECT demo_sandbox FROM sites WHERE code = ?', SITES[0]);
   const counts = {};
   const bump = key => { counts[key] = (counts[key] || 0) + 1; };
   for (const code of SITES) {
     const meta = SITE_META[code];
-    const existing = await db.get('SELECT id FROM sites WHERE code = ?', code);
-    await db.run(`INSERT INTO sites (id, code, name, location, start_date, end_date, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (code) DO UPDATE SET name = excluded.name, location = excluded.location,
+    await db.run(`INSERT INTO sites (id, code, name, location, start_date, end_date, created_at, demo_sandbox)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (code) DO UPDATE SET name = excluded.name, location = excluded.location,
         start_date = excluded.start_date, end_date = excluded.end_date`,
-    id(`${code}:site`), code, meta.name, meta.location, meta.start, meta.end, at);
+    id(`${code}:site`), code, meta.name, meta.location, meta.start, meta.end, at,
+    Boolean(demoSandbox || referenceSite?.demo_sandbox));
     const site = await db.get('SELECT id FROM sites WHERE code = ?', code);
     if (!site) throw new Error(`Missing synthetic site ${code}`);
     const siteId = site.id;
+    if (demoSandbox) await db.run('UPDATE sites SET demo_sandbox = TRUE WHERE id = ? AND NOT demo_sandbox', siteId);
     const at2 = at;
 
     const wbsIds = new Map();
@@ -1249,15 +1252,15 @@ export async function apply(db) {
   await db.run(`INSERT INTO diary (id, site_id, operational_date, shift, plan, actual, impediments, next_step, created_at, time_zone, day_cutoff_time)
     VALUES (?, ?, '2026-11-16', 'night', 'Install C03 section', 'C03: six hours booked against the linked progress item',
       'C03 access clearance awaited', 'Resume C03 after clearance', ?, 'Europe/Rome', '06:00') ON CONFLICT (id) DO NOTHING`, id('FITT-03:c03:diary'), main.id, at);
-  // Membership: whoever owns the first synthetic site gets the same role on the others, so the
-  // extra sites are visible to the same account that already uses the demo.
+  // Copy active roles from the reference site while keeping sandbox roles in the sandbox.
   const reference = await db.get('SELECT id FROM sites WHERE code = ?', SITES[0]);
   if (reference) {
-    const members = await db.all('SELECT user_id, role FROM site_members WHERE site_id = ? AND user_id <> ?', reference.id, evidenceOwnerId);
+    const members = await db.all('SELECT user_id, role FROM accessible_site_members WHERE site_id = ? AND user_id <> ?', reference.id, evidenceOwnerId);
     for (const code of SITES.slice(1)) {
-      const site = await db.get('SELECT id FROM sites WHERE code = ?', code);
+      const site = await db.get('SELECT id, demo_sandbox FROM sites WHERE code = ?', code);
       if (!site) continue;
       for (const member of members) {
+        if (member.role === 'demo_user' && !site.demo_sandbox) continue;
         await db.run('INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
           site.id, member.user_id, member.role);
         bump('members');

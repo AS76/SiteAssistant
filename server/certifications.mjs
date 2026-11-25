@@ -1,13 +1,11 @@
 import { appendAuditEvent } from './audit.mjs';
 import { requireModule } from './module-access.mjs';
 import { randomUUID } from 'node:crypto';
-import { RepositoryError, requireRole, getSite } from './repository.mjs';
+import { EDIT_ROLES, WRITE_ROLES, RepositoryError, requireRole, getSite } from './repository.mjs';
 
 // Personnel fitness records: who is allowed on site, with which qualification, until when.
 export const CERT_CATEGORIES = ['qualification', 'medical', 'training', 'other'];
 export const CERT_STATUSES = ['expired', 'expiring', 'valid', 'no_expiry'];
-const READ_ROLES = ['owner', 'editor', 'verifier'];
-const WRITE_ROLES = ['owner', 'editor'];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // DATE columns must reach JavaScript as plain calendar strings, never driver-decoded Dates.
@@ -102,7 +100,7 @@ export async function listCertifications(db, { siteId, employeeId, status, categ
   const window = within == null || within === '' ? 30 : Number(within);
   if (!Number.isInteger(window) || window < 0 || window > 365) invalid('within must be an integer between 0 and 365.');
   await getSite(db, site);
-  await certRole(db, site, user, READ_ROLES);
+  await certRole(db, site, user, WRITE_ROLES);
   const clauses = ['site_id = ?', 'deleted_at IS NULL'];
   const values = [site];
   if (employeeId) { clauses.push('employee_id = ?'); values.push(validId(employeeId, 'employee_id')); }
@@ -128,7 +126,7 @@ export async function createCertification(db, input, user) {
     const outcome = optionalText(input.outcome, 'outcome', 500);
     const notes = optionalText(input.notes, 'notes', 2000);
     if (issuedOn && expiresOn && expiresOn < issuedOn) invalid('expires_on must not precede issued_on.');
-    await certRole(tx, siteId, user, WRITE_ROLES);
+    await certRole(tx, siteId, user, EDIT_ROLES);
     const employee = await tx.get('SELECT id FROM employees WHERE id = ? AND site_id = ?', employeeId, siteId);
     if (!employee) invalid('employee_id must belong to the site.');
     const id = randomUUID();
@@ -151,7 +149,7 @@ export async function updateCertification(db, id, input, user) {
     await tx.run('UPDATE employee_certifications SET id = id WHERE id = ? AND deleted_at IS NULL', validId(id, 'id'));
     const cert = await tx.get(`SELECT ${CERT_COLUMNS} FROM employee_certifications WHERE id = ? AND deleted_at IS NULL`, validId(id, 'id'));
     if (!cert) fail(404, 'Certification not found.', 'CERT_NOT_FOUND');
-    await certRole(tx, cert.site_id, user, WRITE_ROLES);
+    await certRole(tx, cert.site_id, user, EDIT_ROLES);
     const next = { ...cert };
     if (input.name !== undefined) next.name = validName(input.name);
     if (input.category !== undefined) next.category = validCategory(input.category);
@@ -178,7 +176,7 @@ export async function deleteCertification(db, id, user) {
     await tx.run('UPDATE employee_certifications SET id = id WHERE id = ? AND deleted_at IS NULL', validId(id, 'id'));
     const cert = await tx.get(`SELECT ${CERT_COLUMNS} FROM employee_certifications WHERE id = ? AND deleted_at IS NULL`, validId(id, 'id'));
     if (!cert) fail(404, 'Certification not found.', 'CERT_NOT_FOUND');
-    await certRole(tx, cert.site_id, user, WRITE_ROLES);
+    await certRole(tx, cert.site_id, user, EDIT_ROLES);
     const at = new Date().toISOString();
     await tx.run('UPDATE employee_certifications SET deleted_at = ? WHERE id = ?', at, cert.id);
     await appendAuditEvent(tx, { entityType: 'certification', action: 'delete', before: cert, actor: user.id, at });

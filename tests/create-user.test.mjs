@@ -191,9 +191,7 @@ test('CLI applies pending migrations normally and retains earlier ledger rows an
     const newVersions = after.filter(row => !before.some(previous => previous.version === row.version)).map(row => row.version);
     t.assert.deepStrictEqual(newVersions, [last]);
     t.assert.deepStrictEqual(after.slice(0, before.length), before);
-    t.assert.deepStrictEqual(JSON.parse(JSON.stringify(await db.all('SELECT * FROM sites'))),
-      JSON.parse(JSON.stringify(sites.map(row => ({ ...row, time_zone: 'Europe/Rome', day_cutoff_time: '06:00',
-        assistant_enabled: 0, assistant_timeout_ms: 20000 })))));
+    t.assert.deepStrictEqual(await db.all('SELECT * FROM sites'), sites);
   } finally { await db.close(); }
 });
 

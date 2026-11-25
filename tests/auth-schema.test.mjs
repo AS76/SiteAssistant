@@ -2,7 +2,7 @@ import test from 'node:test';
 import { PGlite } from '@electric-sql/pglite';
 import { SqliteStorage } from '../server/storage/sqlite.mjs';
 import { translatePlaceholders } from '../server/storage/pg.mjs';
-import { applyMigration } from '../server/migrations/index.mjs';
+import { applyMigration, migrate } from '../server/migrations/index.mjs';
 import { seed } from '../server/seed.mjs';
 import { createServer } from '../server/http.mjs';
 import { requestListener } from './helpers/auth.mjs';
@@ -24,8 +24,13 @@ for (const driver of ['sqlite', 'pg']) {
       });
       db = { ...adapt(pg), transaction: fn => pg.transaction(tx => fn(adapt(tx))) };
     }
+    await db.exec('CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
+    const upgrade = file => db.transaction(async tx => {
+      await applyMigration(tx, file, { driver });
+      await tx.run('INSERT INTO schema_migrations VALUES (?, ?)', file.slice(0, 3), '2026-01-01T00:00:00.000Z');
+    });
     for (const file of ['001_init.sql', '002_operational_day.sql', '003_idempotency_keys.sql', '004_physical_types.sql']) {
-      await db.transaction(tx => applyMigration(tx, file, { driver }));
+      await upgrade(file);
     }
     const site = '00000000-0000-4000-8000-000000000001', task = '00000000-0000-4000-8000-000000000002';
     await db.run("INSERT INTO sites (id, code, name, created_at) VALUES (?, 'UPGRADE', 'Synthetic site', ?)", site, '2026-01-01T00:00:00.000Z');
@@ -35,7 +40,7 @@ for (const driver of ['sqlite', 'pg']) {
       VALUES (?, ?, 'A', 'todo', 'todo', 'create')`, task, '2026-01-01T00:00:00.000Z');
     const before = await db.get('SELECT * FROM tasks WHERE id = ?', task);
     const events = await db.all('SELECT * FROM task_events');
-    await db.transaction(tx => applyMigration(tx, '005_auth.sql', { driver }));
+    await upgrade('005_auth.sql');
     t.assert.deepStrictEqual({ ...await db.get('SELECT * FROM tasks WHERE id = ?', task) }, {
       ...before, executor_id: null, verifier_id: null, submitted_by_id: null,
     });
@@ -50,6 +55,7 @@ for (const driver of ['sqlite', 'pg']) {
         ...['executor_id', 'verifier_id', 'submitted_by_id'].map(column => ['tasks', column, 'uuid']),
       ]) t.assert.strictEqual(columns.find(row => row.table_name === table && row.column_name === column).udt_name, type);
     }
+    await migrate(db, { driver });
     await seed(db, { reset: true });
     const user = await db.get("SELECT id FROM users WHERE email = 'editor@example.invalid'");
     for (const column of ['executor_id', 'verifier_id', 'submitted_by_id']) {
@@ -57,9 +63,6 @@ for (const driver of ['sqlite', 'pg']) {
     }
     await t.assert.rejects(() => db.run("UPDATE site_members SET role = 'unknown'"), /check/i);
     await t.assert.rejects(() => db.run("UPDATE users SET email = 'OWNER@EXAMPLE.INVALID' WHERE id = ?", user.id), /unique/i);
-    for (const file of ['006_signup.sql', '035_webauthn.sql', '051_auth_activity.sql']) {
-      await db.transaction(tx => applyMigration(tx, file, { driver }));
-    }
     const request = requestListener(createServer(db));
     const result = await request('/api/auth/login', { method: 'POST', body: { email: 'owner@example.invalid', password: 'Local-owner-5b!' } });
     t.assert.strictEqual(result.status, 200);
