@@ -50,7 +50,7 @@ async function run() {
       }
       if (url.origin === origin) {
         const file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-        if (!['index.html', 'app.mjs', 'api.mjs', 'webauthn-client.mjs', 'domain.mjs', 'hse-permissions.mjs', 'dashboard-layout.mjs', 'offline.mjs', 'i18n.mjs', 'styles.css'].includes(file)) return route.fulfill({ status: 404, body: '' });
+        if (!['index.html', 'app.mjs', 'api.mjs', 'webauthn-client.mjs', 'domain.mjs', 'hse-permissions.mjs', 'dashboard-layout.mjs', 'offline.mjs', 'i18n.mjs', 'language.mjs', 'styles.css'].includes(file)) return route.fulfill({ status: 404, body: '' });
         const contentType = file.endsWith('.html') ? 'text/html' : file.endsWith('.css') ? 'text/css' : 'text/javascript';
         return route.fulfill({ contentType, body: await fs.readFile(path.join(__dirname, '../app', file)) });
       }

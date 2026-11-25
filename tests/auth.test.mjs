@@ -45,13 +45,44 @@ test('login normalizes email, emits HttpOnly cookie, persists only token hash an
   t.assert.strictEqual(stored.ip, '127.0.0.1');
   t.assert.doesNotMatch(JSON.stringify(stored), new RegExp(token));
   const me = await request('/api/auth/me', { cookie: cookie.split(';')[0] });
-  t.assert.deepStrictEqual(me.body, { user: users.owner, roles: [{ site_id: site.id, role: 'owner' }], password_change_required: false });
+  const user = { ...users.owner, language: null, shared_demo: false };
+  t.assert.deepStrictEqual(result.body, { user });
+  t.assert.deepStrictEqual(me.body, { user, roles: [{ site_id: site.id, role: 'owner' }], password_change_required: false });
   t.assert.doesNotMatch(JSON.stringify(result.body), /password|token|session_id/);
   for (const email of ['owner@example.invalid', 'missing@example.invalid']) {
     const failed = await request('/api/auth/login', { method: 'POST', body: { email, password: 'Wrong' } });
     t.assert.strictEqual(failed.status, 401); t.assert.strictEqual(failed.body.code, 'INVALID_CREDENTIALS');
     t.assert.strictEqual(failed.headers['set-cookie'], undefined);
   }
+});
+
+test('language preferences require a session, persist for personal accounts and reject shared demos', async t => {
+  const { db, request, cookies, users } = await fixture(t);
+  const patch = (body, cookie) => request('/api/auth/me/preferences', { method: 'PATCH', body, cookie });
+  t.assert.strictEqual((await patch({ language: 'it' })).status, 401);
+  for (const body of [{}, { language: null }, { language: 'it-IT' }, { language: 'de' }]) {
+    const invalid = await patch(body, cookies.owner);
+    t.assert.strictEqual(invalid.status, 400);
+    t.assert.strictEqual(invalid.body.code, 'VALIDATION_ERROR');
+  }
+  const user = { ...users.owner, language: 'it', shared_demo: false };
+  for (let i = 0; i < 2; i++) {
+    const saved = await patch({ language: 'it' }, cookies.owner);
+    t.assert.strictEqual(saved.status, 200);
+    t.assert.deepStrictEqual(saved.body, { user });
+  }
+  t.assert.deepStrictEqual((await request('/api/auth/me', { cookie: cookies.owner })).body.user, user);
+  t.assert.strictEqual((await db.get('SELECT language FROM users WHERE id = ?', user.id)).language, 'it');
+
+  await db.run('UPDATE users SET shared_demo = true WHERE id = ?', user.id);
+  const denied = await patch({ language: 'en' }, cookies.owner);
+  t.assert.strictEqual(denied.status, 409);
+  t.assert.strictEqual(denied.body.code, 'SHARED_DEMO_PREFERENCE');
+  const login = await request('/api/auth/login', {
+    method: 'POST', body: { email: user.email, password: 'Synthetic-test-password!' },
+  });
+  t.assert.strictEqual(login.status, 200);
+  t.assert.deepStrictEqual(login.body, { user: { ...user, shared_demo: true } });
 });
 
 test('public health, protected routes, expiry, disabled users and revocation', async t => {

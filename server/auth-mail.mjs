@@ -20,7 +20,10 @@ function template(subject, content, text, language = 'en') {
 export function signupNotifyEmail({ email, reviewUrl }) {
   return template('SiteAssistant access request', `<p>Access requested for <strong>${escapeHtml(email)}</strong>.</p><p>This link expires in 72 hours. Review the request before approving or rejecting it:</p><p><a style="color:#126c57" href="${escapeHtml(reviewUrl)}">Review request</a></p>`, `SiteAssistant access request\nEmail: ${email}\nLink expires in 72 hours. Review the request before approving or rejecting it.\nReview request: ${reviewUrl}`);
 }
-export function welcomeEmail({ password }) {
+export function welcomeEmail({ password, language }) {
+  if (language === 'it') return template('Benvenuto in SiteAssistant',
+    `<p>La tua richiesta di accesso è stata approvata.</p><p>Password temporanea: <strong>${escapeHtml(password)}</strong></p><p>Accedi e usa l’avviso per cambiare la password.</p>`,
+    `La tua richiesta di accesso a SiteAssistant è stata approvata.\nPassword temporanea: ${password}\nAccedi e usa l’avviso per cambiare la password.`, 'it');
   return template('Welcome to SiteAssistant', `<p>Your access request has been approved.</p><p>Temporary password: <strong>${escapeHtml(password)}</strong></p><p>Sign in and change this password using the password banner.</p>`, `Your SiteAssistant access request has been approved.\nTemporary password: ${password}\nSign in and change this password using the password banner.`);
 }
 export function resetEmail({ resetUrl, language }) {

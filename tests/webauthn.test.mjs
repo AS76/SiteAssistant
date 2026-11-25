@@ -74,6 +74,7 @@ test('expired and replayed challenges fail and audit failures', async t => {
 
 test('login known, unknown and discoverable options; verified sessions have passkey assurance', async t => {
   const f = await fixture(t); await f.registration();
+  await f.db.run("UPDATE users SET language = 'it', shared_demo = true WHERE id = ?", f.users.owner.id);
   const known = await f.api.loginOptions({ email: f.users.owner.email });
   const unknown = await f.api.loginOptions({ email: 'unknown@example.invalid' });
   const discoverable = await f.api.loginOptions({ discoverable: true });
@@ -84,6 +85,7 @@ test('login known, unknown and discoverable options; verified sessions have pass
   const input = { challenge_id: known.challenge_id, response: { id: f.credentialId } };
   const result = await f.api.loginVerify(input);
   t.assert.equal(result.assurance, 'passkey');
+  t.assert.deepEqual(result.user, { ...f.users.owner, language: 'it', shared_demo: true });
   const session = await f.db.get('SELECT * FROM sessions WHERE token_hash = ?', tokenHash(result.token));
   t.assert.equal(session.assurance, 'passkey'); t.assert.equal(session.auth_method, 'webauthn');
   t.assert.equal((await f.db.get('SELECT * FROM webauthn_credentials')).sign_count, 1);
