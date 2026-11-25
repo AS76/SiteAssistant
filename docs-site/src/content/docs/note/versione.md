@@ -18,8 +18,8 @@ Alla data del **24 novembre 2026**:
 
 ## Come verificare
 
-- Aprire <https://siteassistant.asassi.cloud/sw.js> e cercare `siteassistant-v15-54`.
-- Aprire <https://api.siteassistant.asassi.cloud/api/health>: deve rispondere `200` con `"status":"ok"` e `"auth_bypass":false`.
+- Aprire `<URL_DEMO>/sw.js` e cercare `siteassistant-v15-54`, dove `<URL_DEMO>` è l’indirizzo della demo fornito dall’operatore.
+- Aprire `<URL_API>/api/health`, dove `<URL_API>` è l’URL di base dell’API fornito dall’operatore insieme all’indirizzo della demo: deve rispondere `200` con `"status":"ok"` e `"auth_bypass":false`.
 - Aprire la pagina [API REST](../../riferimento/api/) per il contratto pubblico.
 
 Se i valori non coincidono, la demo è stata aggiornata dopo questa pagina: la release più recente prevale. La pagina viene aggiornata al momento della release, senza un nuovo sistema di versionamento.

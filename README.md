@@ -8,7 +8,7 @@ It is **not an ERP or a replacement for project scheduling software**. It connec
 
 ![SiteAssistant desktop overview showing site indicators, deviations, progress and recorded hours](docs-site/public/images/2026-11/en/overview-desktop.png)
 
-**[Try the live demo](https://app-production-8e41ddb3.up.railway.app/)** · **[English user manual](https://as76.github.io/SiteAssistant/en/)** · **[Manuale italiano](https://as76.github.io/SiteAssistant/)** · **[Report an issue](https://github.com/AS76/SiteAssistant/issues)**
+**[Demo access guide](https://as76.github.io/SiteAssistant/en/guida/accesso/)** · **[English user manual](https://as76.github.io/SiteAssistant/en/)** · **[Manuale italiano](https://as76.github.io/SiteAssistant/)** · **[Report an issue](https://github.com/AS76/SiteAssistant/issues)**
 
 ## Why SiteAssistant exists
 
@@ -26,11 +26,11 @@ SiteAssistant comes from direct experience managing industrial automation and in
 
 The primary focus is industrial automation and intralogistics, although some workflows may apply to other installation environments.
 
-## Try the live demo
+## Try the demo
 
-**[Open SiteAssistant](https://app-production-8e41ddb3.up.railway.app/)**
+**[Read the demo access guide](https://as76.github.io/SiteAssistant/en/guida/accesso/)**
 
-The hosted application uses **fictional operational data**, including two Northline pilot sites:
+The hosted demo address is shared separately with evaluators; it is intentionally not stored in this repository. The hosted application uses **fictional operational data**, including two Northline pilot sites:
 
 | Site | Demonstration scenario | Record language |
 | --- | --- | --- |
@@ -43,7 +43,7 @@ The interface can be switched between Italian and English independently of the l
 
 The public demo does not provide unrestricted, immediate account creation.
 
-1. Open the [application](https://app-production-8e41ddb3.up.railway.app/).
+1. Open the demo address provided to you; the [demo access guide](https://as76.github.io/SiteAssistant/en/guida/accesso/) explains sign-in and account requests.
 2. Select **Request access** on the sign-in screen and enter your email address.
 3. An administrator reviews the request and may approve or reject it.
 4. If approved, you receive a temporary password by email.
