@@ -7,6 +7,8 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 22 November 2026
 
+- **Demo notice and limits.** On your first visit, **Demo data** explains that the dataset resets periodically and links to GitHub for feedback. Use **×** to dismiss the notice and open **About the demo** at the bottom of the page whenever you need it. See [Demo data](../../guida/dati-dimostrativi/#demo-notice-and-limits).
+
 - **Past diary entries and version history.** Owners, editors and verifiers can record contributions up to seven days back. Older dates require an owner and a reason. Use **Correct** to update your own contribution within seven days and **Version history** to view previous content. See [Site diary](../../moduli/diario/).
 
 - **Verify, Reject and Resume.** In **Today** and in the task details, the assigned reviewer or a site owner can verify someone else’s work or return it to **In progress**. Rejecting requires a note explaining what to redo. **Resume** immediately returns a task to its status before the block. See [Tasks and verification](../../moduli/attivita/#the-review) and [Mobile quick guide](../../guida/mobile/#the-today-screen).
