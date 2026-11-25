@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createSession, hashPassword, tokenHash } from './auth.mjs';
+import { recordAuthEvent } from './auth-events.mjs';
 import { deliver, invitationEmail, MailNotConfiguredError } from './auth-mail.mjs';
 import { canManageInvitations, INVITATION_PERMISSION } from './admin.mjs';
 import { RepositoryError, ROLES } from './repository.mjs';
@@ -84,7 +85,7 @@ async function insertInvitation(tx, { email, created_by, locale, site_id, site_r
   return row.id;
 }
 
-async function sendInvitation(db, id, token, url, mailer, actor, { retryFrom } = {}) {
+async function sendInvitation(db, id, token, url, mailer, actor, { retryFrom, context } = {}) {
   const hash = tokenHash(token);
   const claimed = await db.transaction(async tx => {
     const at = new Date().toISOString();
@@ -115,11 +116,14 @@ async function sendInvitation(db, id, token, url, mailer, actor, { retryFrom } =
     if (!row) throw new Error('Invitation delivery outcome could not be recorded.');
     await auditInvitation(tx, actor, errorCode ? 'invitation_delivery_failed' : 'invitation_delivered', id, at,
       { outcome: errorCode ? 'failure' : 'success', attempt: claimed.delivery_attempts, ...(errorCode ? { code: errorCode } : {}) });
+    if (!errorCode) await recordAuthEvent(tx, 'invitation.sent', {
+      ...context, userId: actor, at, detail: { invitation_id: id, attempt: claimed.delivery_attempts, ...(actor === null ? { source: 'cli' } : {}) },
+    });
     return row;
   });
 }
 
-export async function createInvitation(db, email, actor, { mailer, publicUrl, locale, cantiere_id, role }) {
+export async function createInvitation(db, email, actor, { mailer, publicUrl, locale, cantiere_id, role, context }) {
   const url = deliveryUrl(mailer, publicUrl);
   locale = normalizeLocale(locale);
   if ((cantiere_id === undefined) !== (role === undefined) ||
@@ -142,7 +146,7 @@ export async function createInvitation(db, email, actor, { mailer, publicUrl, lo
     await auditInvitation(tx, actor, 'invitation_created', id, at);
     return id;
   });
-  return sendInvitation(db, id, token, url, mailer, actor);
+  return sendInvitation(db, id, token, url, mailer, actor, { context });
 }
 
 export async function readInvitation(db, token) {
@@ -179,7 +183,10 @@ export async function activateInvitation(db, invitation, password, confirmation,
       user.id, row.site_role, INVITATION_PERMISSION, row.site_id, row.created_by);
     }
     await auditInvitation(tx, user.id, 'invitation_used', row.id, timestamp);
-    return createSession(tx, user, { ip, userAgent, at });
+    const activity = { userId: user.id, at: timestamp, ip, userAgent, detail: { invitation_id: row.id } };
+    await recordAuthEvent(tx, 'invitation.used', activity);
+    await recordAuthEvent(tx, 'activation.used', activity);
+    return createSession(tx, user, { ip, userAgent, at, method: 'activation' });
   });
 }
 

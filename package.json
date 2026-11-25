@@ -20,7 +20,8 @@
     "seed:demo:reset": "node server/seed-demo.mjs --reset",
     "dev": "SERVE_APP=1 NODE_ENV=development node server/index.mjs",
     "admin": "node server/admin.mjs",
-    "invitations": "node server/invitations-cli.mjs"
+    "invitations": "node server/invitations-cli.mjs",
+    "stats": "node server/stats.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.15"

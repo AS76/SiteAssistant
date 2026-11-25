@@ -289,7 +289,7 @@ test('forgot changes the password and revokes sessions only after one successful
   t.assert.strictEqual((await f.post('login', { email, password: oldPassword })).status, 401);
   const cookie = await f.login(newPassword);
   t.assert.strictEqual((await f.request('/api/auth/me', { cookie })).body.password_change_required, false);
-  const events = await f.db.all('SELECT event, outcome, detail_json FROM auth_events ORDER BY created_at');
+  const events = await f.db.all("SELECT event, outcome, detail_json FROM auth_events WHERE event LIKE 'password_reset.%' ORDER BY created_at");
   t.assert.deepStrictEqual(events.map(event => event.event), ['password_reset.requested', 'password_reset.completed']);
   t.assert.ok(events.every(event => event.outcome === 'success' && event.detail_json === '{}'));
 });
@@ -378,19 +378,20 @@ test('mail failure rolls back request, approval and password reset, permitting a
   const before = await f.db.get('SELECT * FROM users');
   fail = true; t.assert.strictEqual((await f.post('forgot', { email })).status, 503);
   t.assert.deepStrictEqual(await f.db.all('SELECT * FROM password_resets'), []);
-  t.assert.deepStrictEqual(await f.db.all('SELECT * FROM auth_events'), []);
+  t.assert.deepStrictEqual(await f.db.all("SELECT * FROM auth_events WHERE event LIKE 'password_reset.%'"), []);
   t.assert.deepStrictEqual(await f.db.get('SELECT * FROM users'), before);
   t.assert.strictEqual((await f.request('/api/auth/me', { cookie })).status, 200);
 });
 
 
 test('a login already verifying an old password cannot create a session after reset', async t => {
-  const f = await fixture(t); await f.user();
+  const f = await fixture(t); const user = await f.user();
   let release, captured;
   const gate = new Promise(resolve => { release = resolve; });
   const ready = new Promise(resolve => { captured = resolve; });
   const pending = login({
     get: async (...args) => { const row = await f.db.get(...args); captured(); await gate; return row; },
+    run: (...args) => f.db.run(...args),
     transaction: fn => f.db.transaction(fn),
   }, { email, password: oldPassword }, { limiter: createLoginLimiter() });
   // Attach the rejection assertion before releasing the paused login.
@@ -400,4 +401,7 @@ test('a login already verifying an old password cannot create a session after re
   t.assert.strictEqual((await f.confirm(links(f.mail.at(-1))[0])).status, 200);
   release(); await rejected;
   t.assert.deepStrictEqual(await f.db.all('SELECT * FROM sessions'), []);
+  const failure = await f.db.get("SELECT user_id, detail_json FROM auth_events WHERE event = 'login.failure'");
+  t.assert.strictEqual(failure.user_id, user.id);
+  t.assert.strictEqual(JSON.parse(failure.detail_json).reason, 'invalid_credentials');
 });

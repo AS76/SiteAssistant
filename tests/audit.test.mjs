@@ -302,7 +302,7 @@ for (const driver of ['sqlite', 'pg']) test(`Audit migration upgrades populated 
   await db.run(`INSERT INTO tools (id, site_id, name, status, created_at, updated_at)
     VALUES (?, ?, 'Synthetic legacy tool', 'available', ?, ?)`, ids[2], site.id, at, at);
   const before = await Promise.all(modules.map(module => db.get(`SELECT * FROM ${module.table}`)));
-  t.assert.strictEqual(await migrate(db, { driver }), 20);
+  t.assert.strictEqual(await migrate(db, { driver }), 21);
   for (let index = 0; index < modules.length; index++) {
     t.assert.deepStrictEqual(plain(await db.get(`SELECT * FROM ${modules[index].table}`)), plain({ ...before[index], deleted_at: null }));
   }
