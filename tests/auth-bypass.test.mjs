@@ -156,7 +156,9 @@ test('excluded auth endpoints never use bypass and normal login and logout still
     body: { email: users.viewer.email, password: 'Synthetic-test-password!' } });
   t.assert.strictEqual(loggedIn.status, 200);
   const cookie = loggedIn.headers['set-cookie'].split(';')[0];
-  t.assert.deepStrictEqual((await request('/api/auth/me', { cookie })).body.user, users.viewer);
+  t.assert.deepStrictEqual((await request('/api/auth/me', { cookie })).body.user, {
+    ...users.viewer, language: null, shared_demo: false,
+  });
   t.assert.strictEqual((await request('/api/auth/logout', { method: 'POST', cookie })).status, 200);
   t.assert.strictEqual((await request('/api/auth/logout', { method: 'POST', cookie })).status, 401);
   t.assert.strictEqual(warnings.mock.callCount(), 0);
@@ -172,7 +174,9 @@ test('auth me requires a session and health never uses the bypass identity', asy
   }
   t.assert.deepStrictEqual((await request('/api/health')).body, { status: 'ok', auth_bypass: true });
   t.assert.strictEqual(warnings.mock.callCount(), 0);
-  t.assert.deepStrictEqual((await request('/api/auth/me', { cookie: cookies.owner })).body.user, users.owner);
+  t.assert.deepStrictEqual((await request('/api/auth/me', { cookie: cookies.owner })).body.user, {
+    ...users.owner, language: null, shared_demo: false,
+  });
   const unknown = await request('/api/auth/unknown');
   t.assert.strictEqual(unknown.status, 404);
   t.assert.strictEqual(unknown.body.code, 'NOT_FOUND');

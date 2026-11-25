@@ -43,7 +43,7 @@ Le operazioni sul diario richiedono l'accesso al modulo **Diario**. Un autore ma
 Un account può nascere in tre modi:
 
 1. **Richiesta autonoma.** Dal modulo di accesso, chiunque può premere **Richiedi accesso** e inserire la propria email; un owner la approva e l'utente riceve una password temporanea (vedi [Accesso e account](../../guida/accesso/)).
-2. **Invito via email.** Un amministratore invia un link monouso. Il destinatario sceglie la password e l'account nasce all'attivazione. L'owner del cantiere può poi assegnargli un ruolo.
+2. **Invito via email.** Chi ha il permesso `invitations.manage` invia un link monouso. Per impostazione predefinita l'account nasce senza cantieri. L'owner del cantiere può assegnare un ruolo successivamente oppure includerlo nell'invito se ha anche il permesso di invito.
 3. **Creazione dall'amministratore.** Chi gestisce il server può creare account e assegnarli subito a un cantiere con la CLI `create-user`:
 
 ```sh
@@ -69,9 +69,23 @@ L'import dall'interfaccia è descritto in [Importare un export di pianificazione
 
 ## Inviare e revocare un invito
 
-Chi gestisce il database concede il permesso globale impostando `users.is_admin` a `TRUE` per l'account amministrativo. Il ruolo `owner` gestisce le appartenenze del proprio cantiere.
+Nessun account riceve automaticamente `invitations.manage`. Il permesso abilita la gestione degli inviti. I ruoli e l'accesso ai cantieri dipendono dalle appartenenze. Chi gestisce il server assegna e revoca il permesso da CLI.
 
-Con la sessione amministrativa, invia l'email del destinatario a `POST /api/admin/invitations` e conserva l'identificativo dell'invito restituito dall'API. Il link scade dopo **72 ore**. Se l'invito è ancora in attesa, usa `POST /api/admin/invitations/{id}/revoke` per invalidarlo prima di inviarne un altro. Dopo la scadenza puoi inviare direttamente un nuovo invito. Vedi [API REST](../../riferimento/api/#autenticazione-e-account).
+```sh
+npm run admin -- grant invitations.manage operatore@example.invalid
+npm run admin -- revoke invitations.manage operatore@example.invalid
+```
+
+Invia l'invito con `POST /api/admin/invitations` e scegli `locale: "it"` oppure `"en"`. Il link scade dopo **72 ore**. Con `POST /api/admin/invitations/{id}/revoke` puoi invalidarlo prima dell'attivazione. Vedi [API REST](../../riferimento/api/#autenticazione-e-account).
+
+```sh
+npm run invitations -- list
+npm run invitations -- retry <id|email>
+npm run invitations -- reissue <id|email>
+npm run invitations -- revoke <id|email>
+```
+
+`list` mostra gli inviti non scaduti e ancora utilizzabili. `retry` riprova un invio fallito con un link nuovo per lo stesso invito. `reissue` revoca l'invito in attesa e ne crea un altro con 72 ore di validità. Usalo anche se l'invio si è interrotto e lo stato resta `pending`. `revoke` invalida il link. Per inviare da CLI, configura l'email e l'URL pubblico HTTPS (`PUBLIC_URL`).
 
 ## Gestire i membri
 

@@ -40,8 +40,6 @@ for (const driver of ['sqlite', 'pg']) {
     delete after.password_change_required;
     delete after.language;
     delete after.shared_demo;
-    t.assert.strictEqual(Boolean(after.is_admin), false);
-    delete after.is_admin;
     before.email_verified_at = null;
     t.assert.deepStrictEqual(after, before);
     for (const session of sessions) Object.assign(session, {

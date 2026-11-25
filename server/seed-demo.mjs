@@ -773,7 +773,11 @@ export async function reset(db) {
   if ((await ids('users')).some(row => row.record_id === evidenceOwnerId)) {
     await db.run(`DELETE FROM site_members WHERE user_id = ? AND site_id IN
       (SELECT id FROM sites WHERE code = 'FITT-01')`, evidenceOwnerId);
-    await db.run('DELETE FROM users WHERE id = ?', evidenceOwnerId);
+    // Keep identities referenced by invitation or permission history.
+    await db.run(`DELETE FROM users WHERE id = ?
+      AND NOT EXISTS (SELECT 1 FROM invitations WHERE created_by = ?)
+      AND NOT EXISTS (SELECT 1 FROM user_permissions WHERE user_id = ? OR granted_by = ?)`,
+    evidenceOwnerId, evidenceOwnerId, evidenceOwnerId, evidenceOwnerId);
   }
   await db.run("DELETE FROM demo_seed_records WHERE table_name <> 'sites'");
   return removed;
@@ -1213,12 +1217,15 @@ export async function apply(db) {
       const operationalDate = workingDate(code, index);
       // Keep the original Friday shift in identity keys; all displayed entries describe daytime work.
       const legacyShift = index % 5 === 4 ? 'night' : 'day';
+      const diaryId = id(`${code}:diary:${legacyWorkingDate(index)}:${legacyShift}`);
+      // The base seed may already own this slot. Leave its entry outside the demo reset manifest.
+      if (await db.get(`SELECT id FROM diary
+        WHERE site_id = ? AND operational_date = ? AND shift = 'day' AND id <> ?`, siteId, operationalDate, diaryId)) continue;
       await db.run(`INSERT INTO diary (id, site_id, operational_date, shift, plan, actual, impediments, next_step, created_at, time_zone, day_cutoff_time)
         VALUES (?, ?, ?, 'day', ?, ?, ?, ?, ?, 'Europe/Rome', '06:00')
         ON CONFLICT (id) DO UPDATE SET operational_date = excluded.operational_date, shift = excluded.shift,
           plan = excluded.plan, actual = excluded.actual, impediments = excluded.impediments, next_step = excluded.next_step`,
-      id(`${code}:diary:${legacyWorkingDate(index)}:${legacyShift}`), siteId, operationalDate,
-      dPlan, dActual, dImp, dNext, at2);
+      diaryId, siteId, operationalDate, dPlan, dActual, dImp, dNext, at2);
       bump('diary');
     }
   }

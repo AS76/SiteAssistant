@@ -21,16 +21,20 @@ L'API è un servizio HTTP che il frontend chiama direttamente. Non esistono toke
 | GET/POST | `/api/auth/request/decide` | owner (via link email) | Approva o rifiuta una richiesta |
 | POST | `/api/auth/password` | autenticato | Cambio password |
 | POST | `/api/auth/forgot` | nessuno | Reset password `{ email }` |
-| POST | `/api/admin/invitations` | amministratore | `{ email }` → `201` con `id`, `email`, `created_at`, `expires_at` |
+| POST | `/api/admin/invitations` | `invitations.manage` | `{ email, locale?, cantiere_id?, role? }` → `201` con metadati dell’invito e stato di invio |
 | GET | `/attiva?token=…` | link email | Modulo di attivazione, oppure pagina `410` |
 | POST | `/api/auth/activate` | token di invito | `{ token, password }` → `200` con `{ user }` e cookie di sessione |
-| POST | `/api/admin/invitations/{id}/revoke` | amministratore | Revoca un invito in attesa. Restituisce `200` con `id` e `revoked_at`, oppure `404` |
+| POST | `/api/admin/invitations/{id}/revoke` | `invitations.manage` | Revoca un invito in attesa. Restituisce `200` con `id` e `revoked_at`, oppure `404` |
 
 `POST /api/auth/login` conta solo gli accessi con password falliti per la stessa email e lo stesso indirizzo di rete, in una finestra mobile di **15 minuti**. Un accesso con password riuscito azzera il conteggio. Dopo **10 fallimenti** nella finestra, la richiesta successiva riceve `429 RATE_LIMITED`. Il tempo restante prima di riprovare è espresso in secondi nell'intestazione `Retry-After` e nel campo numerico `retry_after` del corpo JSON. L'accesso con passkey ha un limite separato basato sul numero di richieste.
 
 `POST /api/auth/request` e `POST /api/auth/forgot` rispondono sempre `202 accepted`, anche quando l'email non corrisponde a un account: la risposta non rivela mai se l'indirizzo esiste. Il link di revisione inviato all'owner scade dopo **72 ore** e vale una sola volta. Richieste di accesso, reset e cambio password sono limitati per indirizzo di rete e indirizzo email. Se il servizio email non è configurato, la risposta è `503` con codice `MAIL_NOT_CONFIGURED`.
 
-Un invito vale **72 ore** e si usa una volta sola. La creazione risponde `409` se l'email appartiene già a un account o ha un invito ancora valido. In caso di invito in sospeso, revocalo prima di inviarne un altro. Se il servizio email è indisponibile, la creazione risponde `503` e non salva l'invito. L'attivazione richiede almeno **12 caratteri** e risponde `410 INVITATION_UNAVAILABLE` se il link è inutilizzabile. Il modulo web chiede anche conferma e, a operazione riuscita, risponde `303` verso l'app. Le rotte di invito hanno limiti indipendenti di **10 tentativi in 15 minuti** per indirizzo di rete e per email, quando identificabile.
+Un invito vale **72 ore** e si usa una volta sola. `locale` accetta `it` o `en` ignorando maiuscole e spazi ai bordi. Se omessa o vuota vale `en`. L'account nasce senza cantieri. Per assegnarne uno, invia insieme l'UUID `cantiere_id` e uno dei quattro ruoli di cantiere in `role`. L'invitante deve essere owner del cantiere. SiteAssistant verifica di nuovo l'autorità all'attivazione e crea l'account senza appartenenza se nel frattempo è venuta meno.
+
+Le rotte amministrative restituiscono `403` a chi è autenticato senza il permesso. La creazione restituisce `409` se esiste già l'account o un invito ancora valido. Se il servizio email manca, `503 MAIL_NOT_CONFIGURED` e nessun nuovo invito. Un errore di invio dopo il salvataggio restituisce `503` con codice di errore e metadati dell'invito. I metadati comprendono `id`, `email`, `created_at`, `expires_at`, `locale`, `delivery_status`, `delivery_attempts`, `delivered_at` e `last_delivery_error`. Usa la CLI per riprovare o riemettere un invito.
+
+L'attivazione richiede almeno **12 caratteri** e restituisce `410 INVITATION_UNAVAILABLE` per un link inutilizzabile. Il modulo web richiede conferma e risponde `303` verso l'app dopo l'attivazione. Le rotte di invito hanno limiti indipendenti di **10 tentativi in 15 minuti** per indirizzo di rete e per email, quando identificabile.
 
 ## Passkey (WebAuthn)
 

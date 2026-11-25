@@ -44,13 +44,15 @@ export function resetEmail({ resetUrl, language }) {
     `This link expires in 30 minutes: ${resetUrl}\nIgnore this message if you did not request a reset.`);
 }
 
-export function invitationEmail({ activationUrl }) {
-  const subject = 'Il tuo invito a SiteAssistant';
-  const expiry = 'Il link di attivazione scade dopo 72 ore.';
-  const password = 'Scegli tu la password e nessuno te la chiederà via email.';
+export function invitationEmail({ activationUrl, locale = 'en' }) {
+  const it = locale === 'it';
+  const subject = it ? 'Il tuo invito a SiteAssistant' : 'Your SiteAssistant invitation';
+  const expiry = it ? 'Il link di attivazione scade dopo 72 ore.' : 'The activation link expires after 72 hours.';
+  const password = it ? 'Scegli tu la password e nessuno te la chiederà via email.' : 'Choose your password. Nobody will ask for it by email.';
+  const action = it ? 'Attiva il tuo account' : 'Activate your account';
   return template(subject,
-    `<p>${expiry}</p><p><a href="${escapeHtml(activationUrl)}">Attiva il tuo account</a></p><p>${password}</p>`,
-    `${subject}\n${expiry}\n${activationUrl}\n${password}`, 'it');
+    `<p>${expiry}</p><p><a href="${escapeHtml(activationUrl)}">${action}</a></p><p>${password}</p>`,
+    `${subject}\n${expiry}\n${activationUrl}\n${password}`, it ? 'it' : 'en');
 }
 
 const mailbox = value => typeof value === 'string' && value.length <= 254 && /^[^\s@<>\x00-\x1f\x7f]+@[^\s@<>\x00-\x1f\x7f]+\.[^\s@<>\x00-\x1f\x7f]+$/.test(value);

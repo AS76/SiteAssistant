@@ -74,7 +74,6 @@ for (const driver of ['sqlite', 'pg']) {
     });
     for (const row of before[tables.indexOf('users')]) Object.assign(row, {
       email_verified_at: null, language: null, shared_demo: driver === 'pg' ? false : 0,
-      is_admin: driver === 'pg' ? false : 0,
     });
     t.assert.deepStrictEqual(await Promise.all(tables.map(table => db.all(`SELECT * FROM ${table}`))), before);
     const storage = new MemoryObjectStorage();

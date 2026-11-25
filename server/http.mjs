@@ -11,7 +11,8 @@ import { createWebAuthn } from './webauthn.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { createStaticHandler } from './static-dev.mjs';
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage, RESET_PATH, readPasswordReset, confirmPasswordReset, resetPage } from './signup.mjs';
-import { ACTIVATION_PATH, activationPage, activateInvitation, createInvitation, readInvitation, revokeInvitation } from './invitations.mjs';
+import { ACTIVATION_PATH, activationPage, activationScriptHash, activateInvitation, createInvitation, invitationMessage, readInvitation, revokeInvitation } from './invitations.mjs';
+import { canManageInvitations } from './admin.mjs';
 import { createTaskResponse } from './idempotency.mjs';
 import { createClientIpResolver, createRateLimiter } from './limits.mjs';
 import { readPagination } from './pagination.mjs';
@@ -142,7 +143,7 @@ function serveActivationPage(response, status, page) {
   response.writeHead(status, {
     'Content-Type': 'text/html; charset=utf-8',
     'Referrer-Policy': 'no-referrer',
-    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+    'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-${activationScriptHash}'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`,
   });
   response.end(activationPage(page));
 }
@@ -239,15 +240,17 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       const revoke = /^\/api\/admin\/invitations\/([^/]+)\/revoke$/.exec(path);
       if (path === ACTIVATION_PATH && method === 'GET') {
         const token = url.searchParams.get('token');
+        let locale;
         try {
           invitePageLimiter.attempt(ip);
           const invitation = await readInvitation(db, token);
+          locale = invitation.locale;
           invitePageLimiter.attemptAccount(invitation.email);
-          return serveActivationPage(response, 200, { token });
+          return serveActivationPage(response, 200, { locale, showForm: true });
         } catch (error) {
           if (!['INVITATION_UNAVAILABLE', 'RATE_LIMITED'].includes(error.code)) throw error;
           if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
-          return serveActivationPage(response, error.status, { message: error.message });
+          return serveActivationPage(response, error.status, { locale: error.locale ?? locale, code: error.code });
         }
       }
       if (serveStatic && !path.startsWith('/api/')) {
@@ -352,17 +355,17 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (path === activatePath && method === 'POST') {
         const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
         const isForm = contentType === 'application/x-www-form-urlencoded';
-        let token;
+        let locale;
         try {
           activateLimiter.attempt(ip);
           if (isForm && (request.headers['sec-fetch-site']
             ? request.headers['sec-fetch-site'] !== 'same-origin'
             : request.headers.origin !== new URL(publicUrl).origin)) {
-            throw new RepositoryError(403, 'Apri il link di invito per attivare l’account.', 'FORBIDDEN');
+            throw new RepositoryError(403, invitationMessage(locale, 'FORBIDDEN'), 'FORBIDDEN');
           }
           const input = isForm ? Object.fromEntries(await readForm(request, 25000)) : await readJson(request);
-          token = input.token;
-          const invitation = await readInvitation(db, token);
+          const invitation = await readInvitation(db, input?.token);
+          locale = invitation.locale;
           activateLimiter.attemptAccount(invitation.email);
           const result = await activateInvitation(db, invitation, input.password, isForm ? input.confirmation : input.password, {
             ip, userAgent: request.headers['user-agent'] || '',
@@ -372,11 +375,14 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           response.writeHead(303, { Location: '/', 'Referrer-Policy': 'no-referrer' });
           return response.end();
         } catch (error) {
-          if (!isForm || !(error instanceof RepositoryError)) throw error;
+          locale = error.locale ?? locale;
           if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
-          return serveActivationPage(response, error.status, {
-            message: error.message, token: error.code === 'INVITATION_PASSWORD_INVALID' ? token : undefined,
-          });
+          if (isForm) {
+            if (!(error instanceof RepositoryError)) console.error('Activation request failed.');
+            return serveActivationPage(response, error.status ?? 500, { locale, code: error.code ?? 'INTERNAL_ERROR' });
+          }
+          if (error.code === 'RATE_LIMITED') error.message = invitationMessage(locale, error.code);
+          throw error;
         }
       }
       const passkeyContext = { ip, userAgent: request.headers['user-agent'] || '' };
@@ -413,15 +419,24 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (authError) throw authError;
       if (method === 'POST' && (path === invitationsPath || revoke)) {
-        if (!user.is_admin) throw new RepositoryError(403, 'Administrator access is required.', 'FORBIDDEN');
+        if (!await canManageInvitations(db, user.id)) {
+          throw new RepositoryError(403, 'Invitation management permission is required.', 'FORBIDDEN');
+        }
         if (revoke) {
           revokeLimiter.attempt(ip);
           return json(response, 200, await revokeInvitation(db, revoke[1], user.id, revokeLimiter.attemptAccount));
         }
         inviteLimiter.attempt(ip);
-        const email = normalizeEmail((await readJson(request)).email);
+        const input = await readJson(request);
+        const email = normalizeEmail(input?.email);
         inviteLimiter.attemptAccount(email);
-        return json(response, 201, await createInvitation(db, email, user.id, { mailer, publicUrl }));
+        const { locale, cantiere_id, role } = input;
+        const { revoked_at, ...invitation } = await createInvitation(db, email, user.id, { mailer, publicUrl, locale, cantiere_id, role });
+        if (revoked_at) return json(response, 409, { ...invitation, code: 'INVITATION_REVOKED', error: 'Invitation was revoked during delivery.' });
+        if (invitation.delivery_status === 'failed') {
+          return json(response, 503, { ...invitation, code: invitation.last_delivery_error, error: 'Invitation email delivery failed.' });
+        }
+        return json(response, 201, invitation);
       }
       if (path === '/api/reporting/overview' && method === 'GET') {
         const scopeIds = await reportingScopeIds(db, user, globalReportingOwners);
