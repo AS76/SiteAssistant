@@ -1,7 +1,8 @@
 // Browser data is scoped to the API and signed-in user; it is never authentication.
 export const SYNC_TAG = 'siteassistant-pending-ops';
 export const DB_NAME = 'siteassistant-offline-v1';
-export const scopeFor = (baseUrl, userId) => JSON.stringify([baseUrl, userId]);
+export const scopeFor = (baseUrl, userId, demoSandbox = false) =>
+  JSON.stringify(demoSandbox ? [baseUrl, userId, 'demo'] : [baseUrl, userId]);
 const types = ['create_task', 'transition_task', 'create_diary', 'create_attachment'];
 const collection = type => ({ create_task: 'tasks', transition_task: 'tasks', create_diary: 'diary', create_attachment: 'attachments' })[type];
 const failed = code => Object.assign(new Error(code), { code, status: 409 });

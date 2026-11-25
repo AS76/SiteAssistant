@@ -349,13 +349,12 @@ export function impactTransitions(status) {
   return [...({ open: ['notification_sent', 'closed'], notification_sent: ['submitted'], submitted: ['closed'], closed: [] }[status] || [])];
 }
 export function corePermissions(role) {
-  return { book: ['editor', 'owner'].includes(role), transition: ['owner', 'verifier'].includes(role),
-    steps: ['editor', 'owner'].includes(role), assign: role === 'owner',
-    tools: ['owner', 'editor', 'verifier'].includes(role),
-    certifications: ['owner', 'editor', 'verifier'].includes(role),
-    certificationWrite: ['owner', 'editor'].includes(role),
-    hse: HSE_READ_ROLES.includes(role),
-    hseWrite: HSE_WRITE_ROLES.includes(role) };
+  const edit = ['editor', 'owner', 'demo_user'].includes(role);
+  const write = edit || role === 'verifier';
+  return { book: edit, transition: ['owner', 'verifier', 'demo_user'].includes(role),
+    steps: edit, assign: ['owner', 'demo_user'].includes(role),
+    tools: write, certifications: write, certificationWrite: edit,
+    hse: HSE_READ_ROLES.includes(role), hseWrite: HSE_WRITE_ROLES.includes(role) };
 }
 export const HSE_TYPES = Object.freeze(['near_miss', 'accident', 'observation', 'inspection', 'external_visit']);
 // What a person can type by hand: the other two come from the inspection flow.

@@ -306,7 +306,7 @@ async function loadData({ signedIn = false } = {}) {
           chosen, pending: pendingLanguage?.language,
         });
         renderChrome();
-        offlineScope = scopeFor(api.baseUrl, session.user.id);
+        offlineScope = scopeFor(api.baseUrl, session.user.id, session.user.demo_sandbox);
         await saveLanguagePreference();
         if (!session) return;
         active = { scope: offlineScope, baseUrl: api.baseUrl, session };
@@ -740,7 +740,7 @@ function renderToday() {
   const quickActions = [
     tasksVisible && verify.length && canTransitionTask() ? quick('todayVerificationList', 'verify', true) : '',
     diaryVisible ? quick('todayWriteDiary', 'diary', canWriteTask()) : '',
-    (tasksVisible || diaryVisible) ? quick('todayTakePhoto', 'photo', ['owner', 'editor'].includes(role())) : '',
+    (tasksVisible || diaryVisible) ? quick('todayTakePhoto', 'photo', ['owner', 'editor', 'demo_user'].includes(role())) : '',
     moduleVisible('progress') ? quick('todayOpenProgress', 'progress', true) : '',
   ].join('');
   $('#main').innerHTML = `<div class="notebook today-content">
@@ -795,7 +795,7 @@ function runTodayQuick(action) {
     reportDate = operationalDay().date; showEntryForm();
   } else if (action === 'progress' && moduleVisible('progress')) {
     coreFilters.progress = { wbsId: '' }; go('progress');
-  } else if (action === 'photo' && ['owner', 'editor'].includes(role()) && (moduleVisible('tasks') || moduleVisible('diary'))) {
+  } else if (action === 'photo' && ['owner', 'editor', 'demo_user'].includes(role()) && (moduleVisible('tasks') || moduleVisible('diary'))) {
     const targets = todayPhotoTargets();
     showModal(t('todayTakePhoto'), `<p class="note">${t('todayPhotoTarget')}</p>${targets.length
       ? `<div class="today-photo-targets">${targets.map(item => `<button type="button" data-command="today-photo-target" data-entity-type="${item.type}" data-id="${esc(item.id)}">${esc(item.title)}</button>`).join('')}</div>`
@@ -1111,8 +1111,8 @@ function renderSites() {
   if (role() === 'owner' && siteId) {
     const modules = [...navGroups(ownerModules).flatMap(group => group.items), 'workforce_names'];
     const members = state.memberAccess?.[siteId]?.members || [];
-    $('#main').insertAdjacentHTML('beforeend', `<section class="panel module-access"><div class="panel-body"><h2>${t('moduleAccess')}</h2><p>${t('moduleAccessHint')}</p><div class="table-scroll"><table><thead><tr><th scope="col">${t('accessMember')}</th>${modules.map(module => `<th scope="col">${t(module)}</th>`).join('')}</tr></thead><tbody>${members.map(member => `<tr><th scope="row">${esc(member.name)}<br><small>${esc(member.email)} · ${esc(member.role === 'owner' ? t('accessOwner') : member.role)}</small></th>${modules.map(module => {
-      const locked = member.role === 'owner' || ['sites', 'overview'].includes(module);
+    $('#main').insertAdjacentHTML('beforeend', `<section class="panel module-access"><div class="panel-body"><h2>${t('moduleAccess')}</h2><p>${t('moduleAccessHint')}</p><div class="table-scroll"><table><thead><tr><th scope="col">${t('accessMember')}</th>${modules.map(module => `<th scope="col">${t(module)}</th>`).join('')}</tr></thead><tbody>${members.map(member => `<tr><th scope="row">${esc(member.name)}<br><small>${esc(member.email)} · ${esc(member.role === 'owner' ? t('accessOwner') : member.role === 'demo_user' ? t('responsibleRole_demo_user') : member.role)}</small></th>${modules.map(module => {
+      const locked = ['owner', 'demo_user'].includes(member.role) || ['sites', 'overview'].includes(module);
       return `<td><input type="checkbox" data-member-access data-site="${esc(siteId)}" data-member="${esc(member.user_id)}" data-module="${module}" aria-label="${esc(member.name)} · ${t(module)}" ${locked || visibleModules([module], member.modules).length ? 'checked' : ''} ${locked || offline ? 'disabled' : ''}></td>`;
     }).join('')}</tr>`).join('')}</tbody></table></div></div></section>`);
   }
@@ -1131,10 +1131,10 @@ function filteredTasks() {
 }
 const currentViewState = () => viewStatePayload({ filters, sort: taskSort, columns: taskColumns, layout: taskView });
 const selectedSavedView = () => savedViewsCache?.data?.find(item => item.id === selectedViewId);
-const canCreateView = () => ['owner', 'editor', 'verifier'].includes(role());
-const canWriteTask = () => ['owner', 'editor', 'verifier'].includes(role());
-const canEditTask = () => canWriteTask() && ['owner', 'editor'].includes(role()) && moduleVisible('tasks');
-const canAttachDiary = () => ['owner', 'editor'].includes(role()) && moduleVisible('diary');
+const canCreateView = () => ['owner', 'editor', 'verifier', 'demo_user'].includes(role());
+const canWriteTask = () => ['owner', 'editor', 'verifier', 'demo_user'].includes(role());
+const canEditTask = () => canWriteTask() && ['owner', 'editor', 'demo_user'].includes(role()) && moduleVisible('tasks');
+const canAttachDiary = () => ['owner', 'editor', 'demo_user'].includes(role()) && moduleVisible('diary');
 const canTransitionTask = () => canWriteTask() && moduleVisible('tasks');
 const savingTaskTransitions = new Set();
 function canReviewTask(task) {
@@ -1161,7 +1161,7 @@ function taskActionButton(id, to, label, { primary = false, resume = false, toda
   const busy = savingTaskTransitions.has(id) ? ' disabled aria-busy="true"' : '';
   return `<button type="button" class="${primary ? 'notebook-primary' : 'notebook-outline'}" data-command="${resume ? 'status-transition' : 'transition'}" data-id="${esc(id)}" data-to="${to}"${origin}${busy}>${esc(label)}</button>`;
 }
-const canCreateSite = () => role() === 'owner';
+const canCreateSite = () => role() === 'owner' || (!offline && session?.user.demo_sandbox === true);
 const canEditView = item => Boolean(item && session && (item.owner_id === session.user.id || role() === 'owner'));
 function applyViewState(payload) {
   const next = sanitizeViewState(payload);
@@ -1378,7 +1378,7 @@ function diaryDayAge(day) {
   return (Date.parse(`${year}-${month}-${localDay}`) - Date.parse(day)) / 86_400_000;
 }
 const canCorrectDiary = entry => !offline && !entry.syncStatus && moduleVisible('diary') &&
-  (role() === 'owner' || (role() === 'editor' && entry.date === operationalDay().date));
+  (['owner', 'demo_user'].includes(role()) || (role() === 'editor' && entry.date === operationalDay().date));
 const diaryTimestamp = (instant, entry) => new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: entry.time_zone || timeZoneForSite(currentSite()),
 }).format(new Date(instant));
@@ -1400,7 +1400,7 @@ function renderDiary() {
   const availableShifts = ['day', 'night'].filter(shift => !shifts.includes(shift));
   const shownShifts = shifts.length || current.date !== reportDate ? shifts : [current.shift];
   const age = diaryDayAge(reportDate);
-  const canWrite = canWriteTask() && availableShifts.length > 0 && age >= 0 && (age <= 7 || role() === 'owner');
+  const canWrite = canWriteTask() && availableShifts.length > 0 && age >= 0 && (age <= 7 || ['owner', 'demo_user'].includes(role()));
   const canAttach = canAttachDiary();
   const count = (number, single, multiple) => `<span class="num">${number} ${t(number === 1 ? single : multiple)}</span>`;
   $('#main').innerHTML = `<div class="notebook diary-notebook">
@@ -1486,7 +1486,7 @@ async function loadWbs() {
   })();
   return token.promise;
 }
-const canWriteWbs = () => ['owner', 'editor'].includes(role()) && moduleVisible('wbs') && !offline;
+const canWriteWbs = () => ['owner', 'editor', 'demo_user'].includes(role()) && moduleVisible('wbs') && !offline;
 function wbsState(node) {
   return `${node.archived_at ? ` <span class="badge">${t('wbsArchived')}</span>` : ''}${node.missing_from_source ? ` <span class="badge">${t('wbsMissing')}</span>` : ''}${Object.keys(node.conflicts || {}).length ? ` <span class="badge">${t('wbsConflict')}</span>` : ''}`;
 }
@@ -1589,7 +1589,7 @@ function renderWbs() {
 // Core modules are online-only and never write to the offline operation queue.
 const role = () => session?.roles?.find(member => member.site_id === siteId)?.role;
 const ownerModules = { logistics: true, workforce_names: true, workforce_presence: true };
-const currentModules = () => role() === 'owner' ? ownerModules : state.memberAccess?.[siteId]?.members?.find(member => member.user_id === session?.user.id)?.modules || {};
+const currentModules = () => ['owner', 'demo_user'].includes(role()) ? ownerModules : state.memberAccess?.[siteId]?.members?.find(member => member.user_id === session?.user.id)?.modules || {};
 const moduleVisible = module => visibleModules([module], currentModules()).length > 0;
 
 const permissions = () => corePermissions(role());
@@ -1815,7 +1815,7 @@ function renderCore() {
 function auditEntityType() {
   return ({ hse: 'hse_event', certifications: 'certification', tools: 'tool' })[view];
 }
-function canReadAudit() { return ['owner', 'verifier'].includes(role()); }
+function canReadAudit() { return ['owner', 'verifier', 'demo_user'].includes(role()); }
 function renderAuditPanel() {
   if (!auditEntityType() || !canReadAudit()) return '';
   return `<details id="audit-panel" class="panel audit-panel"><summary>${t('auditTitle')}</summary><div class="panel-body" aria-live="polite"></div></details>`;
@@ -2020,7 +2020,7 @@ function renderDeviations() {
     html += `<div class="toolbar core-toolbar">
       ${button('evidenceWithoutOwner', 'deviation-filter', `data-key="withoutOwner" aria-pressed="${Boolean(withoutOwner)}"`, withoutOwner ? 'selected' : '')}
       ${button('evidenceAbsentFilter', 'deviation-filter', `data-key="absent" aria-pressed="${Boolean(absent)}"`, absent ? 'selected' : '')}
-      ${role() === 'owner' && !offline ? button('evidenceImport', 'deviation-import') : ''}</div>`;
+      ${['owner', 'demo_user'].includes(role()) && !offline ? button('evidenceImport', 'deviation-import') : ''}</div>`;
   }
   html += '</div>';
   const priorityText = priority => coreValue(priority == null ? null : t(priority));
@@ -2157,7 +2157,7 @@ function bookingVariance(value) {
   return `<strong class="booking-variance booking-variance-${direction}"><span class="mono">${esc(formatted)}</span><small>${t(label)}</small></strong>`;
 }
 const PURCHASE_ORDER_STATUSES = ['open', 'template_generated', 'in_execution', 'completed', 'not_relevant'];
-const purchaseOrderCanWrite = () => moduleVisible('logistics') && ['owner', 'editor'].includes(role());
+const purchaseOrderCanWrite = () => moduleVisible('logistics') && ['owner', 'editor', 'demo_user'].includes(role());
 const purchaseOrderStatus = status => coreStatus(status, t(`poStatus_${status}`));
 const purchaseOrderQuantity = value => esc(formatDisplayNumber(value, { kind: 'number', language }));
 function purchaseOrderTransitions(order) {
@@ -3038,7 +3038,7 @@ async function askAssistant(text) {
 
 // Import runs in two steps: a preview that writes nothing, then a confirmation bound to that preview.
 let importPreview = null;
-const canImport = () => ['owner', 'editor'].includes(role());
+const canImport = () => ['owner', 'editor', 'demo_user'].includes(role());
 const IMPORT_FAMILIES = ['employees', 'work_days', 'time_schedule', 'site_progress_items', 'deviations', 'daily_log'];
 const formatImportAliases = aliases => aliases.map(alias => alias.replaceAll('\\', '\\\\').replaceAll(',', '\\,')).join(', ');
 function parseImportAliases(input) {
@@ -3348,7 +3348,7 @@ async function handleImport(form) {
   return applied;
 }
 
-const deviationWrite = () => ['owner', 'editor'].includes(role()) && moduleVisible('deviations') && !offline;
+const deviationWrite = () => ['owner', 'editor', 'demo_user'].includes(role()) && moduleVisible('deviations') && !offline;
 const deviationSourceLabels = new Map([
   ['internal', 'evidenceSourceInternal'], ['other', 'evidenceSourceOther'],
 ]);
@@ -3403,7 +3403,7 @@ function deviationGovernance(row, events, members) {
     ${deviationHistory(events)}${attachmentSection('deviation', row.id)}`;
 }
 function showDeviationImport() {
-  if (role() !== 'owner' || offline) return;
+  if (!['owner', 'demo_user'].includes(role()) || offline) return;
   const options = [...deviationSourceLabels].map(([value, label]) => `<option value="${value}">${esc(t(label))}</option>`).join('');
   showModal(t('evidenceImport'), `<form id="deviation-import-form"><div class="form-error" role="alert" tabindex="-1" hidden></div>
     <p>${t('evidenceImportHint')}</p><div class="form-grid">
@@ -3585,7 +3585,11 @@ function render() {
     return;
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
-  if (!state.sites.length) { $('#main').innerHTML = empty('noSites', 'noSitesHint'); return; }
+  if (!state.sites.length) {
+    if (canCreateSite()) renderSites();
+    else $('#main').innerHTML = empty('noSites', 'noSitesHint');
+    return;
+  }
   if (!moduleVisible(view)) { $('#main').innerHTML = empty('moduleUnavailable', 'moduleUnavailableHint'); return; }
   ({ today: renderToday, report: renderReport, reporting: renderReporting, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, workforce_presence: renderCore, impacts: renderCore, tools: renderCore, certifications: renderCore, hse: renderCore, logistics: renderCore })[view]();
 }
@@ -3731,7 +3735,7 @@ function wireTaskResponsibles(form) {
       // Keep placeholder and free-name choice, including a name typed while loading.
       while (control.select.options.length > 2) control.select.remove(1);
       for (const member of members) {
-        if (control.key === 'verifier' && !['owner', 'verifier'].includes(member.role)) continue;
+        if (control.key === 'verifier' && !['owner', 'verifier', 'demo_user'].includes(member.role)) continue;
         const option = document.createElement('option');
         option.value = member.user_id;
         option.textContent = `${member.name} (${t(`responsibleRole_${member.role}`)})`;
@@ -3763,7 +3767,7 @@ async function showTaskForm() {
 function taskEvidence(task) {
   const files = state.attachments.filter(file => file.entity_type === 'task' && file.entity_id === task.id && !file.localOnly);
   const document = files.find(file => file.id === task.acceptance_document_id);
-  const canAccept = canTransitionTask() && !offline && !task.localOnly && (role() === 'owner' || (role() === 'verifier' && task.verifier_id === session?.user.id));
+  const canAccept = canTransitionTask() && !offline && !task.localOnly && (role() === 'owner' || (['verifier', 'demo_user'].includes(role()) && task.verifier_id === session?.user.id));
   const outcome = { pending: 'evidenceVerificationPending', waived: 'evidenceWaiver', verified: 'evidenceVerificationRecorded', legacy: 'evidenceVerificationLegacy' };
   const form = canAccept && files.length ? `<form id="task-acceptance-form" data-id="${esc(task.id)}">
     <div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">
@@ -3916,7 +3920,7 @@ async function showDiaryVersions(id) {
 function showEntryForm(preferredShift = '') {
   if (!canWriteTask() || !moduleVisible('diary')) return;
   const age = diaryDayAge(reportDate);
-  if (age < 0 || (age > 7 && role() !== 'owner')) return;
+  if (age < 0 || (age > 7 && !['owner', 'demo_user'].includes(role()))) return;
   const current = operationalDay();
   const shift = preferredShift || (reportDate === current.date ? current.shift : 'day');
   const isCurrent = !offline && reportDate === current.date && shift === current.shift;
@@ -4256,7 +4260,7 @@ document.addEventListener('submit', async event => {
       return;
     }
     if (form.id === 'deviation-import-form') {
-      if (role() !== 'owner' || offline) throw new Error('forbidden');
+      if (!['owner', 'demo_user'].includes(role()) || offline) throw new Error('forbidden');
       const { file, sourceSystem, exportDate, scope } = data;
       if (!file?.size || file.size > 20 * 1024 * 1024) throw new Error('evidenceImportError');
       const hash = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
@@ -4348,7 +4352,19 @@ document.addEventListener('submit', async event => {
       toast(t('emailAccepted')); return;
     }
     let message, detail;
-    if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); resetSavedViews(); siteId = site.id; filters = { search: '', status: '', person: '', priority: '', kind: '' }; message = 'siteCreated'; }
+    if (form.id === 'site-form') {
+      if (!canCreateSite()) throw new Error('forbidden');
+      const userId = session.user.id;
+      const site = await api.createSite(data);
+      if (session?.user.id !== userId) return;
+      resetSavedViews();
+      siteId = site.id;
+      state.sites.push(site);
+      reportDate = operationalDay().date;
+      filters = { search: '', status: '', person: '', priority: '', kind: '' };
+      await loadData();
+      message = 'siteCreated';
+    }
     if (form.id === 'task-form') { const payload = { ...data, siteId: selectedSite }; taskPayload(payload); await writeOperation('create_task', payload); message = 'taskCreated'; }
     if (form.id === 'diary-correction-form') {
       const original = form.originalEntry;
@@ -4421,7 +4437,6 @@ document.addEventListener('submit', async event => {
       await writeOperation('create_attachment', { site_id: selectedSite, entity_type: form.dataset.entityType, entity_id: form.dataset.entityId, filename: blob.name, blob });
       message = 'attachmentSaved';
     }
-    if (form.id === 'site-form') await accountLock(persistState);
     const sameModal = version === modalVersion;
     if (sameModal) closeModal();
     render();

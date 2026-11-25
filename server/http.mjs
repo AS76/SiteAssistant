@@ -1,3 +1,4 @@
+import { isDemoSandbox } from './demo-sandbox.mjs';
 import { HSE_READ_ROLES } from '../app/hse-permissions.mjs';
 import { requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
 import { createServer as createHttpServer } from 'node:http';
@@ -52,7 +53,7 @@ import { createInspection, listInspections, getInspection } from './hse-inspecti
 import { importRequest, MAX_IMPORT_BYTES, importDeviationWorkbook, listImportMappings, saveImportMapping, deleteImportMapping } from './planning-import.mjs';
 import { importTemplate } from './import-template.mjs';
 import {
-  RepositoryError, listSites, createSite, getSite, updateSite, updateSiteAssistant, updateTaskWbs, listTasks, countTasks, getTask,
+  RepositoryError, listSites, createSiteForUser, getSite, updateSite, updateSiteAssistant, updateTaskWbs, listTasks, countTasks, getTask,
   transitionTask, acceptTask, listDiary, countDiary, createDiary, updateDiary, listDiaryVersions, requireRole, WRITE_ROLES, listMembers, setMember, listAssignable,
   createAttachment, listAttachments, getAttachment, deleteAttachment, MAX_ATTACHMENT_BYTES,
 } from './repository.mjs';
@@ -189,6 +190,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   storage = new S3Storage(),
   reporting = reportingOverview,
   reportingGlobalOwnerIds = process.env.REPORTING_GLOBAL_OWNER_IDS || '',
+  demoSandbox = isDemoSandbox(),
   assistant = {},
   webauthn = {},
   // Development only: serve the browser client from the same origin as the API.
@@ -431,7 +433,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const email = normalizeEmail(input?.email);
         inviteLimiter.attemptAccount(email);
         const { locale, cantiere_id, role } = input;
-        const { revoked_at, ...invitation } = await createInvitation(db, email, user.id, { mailer, publicUrl, locale, cantiere_id, role });
+        const { revoked_at, ...invitation } = await createInvitation(db, email, user.id, { mailer, publicUrl, locale, cantiere_id, role, demoSandbox });
         if (revoked_at) return json(response, 409, { ...invitation, code: 'INVITATION_REVOKED', error: 'Invitation was revoked during delivery.' });
         if (invitation.delivery_status === 'failed') {
           return json(response, 503, { ...invitation, code: invitation.last_delivery_error, error: 'Invitation email delivery failed.' });
@@ -921,16 +923,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (path === '/api/sites' && method === 'GET') return json(response, 200, await listSites(db, user));
       if (path === '/api/sites' && method === 'POST') {
-        const input = await readJson(request);
-        const created = await db.transaction(async tx => {
-          if (!await tx.get("SELECT site_id FROM site_members WHERE user_id = ? AND role = 'owner'", user.id)) {
-            throw new RepositoryError(403, 'An owner role is required to create sites.', 'FORBIDDEN');
-          }
-          const created = await createSite(tx, input);
-          await tx.run("INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'owner')", created.id, user.id);
-          return created;
-        });
-        return json(response, 201, created);
+        return json(response, 201, await createSiteForUser(db, await readJson(request), user, { demoSandbox }));
       }
       const evidence = /^\/api\/sites\/([^/]+)\/evidence-export$/.exec(path);
       if (evidence && method === 'GET') {
