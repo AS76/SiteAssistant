@@ -43,8 +43,12 @@ async function indexColumns(db, name) {
 async function pgCatalog(db) {
   // Run deparsers with the fixture schema on search_path, so local references
   // render unqualified. Only the function declaration header needs rewriting.
+  // pg_get_*def() qualify local objects with the fixture schema, whose name is
+  // generated per run. Strip that prefix so snapshots are stable across runs and
+  // across the schema names used by the test helpers.
   const relations = await db.all(`SELECT CASE c.relkind WHEN 'v' THEN 'view' ELSE 'table' END AS type,
-    c.relname AS name, CASE WHEN c.relkind = 'v' THEN pg_get_viewdef(c.oid) END AS definition
+    c.relname AS name,
+    CASE WHEN c.relkind = 'v' THEN replace(pg_get_viewdef(c.oid), quote_ident(n.nspname) || '.', '') END AS definition
     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p', 'v')`);
   const columns = await db.all(`SELECT c.relname AS relation, a.attname AS name,
@@ -60,15 +64,15 @@ async function pgCatalog(db) {
       .map(({ relation: _, ...column }) => column);
   }
   const constraints = await db.all(`SELECT 'constraint' AS type, c.relname || '.' || x.conname AS name,
-    pg_get_constraintdef(x.oid) AS definition, x.convalidated AS validated
+    replace(pg_get_constraintdef(x.oid), quote_ident(n.nspname) || '.', '') AS definition, x.convalidated AS validated
     FROM pg_constraint x JOIN pg_class c ON c.oid = x.conrelid
     JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema()`);
-  const indexes = await db.all(`SELECT 'index' AS type, c.relname AS name, pg_get_indexdef(c.oid) AS definition,
-    i.indisvalid AS valid
+  const indexes = await db.all(`SELECT 'index' AS type, c.relname AS name,
+    replace(pg_get_indexdef(c.oid), quote_ident(n.nspname) || '.', '') AS definition, i.indisvalid AS valid
     FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
     JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema()`);
   const triggers = await db.all(`SELECT 'trigger' AS type, c.relname || '.' || t.tgname AS name,
-    pg_get_triggerdef(t.oid) AS definition, t.tgenabled AS enabled
+    replace(pg_get_triggerdef(t.oid), quote_ident(n.nspname) || '.', '') AS definition, t.tgenabled AS enabled
     FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
     JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND NOT t.tgisinternal`);
   const functions = await db.all(`SELECT CASE WHEN p.prokind = 'p' THEN 'procedure' ELSE 'function' END AS type, p.proname || '(' ||
