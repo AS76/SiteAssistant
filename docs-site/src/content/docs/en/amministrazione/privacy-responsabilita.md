@@ -35,6 +35,8 @@ The legal position follows the activities performed, not merely the wording of a
 
 Collect only what is necessary. Avoid diagnoses, medical reports or unnecessary clinical detail in operational notes.
 
+The demo access log and the other entries documented by the project are in the [record of processing activities](../inventario-trattamenti/).
+
 ## Where does the data go in an independent installation?
 
 The application uses **SQLite by default** or optional PostgreSQL. The reviewed version does not require an author-operated central backend or send automatic telemetry or analytics to the project. **That does not make every feature local-only.**

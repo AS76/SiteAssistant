@@ -35,6 +35,8 @@ Questi ruoli si valutano in base alle attività effettive, non semplicemente al 
 
 Limitare i campi inseriti, gli allegati e le persone autorizzate. Evitare diagnosi, referti e dettagli sanitari nelle note operative salvo che il loro trattamento sia realmente necessario e lecito.
 
+Il registro degli accessi alla demo e le altre voci documentate dal progetto sono nell'[inventario dei trattamenti](../inventario-trattamenti/).
+
 ## Dove vanno i dati in un'installazione autonoma
 
 Il database applicativo è **SQLite per impostazione predefinita**, con PostgreSQL come alternativa. Non è previsto un servizio centrale obbligatorio dell'autore né un invio automatico di telemetria o analytics nelle funzioni esaminate. **Questo non significa che ogni funzione sia completamente locale.**
