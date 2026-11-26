@@ -111,6 +111,10 @@
     "definition": "UNIQUE (site_id, owner_id)",
     "validated": true
   },
+  "constraint demo_seed_records.demo_seed_records_pkey": {
+    "definition": "PRIMARY KEY (table_name, record_id)",
+    "validated": true
+  },
   "constraint deviation_events.deviation_events_actor_id_fkey": {
     "definition": "FOREIGN KEY (actor_id) REFERENCES users(id)",
     "validated": true
@@ -1112,6 +1116,10 @@
     "definition": "CREATE UNIQUE INDEX dashboard_layouts_site_id_owner_id_key ON dashboard_layouts USING btree (site_id, owner_id)",
     "valid": true
   },
+  "index demo_seed_records_pkey": {
+    "definition": "CREATE UNIQUE INDEX demo_seed_records_pkey ON demo_seed_records USING btree (table_name, record_id)",
+    "valid": true
+  },
   "index deviation_events_pkey": {
     "definition": "CREATE UNIQUE INDEX deviation_events_pkey ON deviation_events USING btree (id)",
     "valid": true
@@ -2092,6 +2100,27 @@
       {
         "name": "updated_at",
         "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table demo_seed_records": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "table_name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "record_id",
+        "type": "text",
         "required": true,
         "default_value": null,
         "identity": "",
