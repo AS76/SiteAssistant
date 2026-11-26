@@ -841,9 +841,9 @@ async function loadAssistantUsage() {
       normal: ['aiUsageNormal', ''], warning: ['aiUsageWarning', 'high'],
       critical: ['aiUsageCritical', 'urgent'], blocked: ['aiUsageBlocked', 'urgent'],
     }[usage.status];
-    const usd = (value, maximumFractionDigits = 2) => new Intl.NumberFormat(language, {
-      style: 'currency', currency: 'USD', currencyDisplay: 'code', maximumFractionDigits, roundingMode: 'trunc',
-    }).format(value);
+    const usd = (value, maximumFractionDigits = 2) => formatDisplayNumber(value, {
+      kind: 'money', language, currency: 'USD', currencyDisplay: 'code', maximumFractionDigits, roundingMode: 'trunc',
+    });
     const month = new Intl.DateTimeFormat(language, { month: 'long', year: 'numeric', timeZone: 'UTC' })
       .format(new Date(`${usage.month}-01T00:00:00Z`));
     const amount = usage.estimated_cost_usd;
