@@ -38,7 +38,20 @@ export async function applyMigration(tx, file, { driver, demoSandbox = isDemoSan
     if (demoSandbox) await migrateDemoSandbox(tx);
     return;
   }
-  // SQL-only migrations, including 052_auth_activity.sql, use the normal replay.
+  if (driver === 'sqlite' && file === '054_demo_seed_records.sql') {
+    const existing = await tx.get("SELECT type FROM main.sqlite_schema WHERE name = 'demo_seed_records' COLLATE NOCASE AND type IN ('table', 'view', 'index')");
+    if (!existing) await tx.exec(sql);
+    const table = await tx.get("SELECT type FROM pragma_table_list('demo_seed_records') WHERE schema = 'main'");
+    const columns = await tx.all("PRAGMA main.table_xinfo('demo_seed_records')");
+    const expected = ['table_name', 'record_id'];
+    if (table?.type !== 'table' || columns.length !== expected.length ||
+        !columns.every((column, index) => column.name === expected[index] &&
+          column.type.toUpperCase() === 'TEXT' && column.notnull === 1 &&
+          column.pk === index + 1 && column.hidden === 0)) {
+      throw new Error('Migration 054: incompatible demo_seed_records schema; expected two NOT NULL TEXT columns and PRIMARY KEY (table_name, record_id)');
+    }
+    return;
+  }
   if (driver !== 'sqlite' || file !== '004_physical_types.sql') return await tx.exec(sql);
   for (const statement of sql.split(';').filter(part => part.trim())) {
     const match = /^\s*ALTER TABLE (\w+) ADD COLUMN (\w+)\s/i.exec(statement);

@@ -739,11 +739,21 @@ async function seedEvidence(db, siteId, bump) {
   bump('tasks');
 }
 
+async function requireDemoSeedRecords(db) {
+  try {
+    await db.get('SELECT table_name, record_id FROM demo_seed_records LIMIT 0');
+  } catch (error) {
+    if (error.code !== '42P01' &&
+        !(error.code === 'ERR_SQLITE_ERROR' && error.message === 'no such table: demo_seed_records')) throw error;
+    throw new Error('Missing demo_seed_records table. Apply the database migrations (including 054) before running the demo seed.', { cause: error });
+  }
+}
+
 // The seed manifest records exact inserted/upserted IDs. Reset never deletes by
 // site alone. Unknown rows and legacy seeds without a manifest remain untouched;
 // inbound operational references block deletion and roll back the reset.
 export async function reset(db) {
-  await db.exec(`CREATE TABLE IF NOT EXISTS demo_seed_records (table_name TEXT NOT NULL, record_id TEXT NOT NULL, PRIMARY KEY (table_name, record_id))`);
+  await requireDemoSeedRecords(db);
   let removed = 0;
   const ids = table => db.all('SELECT record_id FROM demo_seed_records WHERE table_name = ?', table);
   const tables = ['deviation_exports', 'shipment_receipts', 'shipments', 'package_items', 'packages', 'purchase_order_items', 'purchase_orders',
@@ -785,7 +795,7 @@ export async function reset(db) {
 }
 
 export async function apply(db, { demoSandbox = isDemoSandbox() } = {}) {
-  await db.exec(`CREATE TABLE IF NOT EXISTS demo_seed_records (table_name TEXT NOT NULL, record_id TEXT NOT NULL, PRIMARY KEY (table_name, record_id))`);
+  await requireDemoSeedRecords(db);
   const storage = db;
   db = { ...storage, run: async (sql, ...args) => {
     const result = await storage.run(sql, ...args);
@@ -1279,7 +1289,7 @@ if (process.argv[1] === new URL(import.meta.url).pathname) {
     console.log(JSON.stringify({ dryRun: true, plan: Object.fromEntries(Object.entries(dataset).map(([key, value]) =>
       [key, key === 'counts' ? value : Array.isArray(value) ? value.length : typeof value === 'object' ? Object.keys(value).length : value])) }, null, 1));
   } else {
-    const db = await openDb();
+    const db = await openDb(undefined, { migrate: false });
     try {
       if (resetFlag) {
         const removed = await db.transaction(tx => reset(tx));

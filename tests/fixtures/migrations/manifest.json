@@ -280,5 +280,11 @@
     "file": "053_assistant_usage.sql",
     "sqlite": "8f06cf589f97842bf4080f0a92f2649cdf05ba64ba6f38ebb10086b9094eb9ce",
     "pg": "780005dbb13532a0bd9163bc7bb9a76e50b12f2dbbc05c33a603cc3259c6c2b7"
+  },
+  {
+    "version": "054",
+    "file": "054_demo_seed_records.sql",
+    "sqlite": "3ab576a347209c7a825cf0e47412391ea89bb455424c56fae81d9fb08d1ac2d7",
+    "pg": "f10f0cd676d979420922984d8e73e1d285398978c26d97abe342604b3a80ccc1"
   }
 ]
