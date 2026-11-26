@@ -3545,6 +3545,38 @@
         "default_value": null,
         "identity": "",
         "generated": ""
+      },
+      {
+        "name": "computed_outcome",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "declared_outcome",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "outcome_source",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "template_status",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
       }
     ]
   },

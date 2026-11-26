@@ -4020,7 +4020,7 @@
   },
   "table hse_inspections": {
     "relation": "hse_inspections",
-    "sql": "CREATE TABLE hse_inspections (\n  id TEXT PRIMARY KEY NOT NULL,\n  site_id TEXT NOT NULL REFERENCES sites(id),\n  asset_id TEXT NOT NULL REFERENCES hse_assets(id),\n  performed_on DATE NOT NULL,\n  performed_by TEXT NOT NULL,\n  performer_role TEXT,\n  mode TEXT NOT NULL CHECK (mode IN ('internal', 'external')),\n  outcome TEXT NOT NULL CHECK (outcome IN ('pass', 'pass_with_notes', 'fail')),\n  notes TEXT,\n  next_due_on DATE,\n  hse_event_id TEXT,\n  created_at TEXT NOT NULL,\n  updated_at TEXT NOT NULL\n)",
+    "sql": "CREATE TABLE hse_inspections (\n  id TEXT PRIMARY KEY NOT NULL,\n  site_id TEXT NOT NULL REFERENCES sites(id),\n  asset_id TEXT NOT NULL REFERENCES hse_assets(id),\n  performed_on DATE NOT NULL,\n  performed_by TEXT NOT NULL,\n  performer_role TEXT,\n  mode TEXT NOT NULL CHECK (mode IN ('internal', 'external')),\n  outcome TEXT NOT NULL CHECK (outcome IN ('pass', 'pass_with_notes', 'fail')),\n  notes TEXT,\n  next_due_on DATE,\n  hse_event_id TEXT,\n  created_at TEXT NOT NULL,\n  updated_at TEXT NOT NULL\n, computed_outcome TEXT, declared_outcome TEXT, outcome_source TEXT, template_status TEXT)",
     "columns": [
       {
         "name": "id",
@@ -4122,6 +4122,38 @@
         "name": "updated_at",
         "type": "TEXT",
         "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "computed_outcome",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "declared_outcome",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "outcome_source",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "template_status",
+        "type": "TEXT",
+        "required": 0,
         "default_value": null,
         "pk": 0,
         "hidden": 0

@@ -13,7 +13,8 @@ function fragment(start, end) {
   return source.slice(from, to);
 }
 const asset = () => ({ id: 'synthetic-subject', templateCode: 'synthetic-family', name: 'Synthetic subject', status: 'never' });
-const family = () => ({ code: 'synthetic-family', title: 'Synthetic family', items: Array.from({ length: 10 }, (_, index) => ({ code: `check-${index}`, label: `Synthetic check ${index}` })) });
+const family = () => ({ code: 'synthetic-family', title: 'Synthetic family', status: 'draft', frequency_verified: false,
+  items: Array.from({ length: 10 }, (_, index) => ({ code: `check-${index}`, label: `Synthetic check ${index}`, critical: index === 3 })) });
 const plain = value => JSON.parse(JSON.stringify(value));
 function node(value = '') {
   return { value, hidden: true, textContent: '', dataset: {}, attributes: {},
@@ -27,16 +28,17 @@ function makeForm(html) {
   for (const [, attrs, name] of html.matchAll(/<input\b([^>]*name="([^"]+)"[^>]*)>/g)) elements[name] = node(attrs.match(/value="([^"]*)"/)?.[1] ?? '');
   for (const [, name, content] of html.matchAll(/<textarea[^>]*name="([^"]+)"[^>]*>([\s\S]*?)<\/textarea>/g)) elements[name] = node(content);
   for (const [name, control] of Object.entries(elements)) control.name = name;
-  const progress = node(), missing = node(), external = node(), error = node(), submit = { disabled: true };
+  const progress = node(), missing = node(), computed = node(), external = node(), error = node(), submit = { disabled: true };
   const dateInput = Object.assign(elements.performedOn, { required: true, id: 'field-performedOn' });
   const dateError = node();
   const form = {
     id: 'hse-inspection-form', dataset: { site: html.match(/data-site="([^"]+)"/)[1] }, elements, isConnected: true,
-    progress, missing, external, error, submit, rows: [],
+    progress, missing, computed, external, error, submit, rows: [],
     addEventListener(type, callback) { listeners[type] = callback; },
     dispatch(type, target) { listeners[type]?.({ target }); },
     querySelectorAll() { return [dateInput]; },
-    querySelector(selector) { return ({ '#field-performedOn-error': dateError, '#hse-inspection-progress': progress, '#hse-inspection-missing': missing, '#hse-inspection-external': external, '.form-error': error, '[type=submit]': submit })[selector]; },
+    querySelector(selector) { return ({ '#field-performedOn-error': dateError, '#hse-inspection-progress': progress, '#hse-inspection-missing': missing,
+      '#hse-inspection-computed': computed, '#hse-inspection-external': external, '.form-error': error, '[type=submit]': submit })[selector]; },
   };
   for (const [, index] of html.matchAll(/data-inspection-row="(\d+)"/g)) {
     const note = node(), textarea = { ...node(), dataset: { inspectionNote: index }, disabled: true };
@@ -57,8 +59,9 @@ function ui({ role = 'editor', language = 'it', templates = [family()], respond 
     if (response) return response;
     if (options.method === 'POST') {
       const fields = JSON.parse(options.body);
-      const saved = { ...fields, id: 'synthetic-inspection', next_due_on: '2027-05-15', items: fields.items.map(item => ({ ...item, label: `Stored ${item.code}` })) };
-      history = [saved]; savedAsset = { ...asset(), status: 'ok', lastInspectionOn: fields.performedOn, nextDueOn: saved.next_due_on };
+      const saved = { ...fields, id: 'synthetic-inspection', next_due_on: '2027-05-15', frequency_verified: false, outcome_source: 'computed',
+        computed_outcome: fields.outcome, declared_outcome: fields.outcome, items: fields.items.map(item => ({ ...item, label: `Stored ${item.code}` })) };
+      history = [saved]; savedAsset = { ...asset(), status: 'ok', lastInspectionOn: fields.performedOn, nextDueOn: saved.next_due_on, frequencyVerified: false };
       return Response.json(saved);
     }
     if (url.includes('inspection-templates')) return Response.json({ templates });
@@ -136,6 +139,10 @@ await test('form selects the matching family, renders every labelled three-way g
     assert.equal(screen.form.elements.performedOn.value, domain.formatDateInput(domain.today(), language));
     assert.equal(screen.form.elements.performedBy.value, 'Synthetic inspector');
     assert.equal(screen.form.elements.mode.value, 'internal');
+    assert.equal(screen.form.elements.outcome.value, '');
+    assert.ok(screen.html.includes(messages[language].hseInspectionComputedOutcome));
+    assert.ok(screen.html.includes(messages[language].hseInspectionDeclaredOutcome));
+    assert.ok(screen.html.includes(messages[language].hseFrequencyUnverified));
     assert.equal(screen.form.rows.length, 10);
     assert.equal((screen.html.match(/role="group" aria-labelledby="hse-check-label-/g) ?? []).length, 10);
     assert.equal((screen.html.match(/aria-pressed="false"/g) ?? []).length, 30);
@@ -156,7 +163,7 @@ await test('progress counts valid answers without mutating inputs and reports mi
   assert.deepEqual(domain.inspectionProgress(), { answered: 0, total: 0, missing: [] });
 });
 
-await test('save stays disabled until every check is answered; progress and missing count update', async () => {
+await test('save requires complete results, notes for NA and a matching declaration', async () => {
   for (const language of ['it', 'en']) {
     const screen = ui({ language }); await screen.open();
     assert.equal(screen.form.submit.disabled, true);
@@ -165,31 +172,34 @@ await test('save stays disabled until every check is answered; progress and miss
     assert.equal(screen.form.progress.textContent, messages[language].hseInspectionProgress.replace('{answered}', 7).replace('{total}', 10));
     assert.equal(screen.form.missing.textContent, messages[language].hseInspectionMissing.replace('{count}', 3));
     assert.equal(screen.form.submit.disabled, true);
+    screen.field('outcome', 'pass');
     for (let index = 7; index < 10; index++) screen.result(index, 'na');
+    assert.equal(screen.form.submit.disabled, true);
+    assert.equal(screen.form.computed.textContent, '—');
+    assert.equal(screen.form.missing.textContent, messages[language].hseInspectionNaNoteItems.replace('{items}', 'Synthetic check 7, Synthetic check 8, Synthetic check 9'));
+    for (let index = 7; index < 10; index++) screen.note(index, 'Synthetic explanation');
     assert.equal(screen.form.submit.disabled, false);
-    assert.equal(screen.form.missing.textContent, messages[language].hseInspectionComplete);
+    assert.equal(screen.form.computed.textContent, messages[language].inspectionOutcome_pass);
+    assert.equal(screen.form.missing.textContent, '');
   }
 });
 
-await test('suggestion honours every manual outcome and never automatically suggests fail', () => {
-  const failed = Object.freeze([Object.freeze({ result: 'not_ok' })]);
-  assert.equal(domain.inspectionSuggestion(failed, 'pass', false), 'pass_with_notes');
-  assert.equal(domain.inspectionSuggestion([{ result: 'ok' }], 'pass_with_notes', false), 'pass');
-  assert.equal(domain.inspectionSuggestion([{ result: 'na' }], 'pass_with_notes', false), 'pass');
-  for (const current of ['pass', 'pass_with_notes', 'fail']) assert.equal(domain.inspectionSuggestion(failed, current, true), current);
+await test('a critical failure updates the computed outcome without overwriting the declaration', async () => {
+  for (const language of ['it', 'en']) {
+    const screen = ui({ language }); await screen.open(); screen.answerAll();
+    screen.field('outcome', 'pass'); screen.result(3, 'not_ok');
+    assert.equal(screen.form.elements.outcome.value, 'pass');
+    assert.equal(screen.form.computed.textContent, messages[language].inspectionOutcome_fail);
+    assert.ok(screen.form.missing.textContent.includes(messages[language].hseInspectionCriticalFailed.replace('{items}', 'Synthetic check 3')));
+    assert.ok(screen.form.missing.textContent.includes(messages[language].hseInspectionOutcomeMismatch));
+    assert.equal(screen.form.submit.disabled, true);
+    await screen.save(); assert.equal(screen.requests.filter(row => row.options.method === 'POST').length, 0);
+    screen.field('outcome', 'fail');
+    assert.equal(screen.form.submit.disabled, false);
+  }
 });
 
-await test('outcome follows item changes only until the user manually selects it', async () => {
-  const screen = ui(); await screen.open();
-  screen.result(0, 'not_ok'); assert.equal(screen.form.elements.outcome.value, 'pass_with_notes');
-  screen.result(0, 'ok'); assert.equal(screen.form.elements.outcome.value, 'pass');
-  screen.field('outcome', 'fail'); screen.answerAll();
-  assert.equal(screen.form.elements.outcome.value, 'fail');
-  screen.field('outcome', 'pass'); screen.result(0, 'not_ok');
-  assert.equal(screen.form.elements.outcome.value, 'pass');
-});
-
-await test('failed-row notes alone appear, and each choice updates aria-pressed', async () => {
+await test('notes appear for failed and non-applicable rows, and each choice updates aria-pressed', async () => {
   const screen = ui(); await screen.open();
   assert.ok(screen.form.rows.every(row => row.note.hidden && row.textarea.disabled));
   screen.result(2, 'not_ok'); screen.note(2, 'Synthetic evidence');
@@ -197,7 +207,8 @@ await test('failed-row notes alone appear, and each choice updates aria-pressed'
   assert.equal(screen.form.rows[2].textarea.disabled, false);
   assert.deepEqual(screen.form.rows[2].choices.map(control => control.attributes['aria-pressed']), ['false', 'true', 'false']);
   screen.result(2, 'ok'); assert.equal(screen.form.rows[2].note.hidden, true);
-  screen.result(2, 'na'); assert.equal(screen.form.rows[2].note.hidden, true);
+  screen.result(2, 'na'); assert.equal(screen.form.rows[2].note.hidden, false);
+  assert.equal(screen.form.rows[2].textarea.disabled, false);
   assert.equal(screen.form.rows[1].note.hidden, true);
 });
 
@@ -213,13 +224,13 @@ await test('external mode shows the statutory-examination explanation and role r
   }
 });
 
-await test('payload carries only exact request fields and strips notes from ok/na without mutation', () => {
+await test('payload carries the exact request fields and preserves notes for not_ok and NA without mutation', () => {
   const fields = Object.freeze({ performedOn: '2026-11-15', performedBy: 'Synthetic inspector', performerRole: 'Synthetic role', mode: 'external', outcome: 'fail', notes: 'Synthetic general note', unexpected: 'omit' });
   const items = Object.freeze(['ok', 'not_ok', 'na'].map((result, index) => Object.freeze({ code: `check-${index}`, result, label: 'Omit label', note: 'Synthetic evidence' })));
   assert.deepEqual(domain.inspectionPayload({ asset: asset(), siteId: 'synthetic-site', fields, items }), {
     siteId: 'synthetic-site', assetId: 'synthetic-subject', performedOn: fields.performedOn, performedBy: fields.performedBy,
     performerRole: fields.performerRole, mode: fields.mode, outcome: fields.outcome, notes: fields.notes,
-    items: [{ code: 'check-0', result: 'ok' }, { code: 'check-1', result: 'not_ok', note: 'Synthetic evidence' }, { code: 'check-2', result: 'na' }],
+    items: [{ code: 'check-0', result: 'ok' }, { code: 'check-1', result: 'not_ok', note: 'Synthetic evidence' }, { code: 'check-2', result: 'na', note: 'Synthetic evidence' }],
   });
   assert.equal(items[0].note, 'Synthetic evidence');
 });
@@ -242,7 +253,7 @@ await test('incomplete error is localized inside the open form and every typed f
 await test('other API failures display the API message and allow retry', async () => {
   let attempts = 0;
   const screen = ui({ respond: (_url, options) => options.method === 'POST' && attempts++ === 0 ? Response.json({ code: 'VALIDATION_ERROR', error: 'Synthetic validation detail' }, { status: 400 }) : null });
-  await screen.open(); screen.answerAll(); await screen.save();
+  await screen.open(); screen.answerAll(); screen.field('outcome', 'pass'); await screen.save();
   assert.equal(screen.form.error.textContent, 'Synthetic validation detail'); assert.equal(screen.closed, 0);
   await screen.save(); await screen.settle();
   assert.equal(screen.closed, 1); assert.equal(screen.notifications.length, 1);
@@ -253,7 +264,7 @@ await test('success posts the exact payload, closes, refreshes subject/history a
     const screen = ui({ language }); await screen.open(); screen.answerAll();
     screen.result(0, 'not_ok'); screen.note(0, 'Drop old evidence'); screen.result(0, 'ok');
     screen.result(1, 'not_ok'); screen.note(1, 'Keep synthetic evidence');
-    screen.result(2, 'not_ok'); screen.note(2, 'Drop unused evidence'); screen.result(2, 'na');
+    screen.result(2, 'na'); screen.note(2, 'Synthetic explanation'); screen.field('outcome', 'pass_with_notes');
     screen.field('performedOn', domain.formatDateInput('2026-11-15', screen.context.language)); screen.field('performerRole', 'Synthetic specialist'); screen.field('notes', 'Synthetic report');
     const requestCount = screen.requests.length;
     await screen.save(); await screen.settle();
@@ -262,7 +273,7 @@ await test('success posts the exact payload, closes, refreshes subject/history a
     assert.equal(writes[0].options.credentials, 'include');
     const payload = JSON.parse(writes[0].options.body);
     assert.deepEqual(payload, domain.inspectionPayload({ asset: asset(), siteId: 'synthetic-site', fields: { performedOn: '2026-11-15', performedBy: 'Synthetic inspector', performerRole: 'Synthetic specialist', notes: 'Synthetic report', mode: 'internal', outcome: 'pass_with_notes' }, items: plain(screen.form.inspectionItems) }));
-    assert.ok(!('note' in payload.items[0])); assert.ok(!('note' in payload.items[2]));
+    assert.ok(!('note' in payload.items[0])); assert.equal(payload.items[2].note, 'Synthetic explanation');
     assert.equal(payload.items[1].note, 'Keep synthetic evidence');
     assert.equal(screen.closed, 1); assert.equal(screen.form.isConnected, false);
     const refreshes = screen.requests.slice(requestCount).filter(row => !row.options.method);
@@ -270,15 +281,18 @@ await test('success posts the exact payload, closes, refreshes subject/history a
     assert.ok(refreshes.some(row => row.url.includes('/inspections?siteId=synthetic-site&assetId=synthetic-subject')));
     assert.ok(screen.main.innerHTML.includes('synthetic-inspection'));
     assert.ok(screen.main.innerHTML.includes(messages[language].inspectionStatus_ok));
+    assert.ok(screen.main.innerHTML.includes(messages[language].hseInspectionComputedOutcome));
+    assert.ok(screen.main.innerHTML.includes(messages[language].hseInspectionDeclaredOutcome));
+    assert.ok(screen.main.innerHTML.includes(messages[language].hseFrequencyUnverified));
     const due = screen.run("dateLabel('2027-05-15')");
-    assert.deepEqual(screen.notifications, [messages[language].hseInspectionSaved.replace('{date}', due)]);
+    assert.deepEqual(screen.notifications, [`${messages[language].hseInspectionSaved.replace('{date}', due)} ${messages[language].hseFrequencyUnverified}`]);
   }
 });
 
 await test('a pending save disables submission and suppresses duplicate requests', async () => {
   let release;
   const screen = ui({ respond: (_url, options) => options.method === 'POST' ? new Promise(resolve => { release = resolve; }) : null });
-  await screen.open(); screen.answerAll();
+  await screen.open(); screen.answerAll(); screen.field('outcome', 'pass');
   const pending = screen.save();
   assert.equal(screen.form.submit.disabled, true); assert.equal(screen.form.dataset.saving, 'true');
   screen.result(0, 'not_ok'); assert.equal(screen.form.inspectionItems[0].result, 'ok');
@@ -304,7 +318,10 @@ await test('missing template fails explicitly and late template loads do not reo
 
 await test('new translations have IT/EN parity including placeholders; touch layout stacks without horizontal scrolling', async () => {
   assert.deepEqual(Object.keys(messages.it).sort(), Object.keys(messages.en).sort());
-  const added = ['New', 'Date', 'RoleManager', 'RoleTechnician', 'ExternalHint', 'Progress', 'Missing', 'Complete', 'ItemNote', 'Notes', 'Incomplete', 'TemplateMissing', 'Saved'].map(suffix => `hseInspection${suffix}`);
+  const added = ['New', 'Date', 'RoleManager', 'RoleTechnician', 'ExternalHint', 'Progress', 'Missing', 'ItemNote', 'Notes',
+    'Incomplete', 'TemplateMissing', 'Saved', 'ComputedOutcome', 'DeclaredOutcome', 'RecordedOutcome', 'NaNoteRequired',
+    'NaNoteItems', 'CriticalItem', 'CriticalFailed', 'DeclareOutcome', 'OutcomeMismatch'].map(suffix => `hseInspection${suffix}`);
+  added.push('hseFrequencyUnverified');
   for (const key of added) {
     assert.ok(messages.it[key]); assert.ok(messages.en[key]);
     assert.deepEqual(messages.it[key].match(/\{\w+\}/g) ?? [], messages.en[key].match(/\{\w+\}/g) ?? []);

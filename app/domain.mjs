@@ -502,9 +502,21 @@ export function inspectionModeLabelKey(mode) {
 export function inspectionItemResultLabelKey(result) {
   return ['ok', 'not_ok', 'na'].includes(result) ? `inspectionItemResult_${result}` : 'coreUnknown';
 }
-export function inspectionSuggestion(items = [], current = 'pass', touched = false) {
-  if (touched) return current;
-  return items.some(item => item.result === 'not_ok') ? 'pass_with_notes' : 'pass';
+export function inspectionSuggestion(items = []) {
+  const { missing } = inspectionProgress(items);
+  const reasons = missing.map(itemCode => ({ code: 'INSPECTION_ITEMS_INCOMPLETE', itemCode }));
+  if (!items.length) reasons.push({ code: 'INSPECTION_ITEMS_INCOMPLETE', itemCode: null });
+  for (const item of items) {
+    if (item.result === 'na' && !(typeof item.note === 'string' && item.note.trim())) {
+      reasons.push({ code: 'INSPECTION_NA_NOTE_REQUIRED', itemCode: item.code });
+    }
+    if (item.result === 'not_ok' && item.critical === true) {
+      reasons.push({ code: 'INSPECTION_CRITICAL_NOT_OK', itemCode: item.code });
+    }
+  }
+  if (reasons.some(reason => reason.code !== 'INSPECTION_CRITICAL_NOT_OK')) return { outcome: null, reasons };
+  if (reasons.length) return { outcome: 'fail', reasons };
+  return { outcome: items.some(item => item.result === 'not_ok') ? 'pass_with_notes' : 'pass', reasons };
 }
 export function inspectionProgress(items = []) {
   const missing = items.filter(item => !['ok', 'not_ok', 'na'].includes(item.result)).map(item => item.code);
@@ -515,7 +527,7 @@ export function inspectionPayload({ asset, siteId, fields, items }) {
     siteId, assetId: asset.id, performedOn: fields.performedOn, performedBy: fields.performedBy,
     performerRole: fields.performerRole ?? '', mode: fields.mode, outcome: fields.outcome, notes: fields.notes ?? '',
     items: items.map(item => ({ code: item.code, result: item.result,
-      ...(item.result === 'not_ok' ? { note: item.note ?? '' } : {}) })),
+      ...(['not_ok', 'na'].includes(item.result) ? { note: item.note ?? '' } : {}) })),
   };
 }
 export function inspectionTally(items = []) {

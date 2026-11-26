@@ -1,7 +1,7 @@
 import { createApi } from './api.mjs';
 import { getMirror, replayOps, SYNC_TAG } from './offline.mjs';
 
-const VERSION = 'siteassistant-v15-58';
+const VERSION = 'siteassistant-v15-59';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data-`;
 const shellUrls = [
