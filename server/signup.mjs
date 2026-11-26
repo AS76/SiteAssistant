@@ -1,7 +1,9 @@
 import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { hashPassword, tokenHash, verifyPassword } from './auth.mjs';
-import { RepositoryError } from './repository.mjs';
+import { DEMO_ROLE, RepositoryError } from './repository.mjs';
 import { deliver, signupNotifyEmail, welcomeEmail, resetEmail } from './auth-mail.mjs';
+import { recordAuthEvent } from './auth-events.mjs';
+import { isDemoSandbox } from './demo-sandbox.mjs';
 
 export const RESET_TTL = 30 * 60 * 1000;
 export const RESET_PATH = '/api/auth/reset';
@@ -43,7 +45,7 @@ export async function readSignupRequest(db, token, at = new Date()) {
   return row;
 }
 
-export async function decideSignup(db, token, decision, { mailer }) {
+export async function decideSignup(db, token, decision, { mailer, demoSandbox = isDemoSandbox() }) {
   if (!['approve', 'reject'].includes(decision)) throw invalid('Decision must be approve or reject.');
   if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw gone();
   return await db.transaction(async tx => {
@@ -56,11 +58,21 @@ export async function decideSignup(db, token, decision, { mailer }) {
     if (!result.rowCount) throw gone();
     if (decision === 'approve') {
       const password = temporaryPassword();
-      const created = await tx.run(`INSERT INTO users
-        (id, email, name, password_hash, password_algo, created_at, password_change_required)
-        VALUES (?, ?, ?, ?, 'scrypt', ?, true) ON CONFLICT DO NOTHING`,
-      randomUUID(), row.email, row.email, await hashPassword(password), at.toISOString());
-      if (!created.rowCount) throw gone();
+      const user = await tx.get(`INSERT INTO users
+        (id, email, name, password_hash, password_algo, created_at, password_change_required, demo_sandbox)
+        VALUES (?, ?, ?, ?, 'scrypt', ?, true, ?) ON CONFLICT DO NOTHING RETURNING id`,
+      randomUUID(), row.email, row.email, await hashPassword(password), at.toISOString(), demoSandbox);
+      if (!user) throw gone();
+      let sitesAssigned = 0;
+      if (demoSandbox) {
+        const assigned = await tx.run(`INSERT INTO site_members (site_id, user_id, role)
+          SELECT id, ?, ? FROM sites WHERE demo_sandbox
+          ON CONFLICT (site_id, user_id) DO NOTHING`, user.id, DEMO_ROLE);
+        sitesAssigned = assigned.rowCount;
+      }
+      await recordAuthEvent(tx, 'signup.approved', {
+        userId: user.id, at: at.toISOString(), detail: { sites_assigned: sitesAssigned },
+      });
       await deliver(mailer, { to: row.email, ...welcomeEmail({ password, language: row.language }) });
     }
     return decision;

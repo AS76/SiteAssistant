@@ -319,7 +319,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           return html(response, 200, 'Esamina la richiesta di accesso e scegli se approvarla o rifiutarla.', { email: row.email, requested_at: row.requested_at, token });
         }
         const form = await readForm(request);
-        const decision = await decideSignup(db, form.get('token'), form.get('decision'), { mailer });
+        const decision = await decideSignup(db, form.get('token'), form.get('decision'), { mailer, demoSandbox });
         return html(response, 200, decision === 'approve' ? 'Request approved. A temporary password has been emailed to the applicant.' : 'Request rejected. No account was created.');
       }
       if (path === RESET_PATH && ['GET', 'POST'].includes(method)) {
