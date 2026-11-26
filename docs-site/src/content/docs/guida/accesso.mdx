@@ -1,15 +1,76 @@
 ---
 title: Accesso e account
-description: Come entri in SiteAssistant, come richiedi un account, come gestisci la password e le passkey.
+description: Come entri la prima volta con l'invito, come usi password e passkey, cosa fare se un accesso non riesce.
 ---
 
 import Shot from '../../../components/Shot.astro';
 
-Entri in SiteAssistant con la tua **email** e la tua **password**, oppure con una **passkey** se ne hai registrata una. Non esiste una registrazione pubblica: gli account si creano in due modi, entrambi pensati per chi lavora in cantiere.
+Entri in SiteAssistant con la tua **email** e la tua **password**, oppure con una **passkey** se ne hai registrata una. Non esiste una registrazione pubblica: il primo passo è sempre un invito di chi amministra l'applicazione.
+
+## Primo accesso: tre passi
+
+A cosa serve: entrare la prima volta partendo dall'invito, senza conoscere l'applicazione.
+
+1. **Apri il link di invito.** Cerca l'email **Il tuo invito a SiteAssistant** e apri il link **Attiva il tuo account** entro **72 ore**, dal telefono o dal computer. Il link vale una volta sola.
+2. **Scegli la password.** Nella pagina **Scegli la password** scrivila due volte: da **12 a 1024 caratteri**, a tua scelta. Nessuna password arriva via email.
+3. **Entri nel cantiere.** Premi **Attiva account**: l'account si crea e la sessione si apre da sola. Scegli il cantiere dal menu in alto.
+
+Se vedi **Nessun accesso ai cantieri** l'account è comunque attivo: chiedi al responsabile del cantiere di assegnarti un ruolo. Non hai ricevuto nessun invito? Vai a [Se non hai ancora un account](#se-non-hai-ancora-un-account).
+
+## Se ti hanno invitato
+
+- **Il link vale 72 ore e si usa una volta sola.**
+- **La password la scegli tu**, da 12 a 1024 caratteri, confermandola due volte nella pagina di attivazione.
+- **Nessuna password via email.** L'email di invito contiene solo il link: chi ti invita non vede e non ti chiederà mai la password per email.
+- **Se il link non funziona** perché è scaduto, già usato o revocato, la pagina risponde **Chiedi un nuovo invito all'amministratore**: fatti inviare un nuovo invito e ripeti i tre passi.
+- **La lingua dell'invito** determina la lingua dell'email, della pagina di attivazione e dell'account appena creato; dopo puoi cambiarla in [Impostazioni](../impostazioni/).
+- La pagina di attivazione richiede **JavaScript** attivo nel browser. Dopo troppi tentativi ravvicinati ti chiede di riprovare più tardi.
+
+## Le tue passkey
+
+La passkey sostituisce la password con un riconoscimento che fai sul tuo dispositivo — volto, impronta, PIN o chiave di sicurezza. Il dato biometrico non lascia il dispositivo: l'applicazione riceve solo la conferma che la passkey è tua.
+
+### Creare una passkey
+
+1. Entra nell'applicazione e apri l'**ingranaggio** in alto a destra.
+2. Nella sezione **Il tuo account** premi **Sicurezza**: trovi l'elenco delle tue passkey, ognuna con **Nome**, data di creazione e ultimo utilizzo, oppure **Mai utilizzata**.
+3. Premi **Aggiungi passkey** e conferma la finestra che apre il browser. Se la passkey è già registrata sull'account, l'applicazione lo dice.
+
+Cosa ti chiede il dispositivo dipende dal sistema operativo. Ecco cosa risulta dalla documentazione ufficiale dei tre produttori:
+
+- **Windows (Windows Hello).** Quando il browser chiede dove salvare la passkey puoi scegliere di salvarla sul dispositivo: Windows la conserva localmente con Windows Hello e ti chiede l'unlock che usi di solito, cioè volto, impronta o PIN. Per averla anche su altri dispositivi puoi salvarla in un password manager sincronizzato, per esempio Microsoft Password Manager, oppure usare una chiave di sicurezza. Fonte: [Create and save a passkey — Microsoft Support](https://support.microsoft.com/en-us/accounts-billing/security/create-save-passkey).
+- **Mac, iPhone e iPad (Face ID / Touch ID).** Sugli dispositivi Apple la passkey viene autorizzata con Face ID o Touch ID e viene salvata nel Portachiavi iCloud, con cui si sincronizza fra i dispositivi dello stesso account Apple; funziona anche da dispositivi non Apple quando sono vicini. Fonte: [About the security of passkeys — Apple Support](https://support.apple.com/en-us/102195).
+- **Android (Google Password Manager).** Verifica i dati mostrati e conferma con il **blocco schermo del dispositivo**: impronta, volto, PIN o sequenza. La passkey viene salvata e sincronizzata da Google Password Manager — o da un altro gestore selezionato, come Samsung Pass, Keeper o 1Password — e la puoi usare anche sugli altri dispositivi Android che lo usano. Fonte: [Sign-in to your applications & websites with passkeys — Android Help](https://support.google.com/android/answer/14124480).
+
+La finestra di conferma la disegnano browser e sistema operativo, non SiteAssistant: se sul tuo schermo leggi parole diverse da queste, segui la guida ufficiale della tua piattaforma citata qui sopra.
+
+### Entrare con una passkey
+
+A cosa serve: aprire una sessione senza digitare la password.
+
+Sotto il pulsante **Accedi** il modulo offre due comandi:
+
+1. **Accedi con passkey** usa l'email scritta nel campo **Email** e chiede al browser la passkey di quell'account. L'email va compilata: se il campo è vuoto il browser lo segnala e la passkey non parte.
+2. **Usa una passkey senza email** non chiede nulla: il browser propone le passkey salvate per questo sito e tu scegli quale usare.
+
+In entrambi i casi la conferma avviene nel browser — impronta, volto, PIN o chiave di sicurezza — e fuori dal browser non esce nulla di quel dato.
+
+Se il browser non supporta le passkey, o la pagina non è aperta in una connessione sicura, i due pulsanti restano spenti e una nota ti invita a usare la password. Se le passkey non sono configurate sul server, il messaggio lo dice. Se annulli la finestra del browser o la lasci scadere, l'operazione si ferma senza aprire la sessione: puoi riprovare o usare la password.
+
+### Rinominare o eliminare una passkey
+
+Dalla finestra **Sicurezza**:
+
+- **Rinomina** cambia il **Nome** della passkey, da 1 a 100 caratteri: serve a distinguere, per esempio, il telefono dal portatile.
+- **Elimina** toglie la passkey dopo una conferma, e con lei le sessioni aperte con quella passkey.
+
+L'ultima passkey rimasta non si elimina: senza, non potresti più rientrare senza password. Il messaggio lo dice e l'elenco resta com'era. Se non hai ancora nessuna passkey la finestra lo scrive e ricorda che puoi continuare a usare la password.
+
+Una passkey è legata al tuo account, ma la sua copia privata resta sul dispositivo o nel gestore che l'ha salvata: con il Portachiavi iCloud la ritrovi sui tuoi dispositivi Apple, con Google Password Manager sui dispositivi Android sincronizzati, mentre la passkey salvata in Windows Hello resta su quel dispositivo. Vedi [Impostazioni](../impostazioni/) per le altre preferenze.
 
 ## Entrare
 
-A cosa serve: aprire una sessione sul cantiere su cui devi lavorare.
+A cosa serve: aprire una sessione con la tua email e la tua password.
 
 1. Apri l'indirizzo dell'applicazione nel browser, da desktop o da smartphone.
 2. Se non c'è una sessione attiva, compare il modulo **Accedi**.
@@ -29,45 +90,11 @@ Nella schermata di accesso della demo, in alto, una nota indica quali cantieri h
 - Il messaggio di errore non rivela mai se a essere sbagliata è l'email o la password.
 - Dopo **10 accessi con password falliti** in **15 minuti** per la stessa email e lo stesso indirizzo di rete, il tentativo successivo viene bloccato. Il modulo mostra un avviso con i minuti di attesa e disattiva **Accedi** con un conto alla rovescia. Il pulsante si riattiva allo scadere del tempo.
 - Un accesso riuscito con password azzera i tentativi falliti per quella email e quell'indirizzo di rete. Durante l'attesa puoi usare una passkey già registrata, se disponibile.
-- Se la sessione scade o viene revocata, l'applicazione ti riporta al modulo di accesso.
 :::
-
-## Entrare con una passkey
-
-A cosa serve: aprire una sessione senza digitare la password, con impronta, volto, PIN o chiave di sicurezza.
-
-Sotto il pulsante **Accedi** il modulo offre due comandi:
-
-1. **Accedi con passkey** usa l'email scritta nel campo **Email** e chiede al browser la passkey di quell'account. L'email va compilata: se il campo è vuoto il browser lo segnala e la passkey non parte.
-2. **Usa una passkey senza email** non chiede nulla: il browser propone le passkey salvate per questo sito e tu scegli quale usare.
-
-In entrambi i casi la conferma avviene nel browser — impronta, volto, PIN o chiave di sicurezza — e fuori dal browser non esce nulla di quel dato: l'applicazione riceve solo la conferma che la passkey è tua.
-
-Se il browser non supporta le passkey, o la pagina non è aperta in una connessione sicura, i due pulsanti restano spenti e una nota ti invita a usare la password. Se le passkey non sono configurate sul server, il messaggio lo dice. Se annulli la finestra del browser o la lasci scadere, l'operazione si ferma senza aprire la sessione: puoi riprovare o usare la password.
-
-Dopo l'accesso con passkey la sessione dura **7 giorni** come le altre e si chiude con **Esci**.
-
-## Le tue passkey
-
-A cosa serve: aggiungere una passkey all'account, darle un nome riconoscibile e togliere quelle che non usi più.
-
-1. Apri l'**ingranaggio** in alto a destra.
-2. Apri l'ingranaggio, nella sezione **Il tuo account** premi **Sicurezza**.
-3. La finestra elenca le tue passkey, ognuna con il **Nome**, la data di creazione e l'ultimo utilizzo, oppure **Mai utilizzata**.
-
-Da qui:
-
-- **Aggiungi passkey** registra una nuova passkey sull'account, con la conferma del browser. Se la passkey è già registrata, l'applicazione lo dice.
-- **Rinomina** cambia il **Nome** della passkey, da 1 a 100 caratteri: serve a distinguere, per esempio, il telefono dal portatile.
-- **Elimina** toglie la passkey dopo una conferma, e con lei le sessioni aperte con quella passkey.
-
-L'ultima passkey rimasta non si elimina: senza, non potresti più rientrare senza password. Il messaggio lo dice e l'elenco resta com'era.
-
-Se non hai ancora nessuna passkey la finestra lo scrive e ricorda che puoi continuare a usare la password. Le passkey restano sull'account, non su questo browser: le ritrovi da qualsiasi dispositivo, purché il browser le supporti. Vedi [Impostazioni](../impostazioni/) per le altre preferenze.
 
 ## Se non hai ancora un account
 
-A cosa serve: ottenere un account quando non ne hai uno, senza una registrazione pubblica.
+A cosa serve: ottenere un account quando nessuno ti ha invitato.
 
 Dal modulo di accesso puoi premere **Richiedi accesso**:
 
@@ -82,16 +109,9 @@ La richiesta non crea l'account da sola: serve l'approvazione di un amministrato
 La richiesta resta in attesa: non crea l'account finché un amministratore non la approva. Se l'email di approvazione non arriva, chiedi all'amministratore di controllare la richiesta e ripeti l'invio solo se è scaduta.
 :::
 
-## Se ti hanno invitato
-
-Apri il link nell’email **Il tuo invito a SiteAssistant** entro **72 ore**. Scegli una password di almeno **12 caratteri**, confermala e premi **Attiva account**. SiteAssistant crea l’account e avvia la sessione. Il link vale una sola volta. Se non funziona, chiedi un nuovo invito all’amministratore. Scegli tu la password e nessuno te la chiederà via email.
-
-La lingua dell'invito viene usata per l'email, l'attivazione e la lingua iniziale dell'account. Se vedi **Nessun accesso ai cantieri**, l'account è attivo. Chiedi al responsabile del cantiere di assegnarti un ruolo.
-
-
 ## Password dimenticata o da cambiare
 
-- **Password dimenticata.** Dalla pagina di accesso, seleziona **Password dimenticata** e inserisci la tua email. Se l’account esiste, ricevi un link monouso che scade dopo **30 minuti**. La password resta valida fino alla conferma della nuova. Alla conferma si chiudono tutte le sessioni.
+- **Password dimenticata.** Dalla pagina di accesso, seleziona **Password dimenticata** e inserisci la tua email. Se l'account esiste, ricevi un link monouso che scade dopo **30 minuti**. La password resta valida fino alla conferma della nuova. Alla conferma si chiudono tutte le sessioni.
 - **Cambiare la password.** Dopo l'accesso con una password temporanea, premi **Cambia la password** per sbloccare il cantiere. Serve una connessione e una nuova password diversa da quella attuale, di almeno **12 caratteri**. Le altre sessioni vengono chiuse. Dopo lo sblocco trovi lo stesso comando in **Impostazioni → Il tuo account**.
 
 Se il servizio email non è attivo, queste operazioni non sono disponibili: l'applicazione lo segnala con un messaggio e ti invita a riprovare.
@@ -103,7 +123,4 @@ Richieste di accesso, reset e cambio password sono limitati: dopo **10 tentativi
 - La sessione dura **7 giorni** e viene ricordata dal browser con un cookie sicuro.
 - Il pulsante **Esci** chiude subito la sessione sul server.
 - Chiudere il browser senza uscire **non** chiude la sessione: resta valida fino alla scadenza o al prossimo logout.
-
-:::note[Sessione scaduta]
-Se la sessione scade o viene revocata, l'applicazione ti riporta al modulo di accesso.
-:::
+- Se la sessione scade o viene revocata, l'applicazione ti riporta al modulo di accesso.
