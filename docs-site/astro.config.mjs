@@ -73,6 +73,7 @@ export default defineConfig({
             { label: 'Configurare un cantiere', translations: { en: 'Configure a site' }, slug: 'amministrazione/configurare-cantiere' },
             { label: 'Importare un export di pianificazione', translations: { en: 'Import a planning export' }, slug: 'amministrazione/import-pianificazione' },
             { label: 'Privacy e responsabilità', translations: { en: 'Privacy and responsibilities' }, slug: 'amministrazione/privacy-responsabilita' },
+            { label: 'Inventario dei trattamenti', translations: { en: 'Record of processing activities' }, slug: 'amministrazione/inventario-trattamenti' },
             { label: 'Checklist di adozione', translations: { en: 'Deployment checklist' }, slug: 'amministrazione/privacy-checklist' },
             { label: 'Italia e UE', translations: { en: 'Italy and the EU' }, slug: 'amministrazione/privacy-italia-ue' },
             { label: 'Regno Unito', translations: { en: 'United Kingdom' }, slug: 'amministrazione/privacy-uk' },
