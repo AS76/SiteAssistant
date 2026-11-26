@@ -93,6 +93,14 @@ The repository and the demo run on **synthetic data only**. The public import co
 in `planning-import.md`; site-specific mapping profiles are runtime configuration and are not part
 of the repository.
 
+### Import payload retention
+
+`npm run retention -- [--dry-run|--apply] [--from YYYY-MM-DD]` uses the configured database and the policy in [`config/import-retention.json`](../config/import-retention.json). Dry-run is the default. The reference is the current time or midnight UTC on the `--from` date. Both modes report `expired`, `deletable` and `excluded` by family and effective window. The command runs on demand against an existing database.
+
+A payload expires when its age from `created_at` strictly exceeds its window in 24-hour days. The default is 90 days, with 30-day family overrides for `employees` and `work_days`. The effective window is the minimum of the default and any applicable family and site overrides. A valid exception protects a site or a specific family at that site until midnight UTC on its `until` date. Invalid policy files stop the command before it opens the database.
+
+**Obtain Product Owner approval before using `--apply` on real data.** Apply clears `planning_import_runs.file_data` for expired payloads without an active exception in one transaction. Import receipts, hashes, metadata and identity bindings are preserved. There is no automated retention job. See the [import specification](planning-import.md#payload-retention--increment-31) for policy fields and report details.
+
 ## Hosting and deployment
 
 - **Demo**: **Railway** (app + PostgreSQL in the same project), served on the provider's own hostname. DNS for the custom domain is not switched yet: it still points to the VPS.

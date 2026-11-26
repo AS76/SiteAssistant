@@ -72,9 +72,17 @@ export async function loadPolicy(path = new URL('../config/import-retention.json
   let input;
   try { input = JSON.parse(await readFile(path, 'utf8')); }
   catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new SyntaxError('Invalid import retention policy: expected valid JSON.', { cause: error });
+    }
     if (error.code !== 'ENOENT') throw error;
   }
   return validatePolicy(input, options);
+}
+
+function familySummary(policy, family) {
+  const override = Object.hasOwn(policy.family_overrides, family) ? policy.family_overrides[family] : policy.default_days;
+  return { baseDays: Math.min(policy.default_days, override), expired: 0, deletable: 0, excluded: 0, windows: {} };
 }
 
 // Only payload-bearing receipts are candidates. History and identity bindings remain intact.
@@ -91,19 +99,31 @@ export async function purge(db, { now = new Date(), policy = DEFAULT_POLICY, dry
   return db.transaction(async tx => {
     const rows = await tx.all(`SELECT id, site_id, family, created_at, octet_length(file_data) AS bytes
       FROM planning_import_runs WHERE file_data IS NOT NULL ORDER BY id`);
-    const result = { scanned: rows.length, expired: 0, deletable: 0, excluded: [], bytesFreed: 0, exceptionCounts };
+    const families = new Set(Object.keys(FAMILIES));
+    for (const row of rows) families.add(row.family);
+    const byFamily = Object.fromEntries(Array.from(families, family => [family, familySummary(validated, family)]));
+    const result = { scanned: rows.length, expired: 0, deletable: 0, excluded: [], bytesFreed: 0, exceptionCounts, byFamily };
     const candidates = [];
     for (const row of rows) {
       const site = row.site_id.toLowerCase();
-      const days = Math.min(validated.default_days,
-        validated.site_overrides[site]?.days ?? validated.default_days,
-        Object.hasOwn(validated.family_overrides, row.family) ? validated.family_overrides[row.family] : validated.default_days);
+      const family = byFamily[row.family];
+      const days = Math.min(family.baseDays, validated.site_overrides[site]?.days ?? validated.default_days);
+      const window = family.windows[days] ??= { expired: 0, deletable: 0, excluded: 0 };
       if (time - instant(row.created_at) <= days * DAY) continue;
       result.expired++;
+      family.expired++;
+      window.expired++;
       const exceptions = activeExceptions.filter(item => item.site_id === site
         && (!Object.hasOwn(item, 'family') || item.family === row.family));
-      if (exceptions.length) result.excluded.push({ id: row.id, reason: exceptions.map(item => item.reason).join('; ') });
-      else candidates.push(row);
+      if (exceptions.length) {
+        family.excluded++;
+        window.excluded++;
+        result.excluded.push({ id: row.id, reason: exceptions.map(item => item.reason).join('; ') });
+      } else {
+        family.deletable++;
+        window.deletable++;
+        candidates.push(row);
+      }
     }
     result.deletable = candidates.length;
     if (!dryRun) for (const row of candidates) {

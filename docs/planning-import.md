@@ -192,25 +192,26 @@ esatto il file non è ancora scaduto. I timestamp devono avere un fuso esplicito
 Il comando è esclusivamente manuale, senza scheduler, timer o hook automatici:
 
 ```sh
-node scripts/retention-planning-import.mjs --dry-run --json
-node scripts/retention-planning-import.mjs --apply --confirm planning_import_retention --json
+npm run retention -- --dry-run --from 2026-11-26
 ```
 
-Il dry-run è il default anche senza flag. `--apply` senza conferma esatta termina
-con codice 2 prima di aprire il database. Nessuna variabile d'ambiente abilita
-l'apply. Il comando usa la configurazione database esistente (`DB_DRIVER`,
-`DATA_DIR` per SQLite), senza migrazioni né creazione di schemi; richiede un database
-già predisposto. Questo incremento non attiva servizi e non esegue operazioni
-sul database operativo.
+Il dry-run è il default. `--from YYYY-MM-DD` fissa il riferimento alle 00:00 UTC
+della data indicata. Se omesso, vale l'istante di avvio del comando. Il comando
+richiede un database già predisposto, indicato da `DATA_DIR` per SQLite oppure
+da `DB_DRIVER=pg` e `DATABASE_URL` per PostgreSQL.
+
+**Sui dati reali serve l'approvazione del Product Owner prima di usare `--apply`.**
+
+```sh
+npm run retention -- --apply --from 2026-11-26
+```
 
 L'apply esegue esclusivamente `UPDATE planning_import_runs SET file_data = NULL`
-sui `deletable`, in transazione e con `RETURNING`; non elimina righe né cambia
-metadati o binding. Stampa un riepilogo prima dell'apply (dry-run) e il risultato
-dell'apply dopo il commit: `scanned`, `expired`, `deletable`, `excluded`, `bytesFreed`
-e i conteggi `exceptionCounts` (attive, scadute e malformate).
-I contatori dopo l'apply descrivono i candidati di quell'esecuzione; non sono una
-nuova scansione. `bytesFreed` conta i byte dei soli payload effettivamente azzerati,
-è zero nel dry-run e non misura lo spazio fisico recuperato dal motore database.
-`--json` aggiunge una riga finale JSON con gli stessi contatori e l'elenco
-`excluded: [{id, reason}]`. I payload già nulli non sono più esaminati: ripetere
-l'apply non modifica altre righe, a parità di data e policy.
+sui `deletable`, in transazione e con `RETURNING`. Ricevute, metadati e binding
+restano disponibili. Entrambe le modalità riportano il riferimento UTC, i conteggi
+complessivi, quelli per famiglia e il dettaglio per finestra se la famiglia ne
+usa più di una. Il report dell'apply viene stampato dopo il commit e riporta i
+candidati classificati nella stessa transazione. `bytesFreed` conta i byte dei
+payload azzerati ed è zero nel dry-run. `--json` aggiunge una riga finale JSON
+con gli stessi contatori e l'elenco `excluded: [{id, reason}]`. Le esecuzioni
+successive esaminano solo le ricevute che contengono ancora un payload.
