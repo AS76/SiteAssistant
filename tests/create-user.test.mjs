@@ -184,7 +184,7 @@ test('CLI applies pending migrations normally and retains earlier ledger rows an
   const result = run([...args, '--password-stdin', '--site', 'SYNTH', '--role', 'owner']);
   t.assert.strictEqual(result.status, 0);
   t.assert.strictEqual(result.stderr, 'migrations applied\n');
-  db = await openDb(path, { driver: 'sqlite' });
+  db = await openDb(path, { driver: 'sqlite', migrate: false });
   try {
     const after = await db.all('SELECT * FROM schema_migrations ORDER BY version');
     t.assert.strictEqual(after.length, before.length + 1);

@@ -1,7 +1,8 @@
 import test from 'node:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, writeFile, appendFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { SqliteStorage } from '../server/storage/sqlite.mjs';
@@ -10,7 +11,27 @@ import { openDb, closeDb } from '../server/db.mjs';
 import { migrate } from '../server/migrations/index.mjs';
 import { isPg, openTestDb } from './helpers/db.mjs';
 
-const versions = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020', '021', '022', '023', '024', '025', '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '040', '045', '047', '048', '049', '050', '051', '052', '053'];
+import { assertSequence, assertUpgrade, observeMigrations, registry, verifyManifest, versions } from './helpers/migrations.mjs';
+import { buildManifest, fixtureRoot, migrationRoot } from './helpers/migration-manifest.mjs';
+import { assertCatalog, assertPg16, catalog, logicalCatalog, readSnapshot } from './helpers/migration-schema.mjs';
+import { assertManifestPrefix, assertSnapshotWithoutTail, migrationBase } from './helpers/migration-base.mjs';
+
+const base = migrationBase();
+
+async function migrateAndCheckCatalog(db, driver, engine, { exact = true } = {}) {
+  const baseline = await base?.snapshot(engine);
+  let checkedBoundary = false;
+  await assertUpgrade(db, { driver, async afterCommit(version) {
+    if (baseline && version === base.boundary) {
+      assertCatalog(await catalog(db, driver), baseline, `${engine} catalog at base migration ${version}`);
+      checkedBoundary = true;
+    }
+  } });
+  if (baseline && !checkedBoundary) throw new Error(`Missing catalog checkpoint at ${base.boundary}`);
+  const actual = await catalog(db, driver);
+  if (exact) assertCatalog(actual, await readSnapshot(engine), `${engine} final catalog`);
+  return actual;
+}
 
 async function temporarySqlite(t) {
   const directory = await mkdtemp(join(tmpdir(), 'siteassistant-migrations-'));
@@ -27,17 +48,22 @@ async function assertMigrations(t, db, driver) {
   for (const table of ['sites', 'tasks', 'task_events', 'diary', 'idempotency_keys', 'users', 'sessions', 'password_resets', 'invitations', 'site_members', 'attachments', 'project_structure', 'wbs_import_sources', 'employees', 'work_days', 'hr_import_sources', 'site_progress_items', 'site_progress_import_sources', 'deviations', 'deviation_links', 'deviation_import_sources', 'deviation_exports', 'deviation_export_rows', 'deviation_events', 'time_bookings', 'cost_impacts', 'cost_impact_deviations', 'planning_import_runs', 'planning_import_keys', 'view_settings', 'tools', 'employee_certifications', 'import_mappings', 'dashboard_layouts', 'member_module_access', 'hse_events', 'purchase_orders', 'purchase_order_items', 'packages', 'package_items', 'shipments', 'shipment_packages', 'shipment_receipts', 'assistant_usage']) {
     t.assert.deepStrictEqual(await db.all(`SELECT * FROM ${table}`), []);
   }
-  await migrate(db, { driver });
+  const committed = [];
+  t.assert.strictEqual(await migrate(observeMigrations(db, committed), { driver, demoSandbox: false }), 0);
+  assertSequence(committed, []);
   t.assert.deepStrictEqual(await db.all('SELECT * FROM schema_migrations ORDER BY version'), before);
 }
 
 test('migrations initialize an empty temporary SQLite file and reopening is a no-op', async t => {
   const { db, path } = await temporarySqlite(t);
-  await migrate(db, { driver: 'sqlite' });
+  const expected = await migrateAndCheckCatalog(db, 'sqlite', 'sqlite');
   await assertMigrations(t, db, 'sqlite');
   const reopened = await openDb(path, { driver: 'sqlite' });
   try { await assertMigrations(t, reopened, 'sqlite'); }
   finally { await closeDb(reopened); }
+  const ordinary = await openDb(':memory:', { driver: 'sqlite' });
+  try { assertCatalog(await catalog(ordinary, 'sqlite'), expected, 'SQLite openDb catalog'); }
+  finally { await closeDb(ordinary); }
 });
 
 test('migrations adopt populated SQLite databases without changing existing records', async t => {
@@ -50,7 +76,7 @@ test('migrations adopt populated SQLite databases without changing existing reco
     'Example plan', '2026-01-02T03:00:00.000Z');
   const before = await db.all('SELECT * FROM sites');
   const diaryBefore = await db.get('SELECT * FROM diary');
-  await migrate(db, { driver: 'sqlite' });
+  await assertUpgrade(db, { driver: 'sqlite' });
   t.assert.deepStrictEqual((await db.all('SELECT * FROM sites')).map(row => ({ ...row })),
     before.map(row => ({ ...row, jurisdiction: 'IT', time_zone: 'Europe/Rome', day_cutoff_time: '06:00',
       assistant_enabled: 0, assistant_timeout_ms: 20000, demo_sandbox: 0 })));
@@ -70,10 +96,12 @@ test('a failed migration rolls back its DDL and version, and can be retried', as
       exec: sql => tx.exec(`${sql}\nINVALID SQL;`),
     })),
   };
-  await t.assert.rejects(() => migrate(failing, { driver: 'sqlite' }), /syntax/i);
+  const committed = [];
+  await t.assert.rejects(() => migrate(observeMigrations(failing, committed), { driver: 'sqlite', demoSandbox: false }), /syntax/i);
+  assertSequence(committed, []);
   t.assert.deepStrictEqual(await db.all('SELECT * FROM schema_migrations'), []);
   t.assert.strictEqual(await db.get("SELECT name FROM sqlite_master WHERE name = 'sites'"), undefined);
-  await migrate(db, { driver: 'sqlite' });
+  await assertUpgrade(db, { driver: 'sqlite' });
   await assertMigrations(t, db, 'sqlite');
 });
 
@@ -88,7 +116,9 @@ test('PostgreSQL migrations initialize an empty PGlite schema and repeat without
     run: (sql, ...params) => connection.query(translatePlaceholders(sql), params),
   });
   const db = { ...adapt(pg), transaction: fn => pg.transaction(tx => fn(adapt(tx))) };
-  await migrate(db, { driver: 'pg' });
+  await assertUpgrade(db, { driver: 'pg' });
+  const sqlite = await readSnapshot('sqlite');
+  assertCatalog(logicalCatalog(await catalog(db, 'pg')), logicalCatalog(sqlite), 'SQLite/PGlite logical schema');
   await assertMigrations(t, db, 'pg');
   t.assert.strictEqual((await pg.query("SELECT table_schema FROM information_schema.tables WHERE table_name = 'schema_migrations'")).rows[0].table_schema, 'migration_test');
 });
@@ -97,4 +127,153 @@ test('openDb migrates an isolated PostgreSQL test schema', { skip: !isPg }, asyn
   const database = await openTestDb();
   t.after(database.close);
   await assertMigrations(t, database.db, 'pg');
+});
+
+const hasPg16Snapshot = await readFile(new URL('pg16.schema.json', fixtureRoot))
+  .then(() => true, error => {
+    if (error.code !== 'ENOENT') throw error;
+    return false;
+  });
+
+test('PostgreSQL 16 committed chain and openDb catalog parity', {
+  skip: !isPg && 'requires an isolated real PostgreSQL 16 test database',
+}, async t => {
+  const blank = await openTestDb(':memory:', { migrate: false });
+  t.after(blank.close);
+  const expected = await migrateAndCheckCatalog(blank.db, 'pg', 'pg16', { exact: false });
+  assertCatalog(logicalCatalog(expected), logicalCatalog(await readSnapshot('sqlite')), 'SQLite/PostgreSQL logical schema');
+  const ordinary = await openTestDb();
+  t.after(ordinary.close);
+  assertCatalog(await catalog(ordinary.db, 'pg'), expected, 'PostgreSQL openDb catalog');
+  await t.test('exact PostgreSQL 16 baseline', {
+    skip: !hasPg16Snapshot && 'requires an initial baseline captured on real PostgreSQL 16',
+  }, async () => {
+    await assertPg16(blank.db);
+    assertCatalog(expected, await readSnapshot('pg16'), 'pg16 final catalog');
+  });
+});
+
+test('migration manifest matches both source directories and checksums', async () => {
+  await verifyManifest();
+});
+
+test('manifest checks reject missing, unexpected and modified SQL in a disposable copy', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'siteassistant-manifest-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const temporary = pathToFileURL(directory + '/');
+  const root = new URL('sources/', temporary);
+  await cp(migrationRoot, root, { recursive: true });
+  const base = await buildManifest(root);
+
+  const latest = base.at(-1).file;
+  await rm(new URL(`pg/${latest}`, root));
+  await t.assert.rejects(verifyManifest(root), new RegExp(`missing pg/${latest}`));
+  await rm(new URL(`sqlite/${latest}`, root));
+  await t.assert.rejects(verifyManifest(root), new RegExp(`missing sqlite/${latest}.*missing pg/${latest}`, 's'));
+  await cp(migrationRoot, root, { recursive: true });
+
+  const changed = base[0].file;
+  const historical = new URL(`sqlite/${changed}`, root);
+  await appendFile(historical, '\n-- synthetic modification\n');
+  await t.assert.rejects(verifyManifest(root), /SHA-256 changed: sqlite\/001_init.sql/);
+  const rewritten = await buildManifest(root);
+  t.assert.throws(() => assertManifestPrefix(base, rewritten), /Historical migration changed.*001_init.sql/);
+  await cp(new URL(`sqlite/${changed}`, migrationRoot), historical);
+
+  const next = String(Number(base.at(-1).version) + 1).padStart(3, '0');
+  for (const dialect of ['sqlite', 'pg']) await writeFile(new URL(`${dialect}/${next}_synthetic.sql`, root), '-- synthetic tail\n');
+  await t.assert.rejects(verifyManifest(root), /unexpected sqlite\/.*_synthetic.sql/);
+  const candidate = await buildManifest(root);
+  assertManifestPrefix(base, candidate);
+
+  // Use a copy of the production runner with its two local imports and the
+  // extended migration directory. The synthetic SQL is a catalog no-op.
+  const server = new URL('server/', temporary);
+  await mkdir(server);
+  await cp(root, new URL('migrations/', server), { recursive: true });
+  for (const file of ['demo-sandbox.mjs', 'operational-day.mjs']) {
+    await cp(new URL(`../server/${file}`, import.meta.url), new URL(file, server));
+  }
+  const { migrate: migrateCandidate } = await import(new URL('migrations/index.mjs', server));
+  const { db } = await temporarySqlite(t);
+  const committed = [];
+  const observed = observeMigrations(db, committed);
+  t.assert.strictEqual(await migrateCandidate(observed, { driver: 'sqlite', demoSandbox: false }), candidate.length);
+  assertSequence(committed, candidate.map(entry => entry.version));
+  t.assert.deepStrictEqual((await registry(db)).map(row => row.version), committed);
+  committed.length = 0;
+  t.assert.strictEqual(await migrateCandidate(observed, { driver: 'sqlite', demoSandbox: false }), 0);
+  assertSequence(committed, []);
+  assertCatalog(await catalog(db, 'sqlite'), await readSnapshot('sqlite'), 'data-only migration catalog');
+});
+
+test('a skipped migration is detected even when the original SQL and manifest are intact', async t => {
+  const { db } = await temporarySqlite(t);
+  // Let the runner reach its final transaction, then roll it back and report
+  // a no-op, as if the runner skipped the migration.
+  const last = versions.at(-1);
+  const skipped = new Error('synthetic skip');
+  const adapter = {
+    exec: sql => db.exec(sql),
+    all: (...args) => db.all(...args),
+    async transaction(fn) {
+      try {
+        return await db.transaction(tx => fn({
+          ...tx,
+          async run(sql, ...args) {
+            if (/^INSERT INTO schema_migrations/i.test(sql) && args[0] === last) throw skipped;
+            return await tx.run(sql, ...args);
+          },
+        }));
+      } catch (error) {
+        if (error !== skipped) throw error;
+      }
+    },
+  };
+  await t.assert.rejects(assertUpgrade(adapter, { driver: 'sqlite' }),
+    new RegExp(`expected ${last}, observed end of sequence`));
+});
+
+test('commit order verification rejects swapped versions with a complete sorted registry', async t => {
+  const { db } = await temporarySqlite(t);
+  const observed = [];
+  const correct = versions.slice(-2);
+  await db.exec('CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
+  const adapter = observeMigrations(db, observed);
+  for (const version of correct.toReversed()) {
+    await adapter.transaction(tx => tx.run('INSERT INTO schema_migrations VALUES (?, ?)', version, '2026-01-01T00:00:00Z'));
+  }
+  t.assert.deepStrictEqual((await registry(db)).map(row => row.version), correct);
+  t.assert.throws(() => assertSequence(observed, correct),
+    new RegExp(`Migration commit #1: expected ${correct[0]}, observed ${correct[1]}`));
+});
+
+test('catalog drift fails even though the migration registry is unchanged', async t => {
+  const { db } = await temporarySqlite(t);
+  const before = await assertUpgrade(db, { driver: 'sqlite' });
+  const baseline = await readSnapshot('sqlite');
+  await db.exec('DROP INDEX assistant_usage_site_pending');
+  t.assert.deepStrictEqual(await registry(db), before);
+  const drift = await catalog(db, 'sqlite');
+  t.assert.throws(() => assertCatalog(drift, baseline, 'SQLite catalog'),
+    /- index assistant_usage_site_pending \(missing\)/);
+  t.assert.throws(() => assertSnapshotWithoutTail(JSON.stringify(drift), JSON.stringify(baseline), 'sqlite.schema.json'),
+    /sqlite.schema.json changed without appending a migration/);
+});
+
+test('recording a migration without running its DDL is detected by the catalog', async t => {
+  const { db } = await temporarySqlite(t);
+  const adapter = {
+    exec: sql => db.exec(sql),
+    all: (...args) => db.all(...args),
+    transaction: fn => db.transaction(tx => fn({
+      ...tx,
+      exec: sql => /^CREATE TABLE assistant_usage \(/i.test(sql) ? undefined : tx.exec(sql),
+    })),
+  };
+  const after = await assertUpgrade(adapter, { driver: 'sqlite' });
+  t.assert.deepStrictEqual(after.map(row => row.version), versions);
+  const actual = await catalog(db, 'sqlite');
+  const baseline = await readSnapshot('sqlite');
+  t.assert.throws(() => assertCatalog(actual, baseline, 'SQLite catalog'), /- table assistant_usage \(missing\)/);
 });

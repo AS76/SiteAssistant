@@ -263,6 +263,30 @@ Browser testing requires Playwright and Chromium dependencies. CI includes the S
 
 Successful tests provide evidence for the behaviours covered; they are **not** a certification of production readiness.
 
+### Migration manifest and catalog snapshots
+
+After appending a migration in both dialects, regenerate the manifest and SQLite snapshot from the repository root.
+
+```sh
+npm run migrations:manifest
+npm run migrations:schema -- sqlite
+```
+
+The manifest records each version, filename and SHA-256 for both dialects in version order. Only CRLF is normalized to LF before hashing. The SQLite snapshot comes from Node 24's bundled SQLite on a newly migrated database. PGlite checks migration execution and the common table, view and column layout with SQLite.
+
+Generate the PostgreSQL snapshot against an isolated, already running PostgreSQL **16** test database. Set `DATABASE_URL_TEST` to that database in the shell and set `SA_TEST_DB` if its name differs from `siteassistant_test`.
+
+```sh
+DB_DRIVER=pg npm run migrations:schema -- pg16
+npm run test:pg
+```
+
+The generator checks the server major version and cleans up its temporary schema. The first real PostgreSQL 16 capture is pending. The real PostgreSQL job exercises the committed chain and compares it with the ordinary database opening path. The exact comparison runs once `pg16.schema.json` is present.
+
+Review the diff in `tests/fixtures/migrations/` alongside the matching SQL changes. Manifest entries may only be appended. Each snapshot key names the affected object. The comparison reports missing, added and changed objects. A data-only migration should leave both catalog snapshots unchanged and should have a populated upgrade fixture that verifies the backfill. For structural changes, check each affected object's columns, constraints, index definitions, views, triggers and functions against the migration's intent.
+
+CI reads the manifest and available baseline snapshots from the pull request base or the pre-push commit on `main`. It checks the unchanged manifest prefix and compares the catalog immediately after that prefix commits. With an empty tail, CI also requires identical baseline snapshot files. The initial manifest bootstrap is tied to the introducing commit's base and requires unchanged migration sources.
+
 ### Repository structure
 
 | Path | Purpose |

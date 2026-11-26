@@ -7,6 +7,7 @@ import { translatePlaceholders } from '../server/storage/pg.mjs';
 import { applyMigration, migrate } from '../server/migrations/index.mjs';
 import { createTask, createAttachment, listAttachments, deleteAttachment } from '../server/repository.mjs';
 import { MemoryObjectStorage } from './helpers/object-storage.mjs';
+import { assertUpgrade, versions as expectedVersions } from './helpers/migrations.mjs';
 
 // Le prove di aggiornamento partono da uno schema vecchio: il sito si inserisce con le sole colonne
 // che esistevano allora, senza passare dal repository, che conosce lo schema attuale.
@@ -55,7 +56,7 @@ for (const driver of ['sqlite', 'pg']) {
     await db.run("INSERT INTO site_members VALUES (?, ?, 'owner')", site.id, user.id);
     const tables = ['sites', 'tasks', 'task_events', 'diary', 'users', 'site_members'];
     const before = await Promise.all(tables.map(table => db.all(`SELECT * FROM ${table}`)));
-    t.assert.strictEqual(await migrate(db, { driver }), 41);
+    await assertUpgrade(db, { driver, first: '007' });
     // Account for columns added since 006 while comparing every pre-existing value.
     for (const row of before[tables.indexOf('tasks')]) Object.assign(row, {
       kind: null, wbs_id: null, declared_at: null, verified_at: null,
@@ -146,7 +147,7 @@ for (const driver of ['sqlite', 'pg']) {
     t.assert.deepStrictEqual(await db.all('SELECT * FROM schema_migrations ORDER BY version'), versions);
     await t.assert.rejects(() => db.run("UPDATE attachments SET entity_type = 'hse_event'"), /check/i);
 
-    t.assert.strictEqual(await migrate(db, { driver }), 21);
+    await assertUpgrade(db, { driver, first: '027' });
     t.assert.deepStrictEqual(await db.all('SELECT * FROM attachments ORDER BY id'), before);
     await db.run(`INSERT INTO attachments (id, site_id, entity_type, entity_id, filename, mime, size,
       content_sha256, storage_locator, created_at) VALUES (?, ?, 'hse_event', ?, 'Synthetic condition.png',
@@ -175,7 +176,7 @@ for (const driver of ['sqlite', 'pg']) {
     }
     const after = await db.all('SELECT * FROM attachments ORDER BY id');
     const applied = await db.all('SELECT * FROM schema_migrations ORDER BY version');
-    t.assert.strictEqual(applied.at(-1).version, '053');
+    t.assert.deepStrictEqual(applied.map(row => row.version), expectedVersions);
     t.assert.strictEqual(await migrate(db, { driver }), 0);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM attachments ORDER BY id'), after);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM schema_migrations ORDER BY version'), applied);
