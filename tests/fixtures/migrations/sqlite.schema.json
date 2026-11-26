@@ -1956,6 +1956,54 @@
       }
     ]
   },
+  "table demo_seed_records": {
+    "relation": "demo_seed_records",
+    "sql": "CREATE TABLE demo_seed_records (\n  table_name TEXT NOT NULL,\n  record_id TEXT NOT NULL,\n  PRIMARY KEY (table_name, record_id)\n)",
+    "columns": [
+      {
+        "name": "table_name",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "name": "record_id",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 2,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [],
+    "implicitIndexes": [
+      {
+        "origin": "pk",
+        "columns": [
+          {
+            "name": "table_name",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "record_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": null,
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 0
+          }
+        ]
+      }
+    ]
+  },
   "table deviation_events": {
     "relation": "deviation_events",
     "sql": "CREATE TABLE deviation_events (\n  id INTEGER PRIMARY KEY,\n  deviation_id TEXT NOT NULL REFERENCES deviations(id),\n  at TEXT NOT NULL,\n  actor TEXT NOT NULL,\n  actor_id TEXT REFERENCES users(id),\n  source TEXT NOT NULL CHECK (source IN ('import', 'internal')),\n  from_status TEXT,\n  to_status TEXT NOT NULL,\n  action TEXT,\n  note TEXT,\n  CHECK ((source = 'import' AND actor = 'import' AND actor_id IS NULL)\n      OR (source = 'internal' AND actor_id IS NOT NULL))\n)",

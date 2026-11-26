@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { spawnSync } from 'node:child_process';
 import { cp, mkdir, mkdtemp, rm, writeFile, appendFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,7 +9,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { SqliteStorage } from '../server/storage/sqlite.mjs';
 import { translatePlaceholders } from '../server/storage/pg.mjs';
 import { openDb, closeDb } from '../server/db.mjs';
-import { migrate } from '../server/migrations/index.mjs';
+import { applyMigration, migrate } from '../server/migrations/index.mjs';
 import { isPg, openTestDb } from './helpers/db.mjs';
 
 import { assertSequence, assertUpgrade, observeMigrations, registry, verifyManifest, versions } from './helpers/migrations.mjs';
@@ -45,7 +46,7 @@ async function assertMigrations(t, db, driver) {
   const before = await db.all('SELECT * FROM schema_migrations ORDER BY version');
   t.assert.deepStrictEqual(before.map(row => row.version), versions);
   for (const row of before) t.assert.ok(Number.isFinite(Date.parse(row.applied_at)));
-  for (const table of ['sites', 'tasks', 'task_events', 'diary', 'idempotency_keys', 'users', 'sessions', 'password_resets', 'invitations', 'site_members', 'attachments', 'project_structure', 'wbs_import_sources', 'employees', 'work_days', 'hr_import_sources', 'site_progress_items', 'site_progress_import_sources', 'deviations', 'deviation_links', 'deviation_import_sources', 'deviation_exports', 'deviation_export_rows', 'deviation_events', 'time_bookings', 'cost_impacts', 'cost_impact_deviations', 'planning_import_runs', 'planning_import_keys', 'view_settings', 'tools', 'employee_certifications', 'import_mappings', 'dashboard_layouts', 'member_module_access', 'hse_events', 'purchase_orders', 'purchase_order_items', 'packages', 'package_items', 'shipments', 'shipment_packages', 'shipment_receipts', 'assistant_usage']) {
+  for (const table of ['sites', 'tasks', 'task_events', 'diary', 'idempotency_keys', 'users', 'sessions', 'password_resets', 'invitations', 'site_members', 'attachments', 'project_structure', 'wbs_import_sources', 'employees', 'work_days', 'hr_import_sources', 'site_progress_items', 'site_progress_import_sources', 'deviations', 'deviation_links', 'deviation_import_sources', 'deviation_exports', 'deviation_export_rows', 'deviation_events', 'time_bookings', 'cost_impacts', 'cost_impact_deviations', 'planning_import_runs', 'planning_import_keys', 'view_settings', 'tools', 'employee_certifications', 'import_mappings', 'dashboard_layouts', 'member_module_access', 'hse_events', 'purchase_orders', 'purchase_order_items', 'packages', 'package_items', 'shipments', 'shipment_packages', 'shipment_receipts', 'assistant_usage', 'demo_seed_records']) {
     t.assert.deepStrictEqual(await db.all(`SELECT * FROM ${table}`), []);
   }
   const committed = [];
@@ -105,7 +106,7 @@ test('a failed migration rolls back its DDL and version, and can be retried', as
   await assertMigrations(t, db, 'sqlite');
 });
 
-test('PostgreSQL migrations initialize an empty PGlite schema and repeat without changes', async t => {
+async function temporaryPGlite(t) {
   const pg = new PGlite();
   t.after(() => pg.close());
   await pg.exec('CREATE SCHEMA migration_test; SET search_path TO migration_test;');
@@ -116,11 +117,73 @@ test('PostgreSQL migrations initialize an empty PGlite schema and repeat without
     run: (sql, ...params) => connection.query(translatePlaceholders(sql), params),
   });
   const db = { ...adapt(pg), transaction: fn => pg.transaction(tx => fn(adapt(tx))) };
+  return { db, pg };
+}
+
+test('PostgreSQL migrations initialize an empty PGlite schema and repeat without changes', async t => {
+  const { db, pg } = await temporaryPGlite(t);
   await assertUpgrade(db, { driver: 'pg' });
   const sqlite = await readSnapshot('sqlite');
   assertCatalog(logicalCatalog(await catalog(db, 'pg')), logicalCatalog(sqlite), 'SQLite/PGlite logical schema');
   await assertMigrations(t, db, 'pg');
   t.assert.strictEqual((await pg.query("SELECT table_schema FROM information_schema.tables WHERE table_name = 'schema_migrations'")).rows[0].table_schema, 'migration_test');
+});
+
+for (const [driver, open] of [['sqlite', temporarySqlite], ['pg', temporaryPGlite]]) {
+  test(`${driver} 054 adopts the legacy demo seed table and direct replay preserves its rows`, async t => {
+    const { db } = await open(t);
+    const committed = [];
+    let before;
+    await migrate(observeMigrations(db, committed, async version => {
+      if (version !== '053') return;
+      await db.exec(`CREATE TABLE demo_seed_records (
+        table_name TEXT NOT NULL, record_id TEXT NOT NULL, PRIMARY KEY (table_name, record_id)
+      )`);
+      await db.exec("INSERT INTO demo_seed_records VALUES ('sites', 'example-id'), ('tasks', 'example-id')");
+      before = await db.all('SELECT * FROM demo_seed_records ORDER BY table_name, record_id');
+    }), { driver, demoSandbox: false });
+    assertSequence(committed, versions);
+    t.assert.strictEqual(before.length, 2);
+    const records = () => db.all('SELECT * FROM demo_seed_records ORDER BY table_name, record_id');
+    t.assert.deepStrictEqual(await records(), before);
+    await db.transaction(tx => applyMigration(tx, '054_demo_seed_records.sql', { driver }));
+    t.assert.deepStrictEqual(await records(), before);
+  });
+
+  test(`${driver} 054 rejects incompatible demo seed tables and leaves the version unapplied`, async t => {
+    const { db } = await open(t);
+    const options = { driver, demoSandbox: false };
+    const incompatible = /Migration 054: incompatible demo_seed_records schema/;
+    await t.assert.rejects(migrate(observeMigrations(db, [], async version => {
+      if (version !== '053') return;
+      await db.exec('CREATE TABLE demo_seed_records (table_name TEXT NOT NULL)');
+      await db.exec("INSERT INTO demo_seed_records VALUES ('sites')");
+    }), options), incompatible);
+    t.assert.strictEqual((await db.get('SELECT table_name FROM demo_seed_records')).table_name, 'sites');
+
+    for (const definition of [
+      'table_name TEXT NOT NULL, record_id INTEGER NOT NULL, PRIMARY KEY (table_name, record_id)',
+      'table_name TEXT NOT NULL, record_id TEXT NOT NULL, PRIMARY KEY (record_id, table_name)',
+    ]) {
+      await db.exec('DROP TABLE demo_seed_records');
+      await db.exec(`CREATE TABLE demo_seed_records (${definition})`);
+      await t.assert.rejects(migrate(db, options), incompatible);
+      t.assert.deepStrictEqual((await registry(db)).map(row => row.version), versions.slice(0, -1));
+    }
+  });
+}
+
+test('demo seed CLI requires the migrated table for apply and reset', async t => {
+  const { db, path } = await temporarySqlite(t);
+  for (const flag of ['--apply', '--reset']) {
+    const result = spawnSync(process.execPath, ['server/seed-demo.mjs', flag], {
+      encoding: 'utf8', env: { ...process.env, DB_DRIVER: 'sqlite', DATA_DIR: path },
+    });
+    t.assert.ifError(result.error);
+    t.assert.strictEqual(result.status, 1);
+    t.assert.match(result.stderr, /Missing demo_seed_records table. Apply the database migrations/);
+    t.assert.deepStrictEqual(await db.all("SELECT name FROM sqlite_schema WHERE type = 'table'"), []);
+  }
 });
 
 test('openDb migrates an isolated PostgreSQL test schema', { skip: !isPg }, async t => {
