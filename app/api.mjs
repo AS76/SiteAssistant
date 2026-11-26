@@ -232,6 +232,7 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     workforcePresence: async ({ siteId, date }) => (await request(
       `/api/workforce/presence${query({ site_id: siteId, date })}`)).map(camelRecord),
     assistantChat: input => request('/api/assistant/chat', input),
+    assistantUsage: siteId => request(`/api/assistant/usage${query({ site_id: siteId })}`),
     searchLocations: async query => request(`/api/location/search?q=${encodeURIComponent(query)}`),
     dashboard: siteId => request(`/api/dashboard?site_id=${encodeURIComponent(siteId)}`),
     dashboardLayout: siteId => request(`/api/dashboard/layout${query({ site_id: siteId })}`),

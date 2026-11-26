@@ -37,6 +37,7 @@ import { listPackages, getPackage, createPackage, closePackage } from './package
 import { listShipments, getShipment, createShipment, transitionShipment, addShipmentReceipt } from './shipments.mjs';
 import { listTimeBookings, countTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForItem } from './time_bookings.mjs';
 import { chat as assistantChat } from './assistant.mjs';
+import { getAssistantUsage } from './assistant-usage.mjs';
 import { searchPlaces } from './geocode.mjs';
 import { dashboard } from './dashboard.mjs';
 import { getDashboardLayout, saveDashboardLayout, deleteDashboardLayout } from './dashboard-layouts.mjs';
@@ -602,6 +603,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (path === '/api/location/search' && method === 'GET') {
         const query = url.searchParams.get('q') || '';
         return json(response, 200, { results: await searchPlaces(query) });
+      }
+      if (path === '/api/assistant/usage' && method === 'GET') {
+        return json(response, 200, await getAssistantUsage(db, { siteId: siteFromQuery(url, ['site_id']), user }));
       }
       if (path === '/api/assistant/chat' && method === 'POST') {
         const input = await readJson(request);

@@ -199,6 +199,20 @@ Rate limiting uses the connection peer by default. Set `TRUSTED_PROXY_IPS` to th
 
 See [technical architecture](docs/architecture.md), the files under [`docs/`](docs/) and the API reference for implementation and deployment considerations.
 
+### Assistant usage and monthly limits
+
+The Overview shows each site's estimated assistant cost for the current calendar month in UTC. The summary is available to site owners through `GET /api/assistant/usage?site_id=<uuid>`. It marks attention at 10 USD, critical at 18 USD and blocks new provider calls at 25 USD. A call admitted below the limit can push the total above it. The assistant becomes eligible again when the new UTC month starts.
+
+Migration 053 records the time, user ID, site ID, model, token counts and estimated cost for each provider call, including calls made while the assistant uses tools. The record contains no prompts or replies. Calls with missing usage or pricing appear as unpriced in the summary, and only known costs count toward the limit. Records have no automatic expiry.
+
+Set `ASSISTANT_PRICES_USD_PER_TOKEN` on the server to override or add model entries. Each entry takes non-negative `input` and `output` prices in USD per token, with up to nine decimal places. For example:
+
+```sh
+ASSISTANT_PRICES_USD_PER_TOKEN='{"example-model":{"input":0.00000030,"output":0.00000120}}'
+```
+
+Defaults in [`config/assistant-prices.json`](config/assistant-prices.json) use the provider's peak rates and apply the cache-miss input price to all input tokens. Per million input/output tokens they are 0.30/1.20 USD for `deepseek-flash` and 1.32/3.96 USD for `deepseek-v4-pro`. The estimate first looks up the model reported by the provider, then the requested model name to account for aliases. Price changes apply to future calls. [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/)
+
 ### Authentication activity
 
 Run the report from the server environment after the application has applied migration 052.
