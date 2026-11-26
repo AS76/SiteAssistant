@@ -86,6 +86,7 @@ import './site-jurisdiction.test.mjs';
 import './site-timezone.test.mjs';
 import './checklists.test.mjs';
 import './hse-assets.test.mjs';
+import './places-assets.test.mjs';
 import './hse-inspections.test.mjs';
 import './increment-42-ui.test.mjs';
 import './increment-44-ui.test.mjs';
