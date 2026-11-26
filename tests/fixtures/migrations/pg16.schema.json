@@ -111,6 +111,14 @@
     "definition": "UNIQUE (site_id, owner_id)",
     "validated": true
   },
+  "constraint demo_seed_environment.demo_seed_environment_pkey": {
+    "definition": "PRIMARY KEY (singleton)",
+    "validated": true
+  },
+  "constraint demo_seed_environment.demo_seed_environment_singleton_check": {
+    "definition": "CHECK ((singleton = 1))",
+    "validated": true
+  },
   "constraint demo_seed_records.demo_seed_records_pkey": {
     "definition": "PRIMARY KEY (table_name, record_id)",
     "validated": true
@@ -1116,6 +1124,10 @@
     "definition": "CREATE UNIQUE INDEX dashboard_layouts_site_id_owner_id_key ON dashboard_layouts USING btree (site_id, owner_id)",
     "valid": true
   },
+  "index demo_seed_environment_pkey": {
+    "definition": "CREATE UNIQUE INDEX demo_seed_environment_pkey ON demo_seed_environment USING btree (singleton)",
+    "valid": true
+  },
   "index demo_seed_records_pkey": {
     "definition": "CREATE UNIQUE INDEX demo_seed_records_pkey ON demo_seed_records USING btree (table_name, record_id)",
     "valid": true
@@ -2100,6 +2112,27 @@
       {
         "name": "updated_at",
         "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table demo_seed_environment": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "singleton",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "marker",
+        "type": "text",
         "required": true,
         "default_value": null,
         "identity": "",
