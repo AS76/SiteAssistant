@@ -267,7 +267,7 @@ for (const driver of ['sqlite', 'pg']) {
       VALUES (?, ?, ?, ?, ?, ?, ?, 'viewer', 'sent')`, invitation, 'pending@example.invalid', 'synthetic-hash',
     admin.id, stamp, '2027-01-01T00:00:00.000Z', site.id);
     const before = await db.get('SELECT * FROM invitations WHERE id = ?', invitation);
-    t.assert.strictEqual(await migrate(db, { driver, demoSandbox: true }), 2);
+    t.assert.strictEqual(await migrate(db, { driver, demoSandbox: true }), 3);
     t.assert.deepStrictEqual((await memberships(db, shared.id)).map(row => ({ ...row })), [{ site_id: site.id, role: 'demo_user' }]);
     t.assert.deepStrictEqual((await memberships(db, admin.id)).map(row => ({ ...row })), [{ site_id: site.id, role: 'owner' }]);
     const after = await db.get('SELECT * FROM invitations WHERE id = ?', invitation);

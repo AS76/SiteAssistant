@@ -1,12 +1,13 @@
 import { HSE_READ_ROLES, HSE_WRITE_ROLES } from './hse-permissions.mjs';
 
 // Display precision only: imported values and calculations retain their original precision.
-export function formatDisplayNumber(value, { kind = 'number', language = 'it', currency = 'EUR', signed = false } = {}) {
+export function formatDisplayNumber(value, {
+  kind = 'number', language = 'it', currency = 'EUR', currencyDisplay, maximumFractionDigits, roundingMode, signed = false,
+} = {}) {
   if (value == null || value === '') return '—';
   const digits = { money: 2, hours: 1, count: 0 }[kind];
-  const options = digits == null ? { minimumFractionDigits: 0, maximumFractionDigits: 4 }
-    : { minimumFractionDigits: digits, maximumFractionDigits: digits };
-  if (kind === 'money') Object.assign(options, { style: 'currency', currency });
+  const options = { minimumFractionDigits: digits ?? 0, maximumFractionDigits: maximumFractionDigits ?? digits ?? 4, roundingMode };
+  if (kind === 'money') Object.assign(options, { style: 'currency', currency, currencyDisplay });
   if (signed) options.signDisplay = 'always';
   return new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { ...options, useGrouping: 'always' }).format(Number(value));
 }

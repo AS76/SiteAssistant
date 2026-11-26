@@ -59,6 +59,7 @@ let wbsView = 'tree', wbsLoad = null;
 const wbsCache = new Map();
 let reportDate = operationalDay(new Date(), null).date;
 let reportPrintIntent = null, lastReport = null;
+let assistantUsageLoad = 0;
 const evidenceLabels = {
   evidenceExport: ['Esporta registro delle prove', 'Export evidence register'],
   evidenceCsv: ['Scarica CSV', 'Download CSV'],
@@ -814,8 +815,50 @@ function renderOverview() {
     + (canWriteTask() ? button('newTask', 'new-task', '', 'primary') : ''))
     + demoLanguageLegend()
     + `<div class="date-caption">${t('today')} · ${new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}</div>`
+    + (role() === 'owner' ? `<section class="panel assistant-usage" id="assistant-usage" aria-labelledby="assistant-usage-title">
+      <div class="panel-header"><h2 id="assistant-usage-title">${t('aiUsageTitle')}</h2></div>
+      <div class="panel-body" id="assistant-usage-body" aria-live="polite"><p role="status">${t('loading')}</p></div>
+    </section>` : '')
     + `<div id="overview-widgets" aria-live="polite" aria-busy="true"><p role="status">${t('loading')}</p></div>`;
   void loadOverviewDashboard();
+  void loadAssistantUsage();
+}
+
+async function loadAssistantUsage() {
+  const target = $('#assistant-usage-body'), selected = siteId, user = session?.user.id;
+  if (!target || !selected || role() !== 'owner') return;
+  const load = ++assistantUsageLoad;
+  const current = () => load === assistantUsageLoad && view === 'overview' && siteId === selected
+    && session?.user.id === user && role() === 'owner' && target.isConnected;
+  if (offline) {
+    target.textContent = t('aiUsageUnavailable');
+    return;
+  }
+  try {
+    const usage = await freshApi.assistantUsage(selected);
+    if (!current()) return;
+    const stateLabel = {
+      normal: ['aiUsageNormal', ''], warning: ['aiUsageWarning', 'high'],
+      critical: ['aiUsageCritical', 'urgent'], blocked: ['aiUsageBlocked', 'urgent'],
+    }[usage.status];
+    const usd = (value, maximumFractionDigits = 2) => formatDisplayNumber(value, {
+      kind: 'money', language, currency: 'USD', currencyDisplay: 'code', maximumFractionDigits, roundingMode: 'trunc',
+    });
+    const month = new Intl.DateTimeFormat(language, { month: 'long', year: 'numeric', timeZone: 'UTC' })
+      .format(new Date(`${usage.month}-01T00:00:00Z`));
+    const amount = usage.estimated_cost_usd;
+    const total = amount == null ? t('aiUsageAmountUnknown') : usd(amount, amount < 0.01 ? 9 : 2);
+    const thresholds = t('aiUsageThresholds').replace(/\{(warning|critical|blocked)\}/g,
+      (_, key) => usd(usage.thresholds_usd[key]));
+    target.innerHTML = `<div class="assistant-usage-summary"><span>${esc(month)}</span>
+      <strong>${esc(total)}</strong> <span class="badge ${stateLabel[1]}">${t(stateLabel[0])}</span></div>
+      <p class="note">${esc(thresholds)}</p>${usage.unpriced_requests
+      ? `<p class="note">${esc(t('aiUsageIncomplete').replace('{count}', usage.unpriced_requests))}</p>` : ''}`;
+  } catch (error) {
+    if (!current()) return;
+    if (error.status === 403) target.closest('section').hidden = true;
+    else target.textContent = t('aiUsageUnavailable');
+  }
 }
 
 function localOverviewWidgets() {
@@ -2987,6 +3030,7 @@ const AI_MODULES = { deviations: 'deviations', site_progress_items: 'progress', 
 const assistantErrorKeys = {
   ASSISTANT_DISABLED: 'aiErrorDisabled', ASSISTANT_TIMEOUT: 'aiErrorTimeout',
   ASSISTANT_AUTH: 'aiErrorAuth', ASSISTANT_RATE_LIMITED: 'aiErrorRate',
+  ASSISTANT_BUDGET_EXCEEDED: 'aiErrorBudget',
   ASSISTANT_UNAVAILABLE: 'aiErrorUnavailable', ASSISTANT_NOT_CONFIGURED: 'aiErrorUnavailable', NETWORK_ERROR: 'aiErrorUnavailable',
 };
 function renderAssistant() {
@@ -3032,7 +3076,7 @@ async function askAssistant(text) {
     }
     aiError = error;
   } finally {
-    if (isCurrent()) { aiBusy = false; renderAssistant(); }
+    if (isCurrent()) { aiBusy = false; renderAssistant(); void loadAssistantUsage(); }
   }
 }
 
@@ -4589,13 +4633,14 @@ $('#language').addEventListener('click', () => {
 window.addEventListener('resize', updateDeviationBoardScroll);
 window.matchMedia('(max-width: 520px)').addEventListener('change', () => { if (view === 'deviations') render(); });
 window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = initialView({ width: window.innerWidth, hash: next ? `#${next}` : '#overview' }); if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
-window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view] || view === 'today') { closeModal(); render(); } });
+window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view] || view === 'today') { closeModal(); render(); } void loadAssistantUsage(); });
 for (const breakpoint of ['(width < 640px)', '(min-width: 1180px)']) {
   window.matchMedia(breakpoint).addEventListener('change', renderChrome);
 }
 window.addEventListener('online', () => {
   offline = false; coreCache.clear(); renderOffline();
   if (moduleResources[view] || view === 'today' || view === 'tasks') render();
+  void loadAssistantUsage();
   if (session) void syncQueue();
   else void accountLock(flushLogout).catch(error => toast(errorMessage(error)));
 });
