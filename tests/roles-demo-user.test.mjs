@@ -14,6 +14,7 @@ import { scopeFor } from '../app/offline.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
 import { database } from './helpers/procurement.mjs';
 import { MemoryObjectStorage, taskEvidenceInput } from './helpers/object-storage.mjs';
+import { assertUpgrade } from './helpers/migrations.mjs';
 
 const password = 'Synthetic-demo-passphrase!';
 const stamp = '2026-01-01T12:00:00.000Z';
@@ -267,7 +268,7 @@ for (const driver of ['sqlite', 'pg']) {
       VALUES (?, ?, ?, ?, ?, ?, ?, 'viewer', 'sent')`, invitation, 'pending@example.invalid', 'synthetic-hash',
     admin.id, stamp, '2027-01-01T00:00:00.000Z', site.id);
     const before = await db.get('SELECT * FROM invitations WHERE id = ?', invitation);
-    t.assert.strictEqual(await migrate(db, { driver, demoSandbox: true }), 3);
+    await assertUpgrade(db, { driver, first: '051', demoSandbox: true });
     t.assert.deepStrictEqual((await memberships(db, shared.id)).map(row => ({ ...row })), [{ site_id: site.id, role: 'demo_user' }]);
     t.assert.deepStrictEqual((await memberships(db, admin.id)).map(row => ({ ...row })), [{ site_id: site.id, role: 'owner' }]);
     const after = await db.get('SELECT * FROM invitations WHERE id = ?', invitation);

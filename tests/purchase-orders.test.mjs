@@ -15,6 +15,7 @@ import { migrate, applyMigration } from '../server/migrations/index.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
 import { openSqliteTestDb } from './helpers/db.mjs';
 import { openDb, closeDb } from '../server/db.mjs';
+import { assertUpgrade } from './helpers/migrations.mjs';
 
 async function database(t, driver, initialize = true) {
   if (driver === 'sqlite') {
@@ -427,7 +428,7 @@ for (const driver of ['sqlite', 'pg']) test(`032 preserves populated audit histo
   await insertAudit('hse_inspection', 'read');
   const before = await db.all('SELECT * FROM audit_events ORDER BY id');
   await t.assert.rejects(() => insertAudit('purchase_order'), /check/i);
-  t.assert.strictEqual(await migrate(db, { driver }), 16);
+  await assertUpgrade(db, { driver, first: '032' });
   t.assert.deepStrictEqual(await db.all('SELECT * FROM audit_events ORDER BY id'), before);
   for (const type of ['purchase_order', 'purchase_order_item']) await insertAudit(type);
   await t.assert.rejects(() => insertAudit('invalid'), /check/i);

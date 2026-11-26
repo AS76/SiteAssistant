@@ -1,0 +1,6652 @@
+{
+  "constraint assistant_usage.assistant_usage_check": {
+    "definition": "CHECK ((((cost_nanousd IS NULL) AND (reason IS NOT NULL)) OR ((cost_nanousd IS NOT NULL) AND (reason IS NULL) AND (input_tokens IS NOT NULL) AND (output_tokens IS NOT NULL))))",
+    "validated": true
+  },
+  "constraint assistant_usage.assistant_usage_cost_nanousd_check": {
+    "definition": "CHECK ((cost_nanousd >= 0))",
+    "validated": true
+  },
+  "constraint assistant_usage.assistant_usage_input_tokens_check": {
+    "definition": "CHECK ((input_tokens >= 0))",
+    "validated": true
+  },
+  "constraint assistant_usage.assistant_usage_output_tokens_check": {
+    "definition": "CHECK ((output_tokens >= 0))",
+    "validated": true
+  },
+  "constraint assistant_usage.assistant_usage_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint assistant_usage.assistant_usage_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint attachments.attachments_entity_type_check": {
+    "definition": "CHECK ((entity_type = ANY (ARRAY['task'::text, 'diary'::text, 'site'::text, 'hse_event'::text, 'hse_inspection'::text, 'deviation'::text])))",
+    "validated": true
+  },
+  "constraint attachments.attachments_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint attachments.attachments_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint attachments.attachments_uploaded_by_fkey": {
+    "definition": "FOREIGN KEY (uploaded_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint audit_events.audit_events_action_check": {
+    "definition": "CHECK ((action = ANY (ARRAY['create'::text, 'update'::text, 'delete'::text, 'read'::text])))",
+    "validated": true
+  },
+  "constraint audit_events.audit_events_entity_type_check": {
+    "definition": "CHECK ((entity_type = ANY (ARRAY['hse_event'::text, 'certification'::text, 'tool'::text, 'site'::text, 'hse_asset'::text, 'hse_inspection'::text, 'purchase_order'::text, 'purchase_order_item'::text, 'package'::text, 'package_item'::text, 'shipment'::text, 'shipment_receipt'::text, 'deviation'::text, 'task'::text])))",
+    "validated": true
+  },
+  "constraint audit_events.audit_events_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint audit_events.audit_events_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint auth_events.auth_events_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint cost_impact_deviations.cost_impact_deviations_cost_impact_id_fkey": {
+    "definition": "FOREIGN KEY (cost_impact_id) REFERENCES cost_impacts(id)",
+    "validated": true
+  },
+  "constraint cost_impact_deviations.cost_impact_deviations_deviation_id_fkey": {
+    "definition": "FOREIGN KEY (deviation_id) REFERENCES deviations(id)",
+    "validated": true
+  },
+  "constraint cost_impact_deviations.cost_impact_deviations_pkey": {
+    "definition": "PRIMARY KEY (cost_impact_id, deviation_id)",
+    "validated": true
+  },
+  "constraint cost_impacts.cost_impacts_check": {
+    "definition": "CHECK (((status <> 'closed'::text) OR (result IS NOT NULL)))",
+    "validated": true
+  },
+  "constraint cost_impacts.cost_impacts_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint cost_impacts.cost_impacts_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint cost_impacts.cost_impacts_result_check": {
+    "definition": "CHECK ((result = ANY (ARRAY['settled'::text, 'dropped'::text, 'rejected'::text])))",
+    "validated": true
+  },
+  "constraint cost_impacts.cost_impacts_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint cost_impacts.cost_impacts_status_check": {
+    "definition": "CHECK ((status = ANY (ARRAY['open'::text, 'notification_sent'::text, 'submitted'::text, 'closed'::text])))",
+    "validated": true
+  },
+  "constraint dashboard_layouts.dashboard_layouts_owner_id_fkey": {
+    "definition": "FOREIGN KEY (owner_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint dashboard_layouts.dashboard_layouts_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint dashboard_layouts.dashboard_layouts_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint dashboard_layouts.dashboard_layouts_site_id_owner_id_key": {
+    "definition": "UNIQUE (site_id, owner_id)",
+    "validated": true
+  },
+  "constraint deviation_events.deviation_events_actor_id_fkey": {
+    "definition": "FOREIGN KEY (actor_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint deviation_events.deviation_events_check": {
+    "definition": "CHECK ((((source = 'import'::text) AND (actor = 'import'::text) AND (actor_id IS NULL)) OR ((source = 'internal'::text) AND (actor_id IS NOT NULL))))",
+    "validated": true
+  },
+  "constraint deviation_events.deviation_events_deviation_id_fkey": {
+    "definition": "FOREIGN KEY (deviation_id) REFERENCES deviations(id)",
+    "validated": true
+  },
+  "constraint deviation_events.deviation_events_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint deviation_events.deviation_events_source_check": {
+    "definition": "CHECK ((source = ANY (ARRAY['import'::text, 'internal'::text])))",
+    "validated": true
+  },
+  "constraint deviation_export_rows.deviation_export_rows_deviation_id_fkey": {
+    "definition": "FOREIGN KEY (deviation_id) REFERENCES deviations(id)",
+    "validated": true
+  },
+  "constraint deviation_export_rows.deviation_export_rows_export_id_fkey": {
+    "definition": "FOREIGN KEY (export_id) REFERENCES deviation_exports(id) ON DELETE CASCADE",
+    "validated": true
+  },
+  "constraint deviation_export_rows.deviation_export_rows_pkey": {
+    "definition": "PRIMARY KEY (export_id, deviation_id)",
+    "validated": true
+  },
+  "constraint deviation_exports.deviation_exports_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint deviation_exports.deviation_exports_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint deviation_exports.deviation_exports_site_id_source_system_export_date_file_sh_key": {
+    "definition": "UNIQUE (site_id, source_system, export_date, file_sha256, complete, scope)",
+    "validated": true
+  },
+  "constraint deviation_exports.deviation_exports_source_system_check": {
+    "definition": "CHECK ((source_system = ANY (ARRAY['internal'::text, 'other'::text])))",
+    "validated": true
+  },
+  "constraint deviation_import_sources.deviation_import_sources_pkey": {
+    "definition": "PRIMARY KEY (site_id)",
+    "validated": true
+  },
+  "constraint deviation_import_sources.deviation_import_sources_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint deviation_links.deviation_links_deviation_id_fkey": {
+    "definition": "FOREIGN KEY (deviation_id) REFERENCES deviations(id)",
+    "validated": true
+  },
+  "constraint deviation_links.deviation_links_entity_type_check": {
+    "definition": "CHECK ((entity_type = ANY (ARRAY['site_progress_item'::text, 'work_day'::text, 'task'::text, 'diary'::text])))",
+    "validated": true
+  },
+  "constraint deviation_links.deviation_links_pkey": {
+    "definition": "PRIMARY KEY (deviation_id, entity_type, entity_id)",
+    "validated": true
+  },
+  "constraint deviations.deviations_attribution_state_check": {
+    "definition": "CHECK ((attribution_state = ANY (ARRAY['not_determined'::text, 'agreed'::text, 'disputed'::text])))",
+    "validated": true
+  },
+  "constraint deviations.deviations_check": {
+    "definition": "CHECK (((source_id IS NULL) OR ((source_system IS NOT NULL) AND (length(TRIM(BOTH FROM source_id)) > 0))))",
+    "validated": true
+  },
+  "constraint deviations.deviations_internal_owner_id_fkey": {
+    "definition": "FOREIGN KEY (internal_owner_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint deviations.deviations_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint deviations.deviations_provenance_check": {
+    "definition": "CHECK ((provenance = ANY (ARRAY['original'::text, 'derived'::text, 'reported'::text])))",
+    "validated": true
+  },
+  "constraint deviations.deviations_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint deviations.deviations_source_system_check": {
+    "definition": "CHECK ((source_system = ANY (ARRAY['internal'::text, 'other'::text])))",
+    "validated": true
+  },
+  "constraint deviations.deviations_status_check": {
+    "definition": "CHECK ((status = ANY (ARRAY['open'::text, 'approved'::text, 'in_progress'::text, 'work_completed'::text, 'closed'::text, 'rejected'::text])))",
+    "validated": true
+  },
+  "constraint diary.diary_author_id_fkey": {
+    "definition": "FOREIGN KEY (author_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint diary.diary_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint diary.diary_shift_check": {
+    "definition": "CHECK ((shift = ANY (ARRAY['day'::text, 'night'::text])))",
+    "validated": true
+  },
+  "constraint diary.diary_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint diary.diary_site_id_operational_date_shift_key": {
+    "definition": "UNIQUE (site_id, operational_date, shift)",
+    "validated": true
+  },
+  "constraint diary.diary_updated_by_fkey": {
+    "definition": "FOREIGN KEY (updated_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint diary_entry_versions.diary_entry_versions_author_id_fkey": {
+    "definition": "FOREIGN KEY (author_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint diary_entry_versions.diary_entry_versions_diary_id_fkey": {
+    "definition": "FOREIGN KEY (diary_id) REFERENCES diary(id) ON DELETE RESTRICT",
+    "validated": true
+  },
+  "constraint diary_entry_versions.diary_entry_versions_diary_id_version_key": {
+    "definition": "UNIQUE (diary_id, version)",
+    "validated": true
+  },
+  "constraint diary_entry_versions.diary_entry_versions_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint employee_certifications.employee_certifications_employee_id_fkey": {
+    "definition": "FOREIGN KEY (employee_id) REFERENCES employees(id)",
+    "validated": true
+  },
+  "constraint employee_certifications.employee_certifications_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint employee_certifications.employee_certifications_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint employees.employees_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint employees.employees_site_id_employee_no_key": {
+    "definition": "UNIQUE (site_id, employee_no)",
+    "validated": true
+  },
+  "constraint employees.employees_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint hr_import_sources.hr_import_sources_pkey": {
+    "definition": "PRIMARY KEY (site_id)",
+    "validated": true
+  },
+  "constraint hr_import_sources.hr_import_sources_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint hse_assets.hse_assets_kind_check": {
+    "definition": "CHECK ((kind = ANY (ARRAY['tool'::text, 'site_work'::text, 'ppe'::text])))",
+    "validated": true
+  },
+  "constraint hse_assets.hse_assets_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint hse_assets.hse_assets_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint hse_assets.hse_assets_site_id_name_key": {
+    "definition": "UNIQUE (site_id, name)",
+    "validated": true
+  },
+  "constraint hse_assets.hse_assets_tool_id_fkey": {
+    "definition": "FOREIGN KEY (tool_id) REFERENCES tools(id)",
+    "validated": true
+  },
+  "constraint hse_events.hse_events_deviation_id_fkey": {
+    "definition": "FOREIGN KEY (deviation_id) REFERENCES deviations(id)",
+    "validated": true
+  },
+  "constraint hse_events.hse_events_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint hse_events.hse_events_site_id_event_no_key": {
+    "definition": "UNIQUE (site_id, event_no)",
+    "validated": true
+  },
+  "constraint hse_events.hse_events_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint hse_inspection_items.hse_inspection_items_inspection_id_fkey": {
+    "definition": "FOREIGN KEY (inspection_id) REFERENCES hse_inspections(id)",
+    "validated": true
+  },
+  "constraint hse_inspection_items.hse_inspection_items_inspection_id_item_code_key": {
+    "definition": "UNIQUE (inspection_id, item_code)",
+    "validated": true
+  },
+  "constraint hse_inspection_items.hse_inspection_items_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint hse_inspection_items.hse_inspection_items_result_check": {
+    "definition": "CHECK ((result = ANY (ARRAY['ok'::text, 'not_ok'::text, 'na'::text])))",
+    "validated": true
+  },
+  "constraint hse_inspections.hse_inspections_asset_id_fkey": {
+    "definition": "FOREIGN KEY (asset_id) REFERENCES hse_assets(id)",
+    "validated": true
+  },
+  "constraint hse_inspections.hse_inspections_mode_check": {
+    "definition": "CHECK ((mode = ANY (ARRAY['internal'::text, 'external'::text])))",
+    "validated": true
+  },
+  "constraint hse_inspections.hse_inspections_outcome_check": {
+    "definition": "CHECK ((outcome = ANY (ARRAY['pass'::text, 'pass_with_notes'::text, 'fail'::text])))",
+    "validated": true
+  },
+  "constraint hse_inspections.hse_inspections_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint hse_inspections.hse_inspections_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint idempotency_keys.idempotency_keys_pkey": {
+    "definition": "PRIMARY KEY (key)",
+    "validated": true
+  },
+  "constraint import_mappings.import_mappings_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint import_mappings.import_mappings_site_id_family_key": {
+    "definition": "UNIQUE (site_id, family)",
+    "validated": true
+  },
+  "constraint import_mappings.import_mappings_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint invitations.invitations_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint invitations.invitations_delivery_attempts_check": {
+    "definition": "CHECK ((delivery_attempts >= 0))",
+    "validated": true
+  },
+  "constraint invitations.invitations_delivery_status_check": {
+    "definition": "CHECK ((delivery_status = ANY (ARRAY['pending'::text, 'sent'::text, 'failed'::text])))",
+    "validated": true
+  },
+  "constraint invitations.invitations_locale_check": {
+    "definition": "CHECK ((locale = ANY (ARRAY['it'::text, 'en'::text])))",
+    "validated": true
+  },
+  "constraint invitations.invitations_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint invitations.invitations_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE SET NULL",
+    "validated": true
+  },
+  "constraint invitations.invitations_site_role_check": {
+    "definition": "CHECK ((site_role = ANY (ARRAY['owner'::text, 'editor'::text, 'verifier'::text, 'viewer'::text, 'demo_user'::text])))",
+    "validated": true
+  },
+  "constraint invitations.invitations_token_hash_key": {
+    "definition": "UNIQUE (token_hash)",
+    "validated": true
+  },
+  "constraint member_module_access.member_module_access_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint member_module_access.member_module_access_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint member_module_access.member_module_access_site_id_user_id_module_key": {
+    "definition": "UNIQUE (site_id, user_id, module)",
+    "validated": true
+  },
+  "constraint member_module_access.member_module_access_user_id_fkey": {
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint package_items.package_items_package_id_fkey": {
+    "definition": "FOREIGN KEY (package_id) REFERENCES packages(id)",
+    "validated": true
+  },
+  "constraint package_items.package_items_package_id_purchase_order_item_id_key": {
+    "definition": "UNIQUE (package_id, purchase_order_item_id)",
+    "validated": true
+  },
+  "constraint package_items.package_items_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint package_items.package_items_purchase_order_item_id_fkey": {
+    "definition": "FOREIGN KEY (purchase_order_item_id) REFERENCES purchase_order_items(id)",
+    "validated": true
+  },
+  "constraint package_items.package_items_quantity_packed_check": {
+    "definition": "CHECK ((quantity_packed > (0)::numeric))",
+    "validated": true
+  },
+  "constraint packages.packages_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint packages.packages_purchase_order_id_fkey": {
+    "definition": "FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)",
+    "validated": true
+  },
+  "constraint packages.packages_purchase_order_id_package_no_key": {
+    "definition": "UNIQUE (purchase_order_id, package_no)",
+    "validated": true
+  },
+  "constraint packages.packages_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint packages.packages_status_check": {
+    "definition": "CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])))",
+    "validated": true
+  },
+  "constraint password_resets.password_resets_pkey": {
+    "definition": "PRIMARY KEY (user_id)",
+    "validated": true
+  },
+  "constraint password_resets.password_resets_token_hash_key": {
+    "definition": "UNIQUE (token_hash)",
+    "validated": true
+  },
+  "constraint password_resets.password_resets_user_id_fkey": {
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+    "validated": true
+  },
+  "constraint planning_import_keys.planning_import_keys_identity_state_check": {
+    "definition": "CHECK ((identity_state = ANY (ARRAY['observed'::text, 'unresolved'::text])))",
+    "validated": true
+  },
+  "constraint planning_import_keys.planning_import_keys_pkey": {
+    "definition": "PRIMARY KEY (site_id, family, import_key)",
+    "validated": true
+  },
+  "constraint planning_import_keys.planning_import_keys_site_id_family_target_id_key": {
+    "definition": "UNIQUE (site_id, family, target_id)",
+    "validated": true
+  },
+  "constraint planning_import_keys.planning_import_keys_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint planning_import_keys.planning_import_keys_site_id_last_import_run_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, last_import_run_id) REFERENCES planning_import_runs(site_id, id)",
+    "validated": true
+  },
+  "constraint planning_import_runs.planning_import_runs_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint planning_import_runs.planning_import_runs_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint planning_import_runs.planning_import_runs_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint planning_import_runs.planning_import_runs_site_id_id_key": {
+    "definition": "UNIQUE (site_id, id)",
+    "validated": true
+  },
+  "constraint progress_entries.progress_entries_percent_check": {
+    "definition": "CHECK (((percent >= (0)::numeric) AND (percent <= (100)::numeric)))",
+    "validated": true
+  },
+  "constraint progress_entries.progress_entries_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint progress_entries.progress_entries_progress_type_step_id_fkey": {
+    "definition": "FOREIGN KEY (progress_type_step_id) REFERENCES progress_type_steps(id)",
+    "validated": true
+  },
+  "constraint progress_entries.progress_entries_recorded_by_fkey": {
+    "definition": "FOREIGN KEY (recorded_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint progress_entries.progress_entries_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint progress_entries.progress_entries_site_progress_item_id_fkey": {
+    "definition": "FOREIGN KEY (site_progress_item_id) REFERENCES site_progress_items(id)",
+    "validated": true
+  },
+  "constraint progress_type_steps.progress_type_steps_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint progress_type_steps.progress_type_steps_progress_type_id_code_key": {
+    "definition": "UNIQUE (progress_type_id, code)",
+    "validated": true
+  },
+  "constraint progress_type_steps.progress_type_steps_progress_type_id_fkey": {
+    "definition": "FOREIGN KEY (progress_type_id) REFERENCES progress_types(id)",
+    "validated": true
+  },
+  "constraint progress_type_steps.progress_type_steps_progress_type_id_position_key": {
+    "definition": "UNIQUE (progress_type_id, \"position\")",
+    "validated": true
+  },
+  "constraint progress_type_steps.progress_type_steps_weight_check": {
+    "definition": "CHECK ((weight > (0)::numeric))",
+    "validated": true
+  },
+  "constraint progress_types.progress_types_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint progress_types.progress_types_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint progress_types.progress_types_site_id_code_key": {
+    "definition": "UNIQUE (site_id, code)",
+    "validated": true
+  },
+  "constraint progress_types.progress_types_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint project_structure.project_structure_check": {
+    "definition": "CHECK (((parent_id IS NULL) OR (parent_id <> id)))",
+    "validated": true
+  },
+  "constraint project_structure.project_structure_level_check": {
+    "definition": "CHECK ((level >= 0))",
+    "validated": true
+  },
+  "constraint project_structure.project_structure_parent_id_fkey": {
+    "definition": "FOREIGN KEY (parent_id) REFERENCES project_structure(id)",
+    "validated": true
+  },
+  "constraint project_structure.project_structure_parent_id_site_fk": {
+    "definition": "FOREIGN KEY (parent_id, site_id) REFERENCES project_structure(id, site_id)",
+    "validated": true
+  },
+  "constraint project_structure.project_structure_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint project_structure.project_structure_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint project_structure.project_structure_site_id_source_uuid_key": {
+    "definition": "UNIQUE (site_id, source_uuid)",
+    "validated": true
+  },
+  "constraint project_structure.project_structure_updated_by_fkey": {
+    "definition": "FOREIGN KEY (updated_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint purchase_order_items.purchase_order_items_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint purchase_order_items.purchase_order_items_purchase_order_id_fkey": {
+    "definition": "FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)",
+    "validated": true
+  },
+  "constraint purchase_order_items.purchase_order_items_purchase_order_id_line_no_key": {
+    "definition": "UNIQUE (purchase_order_id, line_no)",
+    "validated": true
+  },
+  "constraint purchase_order_items.purchase_order_items_quantity_check": {
+    "definition": "CHECK ((quantity > (0)::numeric))",
+    "validated": true
+  },
+  "constraint purchase_order_items.purchase_order_items_status_check": {
+    "definition": "CHECK ((status = ANY (ARRAY['open'::text, 'in_execution'::text, 'completed'::text, 'not_relevant'::text])))",
+    "validated": true
+  },
+  "constraint purchase_order_items.purchase_order_items_wbs_id_fkey": {
+    "definition": "FOREIGN KEY (wbs_id) REFERENCES project_structure(id)",
+    "validated": true
+  },
+  "constraint purchase_orders.purchase_orders_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint purchase_orders.purchase_orders_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint purchase_orders.purchase_orders_site_id_po_no_key": {
+    "definition": "UNIQUE (site_id, po_no)",
+    "validated": true
+  },
+  "constraint purchase_orders.purchase_orders_status_check": {
+    "definition": "CHECK ((status = ANY (ARRAY['open'::text, 'template_generated'::text, 'in_execution'::text, 'completed'::text, 'not_relevant'::text])))",
+    "validated": true
+  },
+  "constraint schema_migrations.schema_migrations_pkey": {
+    "definition": "PRIMARY KEY (version)",
+    "validated": true
+  },
+  "constraint sessions.sessions_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint sessions.sessions_token_hash_key": {
+    "definition": "UNIQUE (token_hash)",
+    "validated": true
+  },
+  "constraint sessions.sessions_user_id_fkey": {
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint shipment_packages.shipment_packages_package_id_fkey": {
+    "definition": "FOREIGN KEY (package_id) REFERENCES packages(id)",
+    "validated": true
+  },
+  "constraint shipment_packages.shipment_packages_package_id_key": {
+    "definition": "UNIQUE (package_id)",
+    "validated": true
+  },
+  "constraint shipment_packages.shipment_packages_pkey": {
+    "definition": "PRIMARY KEY (shipment_id, package_id)",
+    "validated": true
+  },
+  "constraint shipment_packages.shipment_packages_shipment_id_fkey": {
+    "definition": "FOREIGN KEY (shipment_id) REFERENCES shipments(id)",
+    "validated": true
+  },
+  "constraint shipment_receipts.shipment_receipts_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint shipment_receipts.shipment_receipts_purchase_order_item_id_fkey": {
+    "definition": "FOREIGN KEY (purchase_order_item_id) REFERENCES purchase_order_items(id)",
+    "validated": true
+  },
+  "constraint shipment_receipts.shipment_receipts_quantity_received_check": {
+    "definition": "CHECK ((quantity_received >= (0)::numeric))",
+    "validated": true
+  },
+  "constraint shipment_receipts.shipment_receipts_shipment_id_fkey": {
+    "definition": "FOREIGN KEY (shipment_id) REFERENCES shipments(id)",
+    "validated": true
+  },
+  "constraint shipments.shipments_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint shipments.shipments_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint shipments.shipments_site_id_shipment_no_key": {
+    "definition": "UNIQUE (site_id, shipment_no)",
+    "validated": true
+  },
+  "constraint shipments.shipments_status_check": {
+    "definition": "CHECK ((status = ANY (ARRAY['planned'::text, 'in_transit'::text, 'arrived'::text, 'received'::text])))",
+    "validated": true
+  },
+  "constraint signup_requests.signup_requests_decision_token_hash_key": {
+    "definition": "UNIQUE (decision_token_hash)",
+    "validated": true
+  },
+  "constraint signup_requests.signup_requests_language_check": {
+    "definition": "CHECK (((language = ANY (ARRAY['it'::text, 'en'::text])) OR (language IS NULL)))",
+    "validated": true
+  },
+  "constraint signup_requests.signup_requests_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint signup_requests.signup_requests_status_check": {
+    "definition": "CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])))",
+    "validated": true
+  },
+  "constraint site_members.site_members_pkey": {
+    "definition": "PRIMARY KEY (site_id, user_id)",
+    "validated": true
+  },
+  "constraint site_members.site_members_role_check": {
+    "definition": "CHECK ((role = ANY (ARRAY['owner'::text, 'editor'::text, 'verifier'::text, 'viewer'::text, 'demo_user'::text])))",
+    "validated": true
+  },
+  "constraint site_members.site_members_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint site_members.site_members_user_id_fkey": {
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint site_progress_import_sources.site_progress_import_sources_pkey": {
+    "definition": "PRIMARY KEY (site_id)",
+    "validated": true
+  },
+  "constraint site_progress_import_sources.site_progress_import_sources_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint site_progress_item_steps.site_progress_item_steps_percent_check": {
+    "definition": "CHECK (((percent >= (0)::numeric) AND (percent <= (100)::numeric)))",
+    "validated": true
+  },
+  "constraint site_progress_item_steps.site_progress_item_steps_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint site_progress_item_steps.site_progress_item_steps_progress_type_step_id_fkey": {
+    "definition": "FOREIGN KEY (progress_type_step_id) REFERENCES progress_type_steps(id)",
+    "validated": true
+  },
+  "constraint site_progress_item_steps.site_progress_item_steps_site_progress_item_id_fkey": {
+    "definition": "FOREIGN KEY (site_progress_item_id) REFERENCES site_progress_items(id)",
+    "validated": true
+  },
+  "constraint site_progress_item_steps.site_progress_item_steps_site_progress_item_id_progress_typ_key": {
+    "definition": "UNIQUE (site_progress_item_id, progress_type_step_id)",
+    "validated": true
+  },
+  "constraint site_progress_item_steps.site_progress_item_steps_updated_by_fkey": {
+    "definition": "FOREIGN KEY (updated_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint site_progress_item_steps.site_progress_item_steps_wbs_id_fkey": {
+    "definition": "FOREIGN KEY (wbs_id) REFERENCES project_structure(id)",
+    "validated": true
+  },
+  "constraint site_progress_items.site_progress_items_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint site_progress_items.site_progress_items_progress_type_id_fkey": {
+    "definition": "FOREIGN KEY (progress_type_id) REFERENCES progress_types(id)",
+    "validated": true
+  },
+  "constraint site_progress_items.site_progress_items_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint site_progress_items.site_progress_items_site_id_source_row_key": {
+    "definition": "UNIQUE (site_id, source_row)",
+    "validated": true
+  },
+  "constraint site_progress_items.site_progress_items_wbs_id_fkey": {
+    "definition": "FOREIGN KEY (wbs_id) REFERENCES project_structure(id)",
+    "validated": true
+  },
+  "constraint site_progress_items.site_progress_items_wbs_id_site_fk": {
+    "definition": "FOREIGN KEY (wbs_id, site_id) REFERENCES project_structure(id, site_id)",
+    "validated": true
+  },
+  "constraint sites.sites_assistant_timeout_ms_check": {
+    "definition": "CHECK (((assistant_timeout_ms >= 5000) AND (assistant_timeout_ms <= 60000)))",
+    "validated": true
+  },
+  "constraint sites.sites_code_key": {
+    "definition": "UNIQUE (code)",
+    "validated": true
+  },
+  "constraint sites.sites_day_cutoff_time_check": {
+    "definition": "CHECK ((day_cutoff_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'::text))",
+    "validated": true
+  },
+  "constraint sites.sites_jurisdiction_check": {
+    "definition": "CHECK ((jurisdiction = ANY (ARRAY['IT'::text, 'UK'::text])))",
+    "validated": true
+  },
+  "constraint sites.sites_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint sites.sites_time_zone_check": {
+    "definition": "CHECK ((time_zone ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'::text))",
+    "validated": true
+  },
+  "constraint task_events.task_events_action_check": {
+    "definition": "CHECK ((action = ANY (ARRAY['create'::text, 'start'::text, 'submit'::text, 'verify'::text, 'reject'::text, 'block'::text, 'resume'::text, 'reopen'::text, 'close'::text])))",
+    "validated": true
+  },
+  "constraint task_events.task_events_check": {
+    "definition": "CHECK (((NOT waiver) OR ((action IS NOT NULL) AND (action = 'close'::text) AND (reason IS NOT NULL) AND (length(TRIM(BOTH FROM reason)) >= 15))))",
+    "validated": true
+  },
+  "constraint task_events.task_events_evidence_attachment_id_fkey": {
+    "definition": "FOREIGN KEY (evidence_attachment_id) REFERENCES attachments(id)",
+    "validated": true
+  },
+  "constraint task_events.task_events_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint task_events.task_events_task_id_fkey": {
+    "definition": "FOREIGN KEY (task_id) REFERENCES tasks(id)",
+    "validated": true
+  },
+  "constraint tasks.tasks_acceptance_document_id_fkey": {
+    "definition": "FOREIGN KEY (acceptance_document_id) REFERENCES attachments(id)",
+    "validated": true
+  },
+  "constraint tasks.tasks_check": {
+    "definition": "CHECK (((acceptance_state = ANY (ARRAY['none'::text, 'declared'::text, 'accepted'::text])) AND ((acceptance_state <> 'accepted'::text) OR ((acceptance_document_id IS NOT NULL) AND (acceptance_date IS NOT NULL)))))",
+    "validated": true
+  },
+  "constraint tasks.tasks_executor_id_fkey": {
+    "definition": "FOREIGN KEY (executor_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint tasks.tasks_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint tasks.tasks_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint tasks.tasks_status_check": {
+    "definition": "CHECK ((status = ANY (ARRAY['todo'::text, 'in_progress'::text, 'to_verify'::text, 'closed'::text, 'blocked'::text])))",
+    "validated": true
+  },
+  "constraint tasks.tasks_submitted_by_id_fkey": {
+    "definition": "FOREIGN KEY (submitted_by_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint tasks.tasks_verifier_id_fkey": {
+    "definition": "FOREIGN KEY (verifier_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint tasks.tasks_wbs_id_fkey": {
+    "definition": "FOREIGN KEY (wbs_id) REFERENCES project_structure(id)",
+    "validated": true
+  },
+  "constraint tasks.tasks_wbs_id_site_fk": {
+    "definition": "FOREIGN KEY (wbs_id, site_id) REFERENCES project_structure(id, site_id)",
+    "validated": true
+  },
+  "constraint time_bookings.time_bookings_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint time_bookings.time_bookings_hours_check": {
+    "definition": "CHECK ((hours >= (0)::numeric))",
+    "validated": true
+  },
+  "constraint time_bookings.time_bookings_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint time_bookings.time_bookings_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint time_bookings.time_bookings_site_progress_item_id_fkey": {
+    "definition": "FOREIGN KEY (site_progress_item_id) REFERENCES site_progress_items(id)",
+    "validated": true
+  },
+  "constraint time_bookings.time_bookings_site_progress_item_id_site_fk": {
+    "definition": "FOREIGN KEY (site_progress_item_id, site_id) REFERENCES site_progress_items(id, site_id)",
+    "validated": true
+  },
+  "constraint time_bookings.time_bookings_work_day_id_fkey": {
+    "definition": "FOREIGN KEY (work_day_id) REFERENCES work_days(id)",
+    "validated": true
+  },
+  "constraint time_bookings.time_bookings_work_day_id_site_fk": {
+    "definition": "FOREIGN KEY (work_day_id, site_id) REFERENCES work_days(id, site_id)",
+    "validated": true
+  },
+  "constraint time_bookings.time_bookings_work_day_id_site_progress_item_id_key": {
+    "definition": "UNIQUE (work_day_id, site_progress_item_id)",
+    "validated": true
+  },
+  "constraint tools.tools_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint tools.tools_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint tools.tools_status_check": {
+    "definition": "CHECK ((status = ANY (ARRAY['available'::text, 'in_use'::text, 'maintenance'::text, 'retired'::text])))",
+    "validated": true
+  },
+  "constraint user_permissions.user_permissions_granted_by_fkey": {
+    "definition": "FOREIGN KEY (granted_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint user_permissions.user_permissions_permission_check": {
+    "definition": "CHECK ((permission = 'invitations.manage'::text))",
+    "validated": true
+  },
+  "constraint user_permissions.user_permissions_user_id_fkey": {
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint users.users_language_check": {
+    "definition": "CHECK (((language = ANY (ARRAY['it'::text, 'en'::text])) OR (language IS NULL)))",
+    "validated": true
+  },
+  "constraint users.users_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint view_settings.view_settings_module_check": {
+    "definition": "CHECK ((module = ANY (ARRAY['tasks'::text, 'deviations'::text, 'progress'::text, 'bookings'::text, 'impacts'::text, 'wbs'::text])))",
+    "validated": true
+  },
+  "constraint view_settings.view_settings_owner_id_fkey": {
+    "definition": "FOREIGN KEY (owner_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint view_settings.view_settings_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint view_settings.view_settings_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint view_settings.view_settings_site_id_module_owner_id_name_key": {
+    "definition": "UNIQUE (site_id, module, owner_id, name)",
+    "validated": true
+  },
+  "constraint wbs_import_sources.wbs_import_sources_pkey": {
+    "definition": "PRIMARY KEY (site_id)",
+    "validated": true
+  },
+  "constraint wbs_import_sources.wbs_import_sources_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint wbs_node_overrides.wbs_node_overrides_check": {
+    "definition": "CHECK (((parent_id IS NULL) OR (parent_id <> wbs_id)))",
+    "validated": true
+  },
+  "constraint wbs_node_overrides.wbs_node_overrides_parent_id_site_id_fkey": {
+    "definition": "FOREIGN KEY (parent_id, site_id) REFERENCES project_structure(id, site_id)",
+    "validated": true
+  },
+  "constraint wbs_node_overrides.wbs_node_overrides_pkey": {
+    "definition": "PRIMARY KEY (wbs_id)",
+    "validated": true
+  },
+  "constraint wbs_node_overrides.wbs_node_overrides_updated_by_fkey": {
+    "definition": "FOREIGN KEY (updated_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint wbs_node_overrides.wbs_node_overrides_wbs_id_site_id_fkey": {
+    "definition": "FOREIGN KEY (wbs_id, site_id) REFERENCES project_structure(id, site_id)",
+    "validated": true
+  },
+  "constraint webauthn_challenges.webauthn_challenges_kind_check": {
+    "definition": "CHECK ((kind = ANY (ARRAY['registration'::text, 'authentication'::text])))",
+    "validated": true
+  },
+  "constraint webauthn_challenges.webauthn_challenges_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint webauthn_challenges.webauthn_challenges_user_id_fkey": {
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+    "validated": true
+  },
+  "constraint webauthn_credentials.webauthn_credentials_credential_id_key": {
+    "definition": "UNIQUE (credential_id)",
+    "validated": true
+  },
+  "constraint webauthn_credentials.webauthn_credentials_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint webauthn_credentials.webauthn_credentials_sign_count_check": {
+    "definition": "CHECK ((sign_count >= 0))",
+    "validated": true
+  },
+  "constraint webauthn_credentials.webauthn_credentials_user_id_fkey": {
+    "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+    "validated": true
+  },
+  "constraint work_days.work_days_employee_id_fkey": {
+    "definition": "FOREIGN KEY (employee_id) REFERENCES employees(id)",
+    "validated": true
+  },
+  "constraint work_days.work_days_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint work_days.work_days_shift_check": {
+    "definition": "CHECK ((shift = ANY (ARRAY['day'::text, 'night'::text])))",
+    "validated": true
+  },
+  "constraint work_days.work_days_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "function auth_events_append_only()": {
+    "definition": "CREATE OR REPLACE FUNCTION auth_events_append_only()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN RAISE EXCEPTION 'auth_events is append-only'; END;\n$function$\n"
+  },
+  "function protect_deviation_identity()": {
+    "definition": "CREATE OR REPLACE FUNCTION protect_deviation_identity()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n  IF OLD.source_id IS NOT NULL AND\n    (NEW.source_id IS DISTINCT FROM OLD.source_id OR NEW.source_system IS DISTINCT FROM OLD.source_system\n      OR NEW.site_id IS DISTINCT FROM OLD.site_id) THEN\n    RAISE EXCEPTION 'Deviation source identity is immutable';\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n"
+  },
+  "function reject_deviation_event_mutation()": {
+    "definition": "CREATE OR REPLACE FUNCTION reject_deviation_event_mutation()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n  RAISE EXCEPTION 'Deviation events are append-only';\nEND;\n$function$\n"
+  },
+  "index assistant_usage_at": {
+    "definition": "CREATE INDEX assistant_usage_at ON assistant_usage USING btree (requested_at)",
+    "valid": true
+  },
+  "index assistant_usage_pkey": {
+    "definition": "CREATE UNIQUE INDEX assistant_usage_pkey ON assistant_usage USING btree (id)",
+    "valid": true
+  },
+  "index assistant_usage_site_at": {
+    "definition": "CREATE INDEX assistant_usage_site_at ON assistant_usage USING btree (site_id, requested_at)",
+    "valid": true
+  },
+  "index assistant_usage_site_pending": {
+    "definition": "CREATE UNIQUE INDEX assistant_usage_site_pending ON assistant_usage USING btree (site_id) WHERE (reason = 'provider_pending'::text)",
+    "valid": true
+  },
+  "index attachments_entity": {
+    "definition": "CREATE INDEX attachments_entity ON attachments USING btree (site_id, entity_type, entity_id)",
+    "valid": true
+  },
+  "index attachments_pkey": {
+    "definition": "CREATE UNIQUE INDEX attachments_pkey ON attachments USING btree (id)",
+    "valid": true
+  },
+  "index audit_events_pkey": {
+    "definition": "CREATE UNIQUE INDEX audit_events_pkey ON audit_events USING btree (id)",
+    "valid": true
+  },
+  "index audit_events_site_at": {
+    "definition": "CREATE INDEX audit_events_site_at ON audit_events USING btree (site_id, at, id)",
+    "valid": true
+  },
+  "index audit_events_site_entity": {
+    "definition": "CREATE INDEX audit_events_site_entity ON audit_events USING btree (site_id, entity_type, entity_id, at, id)",
+    "valid": true
+  },
+  "index auth_events_login_at": {
+    "definition": "CREATE INDEX auth_events_login_at ON auth_events USING btree (created_at) WHERE (event = ANY (ARRAY['login.success'::text, 'login.failure'::text]))",
+    "valid": true
+  },
+  "index auth_events_pkey": {
+    "definition": "CREATE UNIQUE INDEX auth_events_pkey ON auth_events USING btree (id)",
+    "valid": true
+  },
+  "index cost_impact_deviations_pkey": {
+    "definition": "CREATE UNIQUE INDEX cost_impact_deviations_pkey ON cost_impact_deviations USING btree (cost_impact_id, deviation_id)",
+    "valid": true
+  },
+  "index cost_impacts_pkey": {
+    "definition": "CREATE UNIQUE INDEX cost_impacts_pkey ON cost_impacts USING btree (id)",
+    "valid": true
+  },
+  "index cost_impacts_site_status": {
+    "definition": "CREATE INDEX cost_impacts_site_status ON cost_impacts USING btree (site_id, status)",
+    "valid": true
+  },
+  "index dashboard_layouts_pkey": {
+    "definition": "CREATE UNIQUE INDEX dashboard_layouts_pkey ON dashboard_layouts USING btree (id)",
+    "valid": true
+  },
+  "index dashboard_layouts_site_id_owner_id_key": {
+    "definition": "CREATE UNIQUE INDEX dashboard_layouts_site_id_owner_id_key ON dashboard_layouts USING btree (site_id, owner_id)",
+    "valid": true
+  },
+  "index deviation_events_pkey": {
+    "definition": "CREATE UNIQUE INDEX deviation_events_pkey ON deviation_events USING btree (id)",
+    "valid": true
+  },
+  "index deviation_events_timeline": {
+    "definition": "CREATE INDEX deviation_events_timeline ON deviation_events USING btree (deviation_id, at, id)",
+    "valid": true
+  },
+  "index deviation_export_rows_pkey": {
+    "definition": "CREATE UNIQUE INDEX deviation_export_rows_pkey ON deviation_export_rows USING btree (export_id, deviation_id)",
+    "valid": true
+  },
+  "index deviation_exports_pkey": {
+    "definition": "CREATE UNIQUE INDEX deviation_exports_pkey ON deviation_exports USING btree (id)",
+    "valid": true
+  },
+  "index deviation_exports_site_id_source_system_export_date_file_sh_key": {
+    "definition": "CREATE UNIQUE INDEX deviation_exports_site_id_source_system_export_date_file_sh_key ON deviation_exports USING btree (site_id, source_system, export_date, file_sha256, complete, scope)",
+    "valid": true
+  },
+  "index deviation_exports_site_system_date": {
+    "definition": "CREATE INDEX deviation_exports_site_system_date ON deviation_exports USING btree (site_id, source_system, export_date DESC, id DESC)",
+    "valid": true
+  },
+  "index deviation_import_sources_pkey": {
+    "definition": "CREATE UNIQUE INDEX deviation_import_sources_pkey ON deviation_import_sources USING btree (site_id)",
+    "valid": true
+  },
+  "index deviation_links_pkey": {
+    "definition": "CREATE UNIQUE INDEX deviation_links_pkey ON deviation_links USING btree (deviation_id, entity_type, entity_id)",
+    "valid": true
+  },
+  "index deviations_external_identity": {
+    "definition": "CREATE UNIQUE INDEX deviations_external_identity ON deviations USING btree (site_id, source_system, source_id) WHERE (source_id IS NOT NULL)",
+    "valid": true
+  },
+  "index deviations_legacy_number": {
+    "definition": "CREATE UNIQUE INDEX deviations_legacy_number ON deviations USING btree (site_id, deviation_no) WHERE (source_system IS NULL)",
+    "valid": true
+  },
+  "index deviations_pkey": {
+    "definition": "CREATE UNIQUE INDEX deviations_pkey ON deviations USING btree (id)",
+    "valid": true
+  },
+  "index deviations_site_internal_owner": {
+    "definition": "CREATE INDEX deviations_site_internal_owner ON deviations USING btree (site_id, internal_owner_id)",
+    "valid": true
+  },
+  "index deviations_site_last_seen": {
+    "definition": "CREATE INDEX deviations_site_last_seen ON deviations USING btree (site_id, last_seen_in_export_date)",
+    "valid": true
+  },
+  "index deviations_site_priority": {
+    "definition": "CREATE INDEX deviations_site_priority ON deviations USING btree (site_id, priority)",
+    "valid": true
+  },
+  "index deviations_site_status": {
+    "definition": "CREATE INDEX deviations_site_status ON deviations USING btree (site_id, status)",
+    "valid": true
+  },
+  "index diary_entry_versions_diary_id_version_key": {
+    "definition": "CREATE UNIQUE INDEX diary_entry_versions_diary_id_version_key ON diary_entry_versions USING btree (diary_id, version)",
+    "valid": true
+  },
+  "index diary_entry_versions_pkey": {
+    "definition": "CREATE UNIQUE INDEX diary_entry_versions_pkey ON diary_entry_versions USING btree (id)",
+    "valid": true
+  },
+  "index diary_pkey": {
+    "definition": "CREATE UNIQUE INDEX diary_pkey ON diary USING btree (id)",
+    "valid": true
+  },
+  "index diary_site_id_operational_date_shift_key": {
+    "definition": "CREATE UNIQUE INDEX diary_site_id_operational_date_shift_key ON diary USING btree (site_id, operational_date, shift)",
+    "valid": true
+  },
+  "index employee_certifications_pkey": {
+    "definition": "CREATE UNIQUE INDEX employee_certifications_pkey ON employee_certifications USING btree (id)",
+    "valid": true
+  },
+  "index employee_certifications_site_employee": {
+    "definition": "CREATE INDEX employee_certifications_site_employee ON employee_certifications USING btree (site_id, employee_id)",
+    "valid": true
+  },
+  "index employee_certifications_site_expires": {
+    "definition": "CREATE INDEX employee_certifications_site_expires ON employee_certifications USING btree (site_id, expires_on)",
+    "valid": true
+  },
+  "index employees_pkey": {
+    "definition": "CREATE UNIQUE INDEX employees_pkey ON employees USING btree (id)",
+    "valid": true
+  },
+  "index employees_site_id_employee_no_key": {
+    "definition": "CREATE UNIQUE INDEX employees_site_id_employee_no_key ON employees USING btree (site_id, employee_no)",
+    "valid": true
+  },
+  "index hr_import_sources_pkey": {
+    "definition": "CREATE UNIQUE INDEX hr_import_sources_pkey ON hr_import_sources USING btree (site_id)",
+    "valid": true
+  },
+  "index hse_assets_pkey": {
+    "definition": "CREATE UNIQUE INDEX hse_assets_pkey ON hse_assets USING btree (id)",
+    "valid": true
+  },
+  "index hse_assets_site_id_name_key": {
+    "definition": "CREATE UNIQUE INDEX hse_assets_site_id_name_key ON hse_assets USING btree (site_id, name)",
+    "valid": true
+  },
+  "index hse_assets_site_kind": {
+    "definition": "CREATE INDEX hse_assets_site_kind ON hse_assets USING btree (site_id, kind)",
+    "valid": true
+  },
+  "index hse_events_pkey": {
+    "definition": "CREATE UNIQUE INDEX hse_events_pkey ON hse_events USING btree (id)",
+    "valid": true
+  },
+  "index hse_events_site_id_event_no_key": {
+    "definition": "CREATE UNIQUE INDEX hse_events_site_id_event_no_key ON hse_events USING btree (site_id, event_no)",
+    "valid": true
+  },
+  "index hse_events_site_occurred": {
+    "definition": "CREATE INDEX hse_events_site_occurred ON hse_events USING btree (site_id, occurred_on)",
+    "valid": true
+  },
+  "index hse_events_site_type": {
+    "definition": "CREATE INDEX hse_events_site_type ON hse_events USING btree (site_id, type)",
+    "valid": true
+  },
+  "index hse_inspection_items_inspection_id_item_code_key": {
+    "definition": "CREATE UNIQUE INDEX hse_inspection_items_inspection_id_item_code_key ON hse_inspection_items USING btree (inspection_id, item_code)",
+    "valid": true
+  },
+  "index hse_inspection_items_pkey": {
+    "definition": "CREATE UNIQUE INDEX hse_inspection_items_pkey ON hse_inspection_items USING btree (id)",
+    "valid": true
+  },
+  "index hse_inspections_pkey": {
+    "definition": "CREATE UNIQUE INDEX hse_inspections_pkey ON hse_inspections USING btree (id)",
+    "valid": true
+  },
+  "index hse_inspections_site_asset_performed": {
+    "definition": "CREATE INDEX hse_inspections_site_asset_performed ON hse_inspections USING btree (site_id, asset_id, performed_on)",
+    "valid": true
+  },
+  "index idempotency_keys_pkey": {
+    "definition": "CREATE UNIQUE INDEX idempotency_keys_pkey ON idempotency_keys USING btree (key)",
+    "valid": true
+  },
+  "index import_mappings_pkey": {
+    "definition": "CREATE UNIQUE INDEX import_mappings_pkey ON import_mappings USING btree (id)",
+    "valid": true
+  },
+  "index import_mappings_site_id_family_key": {
+    "definition": "CREATE UNIQUE INDEX import_mappings_site_id_family_key ON import_mappings USING btree (site_id, family)",
+    "valid": true
+  },
+  "index invitations_pending_email": {
+    "definition": "CREATE UNIQUE INDEX invitations_pending_email ON invitations USING btree (email) WHERE ((used_at IS NULL) AND (revoked_at IS NULL))",
+    "valid": true
+  },
+  "index invitations_pkey": {
+    "definition": "CREATE UNIQUE INDEX invitations_pkey ON invitations USING btree (id)",
+    "valid": true
+  },
+  "index invitations_token_hash_key": {
+    "definition": "CREATE UNIQUE INDEX invitations_token_hash_key ON invitations USING btree (token_hash)",
+    "valid": true
+  },
+  "index member_module_access_pkey": {
+    "definition": "CREATE UNIQUE INDEX member_module_access_pkey ON member_module_access USING btree (id)",
+    "valid": true
+  },
+  "index member_module_access_site_id_user_id_module_key": {
+    "definition": "CREATE UNIQUE INDEX member_module_access_site_id_user_id_module_key ON member_module_access USING btree (site_id, user_id, module)",
+    "valid": true
+  },
+  "index package_items_order_item": {
+    "definition": "CREATE INDEX package_items_order_item ON package_items USING btree (purchase_order_item_id)",
+    "valid": true
+  },
+  "index package_items_package_id_purchase_order_item_id_key": {
+    "definition": "CREATE UNIQUE INDEX package_items_package_id_purchase_order_item_id_key ON package_items USING btree (package_id, purchase_order_item_id)",
+    "valid": true
+  },
+  "index package_items_pkey": {
+    "definition": "CREATE UNIQUE INDEX package_items_pkey ON package_items USING btree (id)",
+    "valid": true
+  },
+  "index packages_pkey": {
+    "definition": "CREATE UNIQUE INDEX packages_pkey ON packages USING btree (id)",
+    "valid": true
+  },
+  "index packages_purchase_order_id_package_no_key": {
+    "definition": "CREATE UNIQUE INDEX packages_purchase_order_id_package_no_key ON packages USING btree (purchase_order_id, package_no)",
+    "valid": true
+  },
+  "index packages_site_order": {
+    "definition": "CREATE INDEX packages_site_order ON packages USING btree (site_id, purchase_order_id)",
+    "valid": true
+  },
+  "index password_resets_pkey": {
+    "definition": "CREATE UNIQUE INDEX password_resets_pkey ON password_resets USING btree (user_id)",
+    "valid": true
+  },
+  "index password_resets_token_hash_key": {
+    "definition": "CREATE UNIQUE INDEX password_resets_token_hash_key ON password_resets USING btree (token_hash)",
+    "valid": true
+  },
+  "index planning_import_keys_pkey": {
+    "definition": "CREATE UNIQUE INDEX planning_import_keys_pkey ON planning_import_keys USING btree (site_id, family, import_key)",
+    "valid": true
+  },
+  "index planning_import_keys_site_id_family_target_id_key": {
+    "definition": "CREATE UNIQUE INDEX planning_import_keys_site_id_family_target_id_key ON planning_import_keys USING btree (site_id, family, target_id)",
+    "valid": true
+  },
+  "index planning_import_runs_pkey": {
+    "definition": "CREATE UNIQUE INDEX planning_import_runs_pkey ON planning_import_runs USING btree (id)",
+    "valid": true
+  },
+  "index planning_import_runs_site": {
+    "definition": "CREATE INDEX planning_import_runs_site ON planning_import_runs USING btree (site_id, created_at)",
+    "valid": true
+  },
+  "index planning_import_runs_site_id_id_key": {
+    "definition": "CREATE UNIQUE INDEX planning_import_runs_site_id_id_key ON planning_import_runs USING btree (site_id, id)",
+    "valid": true
+  },
+  "index progress_entries_item": {
+    "definition": "CREATE INDEX progress_entries_item ON progress_entries USING btree (site_progress_item_id, recorded_at)",
+    "valid": true
+  },
+  "index progress_entries_pkey": {
+    "definition": "CREATE UNIQUE INDEX progress_entries_pkey ON progress_entries USING btree (id)",
+    "valid": true
+  },
+  "index progress_entries_site": {
+    "definition": "CREATE INDEX progress_entries_site ON progress_entries USING btree (site_id, recorded_at)",
+    "valid": true
+  },
+  "index progress_id_site": {
+    "definition": "CREATE UNIQUE INDEX progress_id_site ON site_progress_items USING btree (id, site_id)",
+    "valid": true
+  },
+  "index progress_type_steps_pkey": {
+    "definition": "CREATE UNIQUE INDEX progress_type_steps_pkey ON progress_type_steps USING btree (id)",
+    "valid": true
+  },
+  "index progress_type_steps_progress_type_id_code_key": {
+    "definition": "CREATE UNIQUE INDEX progress_type_steps_progress_type_id_code_key ON progress_type_steps USING btree (progress_type_id, code)",
+    "valid": true
+  },
+  "index progress_type_steps_progress_type_id_position_key": {
+    "definition": "CREATE UNIQUE INDEX progress_type_steps_progress_type_id_position_key ON progress_type_steps USING btree (progress_type_id, \"position\")",
+    "valid": true
+  },
+  "index progress_types_pkey": {
+    "definition": "CREATE UNIQUE INDEX progress_types_pkey ON progress_types USING btree (id)",
+    "valid": true
+  },
+  "index progress_types_site_id_code_key": {
+    "definition": "CREATE UNIQUE INDEX progress_types_site_id_code_key ON progress_types USING btree (site_id, code)",
+    "valid": true
+  },
+  "index project_structure_id_site": {
+    "definition": "CREATE UNIQUE INDEX project_structure_id_site ON project_structure USING btree (id, site_id)",
+    "valid": true
+  },
+  "index project_structure_order": {
+    "definition": "CREATE INDEX project_structure_order ON project_structure USING btree (site_id, level, sort_order)",
+    "valid": true
+  },
+  "index project_structure_parent": {
+    "definition": "CREATE INDEX project_structure_parent ON project_structure USING btree (site_id, parent_id)",
+    "valid": true
+  },
+  "index project_structure_pkey": {
+    "definition": "CREATE UNIQUE INDEX project_structure_pkey ON project_structure USING btree (id)",
+    "valid": true
+  },
+  "index project_structure_site_id_source_uuid_key": {
+    "definition": "CREATE UNIQUE INDEX project_structure_site_id_source_uuid_key ON project_structure USING btree (site_id, source_uuid)",
+    "valid": true
+  },
+  "index purchase_order_items_pkey": {
+    "definition": "CREATE UNIQUE INDEX purchase_order_items_pkey ON purchase_order_items USING btree (id)",
+    "valid": true
+  },
+  "index purchase_order_items_purchase_order_id_line_no_key": {
+    "definition": "CREATE UNIQUE INDEX purchase_order_items_purchase_order_id_line_no_key ON purchase_order_items USING btree (purchase_order_id, line_no)",
+    "valid": true
+  },
+  "index purchase_orders_pkey": {
+    "definition": "CREATE UNIQUE INDEX purchase_orders_pkey ON purchase_orders USING btree (id)",
+    "valid": true
+  },
+  "index purchase_orders_site_id_po_no_key": {
+    "definition": "CREATE UNIQUE INDEX purchase_orders_site_id_po_no_key ON purchase_orders USING btree (site_id, po_no)",
+    "valid": true
+  },
+  "index purchase_orders_site_status": {
+    "definition": "CREATE INDEX purchase_orders_site_status ON purchase_orders USING btree (site_id, status)",
+    "valid": true
+  },
+  "index schema_migrations_pkey": {
+    "definition": "CREATE UNIQUE INDEX schema_migrations_pkey ON schema_migrations USING btree (version)",
+    "valid": true
+  },
+  "index sessions_pkey": {
+    "definition": "CREATE UNIQUE INDEX sessions_pkey ON sessions USING btree (id)",
+    "valid": true
+  },
+  "index sessions_token_hash_key": {
+    "definition": "CREATE UNIQUE INDEX sessions_token_hash_key ON sessions USING btree (token_hash)",
+    "valid": true
+  },
+  "index shipment_packages_package_id_key": {
+    "definition": "CREATE UNIQUE INDEX shipment_packages_package_id_key ON shipment_packages USING btree (package_id)",
+    "valid": true
+  },
+  "index shipment_packages_pkey": {
+    "definition": "CREATE UNIQUE INDEX shipment_packages_pkey ON shipment_packages USING btree (shipment_id, package_id)",
+    "valid": true
+  },
+  "index shipment_receipts_pkey": {
+    "definition": "CREATE UNIQUE INDEX shipment_receipts_pkey ON shipment_receipts USING btree (id)",
+    "valid": true
+  },
+  "index shipment_receipts_shipment": {
+    "definition": "CREATE INDEX shipment_receipts_shipment ON shipment_receipts USING btree (shipment_id)",
+    "valid": true
+  },
+  "index shipments_pkey": {
+    "definition": "CREATE UNIQUE INDEX shipments_pkey ON shipments USING btree (id)",
+    "valid": true
+  },
+  "index shipments_site_id_shipment_no_key": {
+    "definition": "CREATE UNIQUE INDEX shipments_site_id_shipment_no_key ON shipments USING btree (site_id, shipment_no)",
+    "valid": true
+  },
+  "index shipments_site_status": {
+    "definition": "CREATE INDEX shipments_site_status ON shipments USING btree (site_id, status)",
+    "valid": true
+  },
+  "index signup_requests_decision_token_hash_key": {
+    "definition": "CREATE UNIQUE INDEX signup_requests_decision_token_hash_key ON signup_requests USING btree (decision_token_hash)",
+    "valid": true
+  },
+  "index signup_requests_email_status": {
+    "definition": "CREATE INDEX signup_requests_email_status ON signup_requests USING btree (email, status)",
+    "valid": true
+  },
+  "index signup_requests_pending_email": {
+    "definition": "CREATE UNIQUE INDEX signup_requests_pending_email ON signup_requests USING btree (lower(email)) WHERE (status = 'pending'::text)",
+    "valid": true
+  },
+  "index signup_requests_pkey": {
+    "definition": "CREATE UNIQUE INDEX signup_requests_pkey ON signup_requests USING btree (id)",
+    "valid": true
+  },
+  "index site_members_pkey": {
+    "definition": "CREATE UNIQUE INDEX site_members_pkey ON site_members USING btree (site_id, user_id)",
+    "valid": true
+  },
+  "index site_members_user": {
+    "definition": "CREATE INDEX site_members_user ON site_members USING btree (user_id)",
+    "valid": true
+  },
+  "index site_progress_import_sources_pkey": {
+    "definition": "CREATE UNIQUE INDEX site_progress_import_sources_pkey ON site_progress_import_sources USING btree (site_id)",
+    "valid": true
+  },
+  "index site_progress_item_steps_pkey": {
+    "definition": "CREATE UNIQUE INDEX site_progress_item_steps_pkey ON site_progress_item_steps USING btree (id)",
+    "valid": true
+  },
+  "index site_progress_item_steps_site_progress_item_id_progress_typ_key": {
+    "definition": "CREATE UNIQUE INDEX site_progress_item_steps_site_progress_item_id_progress_typ_key ON site_progress_item_steps USING btree (site_progress_item_id, progress_type_step_id)",
+    "valid": true
+  },
+  "index site_progress_item_steps_type_step": {
+    "definition": "CREATE INDEX site_progress_item_steps_type_step ON site_progress_item_steps USING btree (progress_type_step_id)",
+    "valid": true
+  },
+  "index site_progress_items_pkey": {
+    "definition": "CREATE UNIQUE INDEX site_progress_items_pkey ON site_progress_items USING btree (id)",
+    "valid": true
+  },
+  "index site_progress_items_site_id_source_row_key": {
+    "definition": "CREATE UNIQUE INDEX site_progress_items_site_id_source_row_key ON site_progress_items USING btree (site_id, source_row)",
+    "valid": true
+  },
+  "index site_progress_items_site_wbs": {
+    "definition": "CREATE INDEX site_progress_items_site_wbs ON site_progress_items USING btree (site_id, wbs_id)",
+    "valid": true
+  },
+  "index site_progress_items_type": {
+    "definition": "CREATE INDEX site_progress_items_type ON site_progress_items USING btree (progress_type_id)",
+    "valid": true
+  },
+  "index sites_code_key": {
+    "definition": "CREATE UNIQUE INDEX sites_code_key ON sites USING btree (code)",
+    "valid": true
+  },
+  "index sites_pkey": {
+    "definition": "CREATE UNIQUE INDEX sites_pkey ON sites USING btree (id)",
+    "valid": true
+  },
+  "index task_events_current_closure": {
+    "definition": "CREATE INDEX task_events_current_closure ON task_events USING btree (task_id, to_status, from_status, id)",
+    "valid": true
+  },
+  "index task_events_evidence_attachment": {
+    "definition": "CREATE INDEX task_events_evidence_attachment ON task_events USING btree (evidence_attachment_id)",
+    "valid": true
+  },
+  "index task_events_pkey": {
+    "definition": "CREATE UNIQUE INDEX task_events_pkey ON task_events USING btree (id)",
+    "valid": true
+  },
+  "index tasks_pkey": {
+    "definition": "CREATE UNIQUE INDEX tasks_pkey ON tasks USING btree (id)",
+    "valid": true
+  },
+  "index tasks_site_wbs": {
+    "definition": "CREATE INDEX tasks_site_wbs ON tasks USING btree (site_id, wbs_id)",
+    "valid": true
+  },
+  "index time_bookings_item": {
+    "definition": "CREATE INDEX time_bookings_item ON time_bookings USING btree (site_progress_item_id)",
+    "valid": true
+  },
+  "index time_bookings_pkey": {
+    "definition": "CREATE UNIQUE INDEX time_bookings_pkey ON time_bookings USING btree (id)",
+    "valid": true
+  },
+  "index time_bookings_site": {
+    "definition": "CREATE INDEX time_bookings_site ON time_bookings USING btree (site_id)",
+    "valid": true
+  },
+  "index time_bookings_work_day_id_site_progress_item_id_key": {
+    "definition": "CREATE UNIQUE INDEX time_bookings_work_day_id_site_progress_item_id_key ON time_bookings USING btree (work_day_id, site_progress_item_id)",
+    "valid": true
+  },
+  "index tools_pkey": {
+    "definition": "CREATE UNIQUE INDEX tools_pkey ON tools USING btree (id)",
+    "valid": true
+  },
+  "index tools_site_company": {
+    "definition": "CREATE INDEX tools_site_company ON tools USING btree (site_id, company)",
+    "valid": true
+  },
+  "index user_permissions_active": {
+    "definition": "CREATE UNIQUE INDEX user_permissions_active ON user_permissions USING btree (user_id, permission) WHERE (revoked_at IS NULL)",
+    "valid": true
+  },
+  "index users_email_lower": {
+    "definition": "CREATE UNIQUE INDEX users_email_lower ON users USING btree (lower(email))",
+    "valid": true
+  },
+  "index users_pkey": {
+    "definition": "CREATE UNIQUE INDEX users_pkey ON users USING btree (id)",
+    "valid": true
+  },
+  "index view_settings_pkey": {
+    "definition": "CREATE UNIQUE INDEX view_settings_pkey ON view_settings USING btree (id)",
+    "valid": true
+  },
+  "index view_settings_site_id_module_owner_id_name_key": {
+    "definition": "CREATE UNIQUE INDEX view_settings_site_id_module_owner_id_name_key ON view_settings USING btree (site_id, module, owner_id, name)",
+    "valid": true
+  },
+  "index view_settings_site_module": {
+    "definition": "CREATE INDEX view_settings_site_module ON view_settings USING btree (site_id, module)",
+    "valid": true
+  },
+  "index wbs_import_sources_pkey": {
+    "definition": "CREATE UNIQUE INDEX wbs_import_sources_pkey ON wbs_import_sources USING btree (site_id)",
+    "valid": true
+  },
+  "index wbs_node_overrides_pkey": {
+    "definition": "CREATE UNIQUE INDEX wbs_node_overrides_pkey ON wbs_node_overrides USING btree (wbs_id)",
+    "valid": true
+  },
+  "index webauthn_challenges_pkey": {
+    "definition": "CREATE UNIQUE INDEX webauthn_challenges_pkey ON webauthn_challenges USING btree (id)",
+    "valid": true
+  },
+  "index webauthn_credentials_credential_id_key": {
+    "definition": "CREATE UNIQUE INDEX webauthn_credentials_credential_id_key ON webauthn_credentials USING btree (credential_id)",
+    "valid": true
+  },
+  "index webauthn_credentials_pkey": {
+    "definition": "CREATE UNIQUE INDEX webauthn_credentials_pkey ON webauthn_credentials USING btree (id)",
+    "valid": true
+  },
+  "index webauthn_credentials_user": {
+    "definition": "CREATE INDEX webauthn_credentials_user ON webauthn_credentials USING btree (user_id)",
+    "valid": true
+  },
+  "index work_days_employee_date": {
+    "definition": "CREATE INDEX work_days_employee_date ON work_days USING btree (site_id, employee_id, operational_date)",
+    "valid": true
+  },
+  "index work_days_id_site": {
+    "definition": "CREATE UNIQUE INDEX work_days_id_site ON work_days USING btree (id, site_id)",
+    "valid": true
+  },
+  "index work_days_pkey": {
+    "definition": "CREATE UNIQUE INDEX work_days_pkey ON work_days USING btree (id)",
+    "valid": true
+  },
+  "table assistant_usage": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "requested_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "model",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "input_tokens",
+        "type": "bigint",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "output_tokens",
+        "type": "bigint",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "cost_nanousd",
+        "type": "bigint",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "reason",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table attachments": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "entity_type",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "entity_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "filename",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "mime",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "size",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "content_sha256",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "storage_locator",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "manifest_version",
+        "type": "text",
+        "required": true,
+        "default_value": "'v1'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "uploaded_by",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table audit_events": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "entity_type",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "entity_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "action",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "at",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "actor",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "changes",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table auth_events": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "event",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "outcome",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "ip",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "user_agent",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "detail_json",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table cost_impact_deviations": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "cost_impact_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "deviation_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table cost_impacts": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "claim_amount",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "settlement_amount",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "result",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "closed_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table dashboard_layouts": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "owner_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "widgets_json",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table deviation_events": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "required": true,
+        "default_value": null,
+        "identity": "a",
+        "generated": ""
+      },
+      {
+        "name": "deviation_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "actor",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "from_status",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "to_status",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "action",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table deviation_export_rows": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "export_id",
+        "type": "bigint",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "deviation_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table deviation_exports": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "required": true,
+        "default_value": null,
+        "identity": "a",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_system",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "export_date",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "file_sha256",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "complete",
+        "type": "boolean",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "scope",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table deviation_import_sources": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "scope_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "run_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_run_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_batch_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table deviation_links": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "deviation_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "entity_type",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "entity_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table deviations": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "deviation_no",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "problem_description",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "priority",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "author",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "assigned_to",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "plc_area",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "creation_date",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "due_date",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "approved_date",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "closed_date",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "actual_cost",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "claim_quantity",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "labor_hours",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "completed_tasks_pct",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_entity_key_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_system",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_id",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_status",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_export_date",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "last_seen_in_export_date",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "provenance",
+        "type": "text",
+        "required": true,
+        "default_value": "'original'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "causing_company",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "resolving_company",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "attribution_state",
+        "type": "text",
+        "required": true,
+        "default_value": "'not_determined'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "internal_owner_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "internal_owner_since",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table diary": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "operational_date",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "shift",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "plan",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "actual",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "impediments",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "next_step",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "time_zone",
+        "type": "text",
+        "required": true,
+        "default_value": "'Europe/Rome'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "day_cutoff_time",
+        "type": "text",
+        "required": true,
+        "default_value": "'06:00'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "author_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "recording_motivation",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "recorded_late",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table diary_entry_versions": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "diary_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "snapshot",
+        "type": "jsonb",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "author_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "motivation",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table employee_certifications": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "employee_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "category",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "issuer",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "issued_on",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "expires_on",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "outcome",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table employees": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "employee_no",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "first_name",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "last_name",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "company",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "qualification",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "supervisor",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "team",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "hire_date",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "expire_date",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_entity_key_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table hr_import_sources": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "scope_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "run_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_run_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_employees_batch_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_work_days_batch_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table hse_assets": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "category",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "code",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "tool_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "template_code",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "active",
+        "type": "boolean",
+        "required": true,
+        "default_value": "true",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table hse_events": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "event_no",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "type",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "severity",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "occurred_on",
+        "type": "date",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "location",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "persons_involved",
+        "type": "integer",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "measures",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "deviation_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table hse_inspection_items": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "inspection_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "item_code",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "label",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "result",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "position",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table hse_inspections": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "asset_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "performed_on",
+        "type": "date",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "performed_by",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "performer_role",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "mode",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "outcome",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "next_due_on",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "hse_event_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table idempotency_keys": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "key",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "route",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "request_hash",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "body",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table import_mappings": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "family",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "aliases_json",
+        "type": "text",
+        "required": true,
+        "default_value": "'{}'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "identity_json",
+        "type": "text",
+        "required": true,
+        "default_value": "'[]'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table invitations": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "token_hash",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "used_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "locale",
+        "type": "text",
+        "required": true,
+        "default_value": "'en'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_role",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "delivery_status",
+        "type": "text",
+        "required": true,
+        "default_value": "'pending'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "delivery_attempts",
+        "type": "integer",
+        "required": true,
+        "default_value": "0",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "delivered_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "last_delivery_error",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table member_module_access": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "module",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "allowed",
+        "type": "boolean",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table package_items": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "package_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "purchase_order_item_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "quantity_packed",
+        "type": "numeric(12,3)",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "unit",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "material_no",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table packages": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "purchase_order_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "package_no",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": true,
+        "default_value": "'open'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "closed_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table password_resets": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "user_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "token_hash",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table planning_import_keys": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "family",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "import_key",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "target_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "identity_state",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "last_import_run_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table planning_import_runs": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "family",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "filename",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "file_sha256",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "file_data",
+        "type": "bytea",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "counts_json",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "applied_keys_json",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table progress_entries": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_progress_item_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "progress_type_step_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "percent",
+        "type": "numeric",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "recorded_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "recorded_by",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table progress_type_steps": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "progress_type_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "position",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "code",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "weight",
+        "type": "numeric",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table progress_types": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "code",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table project_structure": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "parent_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_uuid",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "wbs_code",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "level",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "sort_order",
+        "type": "integer",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "summary_task",
+        "type": "boolean",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "progress_pct",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "planned_start",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "planned_finish",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "actual_start",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "actual_finish",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "planned_hours",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "section",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "plc_area",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "assigned_to",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "is_synthetic",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_entity_key_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "archived_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_scope",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_run_id",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "missing_from_source",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table purchase_order_items": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "purchase_order_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "line_no",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "material_no",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "unit",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "quantity",
+        "type": "numeric(12,3)",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": true,
+        "default_value": "'open'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "execution_started_on",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "completed_on",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "not_relevant_on",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table purchase_orders": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "po_no",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "supplier_name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "ordered_on",
+        "type": "date",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "closed_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table schema_migrations": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "version",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "applied_at",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table sessions": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "token_hash",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "user_agent",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "ip",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "auth_method",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "assurance",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "last_seen_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "credential_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "expiry_logged_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table shipment_packages": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "shipment_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "package_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table shipment_receipts": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "shipment_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "purchase_order_item_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "quantity_received",
+        "type": "numeric(12,3)",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table shipments": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "shipment_no",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "carrier",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "shipped_on",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "expected_on",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "arrived_on",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": true,
+        "default_value": "'planned'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table signup_requests": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "decision_token_hash",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "completion_token_hash",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "requested_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "decided_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "language",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table site_members": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "role",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table site_progress_import_sources": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "scope_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "run_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_run_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_batch_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table site_progress_item_steps": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_progress_item_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "progress_type_step_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "percent",
+        "type": "numeric",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table site_progress_items": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "plc_area",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "section",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "progress_pct",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "planned_progress_pct",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "delta_progress_source",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "assigned_to",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "planned_start",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "planned_finish",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "actual_start",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "expected_delay",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "has_files",
+        "type": "boolean",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "has_notes",
+        "type": "boolean",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "has_deviations",
+        "type": "boolean",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_row",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_entity_key_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "progress_type_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "planned_hours",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table sites": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "code",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "location",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "start_date",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "end_date",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "jurisdiction",
+        "type": "text",
+        "required": true,
+        "default_value": "'IT'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "time_zone",
+        "type": "text",
+        "required": true,
+        "default_value": "'Europe/Rome'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "day_cutoff_time",
+        "type": "text",
+        "required": true,
+        "default_value": "'06:00'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "assistant_enabled",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "assistant_timeout_ms",
+        "type": "integer",
+        "required": true,
+        "default_value": "20000",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "demo_sandbox",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table task_events": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "a",
+        "generated": ""
+      },
+      {
+        "name": "task_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "actor",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "from_status",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "to_status",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "reason",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "action",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "waiver",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "evidence_attachment_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table tasks": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "area",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "company",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "executor",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "verifier",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "priority",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "due_date",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": true,
+        "default_value": "'todo'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "blocked_from",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "submitted_by",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "executor_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "verifier_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "submitted_by_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "declared_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "verified_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "acceptance_document_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "acceptance_date",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "acceptance_state",
+        "type": "text",
+        "required": true,
+        "default_value": "'none'::text",
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table time_bookings": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "work_day_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_progress_item_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "hours",
+        "type": "numeric",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table tools": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "code",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "company",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "location",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table user_permissions": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "user_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "permission",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "granted_by",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "granted_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table users": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "password_hash",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "password_algo",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "disabled_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "password_change_required",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "email_verified_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "language",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "shared_demo",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "demo_sandbox",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table view_settings": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "module",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "owner_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "shared",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "payload",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table wbs_import_sources": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "scope_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "run_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_run_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_batch_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "promoted_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table wbs_node_overrides": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "wbs_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "description_set",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "parent_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "parent_set",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "sort_order",
+        "type": "integer",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "sort_order_set",
+        "type": "boolean",
+        "required": true,
+        "default_value": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_values_json",
+        "type": "text",
+        "required": true,
+        "default_value": "'{}'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "conflicts_json",
+        "type": "text",
+        "required": true,
+        "default_value": "'{}'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table webauthn_challenges": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "challenge_hash",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "used_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table webauthn_credentials": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "credential_id",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "public_key",
+        "type": "bytea",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "sign_count",
+        "type": "bigint",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "transports",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "aaguid",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "attestation_type",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "backup_eligible",
+        "type": "boolean",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "backup_state",
+        "type": "boolean",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "user_verified",
+        "type": "boolean",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "last_used_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table work_days": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "employee_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "operational_date",
+        "type": "date",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "shift",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "start_time",
+        "type": "time without time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "finish_time",
+        "type": "time without time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "work_time",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "open_hours",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "booked_hours",
+        "type": "numeric",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_status",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_entity_key_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "trigger auth_events.auth_events_no_mutation": {
+    "definition": "CREATE TRIGGER auth_events_no_mutation BEFORE DELETE OR UPDATE ON auth_events FOR EACH ROW EXECUTE FUNCTION auth_events_append_only()",
+    "enabled": "O"
+  },
+  "trigger auth_events.auth_events_no_truncate": {
+    "definition": "CREATE TRIGGER auth_events_no_truncate BEFORE TRUNCATE ON auth_events FOR EACH STATEMENT EXECUTE FUNCTION auth_events_append_only()",
+    "enabled": "O"
+  },
+  "trigger deviation_events.deviation_events_append_only": {
+    "definition": "CREATE TRIGGER deviation_events_append_only BEFORE DELETE OR UPDATE OR TRUNCATE ON deviation_events FOR EACH STATEMENT EXECUTE FUNCTION reject_deviation_event_mutation()",
+    "enabled": "O"
+  },
+  "trigger deviations.deviations_source_identity": {
+    "definition": "CREATE TRIGGER deviations_source_identity BEFORE UPDATE OF source_id, source_system, site_id ON deviations FOR EACH ROW EXECUTE FUNCTION protect_deviation_identity()",
+    "enabled": "O"
+  },
+  "view accessible_site_members": {
+    "definition": " SELECT m.site_id,\n    m.user_id,\n    m.role\n   FROM ((site_members m\n     JOIN users u ON ((u.id = m.user_id)))\n     JOIN sites s ON ((s.id = m.site_id)))\n  WHERE (((NOT u.demo_sandbox) AND (m.role <> 'demo_user'::text)) OR (u.demo_sandbox AND s.demo_sandbox AND (m.role <> 'owner'::text)));",
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "user_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "role",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  }
+}
