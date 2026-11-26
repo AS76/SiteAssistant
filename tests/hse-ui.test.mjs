@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { corePermissions, navGroups, HSE_TYPES, HSE_MANUAL_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts, hseAttachmentNeedsReview, validDate, formatDateInput, parseDateInput } from '../app/domain.mjs';
+import { corePermissions, navGroups, HSE_TYPES, HSE_MANUAL_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts, hseAttachmentNeedsReview, validDate, formatDateInput, parseDateInput, inspectionSuggestion } from '../app/domain.mjs';
 import { HSE_TYPES as SERVER_TYPES, HSE_SEVERITIES as SERVER_SEVERITIES } from '../server/hse.mjs';
 import { createApi } from '../app/api.mjs';
 import { messages } from '../app/i18n.mjs';
@@ -10,7 +10,7 @@ import { createContext, runInContext } from 'node:vm';
 test('HSE navigation, roles and bilingual labels match the register contract', () => {
   assert.deepEqual(navGroups().find(group => group.label === 'navManagement').items, ['sites', 'tools', 'certifications', 'hse', 'reporting']);
   assert.ok(!navGroups({ hse: false }).flatMap(group => group.items).includes('hse'));
-  // The register lists every type, including the two written by the inspection flow; the manual form
+  // The register lists every type, including historical inspection events; the manual form
   // offers only the three factual ones.
   assert.deepEqual(HSE_TYPES, SERVER_TYPES);
   assert.deepEqual(HSE_MANUAL_TYPES, ['near_miss', 'accident', 'observation']);
@@ -27,6 +27,18 @@ test('HSE navigation, roles and bilingual labels match the register contract', (
     ...HSE_TYPES.map(type => `hseType_${type}`), ...HSE_SEVERITIES.map(severity => `hseSeverity_${severity}`)];
   for (const language of ['it', 'en']) for (const key of keys) assert.equal(typeof messages[language][key], 'string', `${language}.${key}`);
   assert.equal(messages.it.hsePrivacy, 'Nessun dato sanitario: si registrano fatti, luoghi e misure.');
+});
+
+test('inspection outcomes require complete results and notes for non-applicable checks', () => {
+  const critical = { code: 'guardrails', result: 'not_ok', critical: true };
+  assert.deepEqual(inspectionSuggestion([critical]), { outcome: 'fail', reasons: [{ code: 'INSPECTION_CRITICAL_NOT_OK', itemCode: 'guardrails' }] });
+  assert.deepEqual(inspectionSuggestion([{ ...critical, critical: false }]), { outcome: 'pass_with_notes', reasons: [] });
+  assert.deepEqual(inspectionSuggestion([{ code: 'access', result: 'na', note: 'Synthetic explanation' }]), { outcome: 'pass', reasons: [] });
+  assert.deepEqual(inspectionSuggestion([{ code: 'access', result: 'na', note: '  ' }, { code: 'platforms' }]), {
+    outcome: null, reasons: [{ code: 'INSPECTION_ITEMS_INCOMPLETE', itemCode: 'platforms' }, { code: 'INSPECTION_NA_NOTE_REQUIRED', itemCode: 'access' }],
+  });
+  assert.equal(inspectionSuggestion([critical, { code: 'platforms' }]).outcome, null);
+  assert.equal(inspectionSuggestion().outcome, null);
 });
 
 test('HSE filters use inclusive calendar dates, exact enums and stable descending order without mutation', () => {

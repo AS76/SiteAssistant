@@ -292,5 +292,11 @@
     "file": "055_demo_seed_environment.sql",
     "sqlite": "c9193425e8cdbb77b7b374b48c2731fbee80256b2c809697bc8c88ec50f92a74",
     "pg": "c9193425e8cdbb77b7b374b48c2731fbee80256b2c809697bc8c88ec50f92a74"
+  },
+  {
+    "version": "056",
+    "file": "056_hse_inspection_outcomes.sql",
+    "sqlite": "84a81e88f35ea90aad3e36b9cb54bf7e2c19bffb8a6bfa701c73b95cba891c0a",
+    "pg": "84a81e88f35ea90aad3e36b9cb54bf7e2c19bffb8a6bfa701c73b95cba891c0a"
   }
 ]

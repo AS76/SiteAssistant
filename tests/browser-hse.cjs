@@ -56,7 +56,9 @@ async function run() {
       await button.click();
     }
     await form.locator('[data-inspection-note="0"]').fill('Synthetic follow-up');
-    assert.equal(await form.locator('[name=outcome]').inputValue(), 'pass_with_notes');
+    assert.equal(await form.locator('#hse-inspection-computed').textContent(), 'Conforme con note');
+    assert.ok(await form.locator('[type=submit]').isDisabled());
+    await form.locator('[name=outcome]').selectOption('pass_with_notes');
     await form.locator('[type=submit]').click();
     await page.locator('#modal').waitFor({ state: 'hidden' });
     await click('hse-inspection-toggle');

@@ -2718,6 +2718,10 @@ function hseReadBlock(entry) {
   if (entry.pending) return `<p role="status">${t('loading')}</p>`;
   return '';
 }
+function hseDueDate(value, frequencyVerified) {
+  if (!value) return '—';
+  return esc(dateLabel(value)) + (frequencyVerified === false ? ` <small class="note">${esc(t('hseFrequencyUnverified'))}</small>` : '');
+}
 function renderHseAssetDetail() {
   const asset = coreData('hseAssets').find(row => row.id === hseAssetDetail.id);
   if (!asset) return `<p role="alert">${t('hseAssetNotFound')}</p>`;
@@ -2728,8 +2732,8 @@ function renderHseAssetDetail() {
   const date = value => value ? esc(dateLabel(value)) : '—';
   let html = `<section class="panel hse-subject"><div class="panel-body"><h2>${esc(asset.name)}</h2>${asset.code ? `<small class="note hse-asset-code">${esc(asset.code)}</small>` : ''}
     <p class="note">${esc(family?.title ?? asset.templateTitle ?? '—')}${family?.reference ? `<br>${esc(family.reference)}` : ''}</p>
-    ${family?.draft ? `<p class="note">${t('hseAssetChecklistReview')}</p>` : ''}${hseReadBlock(templates)}
-    <dl class="detail-grid"><div><dt>${t('status')}</dt><dd>${hseInspectionStatus(asset.status)}</dd></div><div><dt>${t('hseAssetLastInspection')}</dt><dd>${date(asset.lastInspectionOn)}</dd></div><div><dt>${t('hseAssetNextDue')}</dt><dd>${date(asset.nextDueOn)}</dd></div></dl>
+    ${family?.status === 'draft' || family?.draft ? `<p class="note">${t('hseAssetChecklistReview')}</p>` : ''}${hseReadBlock(templates)}
+    <dl class="detail-grid"><div><dt>${t('status')}</dt><dd>${hseInspectionStatus(asset.status)}</dd></div><div><dt>${t('hseAssetLastInspection')}</dt><dd>${date(asset.lastInspectionOn)}</dd></div><div><dt>${t('hseAssetNextDue')}</dt><dd>${hseDueDate(asset.nextDueOn, asset.frequencyVerified ?? family?.frequency_verified)}</dd></div></dl>
     ${family ? `<p class="note">${family.items.length} ${t(family.items.length === 1 ? 'hseAssetCheck' : 'hseAssetChecks')}</p>` : ''}
     ${permissions().hseWrite ? button('hseInspectionNew', 'hse-inspection-new', '', 'primary') : ''}</div></section>
     <section class="panel section-gap hse-history" aria-labelledby="hse-history-title"><div class="panel-header"><h2 id="hse-history-title">${t('hseInspectionHistory')}</h2></div><div class="panel-body">`;
@@ -2740,9 +2744,12 @@ function renderHseAssetDetail() {
     const detail = coreResource(`hseInspection:${row.id}`, () => freshApi.getInspection(row.id));
     const expanded = hseAssetDetail.expanded.has(row.id);
     const tally = detail.data ? inspectionTally(detail.data.items) : null;
-    const outcomeStyle = { pass: 'closed', pass_with_notes: 'high', fail: 'urgent' }[row.outcome] || '';
+    const outcome = row.computedOutcome ?? row.outcome;
+    const outcomeStyle = { pass: 'closed', pass_with_notes: 'high', fail: 'urgent' }[outcome] || '';
+    const outcomeLabel = row.outcomeSource === 'computed' ? 'hseInspectionComputedOutcome' : 'hseInspectionRecordedOutcome';
+    const declaration = row.declaredOutcome ? esc(t(inspectionOutcomeLabelKey(row.declaredOutcome))) : '—';
     return `<article class="hse-history-row"><h3><button type="button" data-command="hse-inspection-toggle" data-id="${esc(row.id)}" aria-expanded="${expanded}" aria-controls="hse-inspection-${esc(row.id)}">${date(row.performedOn)}</button></h3>
-      <dl class="detail-grid"><div><dt>${t('hseInspectionPerformer')}</dt><dd>${coreValue(row.performedBy)}</dd></div><div><dt>${t('hseInspectionRole')}</dt><dd>${coreValue(row.performerRole)}</dd></div><div><dt>${t('hseInspectionMode')}</dt><dd>${esc(t(inspectionModeLabelKey(row.mode)))}</dd></div><div><dt>${t('hseInspectionOutcome')}</dt><dd><span class="badge ${outcomeStyle}">${esc(t(inspectionOutcomeLabelKey(row.outcome)))}</span></dd></div><div><dt>${t('hseAssetNextDue')}</dt><dd>${date(row.nextDueOn)}</dd></div></dl>
+      <dl class="detail-grid"><div><dt>${t('hseInspectionPerformer')}</dt><dd>${coreValue(row.performedBy)}</dd></div><div><dt>${t('hseInspectionRole')}</dt><dd>${coreValue(row.performerRole)}</dd></div><div><dt>${t('hseInspectionMode')}</dt><dd>${esc(t(inspectionModeLabelKey(row.mode)))}</dd></div><div><dt>${t(outcomeLabel)}</dt><dd><span class="badge ${outcomeStyle}">${esc(t(inspectionOutcomeLabelKey(outcome)))}</span></dd></div><div><dt>${t('hseInspectionDeclaredOutcome')}</dt><dd>${declaration}</dd></div><div><dt>${t('hseAssetNextDue')}</dt><dd>${hseDueDate(row.nextDueOn, row.frequencyVerified)}</dd></div></dl>
       ${row.notes ? `<p class="prewrap">${esc(row.notes)}</p>` : ''}
       ${tally ? `<p class="note hse-inspection-tally">${[['ok', tally.ok], ['not_ok', tally.notOk], ['na', tally.na]].map(([result, count]) => `${esc(t(inspectionItemResultLabelKey(result)))}: ${count}`).join(' · ')}</p>` : hseReadBlock(detail)}
       <div id="hse-inspection-${esc(row.id)}"${expanded ? '' : ' hidden'}>${expanded && detail.data ? `<ol class="hse-inspection-items">${detail.data.items.map(item => `<li><span>${esc(item.label)}</span> <span class="badge ${item.result === 'not_ok' ? 'urgent' : item.result === 'ok' ? 'closed' : ''}">${esc(t(inspectionItemResultLabelKey(item.result)))}</span>${item.note ? `<p class="prewrap">${esc(item.note)}</p>` : ''}</li>`).join('')}</ol>${attachmentSection('hse_inspection', row.id)}` : ''}</div></article>`;
@@ -2771,14 +2778,16 @@ function renderHseAssets() {
     return [
       `<div>${coreDetailButton('hseAssets', row, row.name)}${row.code ? `<small class="note hse-asset-code">${esc(row.code)}</small>` : ''}${row.active === false || row.active === 0 ? `<span class="badge">${t('hseAssetInactive')}</span>` : ''}</div>`,
       `<small class="note">${esc(row.templateTitle ?? '—')}</small>`,
-      row.lastInspectionOn ? esc(dateLabel(row.lastInspectionOn)) : '—', row.nextDueOn ? esc(dateLabel(row.nextDueOn)) : '—',
+      row.lastInspectionOn ? esc(dateLabel(row.lastInspectionOn)) : '—', hseDueDate(row.nextDueOn, row.frequencyVerified),
       hseInspectionStatus(row.status),
       ...(canWrite ? [button('edit', 'hse-asset-edit', `data-id="${esc(row.id)}"`, 'small')] : []),
     ];
   }));
 }
 function hseInspectionMessage(error) {
-  return error.code === 'INSPECTION_ITEMS_INCOMPLETE' ? t('hseInspectionIncomplete') : t(error.message);
+  const key = { INSPECTION_ITEMS_INCOMPLETE: 'hseInspectionIncomplete', INSPECTION_NA_NOTE_REQUIRED: 'hseInspectionNaNoteRequired',
+    OUTCOME_CONTRADICTS_ITEMS: 'hseInspectionOutcomeMismatch' }[error.code];
+  return t(key ?? error.message);
 }
 async function showHseInspectionForm() {
   if (!permissions().hseWrite) return toast(t('forbidden'));
@@ -2795,17 +2804,21 @@ async function showHseInspectionForm() {
     if (!family?.items.length) throw new Error('hseInspectionTemplateMissing');
     const options = (values, labelKey) => values.map(value => `<option value="${value}">${esc(t(labelKey(value)))}</option>`).join('');
     showModal(t('hseInspectionNew'), `<form id="hse-inspection-form" data-site="${esc(selected)}">
-      <div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">
+      <div class="form-error" role="alert" tabindex="-1" hidden></div>
+      ${family.status === 'draft' || family.draft ? `<p class="note">${t('hseAssetChecklistReview')}</p>` : ''}
+      ${family.frequency_verified === false ? `<p class="note">${t('hseFrequencyUnverified')}</p>` : ''}
+      <div class="form-grid">
       ${field('hseInspectionDate', 'performedOn', today(), { type: 'date', required: true })}
       ${field('hseInspectionPerformer', 'performedBy', session.user.name, { required: true, max: 200 })}
       <label class="field" for="field-performerRole"><span>${t('hseInspectionRole')} <small>(${t('optional')})</small></span><input id="field-performerRole" name="performerRole" maxlength="120" list="hse-inspection-roles"></label>
       <datalist id="hse-inspection-roles"><option value="${esc(t('hseInspectionRoleManager'))}"></option><option value="${esc(t('hseInspectionRoleTechnician'))}"></option></datalist>
       ${field('hseInspectionMode', 'mode', 'internal', { required: true, options: options(['internal', 'external'], inspectionModeLabelKey) })}
       <p class="note full" id="hse-inspection-external" hidden>${t('hseInspectionExternalHint')}</p>
-      ${field('hseInspectionOutcome', 'outcome', 'pass', { required: true, options: options(['pass', 'pass_with_notes', 'fail'], inspectionOutcomeLabelKey) })}</div>
+      <p class="note"><strong>${t('hseInspectionComputedOutcome')}</strong> <output id="hse-inspection-computed" aria-live="polite">—</output></p>
+      ${field('hseInspectionDeclaredOutcome', 'outcome', '', { required: true, options: `<option value="">${t('coreChoose')}</option>` + options(['pass', 'pass_with_notes', 'fail'], inspectionOutcomeLabelKey) })}</div>
       <p id="hse-inspection-progress" role="status" aria-live="polite"></p>
       <div class="hse-inspection-checklist">${family.items.map((item, index) => `<div class="hse-inspection-check" data-inspection-row="${index}">
-        <span id="hse-check-label-${index}" class="hse-check-label">${esc(item.label)}</span>
+        <span id="hse-check-label-${index}" class="hse-check-label">${esc(item.label)}${item.critical === true ? ` <small class="note">(${esc(t('hseInspectionCriticalItem'))})</small>` : ''}</span>
         <div class="hse-check-choices" role="group" aria-labelledby="hse-check-label-${index}">${['ok', 'not_ok', 'na'].map(result => button(inspectionItemResultLabelKey(result), 'hse-inspection-result', `data-index="${index}" data-result="${result}" aria-pressed="false"`)).join('')}</div>
         <label class="field hse-check-note" hidden for="hse-check-note-${index}">${t('hseInspectionItemNote')}<textarea id="hse-check-note-${index}" data-inspection-note="${index}" maxlength="2000" disabled></textarea></label>
       </div>`).join('')}</div>
@@ -2815,15 +2828,14 @@ async function showHseInspectionForm() {
     const form = $('#hse-inspection-form');
     form.inspectionAsset = asset;
     form.inspectionUser = user;
-    form.inspectionItems = family.items.map(item => ({ code: item.code, result: '', note: '' }));
-    form.inspectionOutcomeTouched = false;
-    form.addEventListener('change', event => {
-      if (event.target.name === 'outcome') form.inspectionOutcomeTouched = true;
-      updateHseInspectionForm(form);
-    });
+    form.inspectionItems = family.items.map(({ code, label, critical }) => ({ code, label, critical, result: '', note: '' }));
+    form.addEventListener('change', () => updateHseInspectionForm(form));
     form.addEventListener('input', event => {
       const index = event.target.dataset.inspectionNote;
-      if (index !== undefined) form.inspectionItems[Number(index)].note = event.target.value;
+      if (index !== undefined) {
+        form.inspectionItems[Number(index)].note = event.target.value;
+        updateHseInspectionForm(form);
+      }
     });
     updateHseInspectionForm(form);
   } catch (error) {
@@ -2832,11 +2844,24 @@ async function showHseInspectionForm() {
 }
 function updateHseInspectionForm(form) {
   const { answered, total, missing } = inspectionProgress(form.inspectionItems);
+  const { outcome, reasons } = inspectionSuggestion(form.inspectionItems);
+  const declaration = form.elements.outcome.value;
+  const statusMessages = [];
+  if (missing.length) statusMessages.push(t('hseInspectionMissing').replace('{count}', missing.length));
+  for (const [code, key] of [['INSPECTION_NA_NOTE_REQUIRED', 'hseInspectionNaNoteItems'], ['INSPECTION_CRITICAL_NOT_OK', 'hseInspectionCriticalFailed']]) {
+    const labels = reasons.filter(reason => reason.code === code)
+      .map(reason => form.inspectionItems.find(item => item.code === reason.itemCode).label);
+    if (labels.length) statusMessages.push(t(key).replace('{items}', () => labels.join(', ')));
+  }
+  if (outcome && !declaration) statusMessages.push(t('hseInspectionDeclareOutcome'));
+  if (outcome && declaration && declaration !== outcome) statusMessages.push(t('hseInspectionOutcomeMismatch'));
+  const ready = outcome !== null && declaration === outcome;
   form.querySelector('#hse-inspection-progress').textContent = t('hseInspectionProgress').replace('{answered}', answered).replace('{total}', total);
-  form.querySelector('#hse-inspection-missing').textContent = missing.length ? t('hseInspectionMissing').replace('{count}', missing.length) : t('hseInspectionComplete');
-  form.elements.outcome.value = inspectionSuggestion(form.inspectionItems, form.elements.outcome.value, form.inspectionOutcomeTouched);
+  form.querySelector('#hse-inspection-missing').textContent = statusMessages.join(' ');
+  form.querySelector('#hse-inspection-computed').textContent = outcome ? t(inspectionOutcomeLabelKey(outcome)) : '—';
   form.querySelector('#hse-inspection-external').hidden = form.elements.mode.value !== 'external';
-  form.querySelector('[type=submit]').disabled = Boolean(form.dataset.saving) || missing.length > 0;
+  form.querySelector('[type=submit]').disabled = Boolean(form.dataset.saving) || !ready;
+  return ready;
 }
 function setHseInspectionResult(target) {
   const form = target.closest('#hse-inspection-form');
@@ -2846,8 +2871,8 @@ function setHseInspectionResult(target) {
   form.inspectionItems[index].result = result;
   const row = target.closest('[data-inspection-row]');
   row.querySelectorAll('[data-result]').forEach(control => control.setAttribute('aria-pressed', String(control.dataset.result === result)));
-  row.querySelector('.hse-check-note').hidden = result !== 'not_ok';
-  row.querySelector('textarea').disabled = result !== 'not_ok';
+  row.querySelector('.hse-check-note').hidden = result === 'ok';
+  row.querySelector('textarea').disabled = result === 'ok';
   updateHseInspectionForm(form);
 }
 async function submitHseInspection(form) {
@@ -2857,9 +2882,7 @@ async function submitHseInspection(form) {
   try {
     if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
     if (selected !== siteId || user !== session?.user.id || !permissions().hseWrite) throw new Error('forbidden');
-    if (inspectionProgress(form.inspectionItems).missing.length) {
-      updateHseInspectionForm(form); return;
-    }
+    if (!updateHseInspectionForm(form)) return;
     const fields = typeof dateFormData === 'function' ? dateFormData(form) : Object.fromEntries(new FormData(form));
     if (!fields) return;
     form.dataset.saving = 'true'; errorBox.hidden = true;
@@ -2867,11 +2890,12 @@ async function submitHseInspection(form) {
     const saved = await api.createInspection(inspectionPayload({ asset: form.inspectionAsset, siteId: selected, fields, items: form.inspectionItems }));
     if (session?.user.id !== user) return;
     const cache = coreCache.get(selected);
-    for (const key of ['hseAssets', 'hse', `hseInspectionHistory:${form.inspectionAsset.id}`]) cache?.delete(key);
+    for (const key of ['hseAssets', `hseInspectionHistory:${form.inspectionAsset.id}`]) cache?.delete(key);
     if (selected !== siteId) return;
     if (version === modalVersion) closeModal();
     render();
-    toast(t('hseInspectionSaved').replace('{date}', saved.nextDueOn ? dateLabel(saved.nextDueOn) : t('noDue')));
+    const message = t('hseInspectionSaved').replace('{date}', saved.nextDueOn ? dateLabel(saved.nextDueOn) : t('noDue'));
+    toast(saved.nextDueOn && saved.frequencyVerified === false ? `${message} ${t('hseFrequencyUnverified')}` : message);
   } catch (error) {
     if (version === modalVersion && form.isConnected) {
       errorBox.textContent = hseInspectionMessage(error); errorBox.hidden = false; errorBox.focus();
