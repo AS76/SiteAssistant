@@ -1,4 +1,48 @@
 {
+  "constraint asset_positions.asset_positions_check": {
+    "definition": "CHECK ((valid_to > valid_from))",
+    "validated": true
+  },
+  "constraint asset_positions.asset_positions_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint asset_positions.asset_positions_pkey": {
+    "definition": "PRIMARY KEY (asset_id, valid_from)",
+    "validated": true
+  },
+  "constraint asset_positions.asset_positions_site_id_asset_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, asset_id) REFERENCES assets(site_id, id)",
+    "validated": true
+  },
+  "constraint asset_positions.asset_positions_site_id_place_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, place_id) REFERENCES places(site_id, id)",
+    "validated": true
+  },
+  "constraint assets.assets_check": {
+    "definition": "CHECK ((warranty_end >= warranty_start))",
+    "validated": true
+  },
+  "constraint assets.assets_check1": {
+    "definition": "CHECK (((status <> 'installed'::text) OR (installed_on IS NOT NULL)))",
+    "validated": true
+  },
+  "constraint assets.assets_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint assets.assets_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint assets.assets_site_id_id_key": {
+    "definition": "UNIQUE (site_id, id)",
+    "validated": true
+  },
+  "constraint assets.assets_status_check": {
+    "definition": "CHECK ((status = ANY (ARRAY['planned'::text, 'installed'::text, 'replaced'::text, 'decommissioned'::text])))",
+    "validated": true
+  },
   "constraint assistant_usage.assistant_usage_check": {
     "definition": "CHECK ((((cost_nanousd IS NULL) AND (reason IS NOT NULL)) OR ((cost_nanousd IS NOT NULL) AND (reason IS NULL) AND (input_tokens IS NOT NULL) AND (output_tokens IS NOT NULL))))",
     "validated": true
@@ -40,11 +84,11 @@
     "validated": true
   },
   "constraint audit_events.audit_events_action_check": {
-    "definition": "CHECK ((action = ANY (ARRAY['create'::text, 'update'::text, 'delete'::text, 'read'::text])))",
+    "definition": "CHECK ((action = ANY (ARRAY['create'::text, 'update'::text, 'delete'::text, 'read'::text, 'move'::text, 'archive'::text])))",
     "validated": true
   },
   "constraint audit_events.audit_events_entity_type_check": {
-    "definition": "CHECK ((entity_type = ANY (ARRAY['hse_event'::text, 'certification'::text, 'tool'::text, 'site'::text, 'hse_asset'::text, 'hse_inspection'::text, 'purchase_order'::text, 'purchase_order_item'::text, 'package'::text, 'package_item'::text, 'shipment'::text, 'shipment_receipt'::text, 'deviation'::text, 'task'::text])))",
+    "definition": "CHECK ((entity_type = ANY (ARRAY['hse_event'::text, 'certification'::text, 'tool'::text, 'site'::text, 'hse_asset'::text, 'hse_inspection'::text, 'purchase_order'::text, 'purchase_order_item'::text, 'package'::text, 'package_item'::text, 'shipment'::text, 'shipment_receipt'::text, 'deviation'::text, 'task'::text, 'place'::text, 'asset'::text])))",
     "validated": true
   },
   "constraint audit_events.audit_events_pkey": {
@@ -481,6 +525,34 @@
   },
   "constraint password_resets.password_resets_user_id_fkey": {
     "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+    "validated": true
+  },
+  "constraint places.places_check": {
+    "definition": "CHECK ((parent_id <> id))",
+    "validated": true
+  },
+  "constraint places.places_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint places.places_kind_check": {
+    "definition": "CHECK ((kind = ANY (ARRAY['building'::text, 'floor'::text, 'zone'::text, 'room'::text])))",
+    "validated": true
+  },
+  "constraint places.places_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint places.places_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint places.places_site_id_id_key": {
+    "definition": "UNIQUE (site_id, id)",
+    "validated": true
+  },
+  "constraint places.places_site_id_parent_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, parent_id) REFERENCES places(site_id, id)",
     "validated": true
   },
   "constraint planning_import_keys.planning_import_keys_identity_state_check": {
@@ -1060,6 +1132,30 @@
   "function reject_deviation_event_mutation()": {
     "definition": "CREATE OR REPLACE FUNCTION reject_deviation_event_mutation()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n  RAISE EXCEPTION 'Deviation events are append-only';\nEND;\n$function$\n"
   },
+  "index asset_positions_open": {
+    "definition": "CREATE UNIQUE INDEX asset_positions_open ON asset_positions USING btree (asset_id) WHERE (valid_to IS NULL)",
+    "valid": true
+  },
+  "index asset_positions_open_place": {
+    "definition": "CREATE INDEX asset_positions_open_place ON asset_positions USING btree (site_id, place_id) WHERE (valid_to IS NULL)",
+    "valid": true
+  },
+  "index asset_positions_pkey": {
+    "definition": "CREATE UNIQUE INDEX asset_positions_pkey ON asset_positions USING btree (asset_id, valid_from)",
+    "valid": true
+  },
+  "index assets_pkey": {
+    "definition": "CREATE UNIQUE INDEX assets_pkey ON assets USING btree (id)",
+    "valid": true
+  },
+  "index assets_site_active_tag": {
+    "definition": "CREATE UNIQUE INDEX assets_site_active_tag ON assets USING btree (site_id, tag) WHERE (archived_at IS NULL)",
+    "valid": true
+  },
+  "index assets_site_id_id_key": {
+    "definition": "CREATE UNIQUE INDEX assets_site_id_id_key ON assets USING btree (site_id, id)",
+    "valid": true
+  },
   "index assistant_usage_at": {
     "definition": "CREATE INDEX assistant_usage_at ON assistant_usage USING btree (requested_at)",
     "valid": true
@@ -1338,6 +1434,18 @@
   },
   "index password_resets_token_hash_key": {
     "definition": "CREATE UNIQUE INDEX password_resets_token_hash_key ON password_resets USING btree (token_hash)",
+    "valid": true
+  },
+  "index places_pkey": {
+    "definition": "CREATE UNIQUE INDEX places_pkey ON places USING btree (id)",
+    "valid": true
+  },
+  "index places_site_id_id_key": {
+    "definition": "CREATE UNIQUE INDEX places_site_id_id_key ON places USING btree (site_id, id)",
+    "valid": true
+  },
+  "index places_site_parent": {
+    "definition": "CREATE INDEX places_site_parent ON places USING btree (site_id, parent_id)",
     "valid": true
   },
   "index planning_import_keys_pkey": {
@@ -1643,6 +1751,216 @@
   "index work_days_pkey": {
     "definition": "CREATE UNIQUE INDEX work_days_pkey ON work_days USING btree (id)",
     "valid": true
+  },
+  "table asset_positions": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "asset_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "place_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_from",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_to",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "reason",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "recorded_path",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table assets": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "tag",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "category",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "serial_number",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "manufacturer",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "model",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "installed_on",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "commissioned_on",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "warranty_start",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "warranty_end",
+        "type": "date",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "warranty_provider",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "archived_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
   },
   "table assistant_usage": {
     "definition": null,
@@ -4048,6 +4366,83 @@
       {
         "name": "expires_at",
         "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table places": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "parent_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "archived_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
         "required": true,
         "default_value": null,
         "identity": "",
