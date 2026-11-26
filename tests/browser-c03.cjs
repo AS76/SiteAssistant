@@ -64,6 +64,7 @@ async function setup() {
   const { openDb } = await import('../server/db.mjs');
   const { createServer } = await import('../server/http.mjs');
   const { seed } = await import('../server/seed.mjs');
+  const { provisionDemoFixture, withDemoEnvironment } = await import('./helpers/demo-seed.mjs');
   const { apply } = await import('../server/seed-demo.mjs');
   const { saveModuleAccess } = await import('../server/module-access.mjs');
   const db = await openDb(':memory:', { driver: 'sqlite' });
@@ -72,7 +73,8 @@ async function setup() {
     await seed(db, { environment: 'test' });
     // As in browser-wbs: seed-demo owns this overlapping synthetic diary slot.
     await db.run("DELETE FROM diary WHERE site_id IN (SELECT id FROM sites WHERE code = 'FITT-01') AND operational_date = '2026-11-06'");
-    await db.transaction(tx => apply(tx));
+    await provisionDemoFixture(db);
+    await withDemoEnvironment(() => apply(db));
     const site = await db.get("SELECT * FROM sites WHERE code = 'FITT-03'");
     const owner = await db.get('SELECT id FROM users WHERE email = ?', 'owner@example.invalid');
     for (const role of ['editor', 'verifier']) {

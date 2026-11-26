@@ -1,3 +1,4 @@
+import { provisionDemoFixture, withDemoEnvironment } from './helpers/demo-seed.mjs';
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
@@ -294,12 +295,13 @@ test('administrative CLI assignment is repeatable; resetting and reapplying demo
   t.assert.deepStrictEqual((await memberships(f.db, legacy.id)).map(row => ({ ...row })), [{ site_id: site.id, role: 'owner' }]);
   await assignDemoUser(f.db, legacy.email);
   await assignDemoUser(f.db, legacy.email);
-  await f.db.transaction(tx => applyDemo(tx, { demoSandbox: false }));
+  await provisionDemoFixture(f.db);
+  await withDemoEnvironment(() => applyDemo(f.db, { demoSandbox: false }));
   const access = await memberships(f.db, legacy.id);
   t.assert.ok(access.length > 1);
   t.assert.ok(access.every(row => row.role === 'demo_user'));
-  t.assert.ok(await f.db.transaction(resetDemo) > 0);
-  await f.db.transaction(tx => applyDemo(tx, { demoSandbox: false }));
+  t.assert.ok(await withDemoEnvironment(() => resetDemo(f.db)) > 0);
+  await withDemoEnvironment(() => applyDemo(f.db, { demoSandbox: false }));
   t.assert.deepStrictEqual(await memberships(f.db, legacy.id), access);
   t.assert.deepStrictEqual(await memberships(f.db, created.id), access);
   t.assert.notStrictEqual(scopeFor('https://demo.example.invalid', legacy.id, true), scopeFor('https://demo.example.invalid', legacy.id));

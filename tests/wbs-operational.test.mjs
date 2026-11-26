@@ -1,3 +1,4 @@
+import { provisionDemoFixture, withDemoEnvironment } from './helpers/demo-seed.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -175,7 +176,8 @@ for (const driver of ['sqlite', 'pg']) test(`Operational WBS ${driver}: stable l
   });
 
   await t.test('synthetic C03 fixture is idempotent, site isolated, linked to work/night diary; reset preserves unrelated data', async () => {
-    await db.transaction(tx => seedDemo(tx));
+    await provisionDemoFixture(db);
+    await withDemoEnvironment(() => seedDemo(db));
     const first = await db.all("SELECT id, site_id FROM project_structure WHERE wbs_code = 'C03' AND site_id IN (SELECT id FROM sites WHERE code IN ('FITT-03', 'FITT-05')) ORDER BY site_id");
     assert.equal(first.length, 2); assert.notEqual(first[0].id, first[1].id);
     const main = await db.get("SELECT * FROM sites WHERE code = 'FITT-03'");
@@ -188,12 +190,12 @@ for (const driver of ['sqlite', 'pg']) test(`Operational WBS ${driver}: stable l
     assert.ok(await db.get("SELECT id FROM diary WHERE site_id = ? AND shift = 'night' AND operational_date = '2026-11-16'", main.id));
     assert.ok(await db.get("SELECT entity_id FROM deviation_links WHERE entity_type = 'task' AND entity_id = ?", task.id));
     const counts = async () => Promise.all(['tasks', 'site_progress_items', 'time_bookings', 'diary', 'demo_seed_records'].map(async table => Number((await db.get(`SELECT COUNT(*) AS n FROM ${table}`)).n)));
-    const before = await counts(); await db.transaction(tx => seedDemo(tx)); assert.deepEqual(await counts(), before);
+    const before = await counts(); await withDemoEnvironment(() => seedDemo(db)); assert.deepEqual(await counts(), before);
     assert.deepEqual(await db.all("SELECT id, site_id FROM project_structure WHERE wbs_code = 'C03' AND site_id IN (SELECT id FROM sites WHERE code IN ('FITT-03', 'FITT-05')) ORDER BY site_id"), first);
     const unrelated = await createTask(db, { siteId: main.id, title: 'Unrelated synthetic task', executor: 'Other crew', verifier: 'Other checker' });
-    await db.transaction(tx => resetDemo(tx));
+    await withDemoEnvironment(() => resetDemo(db));
     assert.equal((await getTask(db, unrelated.id)).title, 'Unrelated synthetic task');
-    await db.transaction(tx => seedDemo(tx)); assert.equal((await getTask(db, unrelated.id)).title, 'Unrelated synthetic task');
+    await withDemoEnvironment(() => seedDemo(db)); assert.equal((await getTask(db, unrelated.id)).title, 'Unrelated synthetic task');
   });
 });
 

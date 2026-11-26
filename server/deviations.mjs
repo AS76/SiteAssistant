@@ -210,7 +210,7 @@ export async function registeredDeviationExport(tx, site, meta) {
   site, meta.sourceSystem, meta.exportDate, meta.fileSha256, String(meta.complete), meta.scope);
 }
 
-export async function storeDeviationExport(tx, site, meta, rows, at) {
+export async function storeDeviationExport(tx, site, meta, rows, at, { beforeExistingWrite } = {}) {
   const seen = new Set();
   for (const row of rows) {
     if (typeof row.source_id !== 'string' || !row.source_id.trim() || row.source_id.length > 500
@@ -233,6 +233,7 @@ export async function storeDeviationExport(tx, site, meta, rows, at) {
       [before] = legacy;
     }
     const id = before?.id ?? stableId('deviation', site, meta.sourceSystem, row.source_id);
+    if (before) await beforeExistingWrite?.(before);
     if (!before?.source_export_date || meta.exportDate >= before.source_export_date) {
       const values = { ...Object.fromEntries(fields.map(field => [field, row[field] ?? null])),
         source_entity_key_id: row.source_entity_key_id ?? before?.source_entity_key_id ?? null,
@@ -249,6 +250,7 @@ export async function storeDeviationExport(tx, site, meta, rows, at) {
         AND (last_seen_in_export_date IS NULL OR last_seen_in_export_date < ?)`, meta.exportDate, id, meta.exportDate);
     }
   }
+  return batch;
 }
 
 export async function importDeviations(db, inputSite, user, metadata) {

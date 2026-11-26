@@ -1,3 +1,4 @@
+import { provisionDemoFixture, withDemoEnvironment } from './helpers/demo-seed.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -339,7 +340,8 @@ test('synthetic evidence seed presents comparable and incomparable exports and a
   const db = await wbsDatabase(t, 'sqlite');
   await seed(db, { environment: 'test' });
   const baseDiary = await db.get('SELECT * FROM diary');
-  await db.transaction(seedDemo);
+  await provisionDemoFixture(db);
+  await withDemoEnvironment(() => seedDemo(db));
   const site = await db.get("SELECT id FROM sites WHERE code = 'FITT-01'");
   const all = await listDeviations(db, { siteId: site.id });
   assert.equal(all.filter(row => row.absence === true).length, 2);
@@ -347,7 +349,7 @@ test('synthetic evidence seed presents comparable and incomparable exports and a
   assert.equal(all.filter(row => row.internal_owner_id != null).length, 2);
   assert.ok(all.some(row => row.source_system === 'internal' && row.traceability === 'none' && row.internal_owner_id == null));
   assert.equal((await listTasks(db, { siteId: site.id, closedWithWaiver: true })).length, 1);
-  await db.transaction(seedDemo);
+  await withDemoEnvironment(() => seedDemo(db));
   assert.deepEqual(await listDeviations(db, { siteId: site.id }), all);
   const account = await db.get("SELECT id, email FROM users WHERE email = 'demo-responsible@example.invalid'");
   assert.deepEqual(await db.all('SELECT user_id FROM user_permissions'), []);
@@ -355,7 +357,7 @@ test('synthetic evidence seed presents comparable and incomparable exports and a
   const invitation = await createInvitation(db, 'reset-check@example.invalid', account.id,
     { mailer: async () => {}, publicUrl: 'https://invite.example.invalid' });
   await changePermission(db, 'revoke', INVITATION_PERMISSION, account.email);
-  await db.transaction(resetDemo);
+  await withDemoEnvironment(() => resetDemo(db));
   assert.deepEqual(await db.all('SELECT * FROM deviation_exports'), []);
   assert.deepEqual(await db.all('SELECT * FROM deviation_export_rows'), []);
   assert.deepEqual(await db.get('SELECT * FROM diary WHERE id = ?', baseDiary.id), baseDiary);

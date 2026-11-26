@@ -1,3 +1,4 @@
+import { provisionDemoFixture, withDemoEnvironment } from './helpers/demo-seed.mjs';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
@@ -34,7 +35,8 @@ test('Northline dry-run plan reports both sites and all seeded table counts', ()
 
 test('Northline rows are coherent and reapply/reset preserve the five existing demo sites', async t => {
   const db = await wbsDatabase(t, 'sqlite');
-  await db.transaction(applyDemo);
+  await provisionDemoFixture(db);
+  await withDemoEnvironment(() => applyDemo(db));
   const baseline = await snapshot(db);
   assert.deepEqual((await db.all('SELECT code FROM sites ORDER BY code')).map(row => row.code),
     ['FITT-01', 'FITT-02', 'FITT-03', 'FITT-04', 'FITT-05']);
