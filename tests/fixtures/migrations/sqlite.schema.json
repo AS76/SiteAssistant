@@ -1956,6 +1956,30 @@
       }
     ]
   },
+  "table demo_seed_environment": {
+    "relation": "demo_seed_environment",
+    "sql": "CREATE TABLE demo_seed_environment (\n  singleton INTEGER NOT NULL PRIMARY KEY CHECK (singleton = 1),\n  marker TEXT NOT NULL\n)",
+    "columns": [
+      {
+        "name": "singleton",
+        "type": "INTEGER",
+        "required": 1,
+        "default_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "name": "marker",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [],
+    "implicitIndexes": []
+  },
   "table demo_seed_records": {
     "relation": "demo_seed_records",
     "sql": "CREATE TABLE demo_seed_records (\n  table_name TEXT NOT NULL,\n  record_id TEXT NOT NULL,\n  PRIMARY KEY (table_name, record_id)\n)",

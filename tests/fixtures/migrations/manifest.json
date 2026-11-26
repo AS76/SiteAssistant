@@ -286,5 +286,11 @@
     "file": "054_demo_seed_records.sql",
     "sqlite": "3ab576a347209c7a825cf0e47412391ea89bb455424c56fae81d9fb08d1ac2d7",
     "pg": "f10f0cd676d979420922984d8e73e1d285398978c26d97abe342604b3a80ccc1"
+  },
+  {
+    "version": "055",
+    "file": "055_demo_seed_environment.sql",
+    "sqlite": "c9193425e8cdbb77b7b374b48c2731fbee80256b2c809697bc8c88ec50f92a74",
+    "pg": "c9193425e8cdbb77b7b374b48c2731fbee80256b2c809697bc8c88ec50f92a74"
   }
 ]

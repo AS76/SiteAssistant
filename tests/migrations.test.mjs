@@ -46,7 +46,7 @@ async function assertMigrations(t, db, driver) {
   const before = await db.all('SELECT * FROM schema_migrations ORDER BY version');
   t.assert.deepStrictEqual(before.map(row => row.version), versions);
   for (const row of before) t.assert.ok(Number.isFinite(Date.parse(row.applied_at)));
-  for (const table of ['sites', 'tasks', 'task_events', 'diary', 'idempotency_keys', 'users', 'sessions', 'password_resets', 'invitations', 'site_members', 'attachments', 'project_structure', 'wbs_import_sources', 'employees', 'work_days', 'hr_import_sources', 'site_progress_items', 'site_progress_import_sources', 'deviations', 'deviation_links', 'deviation_import_sources', 'deviation_exports', 'deviation_export_rows', 'deviation_events', 'time_bookings', 'cost_impacts', 'cost_impact_deviations', 'planning_import_runs', 'planning_import_keys', 'view_settings', 'tools', 'employee_certifications', 'import_mappings', 'dashboard_layouts', 'member_module_access', 'hse_events', 'purchase_orders', 'purchase_order_items', 'packages', 'package_items', 'shipments', 'shipment_packages', 'shipment_receipts', 'assistant_usage', 'demo_seed_records']) {
+  for (const table of ['sites', 'tasks', 'task_events', 'diary', 'idempotency_keys', 'users', 'sessions', 'password_resets', 'invitations', 'site_members', 'attachments', 'project_structure', 'wbs_import_sources', 'employees', 'work_days', 'hr_import_sources', 'site_progress_items', 'site_progress_import_sources', 'deviations', 'deviation_links', 'deviation_import_sources', 'deviation_exports', 'deviation_export_rows', 'deviation_events', 'time_bookings', 'cost_impacts', 'cost_impact_deviations', 'planning_import_runs', 'planning_import_keys', 'view_settings', 'tools', 'employee_certifications', 'import_mappings', 'dashboard_layouts', 'member_module_access', 'hse_events', 'purchase_orders', 'purchase_order_items', 'packages', 'package_items', 'shipments', 'shipment_packages', 'shipment_receipts', 'assistant_usage', 'demo_seed_records', 'demo_seed_environment']) {
     t.assert.deepStrictEqual(await db.all(`SELECT * FROM ${table}`), []);
   }
   const committed = [];
@@ -168,20 +168,20 @@ for (const [driver, open] of [['sqlite', temporarySqlite], ['pg', temporaryPGlit
       await db.exec('DROP TABLE demo_seed_records');
       await db.exec(`CREATE TABLE demo_seed_records (${definition})`);
       await t.assert.rejects(migrate(db, options), incompatible);
-      t.assert.deepStrictEqual((await registry(db)).map(row => row.version), versions.slice(0, -1));
+      t.assert.deepStrictEqual((await registry(db)).map(row => row.version), versions.filter(version => Number(version) < 54));
     }
   });
 }
 
-test('demo seed CLI requires the migrated table for apply and reset', async t => {
+test('demo seed CLI requires the migrated marker table for apply and reset', async t => {
   const { db, path } = await temporarySqlite(t);
   for (const flag of ['--apply', '--reset']) {
     const result = spawnSync(process.execPath, ['server/seed-demo.mjs', flag], {
-      encoding: 'utf8', env: { ...process.env, DB_DRIVER: 'sqlite', DATA_DIR: path },
+      encoding: 'utf8', env: { ...process.env, DB_DRIVER: 'sqlite', DATA_DIR: path, APP_ENV: 'demo' },
     });
     t.assert.ifError(result.error);
     t.assert.strictEqual(result.status, 1);
-    t.assert.match(result.stderr, /Missing demo_seed_records table. Apply the database migrations/);
+    t.assert.match(result.stderr, /Missing demo_seed_environment table. Apply database migration 055/);
     t.assert.deepStrictEqual(await db.all("SELECT name FROM sqlite_schema WHERE type = 'table'"), []);
   }
 });

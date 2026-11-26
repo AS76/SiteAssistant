@@ -183,11 +183,14 @@ These credentials belong to the **local seeded dataset only**, **not** to the pu
 Load additional test data when needed:
 
 ```sh
-npm run seed:demo
+APP_ENV=demo node server/seed-demo.mjs --mark-demo-database
+APP_ENV=demo npm run seed:demo
 node server/seed-northline.mjs --apply
 ```
 
-The Northline dataset creates `NL-IT-01` and `NL-UK-01` and associated fictional records. Set `NORTHLINE_SEED_PASSWORD` **before the first** `--apply` if pilot accounts need a known password; otherwise random passwords are generated and not printed. Inspect seed and reset behaviour before running these commands against an existing development database. `npm run seed` and `node server/seed-northline.mjs` refuse to run when `NODE_ENV=production`. `npm run seed:demo` has **no** production guard: it writes to whatever database the configuration points at, so check the target before running it.
+The Northline dataset creates `NL-IT-01` and `NL-UK-01` and associated fictional records. Set `NORTHLINE_SEED_PASSWORD` **before the first** `--apply` if pilot accounts need a known password; otherwise random passwords are generated and not printed. Inspect seed and reset behaviour before running these commands against an existing development database. `npm run seed` and `node server/seed-northline.mjs` refuse to run when `NODE_ENV=production`. For FITT fixtures, apply the database migrations first. Verify that `DATA_DIR` (SQLite) or `DATABASE_URL` (PostgreSQL) targets the dedicated demo database before marking it with the command above. Migration 055 creates the marker table empty on every installation. Apply and manual reset (`APP_ENV=demo npm run seed:demo:reset`) require both the marker and `APP_ENV=demo`. Remove the marker from any demo database copy repurposed for another environment before using that copy.
+
+Provisioning refuses the legacy 054 ledger if it already contains records. That version could claim pre-existing records and omitted some dependent keys. Use a newly provisioned demo database, or preserve the old one and reconcile ownership from a trusted backup before provisioning. Apply leaves pre-existing site shells intact. Reset preserves site shells, copied login memberships and fixture users referenced by other records. References from other records can block a reset, which then rolls back in full.
 
 ### Database and deployment
 
