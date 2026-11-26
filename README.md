@@ -180,17 +180,22 @@ These credentials belong to the **local seeded dataset only**, **not** to the pu
 
 ### Extended synthetic datasets
 
-Load additional test data when needed:
+Northline provides two versioned reference sites for demos, user documentation and future IT/UK functional tests. The generator builds `NL-IT-01` (Italian) and `NL-UK-01` (English) from fictional data committed in the seed script. Each site has 44 diary entries, one attachment record per entry and nine memberships (three owners, one editor, one verifier and four viewers). The attachments contain synthetic metadata only. No files or storage objects exist for them, so downloads are unavailable.
 
-```sh
-APP_ENV=demo node server/seed-demo.mjs --mark-demo-database
-APP_ENV=demo npm run seed:demo
-node server/seed-northline.mjs --apply
-```
+1. Configure a dedicated demo database and apply the application migrations, including migration 055. Check the target in `DATA_DIR` (SQLite) or `DB_DRIVER=pg` and `DATABASE_URL` (PostgreSQL) before provisioning it.
+2. Mark the database and apply Northline. Set `NORTHLINE_SEED_PASSWORD` before the first apply if fixture users need a known password. Otherwise each new user receives an unprinted random password. All fixture email addresses use `northline.invalid`.
 
-The Northline dataset creates `NL-IT-01` and `NL-UK-01` and associated fictional records. Set `NORTHLINE_SEED_PASSWORD` **before the first** `--apply` if pilot accounts need a known password; otherwise random passwords are generated and not printed. Inspect seed and reset behaviour before running these commands against an existing development database. `npm run seed` and `node server/seed-northline.mjs` refuse to run when `NODE_ENV=production`. For FITT fixtures, apply the database migrations first. Verify that `DATA_DIR` (SQLite) or `DATABASE_URL` (PostgreSQL) targets the dedicated demo database before marking it with the command above. Migration 055 creates the marker table empty on every installation. Apply and manual reset (`APP_ENV=demo npm run seed:demo:reset`) require both the marker and `APP_ENV=demo`. Remove the marker from any demo database copy repurposed for another environment before using that copy.
+   ```sh
+   APP_ENV=demo node server/seed-demo.mjs --mark-demo-database
+   node server/seed-northline.mjs
+   APP_ENV=demo node server/seed-northline.mjs --apply
+   ```
 
-Provisioning refuses the legacy 054 ledger if it already contains records. That version could claim pre-existing records and omitted some dependent keys. Use a newly provisioned demo database, or preserve the old one and reconcile ownership from a trusted backup before provisioning. Apply leaves pre-existing site shells intact. Reset preserves site shells, copied login memberships and fixture users referenced by other records. References from other records can block a reset, which then rolls back in full.
+The command without flags previews counts without opening the database. Reapplying preserves existing fixture rows and adds missing ones. Both `--apply` and `--reset` require `APP_ENV=demo` and the database provisioning marker. Northline also refuses both operations when `NODE_ENV=production`. Its reset deletes the fixture sites and their generated rows, including the fixture memberships and sessions. Use a fresh demo database for a clean reference dataset.
+
+The same provisioning marker is required for the independent FITT fixtures (`APP_ENV=demo npm run seed:demo`) and their manual reset (`APP_ENV=demo npm run seed:demo:reset`). Migration 055 creates the marker table empty on every installation. Remove the marker from any demo database copy repurposed for another environment before using that copy.
+
+FITT provisioning refuses the legacy 054 ledger if it already contains records. That version could claim pre-existing records and omitted some dependent keys. Use a newly provisioned demo database, or preserve the old one and reconcile ownership from a trusted backup before provisioning. Apply leaves pre-existing site shells intact. Reset preserves site shells, copied login memberships and fixture users referenced by other records. References from other records can block a reset, which then rolls back in full.
 
 ### Database and deployment
 
