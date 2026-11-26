@@ -26,7 +26,7 @@ for (const [driver, engine] of [['sqlite', 'SQLite'], ['pg', 'PGlite']]) {
     const siteA = await createSite(db, { code: 'SYN-A', name: 'Synthetic site A' });
     const { users, cookies } = await authFixture(db, siteA);
     for (const file of ['047_site_assistant.sql', '048_password_resets.sql', '049_interface_language.sql',
-      '050_invitations.sql', '051_demo_user.sql']) {
+      '050_invitations.sql', '051_demo_user.sql', '052_auth_activity.sql', '053_assistant_usage.sql']) {
       await db.transaction(tx => applyMigration(tx, file, { driver }));
     }
 

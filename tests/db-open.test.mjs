@@ -78,7 +78,7 @@ for (const driver of ['sqlite', 'pg']) {
     const files = (await readdir(new URL(`../server/migrations/${driver}/`, import.meta.url)))
       .filter(file => /^\d{3}_.+\.sql$/.test(file)).sort();
     // Keep 025 pending to exercise creation of audit_events as well as its newer constraints.
-    t.assert.strictEqual(files.at(-1), '052_auth_activity.sql');
+    t.assert.strictEqual(files.at(-1), '053_assistant_usage.sql');
     const pending = files.filter(file => file >= '025');
     await original.exec('CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
     for (const file of files.filter(file => file < '025')) {
@@ -103,7 +103,7 @@ for (const driver of ['sqlite', 'pg']) {
     const after = await migrated.all('SELECT * FROM schema_migrations ORDER BY version');
     t.assert.deepStrictEqual(after.slice(0, -pending.length), before);
     t.assert.strictEqual(after.length, files.length);
-    t.assert.strictEqual(after.at(-1).version, '052');
+    t.assert.strictEqual(after.at(-1).version, '053');
     t.assert.strictEqual(await tableExists(migrated, driver, 'audit_events'), true);
     t.assert.deepStrictEqual(await migrated.all('SELECT * FROM audit_events'), []);
     t.assert.strictEqual(onMigrationsApplied.mock.callCount(), 1);
