@@ -81,7 +81,7 @@ test('retention 1: policy defaults, family/site overrides, validation and missin
   assert.deepEqual(await loadPolicy(join(directory, 'missing.json'), { now: NOW }), DEFAULT_POLICY);
   const file = join(directory, 'invalid.json');
   await writeFile(file, '{');
-  await assert.rejects(() => loadPolicy(file, { now: NOW }), SyntaxError);
+  await assert.rejects(() => loadPolicy(file, { now: NOW }), { name: 'SyntaxError', message: /Invalid import retention policy/ });
   for (const invalid of [
     { default_days: 91 }, { default_days: 0 }, { default_days: 1.5 }, { max_days: 91 },
     { family_overrides: { unknown: 30 } }, { family_overrides: { employees: 91 } },
@@ -100,10 +100,15 @@ test('retention 1: policy defaults, family/site overrides, validation and missin
 
 test('retention 2: expired/unprotected, protected with reason, recent and exact boundaries', async t => {
   const db = await fixture(t);
-  assert.deepEqual(await purge(db, options()), {
+  const { byFamily, ...result } = await purge(db, options());
+  assert.deepEqual(result, {
     scanned: 10, expired: 6, deletable: 5,
     excluded: [{ id: id(13), reason: exception().reason }], bytesFreed: 0,
     exceptionCounts: { active: 1, expired: 0, malformed: 0 },
+  });
+  assert.deepEqual(byFamily.employees, {
+    baseDays: 30, expired: 1, deletable: 1, excluded: 0,
+    windows: { 30: { expired: 1, deletable: 1, excluded: 0 } },
   });
   assert.deepEqual(await purge(db, options({ policy: policy({ exceptions: [exception({ site_id: SITE.toUpperCase() })] }) })),
     await purge(db, options()));
@@ -128,14 +133,16 @@ test('retention 4: dry-run default leaves every octet_length and metadata unchan
   const lines = [];
   assert.equal(await main(['--json'], { now: NOW, open: async () => ({ transaction: fn => db.transaction(fn), close: async () => {} }),
     readPolicy: async () => protectedPolicy(), write: line => lines.push(line) }), 0);
-  assert.match(lines[0], /Dry-run.*expired=6.*deletable=5.*excluded=1.*bytesFreed=0/);
+  assert.match(lines[0], /Dry-run reference=2026-11-16T12:00:00.000Z.*expired=6.*deletable=5.*excluded=1.*bytesFreed=0/);
   assert.match(lines[1], /Exceptions: active=1 expired=0 malformed=0/);
-  assert.match(lines[2], /excluded.*Synthetic approved investigation/);
+  assert.ok(lines.includes('employees windowDays=30 expired=1 deletable=1 excluded=0'));
+  assert.ok(lines.includes('time_schedule windowDays=90 expired=0 deletable=0 excluded=0'));
+  assert.ok(lines.some(line => /^excluded.*Synthetic approved investigation/.test(line)));
   assert.equal(JSON.parse(lines.at(-1)).bytesFreed, 0);
   assert.deepEqual(await lengths(db), before);
 });
 
-test('retention 5: confirmed apply clears only deletable bytes, preserves all metadata and bindings, rolls back failures', async t => {
+test('retention 5: apply matches dry-run counts, clears only deletable bytes and rolls back failures', async t => {
   const db = await fixture(t), meta = await metadata(db);
   const keys = await db.all('SELECT * FROM planning_import_keys');
   const writes = [];
@@ -143,13 +150,19 @@ test('retention 5: confirmed apply clears only deletable bytes, preserves all me
     if (/^UPDATE/.test(sql)) writes.push(sql);
     return tx.all(sql, ...params);
   } })) };
-  const lines = [];
-  assert.equal(await main(['--apply', '--confirm', 'planning_import_retention', '--json'], {
-    now: NOW, open: async () => ({ ...observed, close: async () => {} }), readPolicy: async () => protectedPolicy(), write: line => lines.push(line),
-  }), 0);
-  assert.match(lines[0], /Before apply/);
-  assert.match(lines[3], /After apply/);
-  assert.equal(JSON.parse(lines.at(-1)).bytesFreed, 48);
+  async function run(mode) {
+    const lines = [];
+    assert.equal(await main([mode, '--from', '2026-11-16', '--json'], {
+      now: new Date(NOW.getTime() + DAY), open: async () => ({ ...observed, close: async () => {} }),
+      readPolicy: async () => protectedPolicy(), write: line => lines.push(line),
+    }), 0);
+    return JSON.parse(lines.at(-1));
+  }
+  const dryRun = await run('--dry-run');
+  assert.equal(dryRun.reference, '2026-11-16T00:00:00.000Z');
+  assert.equal(dryRun.bytesFreed, 0);
+  const applied = await run('--apply');
+  assert.deepEqual(applied, { ...dryRun, bytesFreed: 48 });
   assert.equal(writes.length, 5);
   for (const sql of writes) assert.match(sql, /^UPDATE planning_import_runs SET file_data = NULL\s+WHERE id = \? AND file_data IS NOT NULL RETURNING id$/);
   assert.deepEqual((await lengths(db)).filter(row => row.bytes === null).map(row => row.id), [10, 11, 12, 17, 18, 19].map(id));
@@ -175,28 +188,76 @@ test('retention 6: second apply is idempotent with zero modified rows and bytes'
   assert.deepEqual(await lengths(db), before);
 });
 
-test('retention 7: unconfirmed/invalid CLI exits 2 before opening a database', async t => {
-  const db = await fixture(t), before = await lengths(db);
-  for (const argv of [['--apply'], ['--apply', '--confirm', 'wrong'], ['--apply', '--confirm'],
-    ['--apply', '--dry-run', '--confirm', 'planning_import_retention'], ['--unknown']]) {
+test('retention 7: conflicting flags and invalid reference dates fail before opening a database', async () => {
+  for (const argv of [['--apply', '--confirm', 'wrong'], ['--apply', '--confirm'], ['--apply', '--dry-run'],
+    ['--from'], ['--from', '2026-11-31'], ['--from', '2026-1-01'], ['--from', '2026-11-16T00:00:00Z'], ['--unknown']]) {
     let opened = false;
-    assert.equal(await main(argv, { open: async () => { opened = true; return db; }, error: () => {} }), 2);
+    const errors = [];
+    assert.equal(await main(argv, { open: async () => { opened = true; }, error: line => errors.push(line) }), 2);
     assert.equal(opened, false);
-    assert.deepEqual(await lengths(db), before);
+    if (argv[0] === '--from') assert.match(errors[0], /--from/);
   }
-  await t.test('CLI process exposes exit code 2 without touching a SQLite file', async t => {
-    const directory = await mkdtemp(join(tmpdir(), 'siteassistant-retention-cli-'));
-    t.after(() => rm(directory, { recursive: true, force: true }));
-    const path = join(directory, 'synthetic.db');
-    const stored = await fixture(t, { path }), bytes = await lengths(stored);
-    const child = spawnSync(process.execPath, ['scripts/retention-planning-import.mjs', '--apply'], {
-      encoding: 'utf8', env: { DB_DRIVER: 'sqlite', DATA_DIR: path },
-    });
-    if (child.error) throw child.error;
-    assert.equal(child.status, 2, child.stderr);
-    assert.match(child.stderr, /requires --confirm/);
-    assert.deepEqual(await lengths(stored), bytes);
+});
+
+test('npm retention defaults to dry-run on the configured SQLite database and accepts apply', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'siteassistant-retention-cli-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, 'synthetic.db');
+  const db = await fixture(t, { path });
+  const before = await lengths(db);
+  const run = (...flags) => spawnSync('npm', ['run', 'retention', '--', '--from', '2026-11-16', ...flags], {
+    encoding: 'utf8', env: { ...process.env, DB_DRIVER: 'sqlite', DATA_DIR: path },
   });
+  const preview = run();
+  if (preview.error) throw preview.error;
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.match(preview.stdout, /Dry-run reference=2026-11-16T00:00:00.000Z/);
+  assert.match(preview.stdout, /daily_log windowDays=90 expired=1 deletable=1 excluded=0/);
+  assert.deepEqual(await lengths(db), before);
+
+  const applied = run('--apply');
+  if (applied.error) throw applied.error;
+  assert.equal(applied.status, 0, applied.stderr);
+  assert.match(applied.stdout, /Apply reference=2026-11-16T00:00:00.000Z/);
+  const retained = [14, 15, 16, 20].map(id);
+  assert.deepEqual((await lengths(db)).filter(row => row.bytes !== null), before.filter(row => retained.includes(row.id)));
+});
+
+test('CLI reports all effective windows for a family across sites', async t => {
+  const db = await fixture(t);
+  const selectedPolicy = policy({
+    site_overrides: { [SITE]: { days: 20, reason: 'Synthetic shorter window' } },
+    exceptions: [exception()],
+  });
+  const lines = [];
+  assert.equal(await main(['--dry-run'], {
+    now: NOW, open: async () => ({ transaction: fn => db.transaction(fn), close: async () => {} }),
+    readPolicy: async () => selectedPolicy, write: line => lines.push(line),
+  }), 0);
+  const start = lines.indexOf('site_progress_items windowDays=20,90 expired=2 deletable=1 excluded=1');
+  assert.notEqual(start, -1);
+  assert.deepEqual(lines.slice(start + 1, start + 3), [
+    '  windowDays=20 expired=1 deletable=0 excluded=1',
+    '  windowDays=90 expired=1 deletable=1 excluded=0',
+  ]);
+});
+
+test('CLI apply reports invalid policy explicitly before opening the database', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'siteassistant-retention-policy-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const file = join(directory, 'policy.json');
+  for (const [contents, message] of [['{', /expected valid JSON/], ['{"default_days":91}', /default_days/]]) {
+    await writeFile(file, contents);
+    let opened = false;
+    const errors = [];
+    assert.equal(await main(['--apply'], {
+      open: async () => { opened = true; },
+      readPolicy: (_, options) => loadPolicy(file, options), error: line => errors.push(line),
+    }), 1);
+    assert.equal(opened, false);
+    assert.match(errors[0], /^Invalid import retention policy/);
+    assert.match(errors[0], message);
+  }
 });
 
 test('retention 8: identical SQLite/PostgreSQL cases using in-memory PGlite without sockets', async t => {

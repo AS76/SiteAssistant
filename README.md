@@ -217,6 +217,20 @@ The JSON report includes both dates in UTC and returns the number of successful 
 
 The documented retention period for authentication activity is 180 days. The application does not automatically purge records.
 
+### Import payload retention
+
+Run the preview against the intended database (`DATA_DIR` for SQLite, or `DB_DRIVER=pg` and `DATABASE_URL` for PostgreSQL).
+
+```sh
+npm run retention -- --dry-run --from 2026-11-26
+```
+
+The command defaults to dry-run. `--from YYYY-MM-DD` sets the reference to midnight UTC on that date. By default it uses the current time. The report gives the applied windows and the numbers of expired, deletable and excluded payloads for each import family.
+
+The [policy file](config/import-retention.json) defaults to 90 days overall and 30 days for `employees` and `work_days`. Each payload uses the shortest applicable window from the global default and the family and site overrides. Approved exceptions protect matching payloads until midnight UTC on their `until` date.
+
+**Obtain Product Owner approval before running `--apply` on real data.** Run it manually with `npm run retention -- --apply`, adding the same `--from` date if you used one for the preview. The command rejects invalid policies and clears only eligible file payloads, preserving the import receipts and identity bindings. Retention has no scheduler.
+
 ## Development and testing
 
 ```sh
