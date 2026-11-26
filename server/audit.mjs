@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { REVIEW_ROLES, RepositoryError, requireRole } from './repository.mjs';
 
-const entityTypes = ['hse_event', 'certification', 'tool', 'site', 'hse_asset', 'hse_inspection', 'purchase_order', 'purchase_order_item', 'package', 'package_item', 'shipment', 'shipment_receipt', 'deviation', 'task'];
-const actions = ['create', 'update', 'delete'];
+const entityTypes = ['hse_event', 'certification', 'tool', 'site', 'hse_asset', 'hse_inspection', 'purchase_order', 'purchase_order_item', 'package', 'package_item', 'shipment', 'shipment_receipt', 'deviation', 'task', 'place', 'asset'];
+const actions = ['create', 'update', 'delete', 'move', 'archive'];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const metadata = new Set(['id', 'site_id', 'created_at', 'updated_at', 'deleted_at']);
 const invalid = message => { throw new RepositoryError(400, message, 'AUDIT_INVALID'); };
@@ -19,7 +19,7 @@ export async function appendAuditEvent(tx, { entityType, action, before, after, 
   const snapshot = row => JSON.parse(JSON.stringify({ ...row, deleted_at: row.deleted_at ?? null }));
   const row = snapshot(action === 'delete' ? before : after);
   let changes;
-  if (action === 'update') {
+  if (['update', 'move', 'archive'].includes(action)) {
     const previous = snapshot(before);
     changes = Object.fromEntries(Object.entries(row)
       .filter(([key, value]) => !metadata.has(key) && value !== previous[key])

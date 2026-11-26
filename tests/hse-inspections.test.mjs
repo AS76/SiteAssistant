@@ -58,7 +58,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE inspections ${driver === 'pg' &
         VALUES (?, ?, 'structure', 'Synthetic structural check', 'not_ok', 0)`, itemId, id);
       before = { inspection: await inspection(), items: await items(), event: await event() };
     } });
-    t.assert.strictEqual(registry.at(-1).version, '056');
+    t.assert.ok(registry.some(row => row.version === '056'));
     t.assert.deepStrictEqual({ ...await inspection() }, { ...before.inspection, computed_outcome: 'pass',
       declared_outcome: null, outcome_source: 'backfilled', template_status: null });
     t.assert.deepStrictEqual(await items(), before.items);

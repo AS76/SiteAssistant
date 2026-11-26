@@ -298,5 +298,11 @@
     "file": "056_hse_inspection_outcomes.sql",
     "sqlite": "84a81e88f35ea90aad3e36b9cb54bf7e2c19bffb8a6bfa701c73b95cba891c0a",
     "pg": "84a81e88f35ea90aad3e36b9cb54bf7e2c19bffb8a6bfa701c73b95cba891c0a"
+  },
+  {
+    "version": "057",
+    "file": "057_places_assets.sql",
+    "sqlite": "25f2c446b16fdaf5281e3781fa5b0e6c9bd3a59bffbf46017dc3e540ca6f1a9f",
+    "pg": "dbf1f71ea4d6563eda3067c3f366e06bc57deadf4cfdf8d3ae3a8554214936d4"
   }
 ]

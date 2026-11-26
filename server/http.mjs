@@ -50,6 +50,8 @@ import { listTools, createTool, updateTool, deleteTool } from './tools.mjs';
 import { listCertifications, createCertification, updateCertification, deleteCertification, certificationSummary } from './certifications.mjs';
 import { listHseEvents, createHseEvent, updateHseEvent, deleteHseEvent, hseSummary } from './hse.mjs';
 import { templatesForJurisdiction } from './checklists.mjs';
+import { archivePlace, createPlace, listPlaces, updatePlace } from './places.mjs';
+import { archiveAsset, createAsset, listAssets, moveAsset, updateAsset } from './assets.mjs';
 import { listHseAssets, createHseAsset, updateHseAsset, deleteHseAsset } from './hse-assets.mjs';
 import { createInspection, listInspections, getInspection } from './hse-inspections.mjs';
 import { importRequest, MAX_IMPORT_BYTES, importDeviationWorkbook, listImportMappings, saveImportMapping, deleteImportMapping } from './planning-import.mjs';
@@ -535,6 +537,38 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       const hseInspection = /^\/api\/hse\/inspections\/([^/]+)$/.exec(path);
       if (hseInspection && method === 'GET') {
         return json(response, 200, await getInspection(db, hseInspection[1], user));
+      }
+      if ((path === '/api/places' || path === '/api/assets') && method === 'GET') {
+        const options = { siteId: url.searchParams.get('siteId'),
+          includeArchived: url.searchParams.get('includeArchived') === '1' };
+        if (path === '/api/places') return json(response, 200, await listPlaces(db, options, user));
+        return json(response, 200, await listAssets(db, { ...options, asOf: url.searchParams.get('asOf') }, user));
+      }
+      if (path === '/api/places' && method === 'POST') {
+        return json(response, 201, await createPlace(db, await readJson(request), user));
+      }
+      if (path === '/api/assets' && method === 'POST') {
+        return json(response, 201, await createAsset(db, await readJson(request), user));
+      }
+      const place = /^\/api\/places\/([^/]+)$/.exec(path);
+      if (place && method === 'PATCH') {
+        return json(response, 200, await updatePlace(db, place[1], await readJson(request), user));
+      }
+      const placeArchive = /^\/api\/places\/([^/]+)\/archive$/.exec(path);
+      if (placeArchive && method === 'POST') {
+        return json(response, 200, await archivePlace(db, placeArchive[1], await readJson(request), user));
+      }
+      const installedAsset = /^\/api\/assets\/([^/]+)$/.exec(path);
+      if (installedAsset && method === 'PATCH') {
+        return json(response, 200, await updateAsset(db, installedAsset[1], await readJson(request), user));
+      }
+      const assetArchive = /^\/api\/assets\/([^/]+)\/archive$/.exec(path);
+      if (assetArchive && method === 'POST') {
+        return json(response, 200, await archiveAsset(db, assetArchive[1], await readJson(request), user));
+      }
+      const assetMove = /^\/api\/assets\/([^/]+)\/move$/.exec(path);
+      if (assetMove && method === 'POST') {
+        return json(response, 201, await moveAsset(db, assetMove[1], await readJson(request), user));
       }
       if (path === '/api/hse/assets' && method === 'GET') {
         return json(response, 200, await listHseAssets(db, { siteId: url.searchParams.get('siteId') }, user));
