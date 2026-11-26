@@ -1,6 +1,6 @@
 import { provisionDemoFixture, withDemoEnvironment } from './helpers/demo-seed.mjs';
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { test } from 'node:test';
 import { createLoginLimiter, login } from '../server/auth.mjs';
 import { certificationStatus } from '../server/certifications.mjs';
@@ -10,7 +10,7 @@ import { apply, plan, reset } from '../server/seed-northline.mjs';
 import { wbsDatabase } from './helpers/wbs.mjs';
 
 const EXPECTED = {
-  sites: 2, users: 7, site_members: 10, project_structure: 48, tasks: 36, task_events: 88, diary: 48,
+  sites: 2, users: 11, site_members: 18, project_structure: 48, tasks: 36, task_events: 88, diary: 88, attachments: 88,
   progress_types: 6, progress_type_steps: 10, site_progress_items: 24, site_progress_item_steps: 40, progress_entries: 72,
   employees: 28, work_days: 560, time_bookings: 120, employee_certifications: 32,
   deviations: 16, deviation_links: 4, cost_impacts: 2, cost_impact_deviations: 2,
@@ -33,10 +33,10 @@ test('Northline dry-run plan reports both sites and all seeded table counts', ()
   assert.deepEqual(plan().sites.map(site => site.code), ['NL-IT-01', 'NL-UK-01']);
 });
 
-test('Northline rows are coherent and reapply/reset preserve the five existing demo sites', async t => {
+test('Northline rows are coherent and reapply/reset preserve the five existing demo sites', t => withDemoEnvironment(async () => {
   const db = await wbsDatabase(t, 'sqlite');
   await provisionDemoFixture(db);
-  await withDemoEnvironment(() => applyDemo(db));
+  await applyDemo(db);
   const baseline = await snapshot(db);
   assert.deepEqual((await db.all('SELECT code FROM sites ORDER BY code')).map(row => row.code),
     ['FITT-01', 'FITT-02', 'FITT-03', 'FITT-04', 'FITT-05']);
@@ -60,6 +60,22 @@ test('Northline rows are coherent and reapply/reset preserve the five existing d
     assert.equal(installed[table].length - baseline[table].length, count, table);
   }
 
+  assert.ok(Object.values(await apply(db, { password })).every(count => count === 0));
+  assert.deepEqual(await snapshot(db), installed);
+
+  const fixtureRows = Object.entries(installed).flatMap(([table, rows]) => {
+    const original = new Set(baseline[table]);
+    return rows.filter(row => !original.has(row)).map(row => JSON.parse(row));
+  });
+  for (const row of fixtureRows) {
+    for (const [column, value] of Object.entries(row)) {
+      if (typeof value !== 'string' || ['password_hash', 'filename', 'storage_locator'].includes(column)) continue;
+      for (const domain of value.matchAll(/(?:[a-z0-9-]+\.)+[a-z]{2,}\b(?!@)/gi)) {
+        assert.match(domain[0], /\.invalid$/i, value);
+      }
+    }
+  }
+
   const sites = await db.all("SELECT * FROM sites WHERE code IN ('NL-IT-01', 'NL-UK-01') ORDER BY code");
   assert.deepEqual(sites.map(site => [site.code, site.jurisdiction, site.start_date, site.end_date]), [
     ['NL-IT-01', 'IT', '2026-09-07', '2027-02-27'], ['NL-UK-01', 'UK', '2026-09-14', '2027-03-06'],
@@ -74,6 +90,8 @@ test('Northline rows are coherent and reapply/reset preserve the five existing d
       [`owner.${country}@northline.invalid`]: 'owner', [`owner.${other}@northline.invalid`]: 'viewer',
       [`editor.${country}@northline.invalid`]: 'editor', [`verifier.${country}@northline.invalid`]: 'verifier',
       'viewer@northline.invalid': 'viewer',
+      'viewer.schedule@northline.invalid': 'viewer', 'viewer.logistics@northline.invalid': 'viewer',
+      'owner.delivery@northline.invalid': 'owner', 'owner.hse@northline.invalid': 'owner',
     });
 
     const wbs = await siteRows('project_structure');
@@ -96,7 +114,29 @@ test('Northline rows are coherent and reapply/reset preserve the five existing d
     }
 
     const diary = await siteRows('diary');
-    assert.equal(diary.filter(row => row.shift === 'day').length, 20);
+    const dates = diary.filter(row => row.shift === 'day').map(row => row.operational_date).sort();
+    const start = index ? '2026-10-19' : '2026-10-12';
+    const end = index ? '2026-12-11' : '2026-12-04';
+    const weekdays = [];
+    for (const date = new Date(start); date <= new Date(end); date.setUTCDate(date.getUTCDate() + 1)) {
+      if (date.getUTCDay() % 6 !== 0) weekdays.push(date.toISOString().slice(0, 10));
+    }
+    assert.deepEqual(dates, weekdays);
+    assert.equal(diary.length, 44);
+    const attachments = await siteRows('attachments');
+    assert.deepEqual(attachments.map(row => row.entity_id).sort(), diary.map(row => row.id).sort());
+    for (const row of diary) {
+      const attachment = attachments.find(item => item.entity_id === row.id);
+      const filename = `synthetic-${site.code}-${row.operational_date}-${row.shift}.txt`;
+      const sample = `${filename}\n${row.actual}\n`;
+      assert.equal(attachment.entity_type, 'diary');
+      assert.equal(attachment.filename, filename);
+      assert.equal(attachment.mime, 'text/plain');
+      assert.equal(attachment.size, Buffer.byteLength(sample));
+      assert.equal(attachment.content_sha256, createHash('sha256').update(sample).digest('hex'));
+      assert.equal(attachment.storage_locator, `synthetic/northline/${site.code}/diary/${filename}`);
+      assert.equal(attachment.created_at, row.created_at);
+    }
     const nights = diary.filter(row => row.shift === 'night');
     assert.equal(nights.length, 4);
     for (const night of nights) {
@@ -105,7 +145,11 @@ test('Northline rows are coherent and reapply/reset preserve the five existing d
       assert.equal(operationalDate(new Date(night.created_at), { timeZone: night.time_zone, cutoff: night.day_cutoff_time }), night.operational_date);
     }
     const employees = await siteRows('employees');
-    assert.equal(employees.length, 14);
+    const inventedSurnames = index
+      ? 'Flintmere Coilfen Siltbrook Wakeforge Zelowik Drzewan Smolaryn Borzewik Copperquill Wirehurst Rzedlow Gridmarsh Nacrewharf Wrzosvek'
+      : 'Tramagel Broccen Filorosso Spondiva Norcast Varosel Corbesc Muntesc Veltoluce Ramefitto Cernavel Datifilo Listarovo Palturel';
+    assert.deepEqual(employees.map(row => row.last_name).sort(), inventedSurnames.split(' ').sort());
+    assert.ok(employees.every(row => / — (simulazione|simulation)$/.test(row.company)));
     const attendance = await siteRows('work_days');
     for (const employee of employees) {
       const rows = attendance.filter(row => row.employee_id === employee.id);
@@ -159,7 +203,7 @@ test('Northline rows are coherent and reapply/reset preserve the five existing d
   assert.deepEqual(await snapshot(db), edited);
 
   await db.run(`INSERT INTO diary (id, site_id, operational_date, shift, created_at)
-    VALUES ('pilot-extra-diary', ?, '2026-11-18', 'day', '2026-11-18T16:00:00.000Z')`, sites[0].id);
+    VALUES ('pilot-extra-diary', ?, '2026-12-07', 'day', '2026-12-07T16:00:00.000Z')`, sites[0].id);
   const withExtra = await snapshot(db);
   await assert.rejects(reset(db), /foreign key/i);
   assert.deepEqual(await snapshot(db), withExtra);
@@ -171,12 +215,30 @@ test('Northline rows are coherent and reapply/reset preserve the five existing d
   assert.deepEqual(await apply(db, { password }), EXPECTED);
   const restored = await db.all("SELECT id FROM sites WHERE code IN ('NL-IT-01', 'NL-UK-01') ORDER BY code");
   assert.deepEqual(restored.map(row => row.id), sites.map(site => site.id));
+}));
+
+test('Northline refuses apply and reset without explicit demo provisioning', async t => {
+  const db = await wbsDatabase(t, 'sqlite');
+  const baseline = await snapshot(db);
+  await withDemoEnvironment(async () => {
+    for (const operation of [apply, reset]) {
+      await assert.rejects(operation(db), /marker is missing or invalid/);
+    }
+    assert.deepEqual(await snapshot(db), baseline);
+    await provisionDemoFixture(db);
+    delete process.env.APP_ENV;
+    for (const operation of [apply, reset]) {
+      await assert.rejects(operation(db), /requires APP_ENV=demo/);
+    }
+  });
+  assert.deepEqual(await snapshot(db), baseline);
 });
 
-test('Northline inserts and resets through the PostgreSQL schema', async t => {
+test('Northline inserts and resets through the PostgreSQL schema', t => withDemoEnvironment(async () => {
   const db = await wbsDatabase(t, 'pg');
+  await provisionDemoFixture(db);
   assert.deepEqual(await apply(db), EXPECTED);
   assert.ok(Object.values(await apply(db)).every(count => count === 0));
   assert.deepEqual(await reset(db), { ...EXPECTED, sessions: 0 });
   assert.equal(Number((await db.get('SELECT COUNT(*) AS count FROM sites')).count), 0);
-});
+}));
