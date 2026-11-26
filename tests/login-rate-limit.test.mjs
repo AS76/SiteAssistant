@@ -53,6 +53,9 @@ test('ten failures return generic 401, followed by 429 before the account lookup
   t.assert.deepEqual(correctWhileBlocked.body, blocked.body);
   t.assert.equal(correctWhileBlocked.headers['set-cookie'], undefined);
   t.assert.equal(lookup.mock.callCount(), 10);
+  const [account] = await db.all('SELECT id FROM users WHERE email = ?', email);
+  const failures = await db.all("SELECT user_id, detail_json FROM auth_events WHERE event = 'login.failure'");
+  t.assert.equal(failures.filter(row => row.user_id === account.id && JSON.parse(row.detail_json).reason === 'rate_limited').length, 2);
 
   advance(899_999);
   const lastSecond = await login(password);

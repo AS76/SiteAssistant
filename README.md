@@ -49,9 +49,17 @@ The public demo does not provide unrestricted, immediate account creation.
 4. If approved, you receive a temporary password by email.
 5. Sign in and change that password.
 
-**Account approval and site access are separate steps.** Approval creates an account; a site owner must also assign a membership and role before that account can see a particular site. You may therefore be able to sign in without seeing demonstration sites. Access requests are not guaranteed to be approved.
+**Account approval and site access are separate steps.** Approval of an access request creates an account. A site owner can then assign access to existing demonstration sites. An invitation can grant a site membership at activation. Access requests are not guaranteed to be approved.
 
 For password recovery, passkeys and sessions, see **[Sign in and account](https://as76.github.io/SiteAssistant/en/guida/accesso/)**.
+
+### Demo invitations and roles
+
+Set `APP_ENV=demo` on an instance backed by a dedicated demo database. Migration 051 marks its existing sites as sandbox sites and changes existing `owner` memberships for accounts flagged `shared_demo` to `demo_user`. Accounts with individual logins can be converted explicitly with `npm run admin -- demo-user <email>`. Use `npm run admin -- demo-site <site-code>` to designate a synthetic site individually, then `npm run admin -- demo-user <email> <site-code>` to assign access there. New accounts can also be provisioned with `npm run create-user -- --email <email> --name <name> --site <site-code> --role demo_user`.
+
+Invitations for sandbox sites default to `demo_user`. An invitation on the demo instance may omit the site so the recipient can create their first sandbox site. The `owner` role requires an explicit choice. Demo users can work in the assigned sandbox sites and create new ones. Membership administration, global permissions, site settings and promotion of centrally configured source runs are reserved for administrators.
+
+**Italiano.** Impostare `APP_ENV=demo` sull’istanza con database dedicato alla demo. La migrazione 051 converte a `demo_user` le appartenenze `owner` degli account contrassegnati come `shared_demo`. Per gli account individuali usare `npm run admin -- demo-user <email>`. Gli inviti alla demo usano `demo_user` per impostazione predefinita e possono consentire al destinatario di creare il primo cantiere. Il ruolo consente di provare i moduli dei cantieri sandbox assegnati. La gestione degli utenti, dei permessi e delle impostazioni resta riservata agli amministratori.
 
 ### Demo data and privacy
 
@@ -190,6 +198,24 @@ Authentication bypass (`AUTH_BYPASS_USER`) is reserved for local development. St
 Rate limiting uses the connection peer by default. Set `TRUSTED_PROXY_IPS` to the comma-separated IP addresses of controlled reverse proxies that append or overwrite `X-Forwarded-For`. Restrict direct access to the backend so clients cannot connect from a trusted address. This also applies when trusting a loopback proxy. The server walks the forwarded chain from right to left, stopping at the first address outside that list. Password login allows ten failures per account and fifty per client IP within fifteen minutes.
 
 See [technical architecture](docs/architecture.md), the files under [`docs/`](docs/) and the API reference for implementation and deployment considerations.
+
+### Authentication activity
+
+Run the report from the server environment after the application has applied migration 052.
+
+```sh
+npm run stats -- --from 2026-11-01 --to 2026-11-07
+```
+
+You can also invoke the script directly.
+
+```sh
+node server/stats.mjs --from 2026-11-01 --to 2026-11-07
+```
+
+The JSON report includes both dates in UTC and returns the number of successful accesses, distinct users, accesses on each day with activity, the last access per user within the range, and login failures. Password sign-ins, passkey sign-ins and first-time invitation activations each count once when they create a session. The command reads the configured database (`DATA_DIR` for SQLite or `DB_DRIVER=pg` and `DATABASE_URL` for PostgreSQL).
+
+The documented retention period for authentication activity is 180 days. The application does not automatically purge records.
 
 ## Development and testing
 

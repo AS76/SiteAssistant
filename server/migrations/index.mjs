@@ -1,9 +1,10 @@
 import { readdir, readFile } from 'node:fs/promises';
+import { isDemoSandbox, migrateDemoSandbox } from '../demo-sandbox.mjs';
 import { calendarDateFormatter, calendarDayAge } from '../operational-day.mjs';
 
 // Also usable for a manual replay, independently of schema_migrations.
 // SQLite has no ADD COLUMN IF NOT EXISTS; keep its 004 SQL additive only.
-export async function applyMigration(tx, file, { driver }) {
+export async function applyMigration(tx, file, { driver, demoSandbox = isDemoSandbox() }) {
   if (!['sqlite', 'pg'].includes(driver) || !/^\d{3}_[a-z_]+\.sql$/.test(file)) {
     throw new Error('Invalid migration selection.');
   }
@@ -32,6 +33,12 @@ export async function applyMigration(tx, file, { driver }) {
     }
     return;
   }
+  if (file === '051_demo_user.sql') {
+    await tx.exec(sql);
+    if (demoSandbox) await migrateDemoSandbox(tx);
+    return;
+  }
+  // SQL-only migrations, including 052_auth_activity.sql, use the normal replay.
   if (driver !== 'sqlite' || file !== '004_physical_types.sql') return await tx.exec(sql);
   for (const statement of sql.split(';').filter(part => part.trim())) {
     const match = /^\s*ALTER TABLE (\w+) ADD COLUMN (\w+)\s/i.exec(statement);
@@ -42,7 +49,7 @@ export async function applyMigration(tx, file, { driver }) {
   }
 }
 
-export async function migrate(db, { driver }) {
+export async function migrate(db, { driver, demoSandbox = isDemoSandbox() }) {
   if (!['sqlite', 'pg'].includes(driver)) throw new Error(`Unknown DB_DRIVER: ${driver}`);
   const directory = new URL(`./${driver}/`, import.meta.url);
   const files = (await readdir(directory)).filter(name => /^\d{3}_.+\.sql$/.test(name)).sort();
@@ -55,7 +62,7 @@ export async function migrate(db, { driver }) {
     const version = file.slice(0, 3);
     const changed = await db.transaction(async tx => {
       if (await tx.get('SELECT version FROM schema_migrations WHERE version = ?', version)) return;
-      await applyMigration(tx, file, { driver });
+      await applyMigration(tx, file, { driver, demoSandbox });
       await tx.run('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)',
         version, new Date().toISOString());
       return true;

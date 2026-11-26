@@ -51,8 +51,8 @@ function link(message) {
   return new URL(message.text.match(/^https:\/\/\S+$/m)[0]);
 }
 
-async function issued(t, f, fields) {
-  const response = await f.invite(' INVITEE@EXAMPLE.INVALID ', undefined, fields);
+async function issued(t, f, fields, options) {
+  const response = await f.invite(' INVITEE@EXAMPLE.INVALID ', options, fields);
   t.assert.strictEqual(response.status, 201);
   const message = f.mail.at(-1);
   const url = link(message);
@@ -90,7 +90,9 @@ async function submitActivationPage(t, f, page, url, userAgent) {
 }
 
 async function verifyRoundTrip(t, f) {
-  const { id, response, message, token, url } = await issued(t, f, { locale: ' IT ' });
+  const sentFrom = { ip: '203.0.113.77', headers: { 'user-agent': 'Synthetic sender' } };
+  const activationFrom = { ip: '2001:db8:abcd::5678', headers: { 'user-agent': 'Synthetic invitee' } };
+  const { id, response, message, token, url } = await issued(t, f, { locale: ' IT ' }, sentFrom);
   t.assert.strictEqual(f.mail.length, 1);
   t.assert.strictEqual(message.subject, 'Il tuo invito a SiteAssistant');
   t.assert.strictEqual(message.to, email);
@@ -111,7 +113,7 @@ async function verifyRoundTrip(t, f) {
   t.assert.strictEqual(Date.parse(row.expires_at) - Date.parse(row.created_at), 72 * 3600 * 1000);
   t.assert.ok(row.token_hash === tokenHash(token) && !JSON.stringify([row, response.body]).includes(token));
   t.assert.deepStrictEqual(await f.users(), []);
-  const result = await f.activate(token);
+  const result = await f.activate(token, password, activationFrom);
   t.assert.strictEqual(result.status, 200);
   t.assert.match(result.headers['set-cookie'], /; Path=\/api; HttpOnly; SameSite=Lax/);
   const cookie = result.headers['set-cookie'].split(';')[0];
@@ -124,13 +126,24 @@ async function verifyRoundTrip(t, f) {
   t.assert.deepStrictEqual(me.body.roles, []);
   t.assert.strictEqual((await f.activate(token)).status, 410);
   t.assert.strictEqual((await f.users()).length, 1);
-  const events = await f.db.all("SELECT user_id, event, detail_json FROM auth_events WHERE event LIKE 'invitation_%' ORDER BY event");
+  const events = await f.db.all("SELECT user_id, event, detail_json FROM auth_events WHERE event LIKE 'invitation!_%' ESCAPE '!' ORDER BY event");
   t.assert.deepStrictEqual(events.map(e => [e.event, e.user_id, JSON.parse(e.detail_json)]), [
     ['invitation_created', f.admin.id, { invitation_id: id }],
     ['invitation_delivered', f.admin.id, { invitation_id: id, attempt: 1 }],
     ['invitation_used', result.body.user.id, { invitation_id: id }],
   ]);
-  t.assert.ok(!JSON.stringify(events).includes(token));
+  const activity = await f.db.all(`SELECT * FROM auth_events
+    WHERE event IN ('activation.used', 'invitation.sent', 'invitation.used') ORDER BY event`);
+  t.assert.deepStrictEqual(activity.map(e => [e.event, e.user_id, e.outcome, e.ip, e.user_agent, JSON.parse(e.detail_json)]), [
+    ['activation.used', result.body.user.id, 'success', '2001:db8:abcd::/48', 'Synthetic invitee', { invitation_id: id }],
+    ['invitation.sent', f.admin.id, 'success', '203.0.113.0', 'Synthetic sender', { invitation_id: id, attempt: 1 }],
+    ['invitation.used', result.body.user.id, 'success', '2001:db8:abcd::/48', 'Synthetic invitee', { invitation_id: id }],
+  ]);
+  t.assert.ok(activity.every(e => Number.isFinite(Date.parse(e.created_at))));
+  const accessed = await f.db.get("SELECT detail_json, created_at FROM auth_events WHERE event = 'login.success' AND user_id = ?", result.body.user.id);
+  t.assert.deepStrictEqual(JSON.parse(accessed.detail_json), { method: 'activation' });
+  t.assert.strictEqual(Date.parse(accessed.created_at), Date.parse(activity[0].created_at));
+  for (const secret of [token, password, sentFrom.ip, activationFrom.ip]) t.assert.ok(!JSON.stringify([...events, ...activity]).includes(secret));
 }
 
 test('invitation emails contain a 72-hour link and activation creates exactly one account and session', async t => {
@@ -292,6 +305,8 @@ test('mail failure retains the committed invitation and concurrent retry sends o
   const events = await f.db.all("SELECT event, outcome, detail_json FROM auth_events WHERE event LIKE 'invitation_%'");
   t.assert.ok(events.some(event => event.event === 'invitation_delivery_failed' && event.outcome === 'failure'));
   t.assert.ok(events.some(event => event.event === 'invitation_retried'));
+  t.assert.deepStrictEqual(events.filter(event => event.event === 'invitation.sent').map(event => JSON.parse(event.detail_json)),
+    [{ invitation_id: id, attempt: 2, source: 'cli' }]);
   const listed = await listInvitations(f.db);
   t.assert.deepStrictEqual(listed.map(row => row.id), [id]);
   t.assert.ok(!JSON.stringify([events, listed, sent]).includes(old) && !JSON.stringify([events, listed, sent]).includes(token));

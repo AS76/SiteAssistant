@@ -24,6 +24,8 @@ import './secure-cookie.test.mjs';
 import './signup.test.mjs';
 import './signup-schema.test.mjs';
 import './invitations.test.mjs';
+import './roles-demo-user.test.mjs';
+import './stats.test.mjs';
 import './auth-mail.test.mjs';
 import './attachments.test.mjs';
 import './attachments-schema.test.mjs';

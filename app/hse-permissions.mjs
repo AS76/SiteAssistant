@@ -1,2 +1,2 @@
-export const HSE_READ_ROLES = Object.freeze(['owner', 'editor', 'verifier']);
-export const HSE_WRITE_ROLES = Object.freeze(['owner', 'editor']);
+export const HSE_READ_ROLES = Object.freeze(['owner', 'editor', 'verifier', 'demo_user']);
+export const HSE_WRITE_ROLES = Object.freeze(['owner', 'editor', 'demo_user']);

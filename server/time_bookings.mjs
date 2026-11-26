@@ -1,6 +1,6 @@
 import { requireModule } from './module-access.mjs';
 import { randomUUID } from 'node:crypto';
-import { RepositoryError, requireRole } from './repository.mjs';
+import { EDIT_ROLES, RepositoryError, requireRole } from './repository.mjs';
 
 const fail = (status, message, code) => { throw new RepositoryError(status, message, code); };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,7 +57,7 @@ export async function createTimeBooking(db, input, user) {
   const item = await db.get('SELECT site_id FROM site_progress_items WHERE id = ?', itemId);
   if (!item) fail(404, 'Site progress item not found.', 'SITE_PROGRESS_ITEM_NOT_FOUND');
   if (workDay.site_id !== item.site_id) fail(409, 'Work day and progress item must belong to the same site.', 'TIME_BOOKING_SITE_MISMATCH');
-  await requireRole(db, workDay.site_id, user, ['editor', 'owner']);
+  await requireRole(db, workDay.site_id, user, EDIT_ROLES);
   await requireBookingAccess(db, workDay.site_id, user);
   try {
     // The database constraint arbitrates concurrent inserts on both drivers.
@@ -77,7 +77,7 @@ export async function deleteTimeBooking(db, id, user) {
   const bookingId = validId(id, 'id');
   const row = await db.get('SELECT site_id FROM time_bookings WHERE id = ?', bookingId);
   if (!row) fail(404, 'Time booking not found.', 'TIME_BOOKING_NOT_FOUND');
-  await requireRole(db, row.site_id, user, ['editor', 'owner']);
+  await requireRole(db, row.site_id, user, EDIT_ROLES);
   await requireBookingAccess(db, row.site_id, user);
   await db.run('DELETE FROM time_bookings WHERE id = ?', bookingId);
   return { deleted: true };

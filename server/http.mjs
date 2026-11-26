@@ -1,3 +1,4 @@
+import { isDemoSandbox } from './demo-sandbox.mjs';
 import { HSE_READ_ROLES } from '../app/hse-permissions.mjs';
 import { requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
 import { createServer as createHttpServer } from 'node:http';
@@ -6,7 +7,8 @@ import { extname } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { pipeline } from 'node:stream/promises';
 import { S3Storage, ObjectStorageError, encodeS3Component } from './s3.mjs';
-import { authenticate, assertAuthBypassAllowed, login, memberships, publicUser, updateLanguage, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
+import { authenticate, assertAuthBypassAllowed, login, logout, memberships, publicUser, updateLanguage, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
+import { recordLoginFailure } from './auth-events.mjs';
 import { createWebAuthn } from './webauthn.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { createStaticHandler } from './static-dev.mjs';
@@ -52,7 +54,7 @@ import { createInspection, listInspections, getInspection } from './hse-inspecti
 import { importRequest, MAX_IMPORT_BYTES, importDeviationWorkbook, listImportMappings, saveImportMapping, deleteImportMapping } from './planning-import.mjs';
 import { importTemplate } from './import-template.mjs';
 import {
-  RepositoryError, listSites, createSite, getSite, updateSite, updateSiteAssistant, updateTaskWbs, listTasks, countTasks, getTask,
+  RepositoryError, listSites, createSiteForUser, getSite, updateSite, updateSiteAssistant, updateTaskWbs, listTasks, countTasks, getTask,
   transitionTask, acceptTask, listDiary, countDiary, createDiary, updateDiary, listDiaryVersions, requireRole, WRITE_ROLES, listMembers, setMember, listAssignable,
   createAttachment, listAttachments, getAttachment, deleteAttachment, MAX_ATTACHMENT_BYTES,
 } from './repository.mjs';
@@ -116,6 +118,17 @@ async function readJson(request, { includeHash = false, maxBytes = 65536 } = {})
     throw new RepositoryError(400, 'Expected a JSON object.', 'INVALID_JSON');
   }
   return includeHash ? { input, requestHash: hash.digest('hex') } : input;
+}
+
+async function readLoginJson(db, request, context, method, limiter) {
+  try {
+    limiter?.attempt(context.ip);
+    return await readJson(request);
+  } catch (error) {
+    const reason = { INVALID_JSON: 'invalid_request', RATE_LIMITED: 'rate_limited' }[error.code];
+    if (reason) await recordLoginFailure(db, reason, { ...context, method });
+    throw error;
+  }
 }
 
 async function readForm(request, maxBytes = 4096) {
@@ -189,6 +202,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   storage = new S3Storage(),
   reporting = reportingOverview,
   reportingGlobalOwnerIds = process.env.REPORTING_GLOBAL_OWNER_IDS || '',
+  demoSandbox = isDemoSandbox(),
   assistant = {},
   webauthn = {},
   // Development only: serve the browser client from the same origin as the API.
@@ -237,6 +251,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       path = url.pathname;
       const method = request.method;
       const ip = clientIp(request);
+      const authContext = { ip, userAgent: request.headers['user-agent'] || '' };
       const revoke = /^\/api\/admin\/invitations\/([^/]+)\/revoke$/.exec(path);
       if (path === ACTIVATION_PATH && method === 'GET') {
         const token = url.searchParams.get('token');
@@ -262,7 +277,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       let user = null, authError;
       if (path.startsWith('/api/')) {
-        try { user = await authenticate(db, request.headers.cookie); }
+        try { user = await authenticate(db, request.headers.cookie, authContext); }
         catch (error) {
           if (!(error instanceof RepositoryError) || error.status !== 401) throw error;
           if (authBypassEmail && !authBypassExcluded.has(path) && path !== invitationsPath && !revoke) {
@@ -346,9 +361,8 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         status: 'ok', auth_bypass: Boolean(authBypassEmail),
       });
       if (path === '/api/auth/login' && method === 'POST') {
-        const result = await login(db, await readJson(request), {
-          ip, userAgent: request.headers['user-agent'] || '', limiter,
-        });
+        const input = await readLoginJson(db, request, authContext, 'password');
+        const result = await login(db, input, { ...authContext, limiter });
         response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user });
       }
@@ -367,9 +381,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           const invitation = await readInvitation(db, input?.token);
           locale = invitation.locale;
           activateLimiter.attemptAccount(invitation.email);
-          const result = await activateInvitation(db, invitation, input.password, isForm ? input.confirmation : input.password, {
-            ip, userAgent: request.headers['user-agent'] || '',
-          });
+          const result = await activateInvitation(db, invitation, input.password, isForm ? input.confirmation : input.password, authContext);
           response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
           if (!isForm) return json(response, 200, { user: result.user });
           response.writeHead(303, { Location: '/', 'Referrer-Policy': 'no-referrer' });
@@ -385,15 +397,14 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           throw error;
         }
       }
-      const passkeyContext = { ip, userAgent: request.headers['user-agent'] || '' };
       if (path === '/api/auth/webauthn/login/options' && method === 'POST') {
         const input = await readJson(request);
-        passkeyLimiter.attempt(passkeyContext.ip, typeof input.email === 'string' ? input.email.trim().toLowerCase() : '');
+        passkeyLimiter.attempt(ip, typeof input.email === 'string' ? input.email.trim().toLowerCase() : '');
         return json(response, 200, await passkeys.loginOptions(input));
       }
       if (path === '/api/auth/webauthn/login/verify' && method === 'POST') {
-        passkeyVerifyLimiter.attempt(ip);
-        const result = await passkeys.loginVerify(await readJson(request), passkeyContext);
+        const input = await readLoginJson(db, request, authContext, 'webauthn', passkeyVerifyLimiter);
+        const result = await passkeys.loginVerify(input, authContext);
         response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user, assurance: result.assurance });
       }
@@ -403,18 +414,18 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         (['/api/auth/password', '/api/auth/logout'].includes(path) && method === 'POST')
       )) throw new RepositoryError(403, 'Change the temporary password to continue.', 'PASSWORD_CHANGE_REQUIRED');
       if (path.startsWith('/api/auth/webauthn/register/') || path === '/api/auth/credentials' || path.startsWith('/api/auth/credentials/')) {
-        const sessionUser = await authenticate(db, request.headers.cookie);
+        const sessionUser = await authenticate(db, request.headers.cookie, authContext);
         if (path === '/api/auth/webauthn/register/options' && method === 'POST') {
           await readJson(request);
           return json(response, 200, await passkeys.registrationOptions(sessionUser));
         }
         if (path === '/api/auth/webauthn/register/verify' && method === 'POST') {
-          return json(response, 200, await passkeys.registrationVerify(sessionUser, await readJson(request), passkeyContext));
+          return json(response, 200, await passkeys.registrationVerify(sessionUser, await readJson(request), authContext));
         }
         if (path === '/api/auth/credentials' && method === 'GET') return json(response, 200, await passkeys.credentials(sessionUser));
         const credential = /^\/api\/auth\/credentials\/([^/]+)$/.exec(path);
         if (credential && ['PATCH', 'DELETE'].includes(method)) {
-          return json(response, 200, await passkeys.manageCredential(sessionUser, credential[1], method === 'PATCH' ? await readJson(request) : null, passkeyContext));
+          return json(response, 200, await passkeys.manageCredential(sessionUser, credential[1], method === 'PATCH' ? await readJson(request) : null, authContext));
         }
       }
       if (authError) throw authError;
@@ -431,7 +442,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const email = normalizeEmail(input?.email);
         inviteLimiter.attemptAccount(email);
         const { locale, cantiere_id, role } = input;
-        const { revoked_at, ...invitation } = await createInvitation(db, email, user.id, { mailer, publicUrl, locale, cantiere_id, role });
+        const { revoked_at, ...invitation } = await createInvitation(db, email, user.id, {
+          mailer, publicUrl, locale, cantiere_id, role, demoSandbox, context: authContext,
+        });
         if (revoked_at) return json(response, 409, { ...invitation, code: 'INVITATION_REVOKED', error: 'Invitation was revoked during delivery.' });
         if (invitation.delivery_status === 'failed') {
           return json(response, 503, { ...invitation, code: invitation.last_delivery_error, error: 'Invitation email delivery failed.' });
@@ -636,7 +649,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, { user: publicUser(user), roles: await memberships(db, user.id), password_change_required: Boolean(user.password_change_required) });
       }
       if (path === '/api/auth/logout' && method === 'POST') {
-        await db.run('UPDATE sessions SET revoked_at = ? WHERE id = ?', new Date().toISOString(), user.session_id);
+        await logout(db, user, authContext);
         response.setHeader('Set-Cookie', sessionCookie('', { production, secure: isSecureRequest(request, { production }), clear: true }));
         return json(response, 200, { status: 'ok' });
       }
@@ -921,16 +934,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (path === '/api/sites' && method === 'GET') return json(response, 200, await listSites(db, user));
       if (path === '/api/sites' && method === 'POST') {
-        const input = await readJson(request);
-        const created = await db.transaction(async tx => {
-          if (!await tx.get("SELECT site_id FROM site_members WHERE user_id = ? AND role = 'owner'", user.id)) {
-            throw new RepositoryError(403, 'An owner role is required to create sites.', 'FORBIDDEN');
-          }
-          const created = await createSite(tx, input);
-          await tx.run("INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'owner')", created.id, user.id);
-          return created;
-        });
-        return json(response, 201, created);
+        return json(response, 201, await createSiteForUser(db, await readJson(request), user, { demoSandbox }));
       }
       const evidence = /^\/api\/sites\/([^/]+)\/evidence-export$/.exec(path);
       if (evidence && method === 'GET') {

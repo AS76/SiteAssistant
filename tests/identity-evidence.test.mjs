@@ -50,7 +50,14 @@ for (const driver of ['sqlite', 'pg']) {
     await db.run(`INSERT INTO hse_events (id, site_id, type, severity, occurred_on, deviation_id, created_at, updated_at, deleted_at)
       VALUES (?, ?, 'observation', 'low', '2026-11-01', ?, ?, ?, ?)`, hse, site.id, deviation, at, at, at);
     const storage = new MemoryObjectStorage();
-    const attachment = await createAttachment(db, fileInput('task', task.id), users.owner, storage);
+    const attachmentId = randomUUID();
+    const locator = `attachments/${site.id}/${attachmentId}/v1`;
+    const checksum = sha(fileContent);
+    await storage.put(locator, fileContent, { mime: 'application/pdf', sha256: checksum });
+    await db.run(`INSERT INTO attachments (id, site_id, entity_type, entity_id, filename, mime, size,
+      content_sha256, storage_locator, uploaded_by, created_at)
+      VALUES (?, ?, 'task', ?, 'synthetic.pdf', 'application/pdf', ?, ?, ?, ?, ?)`,
+    attachmentId, site.id, task.id, fileContent.length, checksum, locator, users.owner.id, at);
     await db.run(`INSERT INTO audit_events (id, site_id, entity_type, entity_id, action, at, actor, changes)
       VALUES (?, ?, 'hse_event', ?, 'update', ?, ?, '{}')`, randomUUID(), site.id, hse, at, users.owner.id);
     const tables = ['sites', 'tasks', 'task_events', 'deviations', 'deviation_links', 'cost_impact_deviations', 'hse_events', 'attachments', 'audit_events'];
@@ -75,7 +82,11 @@ for (const driver of ['sqlite', 'pg']) {
     assert.equal(legacy.acceptance_state, 'none');
     assert.deepEqual(legacy.acceptance_events, []);
     assert.equal(legacy.events.find(event => event.action === 'verify').waiver, false);
-    const copy = await getAttachment(db, attachment.id, users.viewer, storage);
+    for (const file of ['040_site_time_zone.sql', '045_diary_versions.sql', '047_site_assistant.sql',
+      '048_password_resets.sql', '049_interface_language.sql', '050_invitations.sql', '051_demo_user.sql']) {
+      await db.transaction(tx => applyMigration(tx, file, { driver }));
+    }
+    const copy = await getAttachment(db, attachmentId, users.viewer, storage);
     assert.deepEqual(await streamBytes(copy.stream), fileContent);
   });
 

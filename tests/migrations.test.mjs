@@ -10,7 +10,7 @@ import { openDb, closeDb } from '../server/db.mjs';
 import { migrate } from '../server/migrations/index.mjs';
 import { isPg, openTestDb } from './helpers/db.mjs';
 
-const versions = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020', '021', '022', '023', '024', '025', '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '040', '045', '047', '048', '049', '050'];
+const versions = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020', '021', '022', '023', '024', '025', '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '040', '045', '047', '048', '049', '050', '051', '052'];
 
 async function temporarySqlite(t) {
   const directory = await mkdtemp(join(tmpdir(), 'siteassistant-migrations-'));
@@ -53,7 +53,7 @@ test('migrations adopt populated SQLite databases without changing existing reco
   await migrate(db, { driver: 'sqlite' });
   t.assert.deepStrictEqual((await db.all('SELECT * FROM sites')).map(row => ({ ...row })),
     before.map(row => ({ ...row, jurisdiction: 'IT', time_zone: 'Europe/Rome', day_cutoff_time: '06:00',
-      assistant_enabled: 0, assistant_timeout_ms: 20000 })));
+      assistant_enabled: 0, assistant_timeout_ms: 20000, demo_sandbox: 0 })));
   t.assert.deepStrictEqual({ ...await db.get('SELECT * FROM diary') }, {
     ...diaryBefore, time_zone: 'Europe/Rome', day_cutoff_time: '06:00',
     author_id: null, recording_motivation: null, recorded_late: 0, updated_at: null, updated_by: null,
