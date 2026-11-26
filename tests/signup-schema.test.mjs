@@ -32,7 +32,7 @@ for (const driver of ['sqlite', 'pg']) {
     const user = await createUser(db, { email: 'upgrade@example.invalid', name: 'Synthetic upgrade', password: 'Synthetic-password!' });
     await db.run('INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)', randomUUID(), user.id, 'a'.repeat(64), '2026-01-01T00:00:00.000Z', '2026-01-08T00:00:00.000Z');
     const before = await db.get('SELECT * FROM users'), sessions = await db.all('SELECT * FROM sessions');
-    t.assert.strictEqual(await migrate(db, { driver }), 41);
+    t.assert.strictEqual(await migrate(db, { driver }), 42);
     const after = await db.get('SELECT * FROM users');
     t.assert.strictEqual(Boolean(after.password_change_required), false);
     t.assert.strictEqual(after.language, null);
