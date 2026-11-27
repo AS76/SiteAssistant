@@ -28,7 +28,7 @@ unknown family returns `400 UNKNOWN_FAMILY`.
 
 The type is `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, the
 name is `SiteAssistant-<family>-modello.xlsx` and the cache is `private, no-store`.
-In the import dialog, available to owner/editor, “Scarica modello” uses the selected
+In the import dialog, which owners and editors can use, the “Scarica modello” button (download template) uses the selected
 family. Fill in rows keeping the headers; the example row is
 an importable record and must be replaced or removed before uploading your own data.
 For attendance, the `EMP-001` example requires a matching employee in the
@@ -51,16 +51,16 @@ Preview does not write to the database. It returns `counts` and `samples` for
 `added`, `updated`, `unchanged`, `removed`, `rejected`, at most 50 examples per
 category, plus `unmapped_columns`. Rejections contain the row number,
 `rejected` (code) and `reason`. Valid rows include values, key and warnings.
-Unrecognized columns are explicitly listed, not interpreted.
+unrecognised columns are explicitly listed, not interpreted.
 
 The HMAC-SHA256 token expires after 15 minutes and binds file bytes, family,
-site, time zone and normalization result. It is not authorization: the role
+site, time zone and normalisation result. It is not authorisation: the role
 is checked again on apply and within the transaction. Multiple processes require
 configuring the same random secret `PLANNING_IMPORT_TOKEN_SECRET` (at least 32 bytes of
 entropy). Without configuration, a random process secret is used: a restart
 invalidates previews still open.
 
-Apply recalculates the diff within the transaction, serialized on the site. Rejected
+Apply recalculates the diff within the transaction, serialised on the site. Rejected
 rows remain excluded; the others are applied. It returns `counts`,
 `applied_keys` (only added/updated) and `import_run_id`. The applied
 `removed` count is always zero: no rows are deleted. A second apply of the
@@ -97,10 +97,10 @@ unchanged. An empty cell in a present optional column sets the field to null.
 - Dates use `YYYY-MM-DD`. Attendance times use `HH:MM` or `HH:MM:SS`.
 - Timestamps use ISO 8601 with seconds and an explicit offset, for example
   `2026-11-01T08:00:00+01:00` or `2026-11-01T07:00:00Z`. The importer
-  normalizes them to UTC and retains up to six fractional digits.
+  normalises them to UTC and retains up to six fractional digits.
 - Decimals accept a point or comma. `expected_delay_days` is a decimal
   number in days. `order_index` is a nonnegative 32-bit integer.
-- Boolean cells accept `true`/`false`, `yes`/`no`, or `1`/`0`, irrespective of case.
+- Boolean cells accept `true`/`false`, `yes`/`no`, or `1`/`0`, regardless of case.
 - Text is trimmed. Blank values become null. `attendance_status` is free text.
 - Deviation `status` accepts `open`, `in_progress`, `completed`, `closed`, and
   `rejected` after trimming and lowercasing. Other values produce `UNKNOWN_STATUS`.
@@ -116,9 +116,9 @@ The deviation evidence upload at `POST /api/deviations/import` uses the same
 deviation fields and adds the `source_id` metadata column for stable historical
 tracking. The ordinary six-family template is for preview/apply.
 
-Progress keys normalize Unicode NFKC, spaces, case and timestamps;
+Progress keys normalise Unicode NFKC, spaces, case and timestamps;
 the occurrence is 1-based. Subsequent occurrences have `identity_state=unresolved`
-in the binding and a “Da confermare” warning, and are still imported. No
+in the binding and a “Da confermare” (to be confirmed) warning, and are still imported. No
 key is invented in `ingest.entity_keys`. The application `source_row` is
 assigned without collisions and remains stable; the row number in the new export is
 shown in preview and recoverable from the archived file while its payload is retained.
@@ -138,7 +138,7 @@ HTTP listeners and a test with a real socket. A socket EPERM error in the sandbo
 is a failed test to rerun on the host, not a reason to skip it.
 
 The existing XLSX reader remains unchanged and reads the workbook in memory.
-The parser replaces read rows with normalized ones, without creating a
+The parser replaces read rows with normalised ones, without creating a
 second complete collection; the diff reads the DB in pages of 500 and keeps only
 keys, IDs and hashes, with limited examples. This is not full ZIP/XML streaming:
 the 20 MiB limit concerns the compressed file and the reader imposes no limit
@@ -148,70 +148,70 @@ per-row writes; archive capacity still requires operational assessment.
 
 ## Payload retention — increment 31
 
-Conservare il file originale è una **capacità forense, non una dipendenza funzionale**
-dell'import: per riapplicarlo il client deve inviare di nuovo il file; il token HMAC
-vincola i byte, la famiglia, il cantiere e le righe, e l'apply ricalcola il diff
-nella transazione. Dopo la rimozione del payload restano `file_sha256`, `filename`,
+Keeping the original file is a **forensic capability, not a functional dependency**
+of the import: to reapply it, the client must send the file again; the HMAC token
+binds the bytes, the family, the site and the rows, and apply recalculates the diff
+within the transaction. After the payload is removed, `file_sha256`, `filename`,
 `family`, `site_id`, `created_by`, `created_at`, `counts_json`, `applied_keys_json`,
-le righe di ricevuta e i binding. **Hash e metadati non permettono di ricostruire il file.**
+the receipt rows and the bindings remain. **Hash and metadata do not allow the file to be reconstructed.**
 
-La policy versionata è in `config/import-retention.json`: default globale 90 giorni,
-`employees` e `work_days` 30 giorni, nessun minimo di import recenti da conservare.
-La finestra effettiva è il minimo tra default globale, override di cantiere
-(`site_overrides`, con UUID, `days` e `reason`) se presente e override di famiglia
-se presente. Una finestra più specifica non può allungare quella più restrittiva:
-un override di cantiere a 90 giorni lascia `employees` e `work_days` a 30 giorni.
-I giorni sono interi da 1 al `max_days`, che non può superare il massimo ordinario
-di 90 giorni.
+The versioned policy is in `config/import-retention.json`: global default 90 days,
+`employees` and `work_days` 30 days, no minimum number of recent imports to keep.
+The effective window is the minimum between the global default, the site override
+(`site_overrides`, with UUID, `days` and `reason`) if present, and the family override
+if present. A more specific window cannot extend the more restrictive one:
+a site override of 90 days leaves `employees` and `work_days` at 30 days.
+Days are whole numbers from 1 to `max_days`, which cannot exceed the ordinary
+maximum of 90 days.
 
-Solo un'eccezione motivata e approvata può proteggere oltre la finestra ordinaria:
-ogni elemento di `exceptions` richiede `site_id`, `until` (data ISO),
-`reason` e `approved_by` non vuoti. `family` è facoltativa: se assente protegge
-tutte le famiglie del cantiere; se presente deve essere nota e limita la protezione
-alla coppia cantiere/famiglia. Più motivazioni attive applicabili sono riportate
-insieme. `until` è esclusivo, alle 00:00 UTC del giorno indicato. Un'eccezione
-formalmente valida con `until <= now` è scaduta: resta valida ma non protegge.
-Date assenti o illeggibili, motivazioni o approvazioni vuote, famiglie sconosciute
-e campi non riconosciuti bloccano l'operazione. Solo un file di policy assente
-usa i default in codice (90/30).
+Only a justified and approved exception can protect data beyond the ordinary window:
+each item in `exceptions` requires a non-empty `site_id`, `until` (ISO date),
+`reason` and `approved_by`. `family` is optional: if absent it protects
+all families of the site; if present it must be known and limits the protection
+to the site/family pair. Several applicable active reasons are reported together.
+`until` is exclusive, at 00:00 UTC of the stated day. A formally valid exception
+with `until <= now` is expired: it remains valid but does not protect.
+Missing or unreadable dates, empty reasons or approvals, unknown families
+and unrecognised fields block the operation. Only a missing policy file
+uses the code defaults (90/30).
 
-La classificazione considera solo le ricevute con `file_data IS NOT NULL`:
+Classification considers only receipts with `file_data IS NOT NULL`:
 
-- `expired`: età strettamente maggiore della finestra di policy;
-- `deletable`: scadute senza eccezione attiva;
-- `excluded`: scadute protette da eccezione, stampate con ID e motivo.
+- `expired`: age strictly greater than the policy window;
+- `deletable`: expired without an active exception;
+- `excluded`: expired but protected by an exception, printed with ID and reason.
 
-Quindi `expired = deletable + excluded`: scaduto non significa cancellabile.
-Il risultato include `exceptionCounts` con `active`, `expired` e `malformed`,
-contati sull'intera policy, anche senza ricevute corrispondenti. `malformed` è
-sempre zero nei risultati: la validazione blocca le eccezioni malformate prima
-della transazione e di qualsiasi `UPDATE`.
-Una finestra è un numero di periodi di 24 ore dall'istante `created_at`; al limite
-esatto il file non è ancora scaduto. I timestamp devono avere un fuso esplicito.
+So `expired = deletable + excluded`: expired does not mean deletable.
+The result includes `exceptionCounts` with `active`, `expired` and `malformed`,
+counted across the whole policy, even without matching receipts. `malformed` is
+always zero in results: validation blocks malformed exceptions before the transaction
+and any `UPDATE`.
+A window is a number of 24-hour periods from the `created_at` instant; at the exact
+limit the file is not yet expired. Timestamps must have an explicit time zone.
 
-Il comando è esclusivamente manuale, senza scheduler, timer o hook automatici:
+The command is manual only, with no scheduler, timer or automatic hooks:
 
 ```sh
 npm run retention -- --dry-run --from 2026-11-26
 ```
 
-Il dry-run è il default. `--from YYYY-MM-DD` fissa il riferimento alle 00:00 UTC
-della data indicata. Se omesso, vale l'istante di avvio del comando. Il comando
-richiede un database già predisposto, indicato da `DATA_DIR` per SQLite oppure
-da `DB_DRIVER=pg` e `DATABASE_URL` per PostgreSQL.
+The dry run is the default. `--from YYYY-MM-DD` fixes the reference at 00:00 UTC
+on the given date. If omitted, the start instant of the command applies. The command
+requires an already prepared database, indicated by `DATA_DIR` for SQLite or by
+`DB_DRIVER=pg` and `DATABASE_URL` for PostgreSQL.
 
-**Sui dati reali serve l'approvazione del Product Owner prima di usare `--apply`.**
+**On real data, Product Owner approval is required before using `--apply`.**
 
 ```sh
 npm run retention -- --apply --from 2026-11-26
 ```
 
-L'apply esegue esclusivamente `UPDATE planning_import_runs SET file_data = NULL`
-sui `deletable`, in transazione e con `RETURNING`. Ricevute, metadati e binding
-restano disponibili. Entrambe le modalità riportano il riferimento UTC, i conteggi
-complessivi, quelli per famiglia e il dettaglio per finestra se la famiglia ne
-usa più di una. Il report dell'apply viene stampato dopo il commit e riporta i
-candidati classificati nella stessa transazione. `bytesFreed` conta i byte dei
-payload azzerati ed è zero nel dry-run. `--json` aggiunge una riga finale JSON
-con gli stessi contatori e l'elenco `excluded: [{id, reason}]`. Le esecuzioni
-successive esaminano solo le ricevute che contengono ancora un payload.
+The apply runs exclusively `UPDATE planning_import_runs SET file_data = NULL`
+on the `deletable` receipts, within a transaction and with `RETURNING`. Receipts,
+metadata and bindings remain available. Both modes report the UTC reference, the
+overall counts, the counts per family and the detail per window if the family uses
+more than one. The apply report is printed after commit and reports the candidates
+classified in the same transaction. `bytesFreed` counts the bytes of the zeroed
+payloads and is zero in the dry run. `--json` adds a final JSON line with the same
+counters and the list `excluded: [{id, reason}]`. Subsequent runs examine only
+receipts that still contain a payload.
