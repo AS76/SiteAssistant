@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { openDb } from '../server/db.mjs';
 import { apply, reset } from '../server/seed-demo.mjs';
+import { compositeKeys } from '../server/demo-seed-registry.mjs';
 import { demoDatabaseIsSqlite } from '../server/demo-seed-environment.mjs';
 import { isPg, openTestDb } from './helpers/db.mjs';
 import { provisionDemoFixture, withDemoEnvironment } from './helpers/demo-seed.mjs';
@@ -81,6 +82,28 @@ for (const driver of ['sqlite', 'pg']) {
         assert.deepEqual(await snapshot(db), before);
       });
 
+      await t.test('fresh apply registers every fixture row with its actual primary key', async () => {
+        const before = await snapshot(db);
+        await apply(db);
+        const after = await snapshot(db);
+        const ledger = new Set(after.demo_seed_records.map(json => {
+          const { table_name, record_id } = JSON.parse(json);
+          return JSON.stringify([table_name, record_id]);
+        }));
+        const missing = {};
+        for (const [table, rows] of Object.entries(after)) {
+          if (table === 'demo_seed_records') continue;
+          const existing = new Set(before[table]);
+          for (const json of rows.filter(row => !existing.has(row))) {
+            const row = JSON.parse(json);
+            const columns = compositeKeys[table];
+            const key = columns ? JSON.stringify(columns.map(column => String(row[column]))) : String(row.id);
+            if (!ledger.has(JSON.stringify([table, key]))) missing[table] = (missing[table] ?? 0) + 1;
+          }
+        }
+        assert.deepEqual(missing, {});
+      });
+
       await t.test('double apply leaves every application table and the registry identical', async () => {
         await apply(db);
         const before = await snapshot(db);
@@ -99,29 +122,26 @@ for (const driver of ['sqlite', 'pg']) {
         await db.run("INSERT INTO demo_seed_records (table_name, record_id) VALUES ('tasks', ?)", entry.record_id);
       });
 
-      await t.test('unregistered child rows block reset even where a foreign key would cascade', async () => {
-        const batch = await db.get('SELECT id FROM deviation_exports ORDER BY id LIMIT 1');
+      const cascadeTables = [
+        'deviation_export_rows', 'shipment_packages', 'shipment_receipts', 'cost_impact_deviations',
+        'deviation_links', 'packages', 'package_items', 'purchase_order_items', 'site_progress_item_steps',
+        'hse_inspection_items', 'employee_certifications',
+      ];
+      const unrelated = randomUUID();
+      const unrelatedExportHash = 'a'.repeat(64);
+
+      await t.test('unregistered composite links survive apply without being claimed', async () => {
+        const { id: impact } = await db.get('SELECT id FROM cost_impacts ORDER BY id LIMIT 1');
         const site = await db.get("SELECT id FROM sites WHERE code = 'FITT-01'");
-        const unrelated = randomUUID();
         await db.run(`INSERT INTO deviations (id, site_id, title, status, created_at)
           VALUES (?, ?, 'Unrelated synthetic deviation', 'open', '2026-11-01T08:00:00.000Z')`, unrelated, site.id);
-        await db.run('INSERT INTO deviation_export_rows (export_id, deviation_id) VALUES (?, ?)', batch.id, unrelated);
-        const before = await snapshot(db);
-        await assert.rejects(reset(db), /referenced by deviation_export_rows/);
-        assert.deepEqual(await snapshot(db), before);
-        await db.run('DELETE FROM deviation_export_rows WHERE export_id = ? AND deviation_id = ?', batch.id, unrelated);
-      });
-
-      await t.test('unregistered composite links survive apply and block reset', async () => {
-        const { id: impact } = await db.get('SELECT id FROM cost_impacts ORDER BY id LIMIT 1');
-        const { id: deviation } = await db.get("SELECT id FROM deviations WHERE title = 'Unrelated synthetic deviation'");
-        await db.run('INSERT INTO cost_impact_deviations (cost_impact_id, deviation_id) VALUES (?, ?)', impact, deviation);
+        await db.run('INSERT INTO cost_impact_deviations (cost_impact_id, deviation_id) VALUES (?, ?)', impact, unrelated);
         const before = await snapshot(db);
         await apply(db);
         assert.deepEqual(await snapshot(db), before);
-        await assert.rejects(reset(db), /Demo reset blocked: cost_impacts/);
-        assert.deepEqual(await snapshot(db), before);
-        await db.run('DELETE FROM cost_impact_deviations WHERE cost_impact_id = ? AND deviation_id = ?', impact, deviation);
+        const batch = await db.get(`INSERT INTO deviation_exports (site_id, source_system, export_date, file_sha256, complete, scope)
+          VALUES (?, 'other', '2026-11-01', ?, TRUE, 'Unrelated synthetic scope') RETURNING id`, site.id, unrelatedExportHash);
+        await db.run('INSERT INTO deviation_export_rows (export_id, deviation_id) VALUES (?, ?)', batch.id, unrelated);
       });
 
       await t.test('a skipped composite insert cannot claim an existing relationship', async () => {
@@ -144,17 +164,54 @@ for (const driver of ['sqlite', 'pg']) {
         await db.run("DELETE FROM deviation_links WHERE deviation_id = ? AND entity_type = 'task' AND entity_id = ?", deviation, task);
       });
 
+      await t.test('a foreign key from a tester-owned child blocks deletion and rolls back the reset', async () => {
+        const { id: deviation } = await db.get('SELECT id FROM deviations WHERE id <> ? ORDER BY id LIMIT 1', unrelated);
+        const { id: batch } = await db.get('SELECT id FROM deviation_exports WHERE file_sha256 = ?', unrelatedExportHash);
+        await db.run('INSERT INTO deviation_export_rows (export_id, deviation_id) VALUES (?, ?)', batch, deviation);
+        const before = await snapshot(db);
+        await assert.rejects(reset(db), /referenced by deviation_export_rows/);
+        assert.deepEqual(await snapshot(db), before);
+        await db.run('DELETE FROM deviation_export_rows WHERE export_id = ? AND deviation_id = ?', batch, deviation);
+      });
+
+      const expectedCascade = {};
+      await t.test('legacy ledger gaps include a child and grandchild of a registered order', async () => {
+        for (const table of cascadeTables) {
+          const { rowCount } = await db.run('DELETE FROM demo_seed_records WHERE table_name = ?', table);
+          assert.ok(rowCount > 0, table);
+          expectedCascade[table] = rowCount;
+        }
+        expectedCascade.cost_impact_deviations += 1;
+        assert.ok(await db.get(`SELECT 1 FROM package_items pi JOIN packages p ON p.id = pi.package_id
+          JOIN demo_seed_records r ON r.table_name = 'purchase_orders' AND r.record_id = CAST(p.purchase_order_id AS TEXT)`));
+      });
+
       await t.test('interrupted reset rolls back data and ledger and can be retried', async () => {
         const before = await snapshot(db);
         await assert.rejects(reset(failAfterWrites(db, sql => /^DELETE FROM (?!demo_seed_records)/.test(sql))), /five successful writes/);
         assert.deepEqual(await snapshot(db), before);
-        assert.ok(await reset(db) > 0);
-        assert.ok(await db.get("SELECT id FROM deviations WHERE title = 'Unrelated synthetic deviation'"));
+      });
+
+      await t.test('reset counts residual child and grandchild deletes and preserves tester-owned rows', async () => {
+        const before = await snapshot(db);
+        const { removed, cascaded } = await reset(db);
+        const after = await snapshot(db);
+        assert.deepEqual(cascaded, expectedCascade);
+        assert.equal(removed, Object.keys(before).filter(table => table !== 'demo_seed_records')
+          .reduce((count, table) => count + before[table].length - after[table].length, 0));
+        for (const table of ['shipments', 'shipment_packages', 'purchase_orders', 'packages', 'package_items']) {
+          assert.deepEqual(after[table], [], table);
+        }
+        assert.deepEqual((await db.all('SELECT id FROM deviations')).map(row => row.id), [unrelated]);
+        const batch = await db.get('SELECT id, file_sha256 FROM deviation_exports');
+        assert.equal(batch.file_sha256, unrelatedExportHash);
+        assert.deepEqual((await db.all('SELECT * FROM deviation_export_rows')).map(row => ({ ...row })),
+          [{ export_id: batch.id, deviation_id: unrelated }]);
       });
 
       await t.test('double reset leaves every application table and the registry identical', async () => {
         const before = await snapshot(db);
-        assert.equal(await reset(db), 0);
+        assert.deepEqual(await reset(db), { removed: 0, cascaded: {} });
         assert.deepEqual(await snapshot(db), before);
       });
     });
@@ -188,4 +245,5 @@ test('the CLI marker requires deliberate provisioning and refuses the legacy led
   assert.equal((await db.all('SELECT * FROM demo_seed_environment')).length, 1);
   const resetInDemo = run('--reset');
   assert.equal(resetInDemo.status, 0, resetInDemo.stderr);
+  assert.deepEqual(JSON.parse(resetInDemo.stdout), { reset: true, removed: 0, cascaded: {} });
 });

@@ -12,7 +12,7 @@ import { demoDatabaseIsSqlite, DEMO_SEED_MARKER, requireDemoAppEnv, requireDemoD
 import { isDemoSandbox } from './demo-sandbox.mjs';
 import { openDb, closeDb } from './db.mjs';
 import { registeredDeviationExport, storeDeviationExport } from './deviations.mjs';
-import { compositeKeys, inboundDemoReferences, keyForRecord, recordFixture, referencingOperationalLink, referencingTable } from './demo-seed-registry.mjs';
+import { compositeKeys, fixtureRecordId, groupDemoReferences, inboundDemoReferences, keyForRecord, northlineLedgerPrefix, recordFixture, referencingOperationalLink, referencingParent, referencingTable } from './demo-seed-registry.mjs';
 import { stableId } from './wbs.mjs';
 import { TEMPLATES } from './checklists.mjs';
 
@@ -869,7 +869,7 @@ function deterministicFixtures() {
   return tables;
 }
 
-async function checkFixtureCollisions(db) {
+async function checkFixtureCollisions(db, residual = new Map()) {
   const fixtures = deterministicFixtures();
   const site = await db.get("SELECT id FROM sites WHERE code = 'FITT-01'");
   if (site) {
@@ -884,7 +884,8 @@ async function checkFixtureCollisions(db) {
       }
     }
   }
-  for (const [table, ids] of fixtures) {
+  for (const [table, plannedIds] of fixtures) {
+    const ids = plannedIds.filter(id => !residual.get(table)?.has(id));
     for (let offset = 0; offset < ids.length; offset += 400) {
       const batch = ids.slice(offset, offset + 400);
       const conflict = await db.get(`SELECT candidate.id FROM ${table} candidate
@@ -906,44 +907,117 @@ export async function reset(db) {
   });
 }
 
+const resetTables = [
+  'deviation_export_rows', 'deviation_exports', 'shipment_receipts', 'shipment_packages', 'shipments',
+  'package_items', 'packages', 'purchase_order_items', 'purchase_orders', 'cost_impact_deviations', 'deviation_links',
+  'site_progress_item_steps', 'employee_certifications', 'time_bookings', 'cost_impacts', 'deviations',
+  'progress_entries', 'site_progress_items', 'progress_type_steps', 'progress_types', 'work_days', 'employees',
+  'hse_inspection_items', 'hse_inspections', 'hse_assets', 'hse_events', 'task_events', 'tasks', 'diary', 'project_structure',
+  'site_members', 'users',
+];
+
+// Follow ownership FKs only. For example, a package item belongs to its package;
+// its purchase order line is a secondary reference and must not confer ownership.
+const cascadeParents = new Map(Object.entries({
+  deviation_export_rows: 'deviation_exports',
+  shipment_packages: 'shipments',
+  shipment_receipts: 'shipments',
+  packages: 'purchase_orders',
+  purchase_order_items: 'purchase_orders',
+  package_items: 'packages',
+  cost_impact_deviations: 'cost_impacts',
+  deviation_links: 'deviations',
+  site_progress_item_steps: 'site_progress_items',
+  progress_entries: 'site_progress_items',
+  progress_type_steps: 'progress_types',
+  employee_certifications: 'employees',
+  hse_inspection_items: 'hse_inspections',
+  task_events: 'tasks',
+}));
+
 async function resetFixtures(db) {
-  await checkFixtureCollisions(db);
   const sqlite = await demoDatabaseIsSqlite(db);
-  const references = await inboundDemoReferences(db, sqlite);
-  let removed = 0;
-  const tables = ['deviation_export_rows', 'deviation_exports', 'shipment_receipts', 'shipment_packages', 'shipments',
-    'package_items', 'packages', 'purchase_order_items', 'purchase_orders', 'cost_impact_deviations', 'deviation_links',
-    'site_progress_item_steps', 'employee_certifications', 'time_bookings', 'cost_impacts', 'deviations',
-    'progress_entries', 'site_progress_items', 'progress_type_steps', 'progress_types', 'work_days', 'employees',
-    'hse_inspection_items', 'hse_inspections', 'hse_assets', 'hse_events', 'task_events', 'tasks', 'diary', 'project_structure',
-    'site_members', 'users'];
-  for (const table of tables) {
-    const records = await db.all('SELECT record_id FROM demo_seed_records WHERE table_name = ? ORDER BY record_id', table);
-    if (table === 'project_structure') {
-      // Break links between owned nodes only. External children still block deletion.
-      for (const { record_id: id } of records) await db.run('UPDATE project_structure SET parent_id = NULL WHERE id = ?', id);
+  const references = groupDemoReferences(await inboundDemoReferences(db, sqlite));
+  const pending = new Map(resetTables.map(table => [table, new Map()]));
+  const northline = new Map(resetTables.map(table => [table, new Set()]));
+  const ledger = await db.all(`SELECT fixture.table_name, fixture.record_id, EXISTS (
+    SELECT 1 FROM demo_seed_records AS owner
+    WHERE owner.table_name = ? || fixture.table_name AND owner.record_id = fixture.record_id
+  ) AS northline FROM demo_seed_records AS fixture ORDER BY fixture.record_id`, northlineLedgerPrefix);
+  for (const { table_name: table, record_id: id, northline: ownedByNorthline } of ledger) {
+    if (!pending.has(table)) continue;
+    if (ownedByNorthline) {
+      northline.get(table).add(id);
+      continue;
     }
-    for (const { record_id: recordId } of records) {
-      const { where, values } = keyForRecord(table, recordId);
-      if (table === 'site_members' && values[1] !== evidenceOwnerId) continue;
-      if (references.some(reference => reference.parent_table === table)) {
-        if (!sqlite) await db.get(`SELECT 1 FROM ${table} WHERE ${where} FOR UPDATE`, ...values);
-        const dependent = await referencingTable(db, references, table, where, values);
-        if (dependent && table === 'users') continue;
-        if (dependent) throw new Error(`Demo reset blocked: ${table} (${recordId}) is referenced by ${dependent}.`);
+    if (table === 'users' && id !== evidenceOwnerId) continue;
+    if (table === 'site_members' && keyForRecord(table, id).values[1] !== evidenceOwnerId) continue;
+    pending.get(table).set(id, null);
+  }
+
+  const residual = new Map(resetTables.map(table => [table, new Set()]));
+  const parents = [...pending].flatMap(([table, records]) => [...records.keys()].map(id => ({ table, id })));
+  for (const { table, id } of parents) {
+    const { where, values } = keyForRecord(table, id);
+    for (const reference of references.get(table) ?? []) {
+      const { child } = reference;
+      if (!reference.local || cascadeParents.get(child) !== table) continue;
+      const predicate = referencingParent(reference, table, where);
+      const columns = (compositeKeys[child] ?? ['id']).join(', ');
+      for (const row of await db.all(`SELECT ${columns} FROM ${reference.qualifiedChild} AS child WHERE ${predicate}`, ...values)) {
+        const childId = fixtureRecordId(child, row);
+        if (pending.get(child).has(childId) || northline.get(child).has(childId)) continue;
+        pending.get(child).set(childId, { predicate, values });
+        residual.get(child).add(childId);
+        parents.push({ table: child, id: childId });
       }
-      const link = await referencingOperationalLink(db, table, recordId);
-      if (link) throw new Error(`Demo reset blocked: ${table} (${recordId}) is referenced by ${link}.`);
-      try {
-        removed += Number((await db.run(`DELETE FROM ${table} WHERE ${where}`, ...values)).rowCount);
-      } catch (error) {
-        if (error.code !== '23503' && error.errcode !== 787) throw error;
-        throw new Error(`Demo reset blocked: ${table} (${recordId}) has an existing dependency.`, { cause: error });
-      }
-      await db.run('DELETE FROM demo_seed_records WHERE table_name = ? AND record_id = ?', table, recordId);
     }
   }
-  return removed;
+
+  // Deterministic IDs without ledger entries are safe only if reached through a declared ownership FK.
+  await checkFixtureCollisions(db, residual);
+  for (const id of pending.get('project_structure').keys()) {
+    await db.run('UPDATE project_structure SET parent_id = NULL WHERE id = ?', id);
+  }
+
+  let removed = 0;
+  const cascaded = {};
+  const maxPasses = 64;
+  for (let pass = 0; pass < maxPasses; pass++) {
+    let progressed = false;
+    let blocked;
+    for (const [table, records] of pending) {
+      for (const [id, parent] of records) {
+        const { where, values } = keyForRecord(table, id);
+        const inbound = references.has(table);
+        if (inbound && !sqlite) await db.get(`SELECT 1 FROM ${table} WHERE ${where} FOR UPDATE`, ...values);
+        const dependent = (inbound && await referencingTable(db, references, table, where, values))
+          || await referencingOperationalLink(db, table, id);
+        if (dependent) {
+          if (table === 'users') records.delete(id);
+          else blocked ??= `Demo reset blocked: ${table} (${id}) is referenced by ${dependent}.`;
+          continue;
+        }
+        const result = parent
+          ? await db.run(`DELETE FROM ${table} AS child WHERE ${where} AND ${parent.predicate}`, ...values, ...parent.values)
+          : await db.run(`DELETE FROM ${table} WHERE ${where}`, ...values);
+        const count = Number(result.rowCount);
+        if (parent) {
+          if (count) cascaded[table] = (cascaded[table] ?? 0) + count;
+        } else {
+          await db.run('DELETE FROM demo_seed_records WHERE table_name = ? AND record_id = ?', table, id);
+        }
+        removed += count;
+        records.delete(id);
+        progressed = true;
+      }
+    }
+    if (!progressed) {
+      if (blocked) throw new Error(blocked);
+      return { removed, cascaded };
+    }
+  }
+  throw new Error(`Demo reset did not reach a fixed point after ${maxPasses} passes.`);
 }
 
 async function isRegistered(db, table, recordId) {
@@ -972,14 +1046,14 @@ async function applyFixtures(db, demoSandbox) {
   const storage = db;
   const lock = await demoDatabaseIsSqlite(db) ? '' : ' FOR UPDATE';
   db = { ...storage, run: async (sql, ...args) => {
-    const insert = /^\s*INSERT INTO (\w+)\s*\(id,/.exec(sql);
+    const insert = /^\s*INSERT INTO (\w+)\s*\(\s*id\s*,/.exec(sql);
     if (!insert) {
       const table = /^\s*INSERT INTO (\w+)/.exec(sql)?.[1];
       const columns = compositeKeys[table];
       const result = await storage.run(sql, ...args);
       if (columns) {
-        // All composite fixture inserts bind their primary key first, except for this literal value.
-        const key = table === 'deviation_links' ? [args[0], 'task', args[1]] : args.slice(0, columns.length);
+        // Composite fixture inserts bind their primary key columns first.
+        const key = args.slice(0, columns.length);
         if (result.rowCount > 0) await recordFixture(storage, table, key);
         else if (table !== 'site_members') await requireRegistered(storage, table, JSON.stringify(key.map(String)));
       }
@@ -1432,7 +1506,7 @@ async function applyFixtures(db, demoSandbox) {
   await db.run(`INSERT INTO deviations (id, site_id, deviation_no, title, problem_description, status, creation_date, created_at)
     VALUES (?, ?, 'DEMO-C03', 'C03 access impediment', 'Synthetic access clearance awaited', 'open', ?, ?) ON CONFLICT (id) DO NOTHING`, deviation, main.id, '2026-09-21', at);
   await db.run(`INSERT INTO deviation_links (deviation_id, entity_type, entity_id)
-    VALUES (?, 'task', ?) ON CONFLICT DO NOTHING`, deviation, task);
+    VALUES (?, ?, ?) ON CONFLICT DO NOTHING`, deviation, 'task', task);
   await db.run(`INSERT INTO diary (id, site_id, operational_date, shift, plan, actual, impediments, next_step, created_at, time_zone, day_cutoff_time)
     VALUES (?, ?, '2026-11-16', 'night', 'Install C03 section', 'C03: six hours booked against the linked progress item',
       'C03 access clearance awaited', 'Resume C03 after clearance', ?, 'Europe/Rome', '06:00') ON CONFLICT (id) DO NOTHING`, id('FITT-03:c03:diary'), main.id, at);
@@ -1488,8 +1562,8 @@ if (process.argv[1] === new URL(import.meta.url).pathname) {
         });
         console.log(JSON.stringify({ markedDemoDatabase: true }));
       } else if (operation === '--reset') {
-        const removed = await reset(db);
-        console.log(JSON.stringify({ reset: true, removed }));
+        const result = await reset(db);
+        console.log(JSON.stringify({ reset: true, ...result }));
       } else {
         const counts = await apply(db);
         console.log(JSON.stringify({ applied: true, counts }));

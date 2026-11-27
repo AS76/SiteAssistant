@@ -5,7 +5,8 @@ import { test } from 'node:test';
 import { createLoginLimiter, login } from '../server/auth.mjs';
 import { certificationStatus } from '../server/certifications.mjs';
 import { operationalDate } from '../server/operational-day.mjs';
-import { apply as applyDemo } from '../server/seed-demo.mjs';
+import { compositeKeys } from '../server/demo-seed-registry.mjs';
+import { apply as applyDemo, reset as resetDemo } from '../server/seed-demo.mjs';
 import { apply, plan, reset } from '../server/seed-northline.mjs';
 import { wbsDatabase } from './helpers/wbs.mjs';
 
@@ -56,8 +57,16 @@ test('Northline rows are coherent and reapply/reset preserve the five existing d
   const password = randomBytes(24).toString('base64url');
   assert.deepEqual(await apply(db, { password }), EXPECTED);
   const installed = await snapshot(db);
+  const ledger = new Set(installed.demo_seed_records);
   for (const [table, count] of Object.entries(EXPECTED)) {
     assert.equal(installed[table].length - baseline[table].length, count, table);
+    const original = new Set(baseline[table]);
+    for (const json of installed[table].filter(row => !original.has(row))) {
+      const row = JSON.parse(json);
+      const columns = compositeKeys[table];
+      const key = columns ? JSON.stringify(columns.map(column => String(row[column]))) : String(row.id);
+      assert.ok(ledger.has(JSON.stringify({ table_name: table, record_id: key })), `${table}: ${key}`);
+    }
   }
 
   assert.ok(Object.values(await apply(db, { password })).every(count => count === 0));
@@ -213,6 +222,16 @@ test('Northline rows are coherent and reapply/reset preserve the five existing d
   assert.ok(Object.values(await reset(db)).every(count => count === 0));
 
   assert.deepEqual(await apply(db, { password }), EXPECTED);
+  const beforeFittReset = await snapshot(db);
+  assert.ok((await resetDemo(db)).removed > 0);
+  const afterFittReset = await snapshot(db);
+  const baselineLedger = new Set(baseline.demo_seed_records);
+  for (const [table, rows] of Object.entries(beforeFittReset)) {
+    const original = table === 'demo_seed_records' ? baselineLedger : new Set(baseline[table]);
+    for (const row of rows.filter(row => !original.has(row))) {
+      assert.ok(afterFittReset[table].includes(row), table);
+    }
+  }
   const restored = await db.all("SELECT id FROM sites WHERE code IN ('NL-IT-01', 'NL-UK-01') ORDER BY code");
   assert.deepEqual(restored.map(row => row.id), sites.map(site => site.id));
 }));
