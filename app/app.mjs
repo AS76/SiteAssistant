@@ -499,6 +499,10 @@ function renderChrome() {
   $('#settings-button').setAttribute('aria-label', t('settingsTitle'));
   $('#manual-link').textContent = t('manual');
   $('#manual-link').href = `https://as76.github.io/SiteAssistant/${language === 'en' ? 'en/' : ''}${session ? manualPages[view] || '' : 'guida/accesso/'}`;
+  $('#privacy-link').textContent = t('privacy');
+  $('#privacy-link').href = `/privacy?lang=${language}`;
+  $('#cookie-link').textContent = t('cookiePolicy');
+  $('#cookie-link').href = `/cookie-policy?lang=${language}`;
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
   const site = currentSite();
   $('#site-select').title = site?.name || '';

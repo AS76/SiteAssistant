@@ -12,6 +12,7 @@ import { recordLoginFailure } from './auth-events.mjs';
 import { createWebAuthn } from './webauthn.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { createStaticHandler } from './static-dev.mjs';
+import { loadPrivacyConfig, privacyResponse } from './privacy.mjs';
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage, RESET_PATH, readPasswordReset, confirmPasswordReset, resetPage } from './signup.mjs';
 import { ACTIVATION_PATH, activationPage, activationScriptHash, activateInvitation, createInvitation, invitationMessage, readInvitation, revokeInvitation } from './invitations.mjs';
 import { canManageInvitations } from './admin.mjs';
@@ -196,6 +197,7 @@ function createAuthRequestLimiter({ ipMax = 50 } = {}) {
 
 export function createServer(db, { limiter = createLoginLimiter(), production = process.env.NODE_ENV === 'production',
   authBypassUser = process.env.AUTH_BYPASS_USER || '',
+  privacyConfig = loadPrivacyConfig(),
   trustedProxyIps = process.env.TRUSTED_PROXY_IPS || '',
   mailer = sendMail, ownerEmail = process.env.OWNER_EMAIL,
   publicUrl = process.env.PUBLIC_URL || 'https://api.siteassistant.asassi.cloud',
@@ -254,6 +256,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       path = url.pathname;
       const method = request.method;
       const ip = clientIp(request);
+      if (!path.startsWith('/api/') && privacyResponse(request, response, url, privacyConfig)) return;
       const authContext = { ip, userAgent: request.headers['user-agent'] || '' };
       const revoke = /^\/api\/admin\/invitations\/([^/]+)\/revoke$/.exec(path);
       if (path === ACTIVATION_PATH && method === 'GET') {

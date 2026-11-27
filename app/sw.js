@@ -1,7 +1,7 @@
 import { createApi } from './api.mjs';
 import { getMirror, replayOps, SYNC_TAG } from './offline.mjs';
 
-const VERSION = 'siteassistant-v15-61';
+const VERSION = 'siteassistant-v15-62';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data-`;
 const shellUrls = [
@@ -54,7 +54,9 @@ self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
-  if (url.pathname === '/attiva') return;
+  // Server-rendered pages must reach the network: the activation route and the
+  // privacy/Cookie notices are answered by the server, not by the cached shell.
+  if (url.pathname === '/attiva' || url.pathname === '/privacy' || url.pathname === '/cookie-policy') return;
   if (shellUrls.includes(url.href) || (request.mode === 'navigate' && url.origin === self.location.origin && url.pathname.startsWith(new URL(self.registration.scope).pathname) && !url.pathname.includes('/api/'))) {
     event.respondWith((async () => {
       const cache = await caches.open(SHELL);
