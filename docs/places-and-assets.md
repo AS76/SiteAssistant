@@ -141,3 +141,19 @@ Decisioni da approvare con l’owner:
 3. Nominare chi approva la mappa per sito e definire la soglia operativa degli irrisolti per l’attivazione.
 4. Stabilire se rilasciare per primi albero, registro, attività e allegati, e quando finanziare difetti, documenti e handover. Decidere il perimetro delle integrazioni con deviazioni e HSE.
 5. Approvare permessi di editor e demo user, profondità dell’audit, conservazione dei fascicoli e vincoli contrattuali sulla garanzia.
+
+## 10. Stato di implementazione (27 novembre 2026)
+
+Questa sezione distingue ciò che è in produzione da ciò che resta una proposta. Le sezioni precedenti descrivono il modello completo e vanno lette come specifica, non come resoconto.
+
+**Consegnato**
+
+- Incremento 2a (`4b99bf2`): albero dei luoghi con breadcrumb e filtri, selettore luogo riutilizzabile, rotte `GET`/`PATCH` `/api/places/:id`, `POST /api/places/:id/moves`, `/archive`, `GET /api/places/:id/history`, spostamento transazionale con rifiuto dei cicli e archivio con controllo delle dipendenze.
+- Incremento 2b (`0264c98`): `GET /api/assets/:id` con posizione corrente, garanzia e conteggio storico; `GET /api/assets/:id/positions`; filtri `tag`, `serial`, `status` e `placeId` come sottoalbero su `GET /api/assets`; vista operativa con ricerca, scheda, storico e azioni per ruolo.
+
+**Non ancora implementato**
+
+- Collegamento predecessore→successore nella sostituzione: oggi `replaced` è solo uno stato terminale. Richiede una migrazione additiva.
+- Rotta `POST /api/assets/:id/transitions`: le transizioni usano le rotte esistenti `PATCH /api/assets/:id`, `POST /api/assets/:id/move` e `POST /api/assets/:id/archive`.
+- `GET /api/assets/:id/history` come elenco dedicato delle modifiche tracciate: l'audit esiste, la rotta no.
+- Collegamenti con attività, allegati e ispezioni HSE (`/tasks/:id/location` e simili), alias tipizzati dei luoghi, mappe e backfill.
