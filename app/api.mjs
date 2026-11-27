@@ -144,6 +144,13 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     createSite: async input => siteFromApi(await request('/api/sites', sitePayload(input))),
     updateSite: async (siteId, input) => siteFromApi(await request(`/api/sites/${encodeURIComponent(siteId)}`, input, { method: 'PATCH' })),
     updateSiteAssistant: (siteId, input) => request(`/api/sites/${encodeURIComponent(siteId)}/assistant`, input, { method: 'PATCH' }),
+    listPlaces: (siteId, { includeArchived = false } = {}) =>
+      request(`/api/places${query({ siteId, includeArchived: includeArchived ? 1 : undefined })}`),
+    getPlace: id => request(`/api/places/${encodeURIComponent(id)}`),
+    listPlaceHistory: id => request(`/api/places/${encodeURIComponent(id)}/history`),
+    createPlace: input => request('/api/places', input),
+    updatePlace: (id, input) => request(`/api/places/${encodeURIComponent(id)}`, input, { method: 'PATCH' }),
+    archivePlace: (id, input) => request(`/api/places/${encodeURIComponent(id)}/archive`, input),
     listTasks: filters => listAll('/api/tasks', filters, taskFromApi, 'Task'),
     listViews: (siteId, module) => request(`/api/views${query({ site_id: siteId, module })}`),
     createView: input => request('/api/views', input),

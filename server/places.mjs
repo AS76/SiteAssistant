@@ -9,9 +9,9 @@ async function placeById(db, id) {
   return await db.get('SELECT * FROM places WHERE id = ?', id);
 }
 
-export async function activePlace(db, id, siteId, user) {
+export async function activePlace(db, id, siteId, user, { includeArchived = false } = {}) {
   const place = await scopedReference(db, await placeById(db, id), siteId, user, 'Place');
-  if (place.archived_at) fail(409, 'PLACE_ARCHIVED', 'The place is archived.');
+  if (place.archived_at && !includeArchived) fail(409, 'PLACE_ARCHIVED', 'The place is archived.');
   return place;
 }
 
@@ -24,8 +24,8 @@ async function ancestors(db, place) {
   return path.reverse();
 }
 
-export async function recordedPlacePath(db, id, siteId, user) {
-  return JSON.stringify(await ancestors(db, await activePlace(db, id, siteId, user)));
+export async function recordedPlacePath(db, id, siteId, user, options) {
+  return JSON.stringify(await ancestors(db, await activePlace(db, id, siteId, user, options)));
 }
 
 async function validateParent(tx, place, parentId, user) {
@@ -49,6 +49,46 @@ export async function listPlaces(db, { siteId, includeArchived = false }, user) 
   await requireRole(db, site, user);
   return await db.all(`SELECT * FROM places WHERE site_id = ?
     ${includeArchived ? '' : 'AND archived_at IS NULL'} ORDER BY name, id`, site);
+}
+
+async function readablePlace(db, id, user) {
+  requireUser(user);
+  const place = await db.get(`SELECT p.*, s.name AS site_name FROM places p
+    JOIN sites s ON s.id = p.site_id
+    WHERE p.id = ? AND EXISTS (
+      SELECT 1 FROM accessible_site_members m WHERE m.site_id = p.site_id AND m.user_id = ?
+    )`, uuid(id, 'id'), user.id);
+  if (!place) fail(404, 'PLACE_NOT_FOUND', 'Place not found.');
+  return place;
+}
+
+export async function getPlace(db, id, user) {
+  const { site_name: siteName, ...place } = await readablePlace(db, id, user);
+  const path = JSON.parse(await recordedPlacePath(db, place.id, place.site_id, user, { includeArchived: true }));
+  const counts = await db.get(`WITH RECURSIVE subtree(id) AS (
+    SELECT id FROM places WHERE site_id = ? AND id = ?
+    UNION
+    SELECT p.id FROM places p JOIN subtree s ON p.parent_id = s.id WHERE p.site_id = ?
+  )
+  SELECT (
+    SELECT COUNT(*) FROM places WHERE site_id = ? AND parent_id = ? AND archived_at IS NULL
+  ) AS active_children, (
+    SELECT COUNT(*) FROM asset_positions p JOIN subtree s ON p.place_id = s.id
+    WHERE p.site_id = ? AND p.valid_to IS NULL
+  ) AS current_assets`, place.site_id, place.id, place.site_id, place.site_id, place.id, place.site_id);
+  return {
+    ...place,
+    status: place.archived_at ? 'archived' : 'active',
+    path: [{ id: place.site_id, kind: 'site', name: siteName }, ...path],
+    dependencies: { activeChildren: Number(counts.active_children), currentAssets: Number(counts.current_assets) },
+  };
+}
+
+export async function listPlaceHistory(db, id, user) {
+  const place = await readablePlace(db, id, user);
+  const events = await db.all(`SELECT id, action, at, actor, changes FROM audit_events
+    WHERE site_id = ? AND entity_type = 'place' AND entity_id = ? ORDER BY at, id`, place.site_id, place.id);
+  return events.map(event => ({ ...event, changes: JSON.parse(event.changes) }));
 }
 
 export async function createPlace(db, input, user) {
