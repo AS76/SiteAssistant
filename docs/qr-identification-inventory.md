@@ -59,7 +59,7 @@ Un singolo oggetto fisico ha **una** identità permanente e **un solo** identifi
 Conseguenze operative:
 
 - L'etichetta si applica al registro autorevole. Se lo stesso trapano compare in `tools` e in `hse_assets`, l'unica etichetta porta l'UUID di `tools`; la scheda HSE si raggiunge dalla scheda dell'attrezzatura, non da una seconda etichetta.
-- L'estensione del principio agli asset installati richiede che `hse_assets` possa riferire un `asset_id`, simmetricamente a quanto già avviene con `tool_id`. È una modifica di schema, quindi un incremento dedicato, non un effetto collaterale di questa specifica.
+- L'estensione del principio agli asset installati richiede che `hse_assets` possa riferire un `asset_id`, simmetricamente a quanto già avviene con `tool_id`. È una modifica di schema, quindi un **incremento dedicato approvato dall'owner il 27/11/2026**, non un effetto collaterale di questa specifica.
 - Finché quella modifica non esiste, un asset con verifiche HSE non può che essere registrato come bene HSE separato: il rischio di doppia etichetta è reale e va gestito con una regola operativa esplicita (l'owner indica quale dei due è autoritativo per il cantiere in corso), non ignorato.
 
 ### 3.2 Meccanismo condiviso, nessuna anagrafica universale
@@ -69,6 +69,21 @@ Ciò che si condivide è **solo il livello di identificazione**: un payload, una
 - Il livello di identificazione non crea record in nessuna anagrafica e non duplica nome, descrizione o ubicazione: il QR punta a un record che vive nel modulo proprietario.
 - Il tipo di entità è tipizzato (`asset`, `tool`, `hse_asset`, in futuro `stock_item`, `material_instance`). Chiavi e controlli seguono l'impostazione già proposta per i collegamenti di modulo in `docs/places-and-assets.md` §4: `site_id` più UUID, con vincoli che includono il sito.
 - Aggiungere un tipo di entità è un'estensione dell'elenco, non la creazione di un'anagrafica.
+
+### 3.3 Riconciliazione dei beni HSE non collegati
+
+`tools` resta il registro autorevole delle attrezzature. Restano però record in `hse_assets` con `tool_id` nullo, creati prima che il collegamento esistesse o da flussi diversi. **Decisione dell'owner (27/11/2026): riconciliazione esplicita con verifica dell'identità fisica, nessuna associazione dedotta da nome o descrizione.**
+
+| Passo | Regola |
+| --- | --- |
+| 1. Candidati | Il sistema propone possibili corrispondenze per somiglianza di nome, codice o categoria, **come suggerimento da verificare**, mai come decisione |
+| 2. Verifica fisica | Chi riconcilia conferma l'identità dell'oggetto: targhetta, seriale, posizione, riscontro visivo. La somiglianza del nome non è una prova |
+| 3. Collegamento | Si valorizza `hse_assets.tool_id` verso l'attrezzatura, con autore, istante e motivazione |
+| 4. Nessuna fusione | Non si fondono i due record né si cancellano: il bene HSE conserva la sua storia di verifiche, l'attrezzatura la sua identità |
+| 5. Etichetta | Prima della riconciliazione un bene HSE non collegato può avere una propria etichetta; dopo la riconciliazione resta **una sola etichetta autoritativa** e la seconda viene ritirata, non riassegnata |
+| 6. Rifiuto esplicito | Se la verifica fisica non conferma la corrispondenza, la proposta si chiude come respinta e resta tracciata |
+
+Un'associazione automatica basata su nomi o descrizioni è esclusa: due trapani identici dello stesso modello sono due oggetti, e solo la targa o il seriale lo dicono.
 
 ## 4. Identificatore permanente
 
@@ -88,21 +103,35 @@ urn:siteassistant:entity:1:<uuid>
 | Indipendente dal dominio di hosting | Nessun URL. La stessa etichetta funziona su demo Railway, su istanza `asassi.cloud` e in locale. |
 | Nessun dato sensibile | Solo un identificatore opaco: nessun nome, seriale, dato personale, token, firma o URL firmata con scadenza. |
 
+L'UUID identifica l'**oggetto fisico**, non il registro che lo descrive in quel momento. Un'istanza di materiale e il bene installato in cui si trasforma condividono lo stesso identificativo fisico: si veda §4.6. È questa scelta, e non un dettaglio implementativo, a permettere che un'etichetta stampata al ricevimento resti valida dopo l'installazione.
+
 ### 4.2 L'etichetta non è una chiave
 
 Un identificativo è enumerabile: chi fotografa un'etichetta conosce l'UUID. Non è un segreto e non deve essere trattato come autorizzazione. La risoluzione verifica a ogni richiesta: autenticazione, appartenenza al sito, ruolo e permesso del modulo proprietario. Un QR letto da chi non ha accesso produce `404`, non un messaggio che rivela l'esistenza del record.
 
-### 4.3 Codice leggibile e digitabile
+### 4.3 Codice breve digitabile
 
 Il QR può essere illeggibile: graffiato, sbiadito, stampato male. Serve un fallback digitabile che **non** soffra del riciclo dei tag.
 
-| Opzione | Come funziona | Valutazione |
-| --- | --- | --- |
-| Codice canonico derivato (raccomandato) | L'UUID codificato in base32 Crockford, 26 caratteri, stampato in gruppi di quattro (`A7K2-9FQD-…`). Reversibile, nessuno spazio di nomi nuovo, nessuna tabella, nessun riciclo possibile | Onesto e senza debito, ma lungo da digitare in cantiere |
-| Codice corto per entità (rinviato) | Colonna dedicata sull'entità con contatore per sito, 6-8 caratteri, mai riassegnato | Più ergonomico, richiede una migrazione per ogni anagrafica e una politica di esaurimento |
-| Codice = tag (escluso) | Il tag esistente | **Escluso dall'owner**: il tag si ricicla e l'etichetta diventerebbe falsa |
+**Decisione dell'owner (27/11/2026):** un codice di 26 caratteri derivato dall'UUID non è sufficientemente ergonomico. L'UUID resta l'identificatore canonico **dentro** il QR; sotto il QR si stampa un **codice breve permanente**, con carattere di controllo e nessuna riassegnazione. La lunghezza definitiva è da validare in implementazione.
 
-Si parte dal codice derivato. Se la prova sul campo mostra che 26 caratteri sono inutilizzabili, si valuta il codice corto come incremento separato, con la sua politica di non riassegnazione. In entrambi i casi il fallback è risolto **dentro il sito selezionato** e non è mai un'autorizzazione.
+| Opzione | Come funziona | Giudizio |
+| --- | --- | --- |
+| **Codice breve per entità (approvato)** | Colonna dedicata sull'entità, generata alla creazione, alfabeto ristretto, carattere di controllo, univoca nel sito, mai riassegnata | Ergonomico in cantiere, richiede una migrazione per ogni anagrafica e una politica di esaurimento |
+| Codice derivato dall'UUID (scartato) | base32 Crockford, 26 caratteri | **Scartato dall'owner**: troppo lungo da digitare |
+| Codice = tag (escluso) | Il tag esistente | **Escluso**: il tag si ricicla e l'etichetta diventerebbe falsa |
+
+Regole del codice breve:
+
+- **Alfabeto ristretto** senza caratteri ambigui: base32 Crockford esclusi `I`, `L`, `O`, `U`. Il codice si legge e si detta senza confusione fra `0`/`O` e `1`/`I`/`L`.
+- **Carattere di controllo** obbligatorio (algoritmo da scegliere in implementazione: Damm o modulo primo). Serve a respingere un refuso **prima** di interrogare il server, e a distinguere "ho sbagliato a digitare" da "non esiste".
+- **Lunghezza provvisoria 6 caratteri di dati più 1 di controllo** (7 in totale), stampati in due gruppi (`A7K2-9F` + controllo). Valori superiori solo se la prova sul campo lo richiede. Il numero definitivo è una decisione di implementazione, validata su tastiera mobile reale.
+- **Univocità e collisioni**: vincolo univoco `(site_id, entity_type, short_code)`. La generazione tenta un codice casuale e, in caso di collisione, riprova con un limite di tentativi; al superamento il criterio cambia (lunghezza maggiore), mai la riassegnazione. Una collisione è un evento atteso, non un errore da ignorare.
+- **Nessuna riassegnazione**: un codice appartiene all'entità per sempre, anche dopo archiviazione o dismissione. Un codice vecchio può diventare inerte, non può diventare falso.
+- **Esaurimento**: con 6 caratteri su alfabeto ristretto lo spazio per sito è ampio ma non infinito. Si monitora l'occupazione e si allunga il codice per le entità nuove; le etichette già stampate restano valide perché la lunghezza è riconoscibile dal codice stesso.
+- **Risoluzione nel perimetro del sito**: il codice è risolto dentro il sito selezionato, mai globalmente, e non è mai un'autorizzazione.
+
+Il codice breve è un'aggiunta all'identificativo, non un suo sostituto: il QR continua a contenere l'URN con l'UUID dell'§4.1.
 
 ### 4.4 Etichette con URL diretto — opzione futura
 
@@ -114,7 +143,21 @@ Approvata come opzione futura, **non** nel primo rilascio. Un'etichetta con URL 
 - **Sito diverso**: risposta `404`, come per un record inaccessibile. Nessuna rivelazione di esistenza o di nome.
 - **Payload malformato**: versione sconosciuta o UUID non valido. `422` con messaggio neutro, nessuna interpretazione creativa.
 - **Mai riuso**: un UUID non viene riassegnato a un nuovo oggetto. Un'etichetta vecchia può diventare inerte, non può diventare falsa.
-- **Senza registro**: il payload è derivabile dall'UUID, quindi un registro delle etichette sarebbe un doppione. Si registra invece l'**evento di stampa** (§5.6), che serve davvero.
+- **Senza registro**: un registro delle etichette inteso come seconda anagrafica sarebbe un doppione. Si registra invece l'**evento di stampa** (§5.6), che serve davvero, più il codice breve che è un attributo dell'entità e non un registro separato.
+
+### 4.6 Continuità dell'identità fisica fra ricevimento e installazione
+
+Un'istanza serializzata ricevuta in cantiere riceve un'etichetta. Mesi dopo la stessa istanza viene installata e diventa un asset. **L'etichetta non si ristampa e non nascono due identità.**
+
+Come si ottiene:
+
+1. **Un solo identificativo per oggetto fisico, dalla nascita.** L'istanza di materiale (`stock_instances`, si veda `docs/site-materials-inventory.md` §3.2) nasce con un UUID proprio e con il suo codice breve. L'etichetta stampata al ricevimento porta quell'UUID.
+2. **L'installazione non crea una nuova identità: collega.** Il passaggio a bene installato produce il record in `assets` con il proprio UUID di asset, e `stock_instances.asset_id` registra il legame. La risoluzione dell'etichetta segue il legame e apre la scheda che è oggi pertinente.
+3. **La risoluzione sceglie il registro, non l'identità.** Lo stesso payload può puntare a un'istanza in giacenza o a un asset installato a seconda dello stato: la risposta dichiara il tipo corrente e, quando esiste un legame, anche l'altro registro raggiungibile. Il payload non cambia e non serve alcuna ristampa.
+4. **Il codice breve resta quello dell'istanza.** Se l'asset ha un proprio codice breve, entrambi restano validi e sono collegati fra loro; l'interfaccia mostra l'altro identificativo nella scheda, così chi ha in mano l'etichetta vecchia trova comunque la scheda giusta.
+5. **Divieto esplicito.** Nessuna risoluzione può dedurre l'identità dal seriale, dal nome o dalla descrizione: il legame istanza→asset è un atto esplicito, tracciato e reversibile solo con un altro atto tracciato.
+
+Conseguenza sulla stampa: chi stampa al ricevimento non deve sapere se l'oggetto sarà installato. L'etichetta è corretta in entrambi i casi, che è esattamente il motivo per cui il payload non contiene un tipo di entità immutabile ma un identificativo risolto dal server.
 
 ## 5. Etichette e stampa
 
@@ -220,10 +263,10 @@ Una sessione è un lavoro delimitato nel tempo e nello spazio, con perimetro dic
 | Tabella | Contenuto |
 | --- | --- |
 | `inventory_sessions` | `id`, `site_id`, perimetro, stato, apertura e chiusura, autore, note |
-| `inventory_scans` | `id`, `session_id`, `site_id`, tipo e id dell'entità (nullo se sconosciuta), payload grezzo, `scanned_at`, autore, luogo atteso come fotografia, esito, `client_scan_id` per idempotenza, nota |
+| `inventory_scans` | `id`, `session_id`, `site_id`, tipo e id dell'entità (nullo se sconosciuta), payload grezzo, `scanned_at`, autore, **luogo atteso come fotografia**, **luogo osservato dichiarato**, **contesto di scansione**, esito, `client_scan_id` per idempotenza, nota |
 | `inventory_resolutions` | decisioni di riconciliazione: scansione o insieme di scansioni, esito applicato, autore, istante, motivazione |
 
-L'esito di ogni scansione è uno fra: **corrispondente**, **duplicato**, **ubicazione discordante**, **sconosciuto**, **non atteso**.
+L'esito di ogni scansione è uno fra: **corrispondente**, **duplicato**, **ubicazione discordante**, **sconosciuto**, **non atteso**. Posizione attesa e osservata sono descritte in §7.5; il contesto di scansione in §7.6.
 
 ### 7.2 Scansioni consecutive
 
@@ -244,19 +287,45 @@ La regola è per tipo di entità, esplicita e verificabile, non configurabile a 
 
 Un payload non risolto non crea automaticamente nulla. Diventa una riga "sconosciuta" con il payload grezzo, e resta tale finché un utente autorizzato non decide: associarla a un'entità esistente, oppure avviare la creazione nel modulo proprietario con il flusso normale. La sessione chiusa conserva le righe irrisolte come parte del risultato.
 
-### 7.5 Ubicazioni discordanti
+### 7.5 Posizione attesa e posizione osservata
 
-Se l'oggetto risulta in un luogo diverso dal perimetro o dal luogo atteso, la sessione registra la **discordanza**. Non corregge la posizione: la posizione fisica di un asset cambia solo con un movimento esplicito, con motivo e intervallo, come stabilito in `places-and-assets.md` §3.
+Una rilevazione registra **due** posizioni, non una:
 
-Una scansione registra una rilevazione. Non modifica automaticamente né una quantità contabile né una posizione ufficiale. La riconciliazione propone il movimento come azione separata, autorizzata e tracciata, soggetta all'**approvazione dei movimenti** (§8).
+| Campo | Significato | Fonte |
+| --- | --- | --- |
+| **Posizione attesa** | Dove l'oggetto dovrebbe essere secondo il sistema | Fotografia al momento della scansione, calcolata dal modello (posizione dell'asset, ubicazione della giacenza) e conservata come tale |
+| **Posizione osservata** | Dove l'oggetto è stato effettivamente visto | Il contesto di scansione scelto dall'operatore al momento della lettura |
 
-### 7.6 Riconciliazione, chiusura e immutabilità
+Regole:
+
+- La posizione attesa è una **fotografia**: se in seguito l'asset si sposta, la rilevazione continua a dire dove il sistema lo collocava quel giorno. Senza questo, ogni rilettura storica sarebbe ambigua.
+- La posizione osservata è **dichiarata dall'operatore**, non dedotta. Se manca, la rilevazione esiste ma la discordanza non è valutabile, e l'esito lo dice invece di inventare un luogo.
+- La discordanza nasce dal **confronto** fra le due. Se l'oggetto risulta in un luogo diverso dal perimetro o dall'atteso, la sessione la registra e non corregge nulla: la posizione ufficiale cambia solo con un movimento esplicito, con motivo e intervallo, come stabilito in `places-and-assets.md` §3.
+- Una scansione registra una rilevazione. Non modifica automaticamente né una quantità contabile né una posizione ufficiale. La riconciliazione propone il movimento come azione separata, autorizzata e tracciata, soggetta all'**approvazione dei movimenti** (§8).
+
+### 7.6 Contesto di scansione e identificazione QR dei luoghi
+
+Chi inventaria non inquadra solo oggetti: inquadra **spazi**. Depositi, container e scaffali devono poter essere identificati come un asset o un'attrezzatura.
+
+| Elemento | Comportamento |
+| --- | --- |
+| Contesto di scansione | L'operatore dichiara dove si trova: un luogo, un container, uno scaffale. Il contesto vale per le rilevazioni **successive** finché non cambia |
+| Codice del luogo | Stesso schema di §4: URN con UUID del luogo e codice breve stampabile e appiccabile |
+| Scansione di un luogo | **Imposta il contesto** delle rilevazioni successive; non modifica le ubicazioni ufficiali e non crea movimenti |
+| Cambio di contesto | Esplicito e visibile: l'interfaccia mostra sempre il contesto corrente, così una rilevazione non finisce nel posto sbagliato per distrazione |
+| Fine sessione | Il contesto non sopravvive alla sessione: nessun contesto implicito ereditato da un lavoro precedente |
+
+L'identificazione QR dei luoghi è quindi un'estensione naturale dello stesso meccanismo, non una funzionalità separata: cambia il tipo di entità risolto, non il payload né il comportamento di scansione.
+
+La scansione di un luogo **non** è un trasferimento. Se l'operatore inquadra uno scaffale e poi un asset che non dovrebbe essere lì, il sistema registra una discordanza e propone un movimento: non sposta nulla da solo.
+
+### 7.7 Riconciliazione, chiusura e immutabilità
 
 La riconciliazione produce: visti, non visti, duplicati, discordanti, sconosciuti, con i rispettivi conteggi. La chiusura congela il risultato e richiede una decisione esplicita sugli irrisolti (accettati come tali, o rinviati).
 
 La sessione chiusa è **immutabile**: non si modifica né si cancella. Una rettifica è un atto tracciato separato, che cita la sessione originale e ne conserva il contenuto. Il risultato originale resta sempre leggibile.
 
-### 7.7 Diario probatorio
+### 7.8 Diario probatorio
 
 Una sessione **conclusa** può alimentare il diario con un **riepilogo tracciabile**: perimetro, conteggi, esito, irrisolti, autore, riferimento alla sessione. Il diario riceve un evento, non un flusso.
 
@@ -280,7 +349,20 @@ Dove un modulo non esiste — oggi per luoghi e asset l'accesso passa dal solo r
 
 **La scansione non conferisce autorizzazioni aggiuntive.** Leggere un'etichetta non aggiunge diritti: apre ciò che l'utente poteva già aprire e nulla di più.
 
-### 8.2 Quattro autorizzazioni distinte per l'inventario
+### 8.2 Consultazione delle sessioni senza accesso al modulo intero
+
+**Decisione dell'owner (27/11/2026):** consultare una sessione di inventario non deve richiedere l'accesso all'intero modulo Logistics o al modulo proprietario nella sua interezza.
+
+| Situazione | Comportamento |
+| --- | --- |
+| Un responsabile di area deve vedere la sessione del suo perimetro | Autorizzazione **circoscritta** al dominio e al cantiere interessati, non al modulo intero |
+| L'utente non ha accesso al modulo d'origine di un'entità | Vede la riga della sessione come riferimento, **non** la scheda dell'entità né i suoi dati |
+| Riepiloghi e conteggi | Calcolati **solo** su ciò che il chiamante può vedere; nessun totale che riveli l'esistenza di record esclusi |
+| Perimetri sovrapposti | Ogni sessione dichiara il proprio perimetro; l'autorizzazione segue il perimetro, non la gerarchia dei moduli |
+
+Il rischio da evitare è l'esposizione indiretta: un conteggio che dice "47 articoli non visti" rivela l'esistenza di materiale che l'utente non può consultare. La regola è quindi che **il riepilogo non è un canale laterale**: se il dettaglio è negato, anche il numero aggregato che lo rivela è negato o viene mostrato in forma non riconducibile.
+
+### 8.3 Quattro autorizzazioni distinte per l'inventario
 
 | Autorizzazione | Cosa consente | Ruoli |
 | --- | --- | --- |
@@ -291,7 +373,7 @@ Dove un modulo non esiste — oggi per luoghi e asset l'accesso passa dal solo r
 
 Separare queste quattro cose è deliberato: chi conta gli oggetti in magazzino non è necessariamente chi decide che un asset si è spostato, e chi riconcilia non deve poter riscrivere una posizione ufficiale da solo.
 
-### 8.3 Isolamento tra cantieri
+### 8.4 Isolamento tra cantieri
 
 Ogni risoluzione, etichetta e sessione è legata a un `site_id`. Un identificativo di un altro sito è indistinguibile da uno inesistente. Nessun conteggio aggregato cross-site espone l'esistenza di record altrui. Un'etichetta stampata per un sito sandbox non è valida su un sito ordinario anche se l'UUID fosse noto.
 
@@ -342,7 +424,7 @@ Sugli allegati la decisione è esplicita: l'estensione a Luoghi e Asset è **dip
 | Posizioni a intervalli semiaperti, un solo intervallo aperto | Distingue "dove dovrebbe essere" da "dove è stato visto" senza ambiguità | **Già conforme** |
 | `recorded_path` congelato | L'etichetta descrittiva mostra il percorso storico corretto | **Già conforme** |
 | `hse_assets.tool_id` | Il principio dell'identità unica è già realizzato per le attrezzature | **Già conforme** |
-| Nessun `asset_id` in `hse_assets` | Il principio non è ancora esteso agli asset installati | **Lacuna nota**, incremento dedicato |
+| Nessun `asset_id` in `hse_assets` | Il principio non è ancora esteso agli asset installati | **Lacuna nota**, incremento dedicato **approvato** il 27/11/2026 |
 | `material_no` testuale su righe d'ordine | Nessuna identità di articolo | **Lacuna**, richiede Site Materials & Inventory |
 | Allegati non estesi ad asset e luogo | La scheda non può allegare manuali e verbali | **Da colmare nei flussi documentali**, non bloccante |
 | Nessuna dipendenza oltre `pg` e WebAuthn | L'encoder QR è la prima dipendenza non infrastrutturale | **Decisione approvata**, verifica in implementazione |
@@ -365,7 +447,8 @@ Prefisso `/api/sites/:siteId`. Operazioni con effetto storico transazionali; cre
 | GET | `/inventory-sessions` | Elenco con stato e conteggi |
 | POST | `/inventory-sessions` | Aprire una sessione con perimetro dichiarato |
 | GET | `/inventory-sessions/:id` | Dettaglio con attesi, visti, discordanze, irrisolti |
-| POST | `/inventory-sessions/:id/scans` | Registrare una scansione, idempotente su `client_scan_id` |
+| POST | `/inventory-sessions/:id/scans` | Registrare una scansione con **posizione attesa fotografata**, **posizione osservata** e **contesto di scansione**; idempotente su `client_scan_id` |
+| PUT | `/inventory-sessions/:id/context` | Impostare il contesto di scansione corrente (luogo, container, scaffale). Non crea movimenti |
 | POST | `/inventory-sessions/:id/resolutions` | Registrare una decisione di riconciliazione |
 | POST | `/inventory-sessions/:id/close` | Chiudere congelando il risultato |
 | POST | `/inventory-sessions/:id/amendments` | Rettifica tracciata di una sessione chiusa |
@@ -381,9 +464,13 @@ Nessuna rotta di scrittura sulle anagrafiche: le azioni contestuali usano le rot
 | Indipendenza dal dominio | Lo stesso payload si risolve su due ambienti distinti. Nessun URL nel payload canonico. |
 | Nessun dato sensibile | Il payload contiene solo schema URN e UUID: nessun nome, seriale, token, data o URL firmata. Un payload manomesso che finge dati aggiuntivi è respinto. |
 | Non riciclo | Dismettere un asset e riusarne il tag non rende l'etichetta vecchia risolvibile al nuovo asset. |
-| Codice digitabile | Il codice dell'§4.3 risolve l'entità corretta ed è stabile dopo rinomina, trasferimento e riuso del tag. |
+| Codice breve | Il codice dell'§4.3 risolve l'entità corretta ed è stabile dopo rinomina, trasferimento e riuso del tag. Un codice con un carattere sbagliato è respinto dal carattere di controllo **prima** dell'interrogazione. |
+| Collisione | Due entità non ottengono mai lo stesso codice breve nello stesso sito, anche sotto creazione concorrente; al superamento dei tentativi il codice si allunga, non si riassegna. |
+| Codice non riassegnato | Archiviare o dismettere un'entità non libera il suo codice per una nuova entità. |
 | Cross-site | Un identificativo di un altro sito restituisce `404` senza rivelare nome o esistenza; nessun conteggio lo espone. |
 | Identità unica | Un bene presente in `tools` e `hse_assets` produce una sola etichetta autoritativa; un tentativo di stamparne due è segnalato. |
+| Riconciliazione HSE | Un bene HSE con `tool_id` nullo non viene collegato automaticamente: la proposta richiede conferma dell'identità fisica, resta tracciata e, se respinta, non cambia nulla. Dopo il collegamento esiste una sola etichetta autoritativa. |
+| Continuità dell'identità fisica | L'etichetta stampata su un'istanza al ricevimento continua a risolvere lo stesso oggetto dopo l'installazione: nessuna ristampa, nessuna seconda identità, e il legame istanza→asset è esplicito e tracciato. |
 | Stampa | Selezionare cento entità produce cento etichette e nessun record in più; la ristampa non duplica; l'anteprima riporta i conteggi corretti. |
 | Dimensioni | Un profilo 50×25 mm produce un SVG con quelle dimensioni fisiche e un QR sopra il modulo minimo leggibile. |
 | Permessi di stampa | Un viewer non può avviare una stampa massiva; un utente senza accesso al modulo non ottiene etichette e, se invoca la rotta, è respinto. |
@@ -391,6 +478,9 @@ Nessuna rotta di scrittura sulle anagrafiche: le azioni contestuali usano le rot
 | Duplicati in sessione | Due scansioni dello stesso asset producono un duplicato segnalato, non una quantità 2. |
 | Sconosciuto | Un payload non risolto non crea entità; resta irrisolto e la sessione può chiudersi conservandolo. |
 | Ubicazione discordante | Una scansione fuori perimetro non modifica `asset_positions`; senza approvazione del movimento la posizione resta invariata. |
+| Posizione attesa e osservata | La rilevazione conserva entrambe; se l'asset si sposta dopo, la posizione attesa registrata non cambia. Una rilevazione senza posizione osservata non produce una discordanza inventata. |
+| Contesto di scansione | Inquadrare un luogo imposta il contesto delle rilevazioni successive senza creare movimenti né modificare ubicazioni ufficiali; il contesto non sopravvive alla sessione. |
+| Visibilità circoscritta | Un utente senza accesso al modulo d'origine vede la riga della sessione ma non la scheda né i dati dell'entità; i riepiloghi contano solo ciò che può vedere e non rivelano record esclusi. |
 | Quattro permessi | Chi registra rilevazioni ma non ha l'approvazione dei movimenti non riesce ad applicare un movimento, né direttamente né tramite la riconciliazione. |
 | Idempotenza | Lo stesso `client_scan_id` inviato due volte produce una sola riga. |
 | Sessione chiusa | Modificare una sessione chiusa è respinto; la rettifica produce un atto separato e l'originale resta leggibile. |
@@ -412,20 +502,27 @@ I casi di vincolo e concorrenza vanno eseguiti su SQLite e PostgreSQL.
 
 Fuori scope: barcode lineari oltre al QR, RFID, stampa ESC/POS diretta, etichette con URL nel primo rilascio, gestione giacenze e valorizzazione (che appartiene a Site Materials & Inventory), app native, firma digitale delle etichette.
 
-Decisioni **chiuse** dall'owner il 27/11/2026: identità unica con Attrezzature autorevole; tre formati di etichetta; stampa con driver di sistema; permessi dei moduli esistenti con quattro autorizzazioni distinte per l'inventario; `qrcode` (soldair) come candidato con verifica in implementazione; SVG prioritario; codice digitabile non basato sul tag; URL come opzione futura; scansione reale su entrambe le piattaforme come criterio di prima release; offline in seconda fase con cache circoscritta; diario alimentato solo da sessioni chiuse; allegati come dipendenza documentale e non dell'identificazione.
+Decisioni **chiuse** dall'owner il 27/11/2026: identità unica con Attrezzature autorevole; tre formati di etichetta; stampa con driver di sistema; permessi dei moduli esistenti con quattro autorizzazioni distinte per l'inventario; `qrcode` (soldair) come candidato con verifica in implementazione; SVG prioritario; URL come opzione futura; scansione reale su entrambe le piattaforme come criterio di prima release; offline in seconda fase con cache circoscritta; diario alimentato solo da sessioni chiuse; allegati come dipendenza documentale e non dell'identificazione.
+
+Decisioni **chiuse nella revisione del 27/11/2026** (secondo giro):
+
+1. **`asset_id` in `hse_assets` è approvato** come incremento dedicato, per evitare identità duplicate degli asset sottoposti a verifiche HSE (§3.1).
+2. **Il codice breve permanente è la scelta**, al posto del codice derivato di 26 caratteri: carattere di controllo, collisioni gestite, nessuna riassegnazione, lunghezza validata in implementazione (§4.3).
+3. **`tools` resta il registro autorevole** delle attrezzature; per i beni HSE non collegati serve riconciliazione esplicita con verifica dell'identità fisica, mai associazione dedotta da nome o descrizione (§3.3).
+4. **La consultazione delle sessioni non dipende dall'accesso al modulo intero**: autorizzazioni circoscritte al dominio e al cantiere, senza esposizione indiretta tramite riepiloghi e conteggi (§8.2).
 
 Decisioni **ancora aperte**:
 
-1. Se e quando introdurre `asset_id` in `hse_assets` per estendere l'identità unica agli asset installati soggetti a verifiche.
-2. Se il codice digitabile derivato (26 caratteri) sia accettabile sul campo, o se serva il codice corto per entità.
-3. Quale registro è autoritativo, per un cantiere già avviato, quando lo stesso oggetto è registrato sia in `tools` sia in `hse_assets` in assenza di collegamento.
-4. Se le sessioni di inventario debbano essere visibili anche a chi non ha accesso alla logistica.
+1. **Momento dell'incremento `asset_id`**: se prima o dopo la prima release QR, e se richieda un backfill dei beni HSE già registrati.
+2. **Lunghezza definitiva del codice breve**: 7 caratteri (6+1) come ipotesi di lavoro, da validare su tastiera mobile reale.
+3. **Custodia della verifica fisica**: chi è abilitato a confermare l'identità di un bene HSE non collegato, e con quale prova minima accettabile.
+4. **Perimetro delle sessioni visibili**: se un responsabile di area debba vedere tutte le sessioni del proprio cantiere o solo quelle del proprio sottoalbero di luoghi.
 
 ## 15. Sequenza consigliata
 
 | Fase | Contenuto | Prerequisiti |
 | --- | --- | --- |
-| Q0 | Prerequisiti: 2a e 2b merged; decisione su `asset_id` HSE; verifica della dipendenza QR | 2a, 2b |
+| Q0 | Prerequisiti: 2a e 2b merged; verifica della dipendenza QR. L'incremento `asset_id` in `hse_assets` è approvato ma non blocca Q1: entra quando l'owner ne fissa la precedenza | 2a, 2b |
 | Q1 | Identificatore, codice digitabile, risoluzione, etichette compatta e descrittiva, stampa singola, massiva, ristampa, anteprima, profili di dimensione, A4 | Q0; migrazione per gli eventi di stampa |
 | Q2 | Scansione mobile con decoder di riserva, apertura scheda, azioni contestuali, prova su iPhone e Android | Q1 |
 | Q3 | Sessioni di inventario, duplicati, sconosciuti, discordanze, riconciliazione, quattro autorizzazioni, riepilogo nel diario | Q2; coppia di migrazioni |

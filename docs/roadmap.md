@@ -36,8 +36,12 @@ Decisioni approvate dall'owner il 27/11/2026: identità unica per oggetto fisico
 
 Dipendenze: 2a e 2b merged (API e scheda asset); modulo Site Materials & Inventory per articoli e formato logistico; estensione degli allegati a Luoghi e Asset come dipendenza dei flussi documentali, **non** dell'identificazione. Le scelte della 057 non precludono la funzionalità: il QR veicola l'UUID e non il tag, e l'inventario propone i movimenti senza applicarli.
 
+Secondo giro di decisioni (27/11/2026, revisione delle specifiche): **codice breve permanente** al posto del codice derivato di 26 caratteri, con carattere di controllo, collisioni gestite e nessuna riassegnazione; **`asset_id` in `hse_assets` approvato** come incremento dedicato; **`tools` autorevole** con riconciliazione esplicita e verifica fisica per i beni HSE non collegati, mai associazioni dedotte; **sessioni consultabili con autorizzazioni circoscritte** al dominio e al cantiere, senza esposizione indiretta tramite conteggi. Integrazioni recepite: continuità dell'identità fisica fra ricevimento e installazione (nessuna ristampa, nessuna doppia identità); posizione **attesa e osservata** in ogni rilevazione, con contesto di scansione e QR dei luoghi che imposta il contesto senza spostare nulla.
+
 ### 7. Site Materials & Inventory
-Card `853a0078`. Specifica in `docs/site-materials-inventory.md`. Modulo autonomo per la logistica operativa di cantiere: anagrafica articoli con codici e alias, unità di misura e quantità, articoli serializzati e non, lotti, colli e pallet, collegamenti a ordini e ricevimenti, ubicazioni come luoghi, movimenti append-only, giacenze derivate, collegamento agli asset installati, inventario fisico e riconciliazione delle quantità. **Solo specifica**: implementazione non autorizzata.
+Card `853a0078`. Specifica in `docs/site-materials-inventory.md`. Modulo autonomo per la logistica operativa di cantiere: anagrafica articoli con codici e alias, unità di misura e quantità, articoli serializzati e non, lotti dal primo rilascio della movimentazione con obbligatorietà configurabile, colli e pallet, collegamenti a ordini e ricevimenti, ubicazioni come luoghi con granularità flessibile, movimenti append-only con **stati della quantità e custodia**, collegamento agli asset installati, inventario fisico e riconciliazione delle quantità. **Solo specifica**: implementazione non autorizzata.
+
+Semantica dei movimenti approvata il 27/11/2026: cinque stati distinti (deposito, custodia, assegnato, consumato, reso) invece di una giacenza unica. Il prelievo è neutro sul presente fisico e il consumo sottrae una volta sola: con una giacenza unica, prelievo più consumo sottrarrebbero due volte lo stesso oggetto. Modulo `materials` **strict**, come `logistics`. Anagrafiche separate per cantiere nella prima release.
 
 Confine dichiarato: SiteAssistant non diventa un ERP né un WMS generalista. Fuori scope distinte base, cicli, MRP, valorizzazione, FIFO/LIFO contabile e tracciabilità fiscale. Oggi i materiali esistono solo come `material_no` testuale su righe d'ordine e colli (032–034): non c'è giacenza, non c'è identità di articolo, non c'è legame con l'installato.
 
@@ -67,8 +71,9 @@ Qualità e accettazione `b27d6ec0`, registro documenti `daf4fd9d`, attenzione ed
 | Tema | Chi decide | Stato |
 | --- | --- | --- |
 | Riattivazione del reset notturno della demo | owner | nessun cron o timer attivo; ultima esecuzione schedulata 26/11 04:00 |
-| Etichetta QR: soggetto autoritativo quando `tools` e `hse_assets` descrivono lo stesso oggetto | owner | identità unica approvata il 27/11; resta aperta l'estensione con `asset_id` in `hse_assets` (`docs/qr-identification-inventory.md` §14) |
-| Modulo `materials`: visibilità *strict* come `logistics` | owner | cinque decisioni elencate in `docs/site-materials-inventory.md` §14 |
+| Etichetta QR: soggetto autoritativo quando `tools` e `hse_assets` descrivono lo stesso oggetto | owner | chiusa il 27/11: `tools` autorevole, riconciliazione esplicita con verifica fisica; aperto il momento dell'incremento `asset_id` (`docs/qr-identification-inventory.md` §14) |
+| Modulo `materials`: visibilità *strict* come `logistics` | owner | chiusa il 27/11: strict approvato; restano cinque decisioni in `docs/site-materials-inventory.md` §14 |
+| Container mobili e noleggiati: luogo del sito o oggetto tracciato a sé | owner | `docs/site-materials-inventory.md` §14 |
 | Prova D3 di ripristino | owner | card `93ccb9ae`, non blocca lo sviluppo |
 | Rilascio del database legacy | owner | conservazione minima 7 giorni, nessuna cancellazione autorizzata |
 | Validità legale della firma nel diario | owner | dichiarata in `docs/evidentiary-diary.md` §10 |
