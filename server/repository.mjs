@@ -89,6 +89,8 @@ export async function listSites(db, user) {
 
 export const DEMO_ROLE = 'demo_user';
 export const EDIT_ROLES = ['owner', 'editor', DEMO_ROLE];
+// Deleting destroys evidence, so the demo role is excluded.
+export const DELETE_ROLES = ['owner', 'editor'];
 export const REVIEW_ROLES = ['owner', 'verifier', DEMO_ROLE];
 export const WRITE_ROLES = [...EDIT_ROLES, 'verifier'];
 export const ROLES = [...WRITE_ROLES, 'viewer'];
@@ -700,7 +702,9 @@ async function attachmentEntity(db, input, user, roles) {
   }
   if (!entity) fail(400, 'Attachment entity does not exist.', 'VALIDATION_ERROR');
   const siteId = input.entity_type === 'site' ? entity.id : entity.site_id;
-  await requireRole(db, siteId, user, hseAttachmentTypes.includes(input.entity_type) ? (roles ? HSE_WRITE_ROLES : HSE_READ_ROLES) : roles);
+  const hseRoles = roles ? HSE_WRITE_ROLES : HSE_READ_ROLES;
+  const allowedRoles = hseAttachmentTypes.includes(input.entity_type) && roles !== DELETE_ROLES ? hseRoles : roles;
+  await requireRole(db, siteId, user, allowedRoles);
   await requireModule(db, siteId, user, attachmentModules[input.entity_type]);
   // The POST contract derives site_id; an optional explicit scope must agree.
   if (input.site_id !== undefined && attachmentId(input.site_id, 'site_id') !== siteId) {
@@ -833,10 +837,10 @@ export async function getAttachment(db, id, user, storage = new S3Storage()) {
 
 export async function deleteAttachment(db, id, user, storage = new S3Storage()) {
   await db.transaction(async tx => {
-    let row = await attachmentRecord(tx, id, user, EDIT_ROLES);
+    let row = await attachmentRecord(tx, id, user, DELETE_ROLES);
     if (row.entity_type === 'task') {
       await tx.run('UPDATE tasks SET id = id WHERE id = ?', row.entity_id);
-      row = await attachmentRecord(tx, id, user, EDIT_ROLES);
+      row = await attachmentRecord(tx, id, user, DELETE_ROLES);
       if (await tx.get('SELECT id FROM tasks WHERE acceptance_document_id = ?', row.id)) {
         fail(409, 'This attachment is referenced by a formal acceptance.', 'TASK_ACCEPTANCE_DOCUMENT_IN_USE');
       }

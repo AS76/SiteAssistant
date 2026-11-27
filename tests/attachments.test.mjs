@@ -250,6 +250,57 @@ test('attachment HTTP routes enforce sessions/roles, stream bytes, list metadata
   t.assert.strictEqual(storage.objects.size, 0);
 });
 
+test('attachment deletion in a shared demo site requires an owner or editor', async t => {
+  const { db, site, other, users, cookies, storage, upload } = await fixture(t);
+  await db.run('UPDATE sites SET demo_sandbox = TRUE WHERE id = ?', site.id);
+  for (const visitor of [users.viewer, users.verifier]) {
+    await db.run('UPDATE users SET demo_sandbox = TRUE WHERE id = ?', visitor.id);
+    await db.run("UPDATE site_members SET role = 'demo_user' WHERE site_id = ? AND user_id = ?", site.id, visitor.id);
+  }
+  await db.run("INSERT INTO site_members VALUES (?, ?, 'editor')", other.id, users.outsider.id);
+
+  const server = createServer(db, { storage });
+  const readRow = id => db.get('SELECT * FROM attachments WHERE id = ?', id);
+  const remove = (id, cookie) => invoke(server, `/api/attachments/${id}`, { method: 'DELETE', cookie });
+  const assertDeleteDenied = async (t, id, cookie) => {
+    const row = await readRow(id);
+    const callsBefore = storage.calls.length;
+    const response = await remove(id, cookie);
+    t.assert.strictEqual(response.status, 403);
+    t.assert.strictEqual(response.body.code, 'FORBIDDEN');
+    t.assert.deepStrictEqual(await readRow(id), row);
+    t.assert.deepStrictEqual(storage.calls.slice(callsBefore), []);
+    t.assert.ok(storage.objects.has(row.storage_locator));
+  };
+
+  await t.test('demo visitor cannot delete their own attachment', async t => {
+    const file = await upload({}, users.viewer);
+    t.assert.strictEqual(file.uploaded_by, users.viewer.id);
+    await assertDeleteDenied(t, file.id, cookies.viewer);
+  });
+  await t.test('demo visitor cannot delete an attachment uploaded by another visitor', async t => {
+    const file = await upload({}, users.viewer);
+    await assertDeleteDenied(t, file.id, cookies.verifier);
+  });
+  await t.test('demo visitor cannot delete an HSE attachment', async t => {
+    const event = await createHseEvent(db, { siteId: site.id, type: 'observation', severity: 'low', occurredOn: '2026-11-01' }, users.editor);
+    const evidence = await upload({ entity_type: 'hse_event', entity_id: event.id }, users.viewer);
+    await assertDeleteDenied(t, evidence.id, cookies.viewer);
+  });
+  await t.test('editor from another site cannot delete the attachment', async t => {
+    const file = await upload({}, users.viewer);
+    await assertDeleteDenied(t, file.id, cookies.outsider);
+  });
+  await t.test('site editor can delete the attachment', async t => {
+    const file = await upload({}, users.viewer);
+    const row = await readRow(file.id);
+    t.assert.strictEqual((await remove(file.id, cookies.editor)).status, 204);
+    t.assert.strictEqual(await readRow(file.id), undefined);
+    t.assert.deepStrictEqual(storage.calls.at(-1), ['delete', row.storage_locator]);
+    t.assert.strictEqual(storage.objects.has(row.storage_locator), false);
+  });
+});
+
 test('attachment HTTP validates input and accepts JSON above the ordinary 64 KiB ceiling', async t => {
   const { db, other, cookies, storage, input } = await fixture(t);
   const server = createServer(db, { storage });
