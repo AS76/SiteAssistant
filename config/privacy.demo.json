@@ -1,4 +1,11 @@
 {
+  "notice": {
+    "state": "example",
+    "version": "0.1-example",
+    "approvedBy": "",
+    "approvedAt": "",
+    "reviewRef": ""
+  },
   "updatedAt": "2026-11-25",
   "operator": {
     "name": "Demo Operator (synthetic)",
@@ -6,45 +13,61 @@
     "privacyEmail": "privacy@example.invalid",
     "dpo": ""
   },
+  "purposes": [
+    { "purpose": "Manage a fictional account", "legalBasis": "Synthetic contract example" },
+    { "purpose": "Protect a fictional account", "legalBasis": "Synthetic legitimate interest example" }
+  ],
   "legalBases": [
     "Art. 6(1)(b) GDPR — esecuzione del contratto o misure precontrattuali: creazione e gestione dell’account, autenticazione, email transazionali, preferenze necessarie al servizio.",
     "Art. 6(1)(f) GDPR — legittimo interesse: sicurezza, prevenzione di abusi, integrità operativa e log tecnici nella misura necessaria, con bilanciamento rispetto ai diritti degli interessati.",
     "Art. 6(1)(c) GDPR — obbligo legale: solo quando e nella misura in cui un obbligo specifico sia applicabile al titolare; non è usato come base generale.",
     "Assistente AI — valutazione specifica da completare prima dell’attivazione: la base dipende dalla finalità e dal contesto; non viene usato un consenso generico e l’accettazione dell’informativa non costituisce consenso."
   ],
+  "rights": "Synthetic rights section for the example installation.",
+  "complaintAuthority": "Fictional supervisory authority",
   "services": [
     {
       "name": "Railway",
       "purpose": "Hosting dell’applicazione e database PostgreSQL della demo",
-      "location": "Regione dichiarata ams (Europa); contratto, subfornitori e trasferimenti da verificare"
+      "role": "Example processor",
+      "location": "Regione dichiarata ams (Europa); contratto, subfornitori e trasferimenti da verificare",
+      "transfer": "None declared (synthetic example)"
     },
     {
       "name": "Hostinger / relay SMTP",
       "purpose": "Invio delle email transazionali di accesso, benvenuto e reset",
-      "location": "Localizzazione e contratto da verificare"
+      "role": "Example processor",
+      "location": "Localizzazione e contratto da verificare",
+      "transfer": "None declared (synthetic example)"
     },
     {
       "name": "OpenRouter / Together",
       "purpose": "Assistente AI, se configurato; provider e modello soggetti a policy ZDR e senza addestramento nella configurazione della demo",
-      "location": "Endpoint e paese effettivo da verificare; possibile trasferimento fuori dallo SEE"
+      "role": "Example processor",
+      "location": "Endpoint e paese effettivo da verificare; possibile trasferimento fuori dallo SEE",
+      "transfer": "Fictional transfer outside the EEA (synthetic example)"
     },
     {
       "name": "Nominatim / OpenStreetMap; Google Maps se configurato",
       "purpose": "Ricerca indirizzi, quando usata",
-      "location": "Servizio esterno; localizzazione e garanzie da verificare"
+      "role": "Example recipient",
+      "location": "Servizio esterno; localizzazione e garanzie da verificare",
+      "transfer": "None declared (synthetic example)"
     },
     {
       "name": "GitHub Pages",
       "purpose": "Pubblicazione della manualistica; non riceve dati operativi dell’account",
-      "location": "Globale"
+      "role": "Example recipient",
+      "location": "Globale",
+      "transfer": "None declared (synthetic example)"
     }
   ],
   "retention": {
-    "activeSessions": "7 giorni",
-    "expiredSessions": "30 giorni dalla scadenza o revoca",
-    "authEvents": "90 giorni (baseline; cancellazione privilegiata non ancora attiva)",
-    "signupRequests": "30 giorni dalla conclusione",
-    "applicationLogs": "30 giorni, se gestiti dall’hosting",
-    "backups": "secondo la configurazione dell’hosting; retention da confermare"
+    "activeSessions": { "period": "7 giorni", "basis": "Synthetic session lifetime" },
+    "expiredSessions": { "period": "30 giorni dalla scadenza o revoca", "basis": "Synthetic security window" },
+    "authEvents": { "period": "90 giorni (baseline; cancellazione privilegiata non ancora attiva)", "basis": "Synthetic audit window" },
+    "signupRequests": { "period": "30 giorni dalla conclusione", "basis": "Synthetic account review window" },
+    "applicationLogs": { "period": "30 giorni, se gestiti dall’hosting", "basis": "Synthetic diagnostics window" },
+    "backups": { "period": "secondo la configurazione dell’hosting; retention da confermare", "basis": "Synthetic recovery window" }
   }
 }

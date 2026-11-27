@@ -1,31 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadPrivacyConfig, renderPrivacyPage, renderCookiePage, languageFromRequest } from '../server/privacy.mjs';
 
 const base = {
-  updatedAt: '2026-11-25',
-  operator: { name: 'Synthetic Operator', address: 'Synthetic address', privacyEmail: 'privacy@example.invalid', dpo: '' },
-  legalBases: ['Synthetic legal basis for tests'],
-  services: [],
-  retention: {},
+  ...JSON.parse(await readFile(new URL('../config/privacy.demo.json', import.meta.url), 'utf8')),
+  notice: { state: 'approved', version: '1.0', approvedBy: 'Synthetic reviewer', approvedAt: '2026-11-25', reviewRef: 'TEST-1' },
+  operator: { name: 'Synthetic Operator', address: 'Synthetic address', privacyEmail: 'privacy@controller.test', dpo: '' },
 };
 
-test('privacy configuration fails closed until operator and legal basis are supplied', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'siteassistant-privacy-')), path = join(directory, 'privacy.json');
-  await writeFile(path, JSON.stringify({ ...base, operator: { ...base.operator, name: '' } }));
-  const config = loadPrivacyConfig({ env: { PRIVACY_CONFIG_FILE: path } });
+async function loadFixture(t, data) {
+  const directory = await mkdtemp(join(tmpdir(), 'siteassistant-privacy-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, 'privacy.json');
+  await writeFile(path, JSON.stringify(data));
+  return loadPrivacyConfig({ env: { PRIVACY_CONFIG_FILE: path } });
+}
+
+test('privacy configuration fails closed until operator and legal basis are supplied', async t => {
+  const config = await loadFixture(t, { ...base, operator: { ...base.operator, name: '' } });
   assert.equal(config.configured, false);
   assert.match(renderPrivacyPage(config, 'it'), /Informative non configurate/);
   assert.match(renderCookiePage(config, 'en'), /Notices not configured/);
 });
 
-test('privacy and cookie pages render both languages and carry the update date', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'siteassistant-privacy-')), path = join(directory, 'privacy.json');
-  await writeFile(path, JSON.stringify(base));
-  const config = loadPrivacyConfig({ env: { PRIVACY_CONFIG_FILE: path } });
+test('privacy and cookie pages render both languages and carry the update date', async t => {
+  const config = await loadFixture(t, base);
   assert.equal(config.configured, true);
   for (const language of ['it', 'en']) {
     const privacy = renderPrivacyPage(config, language);
