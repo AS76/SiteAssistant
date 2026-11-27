@@ -53,6 +53,18 @@ Il database applicativo è **SQLite per impostazione predefinita**, con PostgreS
 
 Il soggetto che effettua l'installazione deve censire i fornitori effettivi, localizzazioni, contratti, accessi e trasferimenti. La configurazione della demo pubblica non è una configurazione obbligatoria per le altre installazioni.
 
+## Stato dell'informativa
+
+Il testo delle pagine informative non è scritto nel codice: dipende da una configurazione che l'organizzazione fornisce all'installazione, nel file indicato da `PRIVACY_CONFIG_FILE` e tenuto fuori dal repository.
+
+La configurazione dichiara uno stato, e lo stato decide che cosa il sito può mostrare.
+
+- **Esempio** (`example`): configurazione assente o incompleta. Le pagine informative non vengono pubblicate: la risposta è `503` e la pagina elenca i nomi dei campi mancanti, mai i valori.
+- **In revisione legale** (`pending-legal-review`): la configurazione è completa, ma nessuno l'ha ancora approvata. L'informativa è leggibile, con un avviso permanente che la dichiara non definitiva, ed è esclusa dai motori di ricerca.
+- **Approvata** (`approved`): richiede chi ha approvato, quando e il riferimento della revisione. Solo in questo stato l'informativa è presentata come definitiva, con versione e data di aggiornamento.
+
+Una configurazione che si dichiara approvata senza quei tre riferimenti viene trattata come in revisione: il sistema non può attribuirsi un'approvazione che nessuno ha dato. Lo stato non si modifica dall'interfaccia né con un parametro della richiesta.
+
 ## Capacità del prodotto e obblighi dell'organizzazione
 
 I ruoli per cantiere e i permessi per modulo sono strumenti utili, ma **non sostituiscono** la verifica delle autorizzazioni per finalità e categoria di dato. Il ruolo `owner` può accedere a **tutti i moduli del proprio cantiere**, indipendentemente dagli interruttori di accesso ai moduli; questi ultimi non restringono l'owner. Nella versione esaminata non esistono permessi a livello di singolo campo né un sistema completo di workflow per le richieste privacy degli interessati.
