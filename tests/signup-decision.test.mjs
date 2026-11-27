@@ -85,6 +85,23 @@ for (const driver of ['sqlite', 'pg']) {
     t.assert.strictEqual(mail.length, 1);
   });
 
+  test(`a mailer failure leaves no orphan account and keeps the request pending (${driver})`, async t => {
+    const { db, token } = await fixture(t, driver);
+    await createSite(db, { code: 'SANDBOX', name: 'Synthetic sandbox' }, { demoSandbox: true });
+    const failing = async () => { throw new Error('synthetic transport failure'); };
+
+    await t.assert.rejects(() => decideSignup(db, token, 'approve', { mailer: failing, demoSandbox: true }), {
+      code: 'MAIL_UNAVAILABLE',
+    });
+
+    t.assert.deepStrictEqual(await db.all('SELECT id FROM users'), []);
+    t.assert.deepStrictEqual(await db.all('SELECT user_id FROM site_members'), []);
+    t.assert.deepStrictEqual(await db.all("SELECT id FROM auth_events WHERE event = 'signup.approved'"), []);
+    const request = await db.get('SELECT status, decided_at FROM signup_requests WHERE email = ?', email);
+    t.assert.strictEqual(request.status, 'pending');
+    t.assert.strictEqual(request.decided_at, null);
+  });
+
   test(`a second signup decision returns LINK_EXPIRED without duplicate effects (${driver})`, async t => {
     const { db, token, mail, mailer } = await fixture(t, driver);
     await createSite(db, { code: 'SANDBOX', name: 'Synthetic sandbox' }, { demoSandbox: true });
