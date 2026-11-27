@@ -9,8 +9,8 @@ import { createTask, createAttachment, listAttachments, deleteAttachment } from 
 import { MemoryObjectStorage } from './helpers/object-storage.mjs';
 import { assertUpgrade, versions as expectedVersions } from './helpers/migrations.mjs';
 
-// Le prove di aggiornamento partono da uno schema vecchio: il sito si inserisce con le sole colonne
-// che esistevano allora, senza passare dal repository, che conosce lo schema attuale.
+// Upgrade tests start from an old schema: the site is inserted with only the columns
+// that existed at the time, without going through the repository, which knows the current schema.
 const legacySite = async (db, code, name) => {
   const id = randomUUID();
   await db.run('INSERT INTO sites (id, code, name, created_at) VALUES (?, ?, ?, ?)',

@@ -175,7 +175,7 @@ test('CLI applies pending migrations normally and retains earlier ledger rows an
     await applyMigration(db, file, { driver: 'sqlite' });
     await db.run('INSERT INTO schema_migrations VALUES (?, ?)', file.slice(0, 3), '2026-01-01T00:00:00.000Z');
   }
-  // Schema fermo alla penultima migrazione: il sito si inserisce con le colonne di allora.
+  // Schema pinned to the penultimate migration: the site is inserted with the columns of that time.
   await db.run('INSERT INTO sites (id, code, name, created_at) VALUES (?, ?, ?, ?)',
     randomUUID(), 'SYNTH', 'Synthetic site', new Date().toISOString());
   const before = await db.all('SELECT * FROM schema_migrations ORDER BY version');

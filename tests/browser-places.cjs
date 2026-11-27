@@ -1,6 +1,6 @@
-// Verifica browser della schermata Luoghi (incremento 2a).
-// Stesso bootstrap di tests/browser-c03.cjs: server in memoria, fixtures demo,
-// guscio dell'app servito dal disco con allowlist esplicita.
+// Browser check of the Places screen (increment 2a).
+// Same bootstrap as tests/browser-c03.cjs: in-memory server, demo fixtures,
+// app shell served from disk with an explicit allowlist.
 // Uso: NODE_PATH=<deps> node tests/browser-places.cjs
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
@@ -76,8 +76,8 @@ async function main() {
       const { page, context, errors } = await openSession(env, viewport);
       try {
         await signIn(page, 'owner', env.site);
-        // Nessun seed crea luoghi: li creo via API con la sessione reale,
-        // altrimenti la vista mostrerebbe solo lo stato vuoto.
+        // No seed creates places: I create them through the API with the real session,
+        // otherwise the view would show only the empty state.
         const created = await page.evaluate(async siteId => {
           const existing = await fetch(`/api/places?siteId=${siteId}`).then(response => response.json());
           if (Array.isArray(existing) && existing.length) return ['skip', 'skip', 'skip'];
