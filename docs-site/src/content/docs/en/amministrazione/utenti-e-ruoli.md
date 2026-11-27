@@ -40,10 +40,11 @@ Diary actions require access to the **Diary** module. An author can still correc
 
 ## How an account is created
 
-An account can be created in two ways:
+An account can be created in three ways:
 
 1. **Self-service request.** From the sign-in form anyone can press **Request access** and enter their email; an owner approves it and the user receives a temporary password (see [Sign in and account](../../guida/accesso/)).
-2. **Administrator creation.** Whoever manages the server can create accounts and immediately assign them to a site with the `create-user` CLI:
+2. **Email invitation.** Someone with `invitations.manage` sends a single-use link. The account starts with zero sites by default. A site owner can assign a role later or include it in the invitation if they also have invitation permission.
+3. **Administrator creation.** Whoever manages the server can create accounts and immediately assign them to a site with the `create-user` CLI:
 
 ```sh
 npm run create-user -- \
@@ -65,6 +66,26 @@ Main rules:
 Capabilities marked **API only** are used by calling the endpoints described in [REST API](../../riferimento/api/).
 
 The import from the interface is described in [Import a planning export](../import-pianificazione/). Cost impact transitions and closure with a result are also available in the impact detail.
+
+## Sending and revoking invitations
+
+Accounts start without `invitations.manage`. It allows invitation administration. Site roles and access come from membership. Server operators grant and revoke the permission through the CLI.
+
+```sh
+npm run admin -- grant invitations.manage operator@example.invalid
+npm run admin -- revoke invitations.manage operator@example.invalid
+```
+
+Send the invitation with `POST /api/admin/invitations` and choose `locale: "it"` or `"en"`. The link expires after **72 hours**. Use `POST /api/admin/invitations/{id}/revoke` to invalidate it before activation. See the [REST API](../../riferimento/api/#authentication-and-account).
+
+```sh
+npm run invitations -- list
+npm run invitations -- retry <id|email>
+npm run invitations -- reissue <id|email>
+npm run invitations -- revoke <id|email>
+```
+
+`list` shows unused, unrevoked and unexpired invitations. `retry` retries a failed delivery with a fresh link for the same invitation. `reissue` revokes the outstanding invitation and creates another with a fresh 72-hour window. Use it when sending was interrupted and the status stays `pending`. `revoke` invalidates the link. Configure the mail service and the HTTPS public URL (`PUBLIC_URL`) before sending through the CLI.
 
 ## Managing members
 

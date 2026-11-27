@@ -1,11 +1,13 @@
 import test from 'node:test';
 import { createServer } from '../server/http.mjs';
 import { createUser } from '../server/create-user.mjs';
+import { createSite, createTask } from '../server/repository.mjs';
 import { tokenHash, verifyPassword, login, createLoginLimiter } from '../server/auth.mjs';
 import { DECISION_TTL } from '../server/signup.mjs';
 import { createSmtpMailer, MailNotConfiguredError } from '../server/auth-mail.mjs';
 import { openTestDb, isPg } from './helpers/db.mjs';
 import { requestListener } from './helpers/auth.mjs';
+import { withDemoEnvironment } from './helpers/demo-seed.mjs';
 
 const email = 'applicant@example.invalid';
 const ownerEmail = 'owner@example.invalid';
@@ -79,7 +81,9 @@ test('request stores only a decision hash, sends one review link, normalizes and
 });
 
 test('approval creates a login-capable temporary password, exposes me flag and consumes the token for GET and POST', async t => {
-  const f = await fixture(t), urls = await signup(t, f);
+  const f = await fixture(t, { demoSandbox: false });
+  await createSite(f.db, { code: 'SANDBOX', name: 'Synthetic sandbox' }, { demoSandbox: true });
+  const urls = await signup(t, f);
   const approved = await f.decide(urls[0]);
   t.assert.strictEqual(approved.status, 200);
   assertDecisionHeaders(t, approved);
@@ -90,6 +94,10 @@ test('approval creates a login-capable temporary password, exposes me flag and c
   t.assert.ok(!approved.body.includes(urls[0].searchParams.get('token')));
   const row = await f.db.get('SELECT * FROM users WHERE email = ?', email);
   t.assert.strictEqual(Boolean(row.password_change_required), true);
+  t.assert.strictEqual(Boolean(row.demo_sandbox), false);
+  t.assert.deepStrictEqual(await f.db.all('SELECT * FROM site_members'), []);
+  const event = await f.db.get("SELECT detail_json FROM auth_events WHERE event = 'signup.approved'");
+  t.assert.deepStrictEqual(JSON.parse(event.detail_json), { sites_assigned: 0 });
   t.assert.strictEqual(f.mail[1].subject, 'Welcome to SiteAssistant');
   t.assert.match(f.mail[1].html, /<html lang="en">/);
   const password = temporary(f.mail[1]);
@@ -113,6 +121,64 @@ test('approval creates a login-capable temporary password, exposes me flag and c
   t.assert.strictEqual(rowAfter.status, 'approved');
   t.assert.ok(rowAfter.decided_at);
   t.assert.strictEqual(f.mail.length, 2);
+});
+
+test('demo approval grants sandbox memberships and enforces demo role privileges after password change', async t => {
+  const f = await withDemoEnvironment(() => fixture(t));
+  const site = await createSite(f.db, { code: 'SANDBOX-1', name: 'Synthetic sandbox' }, { demoSandbox: true });
+  const second = await createSite(f.db, { code: 'SANDBOX-2', name: 'Synthetic second sandbox' }, { demoSandbox: true });
+  const outside = await createSite(f.db, { code: 'PRIVATE', name: 'Synthetic private site' });
+  const privateTask = await createTask(f.db, {
+    siteId: outside.id, title: 'Synthetic private task', executor: 'Crew A', verifier: 'Crew B',
+  });
+  const [url] = await signup(t, f);
+  t.assert.strictEqual((await f.decide(url)).status, 200);
+  const user = await f.db.get('SELECT * FROM users WHERE email = ?', email);
+  t.assert.strictEqual(Boolean(user.demo_sandbox), true);
+  t.assert.strictEqual(Boolean(user.password_change_required), true);
+
+  t.assert.strictEqual((await f.decide(url)).status, 410);
+  t.assert.strictEqual(f.mail.length, 2);
+  const roles = await f.db.all('SELECT site_id, role FROM site_members WHERE user_id = ? ORDER BY site_id', user.id);
+  const sandboxIds = [site.id, second.id].sort();
+  t.assert.deepStrictEqual(roles.map(row => ({ ...row })), sandboxIds.map(site_id => ({ site_id, role: 'demo_user' })));
+  const events = await f.db.all("SELECT user_id, outcome, detail_json FROM auth_events WHERE event = 'signup.approved'");
+  t.assert.strictEqual(events.length, 1);
+  t.assert.strictEqual(events[0].user_id, user.id);
+  t.assert.strictEqual(events[0].outcome, 'success');
+  t.assert.deepStrictEqual(JSON.parse(events[0].detail_json), { sites_assigned: 2 });
+
+  const password = temporary(f.mail[1]);
+  const cookie = await f.login(password);
+  t.assert.strictEqual((await f.post('password', { current_password: password, new_password: newPassword }, cookie)).status, 200);
+  const sites = await f.request('/api/sites', { cookie });
+  t.assert.strictEqual(sites.status, 200);
+  t.assert.deepStrictEqual(sites.body.map(row => row.id).sort(), sandboxIds);
+  t.assert.deepStrictEqual((await f.request('/api/tasks', { cookie })).body, []);
+  t.assert.strictEqual((await f.request(`/api/tasks/${privateTask.id}`, { cookie })).status, 403);
+
+  const sitePath = `/api/sites/${site.id}`;
+  t.assert.strictEqual((await f.request(sitePath, { cookie, method: 'DELETE' })).status, 404);
+  t.assert.strictEqual((await f.request(sitePath, { cookie })).status, 200);
+  t.assert.strictEqual((await f.request(`${sitePath}/members`, {
+    cookie, method: 'POST', body: { user_id: user.id, role: 'owner' },
+  })).status, 403);
+  t.assert.strictEqual((await f.request(sitePath, { cookie, method: 'PATCH', body: { jurisdiction: 'UK' } })).status, 403);
+});
+
+test('demo approval leaves existing accounts and memberships intact if the email was provisioned while pending', async t => {
+  const f = await fixture(t, { demoSandbox: true });
+  const site = await createSite(f.db, { code: 'SANDBOX', name: 'Synthetic sandbox' }, { demoSandbox: true });
+  const second = await createSite(f.db, { code: 'SANDBOX-2', name: 'Synthetic second sandbox' }, { demoSandbox: true });
+  const [url] = await signup(t, f);
+  const user = await createUser(f.db, { email, name: 'Synthetic owner', password: oldPassword, siteCode: site.code, role: 'owner' });
+  await f.db.run("INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'demo_user')", second.id, user.id);
+  const before = await f.db.get('SELECT * FROM users WHERE id = ?', user.id);
+  const roles = await f.db.all('SELECT * FROM site_members ORDER BY site_id');
+  t.assert.strictEqual((await f.decide(url)).status, 410);
+  t.assert.deepStrictEqual(await f.db.get('SELECT * FROM users WHERE id = ?', user.id), before);
+  t.assert.deepStrictEqual(await f.db.all('SELECT * FROM site_members ORDER BY site_id'), roles);
+  t.assert.strictEqual(f.mail.length, 1);
 });
 
 test('signup validates the language and uses the saved language for the welcome email', async t => {
@@ -289,7 +355,7 @@ test('forgot changes the password and revokes sessions only after one successful
   t.assert.strictEqual((await f.post('login', { email, password: oldPassword })).status, 401);
   const cookie = await f.login(newPassword);
   t.assert.strictEqual((await f.request('/api/auth/me', { cookie })).body.password_change_required, false);
-  const events = await f.db.all('SELECT event, outcome, detail_json FROM auth_events ORDER BY created_at');
+  const events = await f.db.all("SELECT event, outcome, detail_json FROM auth_events WHERE event LIKE 'password_reset.%' ORDER BY created_at");
   t.assert.deepStrictEqual(events.map(event => event.event), ['password_reset.requested', 'password_reset.completed']);
   t.assert.ok(events.every(event => event.outcome === 'success' && event.detail_json === '{}'));
 });
@@ -364,7 +430,10 @@ test('missing SMTP configuration returns uniform 503 and persists nothing', asyn
 test('mail failure rolls back request, approval and password reset, permitting a retry', async t => {
   let fail = false;
   const mail = [];
-  const f = await fixture(t, { mailer: async message => { if (fail) throw new MailNotConfiguredError(); mail.push(message); } });
+  const f = await fixture(t, {
+    demoSandbox: true, mailer: async message => { if (fail) throw new MailNotConfiguredError(); mail.push(message); },
+  });
+  await createSite(f.db, { code: 'SANDBOX', name: 'Synthetic sandbox' }, { demoSandbox: true });
   fail = true;
   t.assert.strictEqual((await f.post('request', { email })).status, 503);
   t.assert.deepStrictEqual(await f.db.all('SELECT * FROM signup_requests'), []);
@@ -373,24 +442,28 @@ test('mail failure rolls back request, approval and password reset, permitting a
   t.assert.strictEqual((await f.decide(url)).status, 503);
   t.assert.strictEqual((await f.db.get('SELECT status FROM signup_requests')).status, 'pending');
   t.assert.deepStrictEqual(await f.db.all('SELECT * FROM users'), []);
+  t.assert.deepStrictEqual(await f.db.all('SELECT * FROM site_members'), []);
+  t.assert.deepStrictEqual(await f.db.all("SELECT * FROM auth_events WHERE event = 'signup.approved'"), []);
   fail = false; t.assert.strictEqual((await f.decide(url)).status, 200);
+  t.assert.strictEqual((await f.db.all('SELECT * FROM site_members')).length, 1);
   const cookie = await f.login(temporary(mail[1]));
   const before = await f.db.get('SELECT * FROM users');
   fail = true; t.assert.strictEqual((await f.post('forgot', { email })).status, 503);
   t.assert.deepStrictEqual(await f.db.all('SELECT * FROM password_resets'), []);
-  t.assert.deepStrictEqual(await f.db.all('SELECT * FROM auth_events'), []);
+  t.assert.deepStrictEqual(await f.db.all("SELECT * FROM auth_events WHERE event LIKE 'password_reset.%'"), []);
   t.assert.deepStrictEqual(await f.db.get('SELECT * FROM users'), before);
   t.assert.strictEqual((await f.request('/api/auth/me', { cookie })).status, 200);
 });
 
 
 test('a login already verifying an old password cannot create a session after reset', async t => {
-  const f = await fixture(t); await f.user();
+  const f = await fixture(t); const user = await f.user();
   let release, captured;
   const gate = new Promise(resolve => { release = resolve; });
   const ready = new Promise(resolve => { captured = resolve; });
   const pending = login({
     get: async (...args) => { const row = await f.db.get(...args); captured(); await gate; return row; },
+    run: (...args) => f.db.run(...args),
     transaction: fn => f.db.transaction(fn),
   }, { email, password: oldPassword }, { limiter: createLoginLimiter() });
   // Attach the rejection assertion before releasing the paused login.
@@ -400,4 +473,7 @@ test('a login already verifying an old password cannot create a session after re
   t.assert.strictEqual((await f.confirm(links(f.mail.at(-1))[0])).status, 200);
   release(); await rejected;
   t.assert.deepStrictEqual(await f.db.all('SELECT * FROM sessions'), []);
+  const failure = await f.db.get("SELECT user_id, detail_json FROM auth_events WHERE event = 'login.failure'");
+  t.assert.strictEqual(failure.user_id, user.id);
+  t.assert.strictEqual(JSON.parse(failure.detail_json).reason, 'invalid_credentials');
 });

@@ -67,7 +67,8 @@ async function templateForSite(db, code, siteId) {
 
 function withTemplate(row) {
   const template = findTemplate(row.template_code);
-  return { ...row, templateTitle: template?.title ?? null, jurisdiction: template?.jurisdiction ?? null };
+  return { ...row, templateTitle: template?.title ?? null, jurisdiction: template?.jurisdiction ?? null,
+    frequencyVerified: template?.frequency_verified ?? false };
 }
 
 async function findAsset(db, id) {

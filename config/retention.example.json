@@ -1,0 +1,8 @@
+{
+  "note": "Proposal only. The cleanup script is manual, dry-run by default and has no scheduler.",
+  "expiredSessionsDays": 30,
+  "authEventsDays": 90,
+  "signupRequestsDays": 30,
+  "applicationLogsDays": 30,
+  "backupsDays": 30
+}

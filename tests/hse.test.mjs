@@ -84,7 +84,7 @@ for (const driver of ['sqlite', 'pg']) test(`HSE register ${driver}`, async t =>
     for (const input of [null, [], 'event']) await t.assert.rejects(() => createHseEvent(db, input, users.owner), error(400));
   });
 
-  await t.test('inspection events expose their inspection and asset identifiers; manual events expose nulls', async t => {
+  await t.test('historically linked events expose inspection and asset identifiers; manual events expose nulls', async t => {
     const f = await fixture(), template = findTemplate('it_lifting');
     const asset = await createHseAsset(db, {
       siteId: f.site.id, name: 'Synthetic inspection subject', templateCode: template.code,
@@ -95,7 +95,11 @@ for (const driver of ['sqlite', 'pg']) test(`HSE register ${driver}`, async t =>
         performedBy: 'Example inspector', mode, outcome: 'pass',
         items: template.items.map(({ code }) => ({ code, result: 'ok' })),
       }, users.editor);
-      const event = (await f.list()).find(row => row.id === inspection.hse_event_id);
+      const eventId = randomUUID(), at = '2026-11-10T12:00:00Z';
+      await db.run(`INSERT INTO hse_events (id, site_id, type, severity, occurred_on, created_at, updated_at)
+        VALUES (?, ?, ?, 'low', ?, ?, ?)`, eventId, f.site.id, mode === 'internal' ? 'inspection' : 'external_visit', '2026-11-10', at, at);
+      await db.run('UPDATE hse_inspections SET hse_event_id = ? WHERE id = ?', eventId, inspection.id);
+      const event = (await f.list()).find(row => row.id === eventId);
       t.assert.strictEqual(event.inspection_id, inspection.id);
       t.assert.strictEqual(event.asset_id, asset.id);
     }

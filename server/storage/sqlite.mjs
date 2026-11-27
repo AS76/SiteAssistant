@@ -6,8 +6,8 @@ export class SqliteStorage {
   #executor;
   #pending = Promise.resolve();
 
-  constructor(path) {
-    this.#db = new DatabaseSync(path);
+  constructor(path, { readOnly = false } = {}) {
+    this.#db = new DatabaseSync(path, { readOnly });
     this.#executor = {
       all: async (sql, ...params) => this.#db.prepare(sql).all(...params),
       get: async (sql, ...params) => this.#db.prepare(sql).get(...params),

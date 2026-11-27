@@ -1,12 +1,13 @@
 import { HSE_READ_ROLES, HSE_WRITE_ROLES } from './hse-permissions.mjs';
 
 // Display precision only: imported values and calculations retain their original precision.
-export function formatDisplayNumber(value, { kind = 'number', language = 'it', currency = 'EUR', signed = false } = {}) {
+export function formatDisplayNumber(value, {
+  kind = 'number', language = 'it', currency = 'EUR', currencyDisplay, maximumFractionDigits, roundingMode, signed = false,
+} = {}) {
   if (value == null || value === '') return '—';
   const digits = { money: 2, hours: 1, count: 0 }[kind];
-  const options = digits == null ? { minimumFractionDigits: 0, maximumFractionDigits: 4 }
-    : { minimumFractionDigits: digits, maximumFractionDigits: digits };
-  if (kind === 'money') Object.assign(options, { style: 'currency', currency });
+  const options = { minimumFractionDigits: digits ?? 0, maximumFractionDigits: maximumFractionDigits ?? digits ?? 4, roundingMode };
+  if (kind === 'money') Object.assign(options, { style: 'currency', currency, currencyDisplay });
   if (signed) options.signDisplay = 'always';
   return new Intl.NumberFormat(language === 'it' ? 'it-IT' : 'en-GB', { ...options, useGrouping: 'always' }).format(Number(value));
 }
@@ -193,7 +194,7 @@ export function counts(tasks, referenceDate = today()) {
     blocked: tasks.filter(task => task.status === 'blocked').length };
 }
 
-const APP_VIEWS = ['today', 'overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'report', 'reporting', 'workforce_presence'];
+const APP_VIEWS = ['today', 'overview', 'sites', 'tasks', 'wbs', 'places', 'assets', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'report', 'reporting', 'workforce_presence'];
 export function initialView({ width, hash = '' }) {
   if (!hash) return width < 800 ? 'today' : 'overview';
   const name = hash.replace(/^#/, '');
@@ -304,12 +305,12 @@ export const TOOL_STATUS_LABELS = Object.freeze({
 });
 const NAV_GROUPS = Object.freeze([
   Object.freeze({ label: 'navOperations', items: Object.freeze(['overview', 'tasks', 'deviations', 'diary']) }),
-  Object.freeze({ label: 'navSite', items: Object.freeze(['progress', 'bookings', 'workforce_presence', 'wbs', 'impacts']) }),
+  Object.freeze({ label: 'navSite', items: Object.freeze(['progress', 'bookings', 'workforce_presence', 'wbs', 'places', 'assets', 'impacts']) }),
   Object.freeze({ label: 'navManagement', items: Object.freeze(['sites', 'tools', 'certifications', 'hse', 'logistics', 'reporting']) }),
 ]);
 const strictModules = new Set(['logistics', 'workforce_names', 'workforce_presence']);
 export function visibleModules(items, modules = {}) {
-  return items.filter(module => ['sites', 'overview', 'today'].includes(module) ||
+  return items.filter(module => ['sites', 'overview', 'today', 'places', 'assets'].includes(module) ||
     (strictModules.has(module) ? modules[module] === true || modules[module] === 1 : modules[module] !== false));
 }
 export function navGroups(modules = {}) {
@@ -349,13 +350,12 @@ export function impactTransitions(status) {
   return [...({ open: ['notification_sent', 'closed'], notification_sent: ['submitted'], submitted: ['closed'], closed: [] }[status] || [])];
 }
 export function corePermissions(role) {
-  return { book: ['editor', 'owner'].includes(role), transition: ['owner', 'verifier'].includes(role),
-    steps: ['editor', 'owner'].includes(role), assign: role === 'owner',
-    tools: ['owner', 'editor', 'verifier'].includes(role),
-    certifications: ['owner', 'editor', 'verifier'].includes(role),
-    certificationWrite: ['owner', 'editor'].includes(role),
-    hse: HSE_READ_ROLES.includes(role),
-    hseWrite: HSE_WRITE_ROLES.includes(role) };
+  const edit = ['editor', 'owner', 'demo_user'].includes(role);
+  const write = edit || role === 'verifier';
+  return { book: edit, transition: ['owner', 'verifier', 'demo_user'].includes(role),
+    steps: edit, assign: ['owner', 'demo_user'].includes(role),
+    tools: write, certifications: write, certificationWrite: edit,
+    hse: HSE_READ_ROLES.includes(role), hseWrite: HSE_WRITE_ROLES.includes(role) };
 }
 export const HSE_TYPES = Object.freeze(['near_miss', 'accident', 'observation', 'inspection', 'external_visit']);
 // What a person can type by hand: the other two come from the inspection flow.
@@ -502,9 +502,21 @@ export function inspectionModeLabelKey(mode) {
 export function inspectionItemResultLabelKey(result) {
   return ['ok', 'not_ok', 'na'].includes(result) ? `inspectionItemResult_${result}` : 'coreUnknown';
 }
-export function inspectionSuggestion(items = [], current = 'pass', touched = false) {
-  if (touched) return current;
-  return items.some(item => item.result === 'not_ok') ? 'pass_with_notes' : 'pass';
+export function inspectionSuggestion(items = []) {
+  const { missing } = inspectionProgress(items);
+  const reasons = missing.map(itemCode => ({ code: 'INSPECTION_ITEMS_INCOMPLETE', itemCode }));
+  if (!items.length) reasons.push({ code: 'INSPECTION_ITEMS_INCOMPLETE', itemCode: null });
+  for (const item of items) {
+    if (item.result === 'na' && !(typeof item.note === 'string' && item.note.trim())) {
+      reasons.push({ code: 'INSPECTION_NA_NOTE_REQUIRED', itemCode: item.code });
+    }
+    if (item.result === 'not_ok' && item.critical === true) {
+      reasons.push({ code: 'INSPECTION_CRITICAL_NOT_OK', itemCode: item.code });
+    }
+  }
+  if (reasons.some(reason => reason.code !== 'INSPECTION_CRITICAL_NOT_OK')) return { outcome: null, reasons };
+  if (reasons.length) return { outcome: 'fail', reasons };
+  return { outcome: items.some(item => item.result === 'not_ok') ? 'pass_with_notes' : 'pass', reasons };
 }
 export function inspectionProgress(items = []) {
   const missing = items.filter(item => !['ok', 'not_ok', 'na'].includes(item.result)).map(item => item.code);
@@ -515,7 +527,7 @@ export function inspectionPayload({ asset, siteId, fields, items }) {
     siteId, assetId: asset.id, performedOn: fields.performedOn, performedBy: fields.performedBy,
     performerRole: fields.performerRole ?? '', mode: fields.mode, outcome: fields.outcome, notes: fields.notes ?? '',
     items: items.map(item => ({ code: item.code, result: item.result,
-      ...(item.result === 'not_ok' ? { note: item.note ?? '' } : {}) })),
+      ...(['not_ok', 'na'].includes(item.result) ? { note: item.note ?? '' } : {}) })),
   };
 }
 export function inspectionTally(items = []) {

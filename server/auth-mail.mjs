@@ -10,6 +10,14 @@ export class MailDeliveryError extends Error {
   constructor() { super('Transactional email is temporarily unavailable.'); this.code = 'MAIL_UNAVAILABLE'; }
 }
 
+export async function deliver(mailer, message) {
+  try { await mailer(message); }
+  catch (error) {
+    if (error instanceof MailNotConfiguredError) throw error;
+    throw new MailDeliveryError();
+  }
+}
+
 const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // Read once; templates are pure functions of their arguments and this cached asset.
 let logo = '';
@@ -34,6 +42,17 @@ export function resetEmail({ resetUrl, language }) {
   return template('SiteAssistant password reset',
     `<p>This link expires in 30 minutes.</p><p><a href="${link}">Reset your password</a></p><p>Ignore this message if you did not request a reset.</p>`,
     `This link expires in 30 minutes: ${resetUrl}\nIgnore this message if you did not request a reset.`);
+}
+
+export function invitationEmail({ activationUrl, locale = 'en' }) {
+  const it = locale === 'it';
+  const subject = it ? 'Il tuo invito a SiteAssistant' : 'Your SiteAssistant invitation';
+  const expiry = it ? 'Il link di attivazione scade dopo 72 ore.' : 'The activation link expires after 72 hours.';
+  const password = it ? 'Scegli tu la password e nessuno te la chiederà via email.' : 'Choose your password. Nobody will ask for it by email.';
+  const action = it ? 'Attiva il tuo account' : 'Activate your account';
+  return template(subject,
+    `<p>${expiry}</p><p><a href="${escapeHtml(activationUrl)}">${action}</a></p><p>${password}</p>`,
+    `${subject}\n${expiry}\n${activationUrl}\n${password}`, it ? 'it' : 'en');
 }
 
 const mailbox = value => typeof value === 'string' && value.length <= 254 && /^[^\s@<>\x00-\x1f\x7f]+@[^\s@<>\x00-\x1f\x7f]+\.[^\s@<>\x00-\x1f\x7f]+$/.test(value);

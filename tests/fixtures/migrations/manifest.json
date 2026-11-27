@@ -1,0 +1,308 @@
+[
+  {
+    "version": "001",
+    "file": "001_init.sql",
+    "sqlite": "b5d49f1f61b37ae3d15ba4116d20067b12ca8a5aed4a2c0a04d90546d3b0ac21",
+    "pg": "057c2b4e3ba3b23b32670d07425c5cff50cd08820ebf04020d62628ee003b1a4"
+  },
+  {
+    "version": "002",
+    "file": "002_operational_day.sql",
+    "sqlite": "0a7ab95214010a340251f1d6209495cf3cf3c89dd4135f9c0dde90de1cb47e08",
+    "pg": "0a7ab95214010a340251f1d6209495cf3cf3c89dd4135f9c0dde90de1cb47e08"
+  },
+  {
+    "version": "003",
+    "file": "003_idempotency_keys.sql",
+    "sqlite": "28a4eb80b47bc2d98a595f34df86ef26cff422e651daf3158da787b6ca7d2e10",
+    "pg": "28a4eb80b47bc2d98a595f34df86ef26cff422e651daf3158da787b6ca7d2e10"
+  },
+  {
+    "version": "004",
+    "file": "004_physical_types.sql",
+    "sqlite": "d329878ff40710a05aaa5e199acc0eaf30d6460cc17ae0d3797a41d6ab8427e3",
+    "pg": "c9d1340a7ea5f2a5c556efb7160f3e5dc3a59ed8a6f28584feb118ffb75257e8"
+  },
+  {
+    "version": "005",
+    "file": "005_auth.sql",
+    "sqlite": "bc588c2795f7c2431bff5d0db1bb7b2ac0cea64999f05eb2454df44b4ab25e7c",
+    "pg": "ab201e6ddc0bce3ec9a89f35d7b7fc952af20f4da834330c9818dafba545f0c2"
+  },
+  {
+    "version": "006",
+    "file": "006_signup.sql",
+    "sqlite": "3ac9bf9335aaf138f225d210f6dc819bedaf74b4acf7dcdb8a0aee17197745aa",
+    "pg": "86b96288b21e5c8e0b041a9b2fb728f2308b0c043a0cd76a26356721beab1ef7"
+  },
+  {
+    "version": "007",
+    "file": "007_attachments.sql",
+    "sqlite": "c71c6bae4675dfa612dbb4b193ed1e88db4d82ddbb1bf6e8f1f8d3011613e702",
+    "pg": "f79fd07b76571ddedb8c3c06e942a29401f9e8fa9aafcb8e3423a6c98036d773"
+  },
+  {
+    "version": "008",
+    "file": "008_wbs.sql",
+    "sqlite": "41b754730d7c4c828798673c4cb8e6ae1cae02fadea02cb49e02b300c5caa783",
+    "pg": "597d6ae6cf34b7f333ece491b8c078c91bcf0b5ac069b82c378cb48e3c1ac3d6"
+  },
+  {
+    "version": "009",
+    "file": "009_employees_workdays.sql",
+    "sqlite": "43de32c65b367cfe6f48fd057a567f42083631ebd3492366d633213766472b96",
+    "pg": "1f49810f5c61137da1e4ef2391bba86469664af953a94d2fa57ff0eef4db6815"
+  },
+  {
+    "version": "010",
+    "file": "010_site_progress.sql",
+    "sqlite": "feae1182b9a1f62a36dc06b4dc4a96b9e2afa4d4362ef9f8fc8924d9d7b76518",
+    "pg": "c4099059496c3def003084b2f1c1d1f3f40702b545ad733424ff9f70b1bce78b"
+  },
+  {
+    "version": "011",
+    "file": "011_deviations.sql",
+    "sqlite": "0e8f1d630f9e7e688ce153f52c64fbe7087af4c0c3b03b03c82f7c073beeda06",
+    "pg": "b9020b7200e84b9893af52fb6ae26ab1e74519cbfcea138efd7d156c2a21c547"
+  },
+  {
+    "version": "012",
+    "file": "012_time_bookings.sql",
+    "sqlite": "a82ba9465e5a1ef87f0554ff29fb56263ef06869d94bb5c707f59ecdf667b7e7",
+    "pg": "3a1f78528fbf3972725804da35b30f6cd79b12bf6b9646211473e8191c3c94f7"
+  },
+  {
+    "version": "013",
+    "file": "013_cost_impacts.sql",
+    "sqlite": "41ca7fb46736311df736a6c16c8e6194a81e838b833f9399ab322a2d5a7b9dd4",
+    "pg": "3831fa7556e1f194357b06b00b9958bf995f446c30832e1c9c9d79c817e022e7"
+  },
+  {
+    "version": "014",
+    "file": "014_progress_types.sql",
+    "sqlite": "0e7e7caf5ef6bf4b129faaa252d7919f4e4b94cabfe7d78fca7921c899aed040",
+    "pg": "4f2187c05bd259210d2fa706fd5adf503287095791978111d0e3126701317a81"
+  },
+  {
+    "version": "015",
+    "file": "015_planning_import.sql",
+    "sqlite": "f5dbde179c7ace25579bc029298cd40e3636f631fd45235dceaa0acc1d6160e5",
+    "pg": "bf7fc4858e089a8680ad0ba3d2f56f07d5debfe14a6391d6c6f1983cbc10d83c"
+  },
+  {
+    "version": "016",
+    "file": "016_progress_history.sql",
+    "sqlite": "624daf8543219af082b3151d82e1b154c506446e92226b3e0f64a6f56c7d28d6",
+    "pg": "8c52514584263e8d8a99cace51e90a0f2cc0828599d6f3e331f355c565161990"
+  },
+  {
+    "version": "017",
+    "file": "017_view_settings.sql",
+    "sqlite": "81baf09b3057d370bdaa3c5054135878a75156d4c628348a7f77723bd94af722",
+    "pg": "927cf6635bd463eaac1bcba3e3695ebd0eed86a293fd7fc008720bfcce38f01e"
+  },
+  {
+    "version": "018",
+    "file": "018_tools.sql",
+    "sqlite": "7c08baea13c1534c63c211b20859054a9b89a3568165bbaaa100d766a0061c77",
+    "pg": "7c08baea13c1534c63c211b20859054a9b89a3568165bbaaa100d766a0061c77"
+  },
+  {
+    "version": "019",
+    "file": "019_certifications.sql",
+    "sqlite": "484ca8274fb1328f023ef63dbc94c63483e161a08bc6ee84f425ed9cd485a59a",
+    "pg": "d971f6242a001282ceb6614e5d1b95abef754241f8fd7f0e4a9a6f28124dfafc"
+  },
+  {
+    "version": "020",
+    "file": "020_import_mappings.sql",
+    "sqlite": "e368e0f37ef246eefee4679996572a5481c3cdbef19800ab03d23606db30abd4",
+    "pg": "d3861b523dd687a8daefcb2cb30280903011511ad1b90b5c138ed1de9c34522c"
+  },
+  {
+    "version": "021",
+    "file": "021_progress_planned_hours.sql",
+    "sqlite": "f398666c66a2d80f6d292944557af4a065a0a72c2780a6dde6bbc34ff777f8a8",
+    "pg": "f398666c66a2d80f6d292944557af4a065a0a72c2780a6dde6bbc34ff777f8a8"
+  },
+  {
+    "version": "022",
+    "file": "022_dashboard_layouts.sql",
+    "sqlite": "fd2a23b6baf9bb055830a73cda71fdc2a6d09b380d44b1717ec5fd3cc6e5be8d",
+    "pg": "773d57e58756ed806c657668d9161519067ad77a9eecd26202a48770ad5a60bb"
+  },
+  {
+    "version": "023",
+    "file": "023_member_module_access.sql",
+    "sqlite": "9c9729911db9e20fc44b58d6ba27426f965cdcf477c402a35c1b70fd0f2a2e8b",
+    "pg": "4418dcef6055f7f5b7eafd2a6b1de8bb0e092979684b77f30f375295f1aaaffa"
+  },
+  {
+    "version": "024",
+    "file": "024_hse_events.sql",
+    "sqlite": "35901dbe902bbdf0da48a800c7e55d3008b7a241c959a44275361477ec9f1398",
+    "pg": "a626942bbd770f9150311fab6e9d11d50e319583f52c4b09be17ddffcbc6cec5"
+  },
+  {
+    "version": "025",
+    "file": "025_audit_events.sql",
+    "sqlite": "2fc469d30bbb60fc4aebc883bbe5535d770a535635c750c77cb8782a638dec78",
+    "pg": "ff052c8093b1da6891078f429af769a3d959abe4dc8b9683be26edc2093c7125"
+  },
+  {
+    "version": "026",
+    "file": "026_audit_reads.sql",
+    "sqlite": "10bbf5ac5d44175d59d06169a0f71a9d08d7fb3b95d098c85d5f62dc8463142d",
+    "pg": "a89938bb4acdfcf348898830830b718df8466529579ff25f97eb2aa84828281a"
+  },
+  {
+    "version": "027",
+    "file": "027_attachments_hse_event.sql",
+    "sqlite": "b522b010cf4d536b6664b6b7072653eac0b6b805cb0459b5a262197c1742f5cb",
+    "pg": "e6aeb2ba950a119b38ca02bc9285ae5bdf9709f89de354ac4e6582a33666c9a1"
+  },
+  {
+    "version": "028",
+    "file": "028_site_jurisdiction.sql",
+    "sqlite": "cbba03b5ba7845fb85f2502b4ad02c756e323c1f407ad148853de27240faf8ff",
+    "pg": "91e2fec3e1e7f911eb9695323f12c5fb665a13662ea60b9003c88d952bf98c96"
+  },
+  {
+    "version": "029",
+    "file": "029_hse_assets.sql",
+    "sqlite": "a9975a2167ccc4df2d2dd9ee2a23c27a31d816feff6191feb582bdbcd63df8c0",
+    "pg": "878211023a5d6d005434bc6bfa37f059c1eda3150bd60b1ae0eaa7771737944e"
+  },
+  {
+    "version": "030",
+    "file": "030_hse_inspections.sql",
+    "sqlite": "7d77c4f8c198f2836c3edd347a37d20ce9020c2ee613d2d5b98f0227ff719dde",
+    "pg": "9d3c5769e7812a7507ec00ad585025e510cbf72a612d4d2dfacec092d60b28fa"
+  },
+  {
+    "version": "031",
+    "file": "031_attachments_hse_inspection.sql",
+    "sqlite": "faf86400f23dfb351ed78db8726424bd1eec93855506766b31aac6ba8a2970d2",
+    "pg": "4bf7186266b59a0a2b483b8b2a5945a542dd6b6a5a81f8ade49d6ec54ba40316"
+  },
+  {
+    "version": "032",
+    "file": "032_purchase_orders.sql",
+    "sqlite": "d0142497339127a4710b9a8887257ef5eccdc3d085a0b899ea7aaa3e2164e9d7",
+    "pg": "2c7d756e57738ce18bfaca7800097bb2a2bf7470e1769b40990b61fe577eca94"
+  },
+  {
+    "version": "033",
+    "file": "033_packages.sql",
+    "sqlite": "df509b929e36c08ac02ecb41015d35eeee9595156e9c137620c4adaeb3f86e62",
+    "pg": "55bb427f6ef89adbc68af19999ecea375ecf672400ad406bda3ac87e9731ec71"
+  },
+  {
+    "version": "034",
+    "file": "034_shipments.sql",
+    "sqlite": "30e4b04a8f82a39605a3fb8c20cf5c6158d5b3c5dea37537a543e3a8bc3d7a2e",
+    "pg": "7a178d4a648b2f6f77f35746a6534ce56d805428b044097aeb7067189fbc3c81"
+  },
+  {
+    "version": "035",
+    "file": "035_webauthn.sql",
+    "sqlite": "ec03d9976c25e4d8cf97e52cd1255481464aac4821ccf4f53f2a1a8caefe2643",
+    "pg": "4e873a77ded47faaee6ada5d75239f0023db3707a311f912960cea428374886d"
+  },
+  {
+    "version": "036",
+    "file": "036_wbs_operational.sql",
+    "sqlite": "098878a775f91fd8c3b557d160cec1859c85812e4c14ccd79a3ed7e60e5b18ec",
+    "pg": "933d6c2919ae24cac2eed82453eaabf93f1d2b9d0c09fa83a0097a2446dd2884"
+  },
+  {
+    "version": "037",
+    "file": "037_wbs_source_scope_backfill.sql",
+    "sqlite": "a9ad66c502d45c0b1295ee54fa40090e1cd889455e19f2814130fd531dc00799",
+    "pg": "2f8715ed1702ef5955c77e5e3e61a97a802b953e235f99a01e5fa627ca3a1c49"
+  },
+  {
+    "version": "038",
+    "file": "038_identity_evidence.sql",
+    "sqlite": "eb4255269d6c4ce03e7689eca488a082f7d45ad40dbc5dc646b5790832124999",
+    "pg": "7ef008f75e7d8631abf26b1043cb1706cc2bd6c0b97a9360e864a2d0c1431880"
+  },
+  {
+    "version": "040",
+    "file": "040_site_time_zone.sql",
+    "sqlite": "5d502d4032a4471cecdd6d5f6dcf40968b131e808f7e88800484adbc42c9f62f",
+    "pg": "7de40cd08fbcf5c8f293c93589e3d4fdb985bd9b5ba205080b7fce724288efc6"
+  },
+  {
+    "version": "045",
+    "file": "045_diary_versions.sql",
+    "sqlite": "9bb08e1e0ff47cf362e668d63c77c6dbd5ac4e2520bea6f22adf9ad184d93c64",
+    "pg": "43282c86a5a1c951f5da73d38c920c8cba37b4b1213383768e764d139f9016f3"
+  },
+  {
+    "version": "047",
+    "file": "047_site_assistant.sql",
+    "sqlite": "eb7fc2d9b62085684c5386edbbe73bd8174f1dd1696859ee80297c0b5f76ae84",
+    "pg": "0263245666df44ece9d7d24ad1ca83e1ef3c75413952397f7ea31284111e03f9"
+  },
+  {
+    "version": "048",
+    "file": "048_password_resets.sql",
+    "sqlite": "943584816dcf66c267bca6d8114e8bf21d9e0d4e986de7d85c4b75ba27d7b658",
+    "pg": "de5ecf1dd1668bd31ae61796bf481c5780286c44c5e823e9dec8c07f85657ed0"
+  },
+  {
+    "version": "049",
+    "file": "049_interface_language.sql",
+    "sqlite": "f2d0b04dcf54dbf738a20b25f32276458e299b5a697c261f4def62c2d97bf0d1",
+    "pg": "b0d9d3d340eec1ea4a701802408f2eda44274860fda1c2a2ff8be7ea80018ae6"
+  },
+  {
+    "version": "050",
+    "file": "050_invitations.sql",
+    "sqlite": "2e708d428943326d790b7f9834e310a789c18d8eba82d9d34b77c11230127cb3",
+    "pg": "0e758f3e310c6329d648fe1b27068a9a97b90e72197d1a94e45e340da0624f11"
+  },
+  {
+    "version": "051",
+    "file": "051_demo_user.sql",
+    "sqlite": "2b50048a3581c52dcb2a549e1cfeedaca51f86e39ff16b5c58858bd6b9706dbd",
+    "pg": "df636ec43dd109bf049ba0c160f4d000ac3ac58f052308e3da3e0af95c4d6ee6"
+  },
+  {
+    "version": "052",
+    "file": "052_auth_activity.sql",
+    "sqlite": "61d434b9ecf1c37de5a701f9bcedc8617bff2ef137c01d8cb39fdf4e1391672e",
+    "pg": "7c401ac6ee6eb99c6adbe28ec9090365b2fde57c656842a849ee05623d5f7df4"
+  },
+  {
+    "version": "053",
+    "file": "053_assistant_usage.sql",
+    "sqlite": "8f06cf589f97842bf4080f0a92f2649cdf05ba64ba6f38ebb10086b9094eb9ce",
+    "pg": "780005dbb13532a0bd9163bc7bb9a76e50b12f2dbbc05c33a603cc3259c6c2b7"
+  },
+  {
+    "version": "054",
+    "file": "054_demo_seed_records.sql",
+    "sqlite": "3ab576a347209c7a825cf0e47412391ea89bb455424c56fae81d9fb08d1ac2d7",
+    "pg": "f10f0cd676d979420922984d8e73e1d285398978c26d97abe342604b3a80ccc1"
+  },
+  {
+    "version": "055",
+    "file": "055_demo_seed_environment.sql",
+    "sqlite": "c9193425e8cdbb77b7b374b48c2731fbee80256b2c809697bc8c88ec50f92a74",
+    "pg": "c9193425e8cdbb77b7b374b48c2731fbee80256b2c809697bc8c88ec50f92a74"
+  },
+  {
+    "version": "056",
+    "file": "056_hse_inspection_outcomes.sql",
+    "sqlite": "84a81e88f35ea90aad3e36b9cb54bf7e2c19bffb8a6bfa701c73b95cba891c0a",
+    "pg": "84a81e88f35ea90aad3e36b9cb54bf7e2c19bffb8a6bfa701c73b95cba891c0a"
+  },
+  {
+    "version": "057",
+    "file": "057_places_assets.sql",
+    "sqlite": "25f2c446b16fdaf5281e3781fa5b0e6c9bd3a59bffbf46017dc3e540ca6f1a9f",
+    "pg": "dbf1f71ea4d6563eda3067c3f366e06bc57deadf4cfdf8d3ae3a8554214936d4"
+  }
+]

@@ -27,13 +27,13 @@ if (isPg) {
 }
 
 // Explicit SQLite fixture also supplies the baseline in a pg parity run.
-export async function openSqliteTestDb(path = ':memory:') {
-  const db = await openDb(path, { driver: 'sqlite' });
+export async function openSqliteTestDb(path = ':memory:', { migrate = true } = {}) {
+  const db = await openDb(path, { driver: 'sqlite', migrate });
   return { db, reopen: () => openDb(path, { driver: 'sqlite' }), close: () => closeDb(db) };
 }
 
 export async function openTestDb(path = ':memory:', { migrate = true } = {}) {
-  if (!isPg) return await openSqliteTestDb(path);
+  if (!isPg) return await openSqliteTestDb(path, { migrate });
 
   const schema = `t_${randomUUID().replaceAll('-', '_')}`;
   const dropSchema = async () => {

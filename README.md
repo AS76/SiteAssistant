@@ -49,9 +49,17 @@ The public demo does not provide unrestricted, immediate account creation.
 4. If approved, you receive a temporary password by email.
 5. Sign in and change that password.
 
-**Account approval and site access are separate steps.** Approval creates an account; a site owner must also assign a membership and role before that account can see a particular site. You may therefore be able to sign in without seeing demonstration sites. Access requests are not guaranteed to be approved.
+**Account approval and site access are separate steps.** Approval of an access request creates an account. A site owner can then assign access to existing demonstration sites. An invitation can grant a site membership at activation. Access requests are not guaranteed to be approved.
 
 For password recovery, passkeys and sessions, see **[Sign in and account](https://as76.github.io/SiteAssistant/en/guida/accesso/)**.
+
+### Demo invitations and roles
+
+Set `APP_ENV=demo` on an instance backed by a dedicated demo database. Migration 051 marks its existing sites as sandbox sites and changes existing `owner` memberships for accounts flagged `shared_demo` to `demo_user`. Accounts with individual logins can be converted explicitly with `npm run admin -- demo-user <email>`. Use `npm run admin -- demo-site <site-code>` to designate a synthetic site individually, then `npm run admin -- demo-user <email> <site-code>` to assign access there. New accounts can also be provisioned with `npm run create-user -- --email <email> --name <name> --site <site-code> --role demo_user`.
+
+Invitations for sandbox sites default to `demo_user`. An invitation on the demo instance may omit the site so the recipient can create their first sandbox site. The `owner` role requires an explicit choice. Demo users can work in the assigned sandbox sites and create new ones. Membership administration, global permissions, site settings and promotion of centrally configured source runs are reserved for administrators.
+
+**Italiano.** Impostare `APP_ENV=demo` sull’istanza con database dedicato alla demo. La migrazione 051 converte a `demo_user` le appartenenze `owner` degli account contrassegnati come `shared_demo`. Per gli account individuali usare `npm run admin -- demo-user <email>`. Gli inviti alla demo usano `demo_user` per impostazione predefinita e possono consentire al destinatario di creare il primo cantiere. Il ruolo consente di provare i moduli dei cantieri sandbox assegnati. La gestione degli utenti, dei permessi e delle impostazioni resta riservata agli amministratori.
 
 ### Demo data and privacy
 
@@ -172,14 +180,22 @@ These credentials belong to the **local seeded dataset only**, **not** to the pu
 
 ### Extended synthetic datasets
 
-Load additional test data when needed:
+Northline provides two versioned reference sites for demos, user documentation and future IT/UK functional tests. The generator builds `NL-IT-01` (Italian) and `NL-UK-01` (English) from fictional data committed in the seed script. Each site has 44 diary entries, one attachment record per entry and nine memberships (three owners, one editor, one verifier and four viewers). The attachments contain synthetic metadata only. No files or storage objects exist for them, so downloads are unavailable.
 
-```sh
-npm run seed:demo
-node server/seed-northline.mjs --apply
-```
+1. Configure a dedicated demo database and apply the application migrations, including migration 055. Check the target in `DATA_DIR` (SQLite) or `DB_DRIVER=pg` and `DATABASE_URL` (PostgreSQL) before provisioning it.
+2. Mark the database and apply Northline. Set `NORTHLINE_SEED_PASSWORD` before the first apply if fixture users need a known password. Otherwise each new user receives an unprinted random password. All fixture email addresses use `northline.invalid`.
 
-The Northline dataset creates `NL-IT-01` and `NL-UK-01` and associated fictional records. Set `NORTHLINE_SEED_PASSWORD` **before the first** `--apply` if pilot accounts need a known password; otherwise random passwords are generated and not printed. Inspect seed and reset behaviour before running these commands against an existing development database. `npm run seed` and `node server/seed-northline.mjs` refuse to run when `NODE_ENV=production`. `npm run seed:demo` has **no** production guard: it writes to whatever database the configuration points at, so check the target before running it.
+   ```sh
+   APP_ENV=demo node server/seed-demo.mjs --mark-demo-database
+   node server/seed-northline.mjs
+   APP_ENV=demo node server/seed-northline.mjs --apply
+   ```
+
+The command without flags previews counts without opening the database. Reapplying preserves existing fixture rows and adds missing ones. Both `--apply` and `--reset` require `APP_ENV=demo` and the database provisioning marker. Northline also refuses both operations when `NODE_ENV=production`. Its reset deletes the fixture sites and their generated rows, including the fixture memberships and sessions. Use a fresh demo database for a clean reference dataset.
+
+The same provisioning marker is required for the independent FITT fixtures (`APP_ENV=demo npm run seed:demo`) and their manual reset (`APP_ENV=demo npm run seed:demo:reset`). Migration 055 creates the marker table empty on every installation. Remove the marker from any demo database copy repurposed for another environment before using that copy.
+
+FITT provisioning refuses the legacy 054 ledger if it already contains records. That version could claim pre-existing records and omitted some dependent keys. Use a newly provisioned demo database, or preserve the old one and reconcile ownership from a trusted backup before provisioning. Apply leaves pre-existing site shells intact. Reset preserves site shells, copied login memberships and fixture users referenced by other records. References from other records can block a reset, which then rolls back in full.
 
 ### Database and deployment
 
@@ -190,6 +206,52 @@ Authentication bypass (`AUTH_BYPASS_USER`) is reserved for local development. St
 Rate limiting uses the connection peer by default. Set `TRUSTED_PROXY_IPS` to the comma-separated IP addresses of controlled reverse proxies that append or overwrite `X-Forwarded-For`. Restrict direct access to the backend so clients cannot connect from a trusted address. This also applies when trusting a loopback proxy. The server walks the forwarded chain from right to left, stopping at the first address outside that list. Password login allows ten failures per account and fifty per client IP within fifteen minutes.
 
 See [technical architecture](docs/architecture.md), the files under [`docs/`](docs/) and the API reference for implementation and deployment considerations.
+
+### Assistant usage and monthly limits
+
+The Overview shows each site's estimated assistant cost for the current calendar month in UTC. The summary is available to site owners through `GET /api/assistant/usage?site_id=<uuid>`. It marks attention at 10 USD, critical at 18 USD and blocks new provider calls at 25 USD. A call admitted below the limit can push the total above it. The assistant becomes eligible again when the new UTC month starts.
+
+Migration 053 records the time, user ID, site ID, model, token counts and estimated cost for each provider call, including calls made while the assistant uses tools. The record contains no prompts or replies. Calls with missing usage or pricing appear as unpriced in the summary, and only known costs count toward the limit. Records have no automatic expiry.
+
+Set `ASSISTANT_PRICES_USD_PER_TOKEN` on the server to override or add model entries. Each entry takes non-negative `input` and `output` prices in USD per token, with up to nine decimal places. For example:
+
+```sh
+ASSISTANT_PRICES_USD_PER_TOKEN='{"example-model":{"input":0.00000030,"output":0.00000120}}'
+```
+
+Defaults in [`config/assistant-prices.json`](config/assistant-prices.json) use the provider's peak rates and apply the cache-miss input price to all input tokens. Per million input/output tokens they are 0.30/1.20 USD for `deepseek-flash` and 1.32/3.96 USD for `deepseek-v4-pro`. The estimate first looks up the model reported by the provider, then the requested model name to account for aliases. Price changes apply to future calls. [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/)
+
+### Authentication activity
+
+Run the report from the server environment after the application has applied migration 052.
+
+```sh
+npm run stats -- --from 2026-11-01 --to 2026-11-07
+```
+
+You can also invoke the script directly.
+
+```sh
+node server/stats.mjs --from 2026-11-01 --to 2026-11-07
+```
+
+The JSON report includes both dates in UTC and returns the number of successful accesses, distinct users, accesses on each day with activity, the last access per user within the range, and login failures. Password sign-ins, passkey sign-ins and first-time invitation activations each count once when they create a session. The command reads the configured database (`DATA_DIR` for SQLite or `DB_DRIVER=pg` and `DATABASE_URL` for PostgreSQL).
+
+The documented retention period for authentication activity is 180 days. The application does not automatically purge records.
+
+### Import payload retention
+
+Run the preview against the intended database (`DATA_DIR` for SQLite, or `DB_DRIVER=pg` and `DATABASE_URL` for PostgreSQL).
+
+```sh
+npm run retention -- --dry-run --from 2026-11-26
+```
+
+The command defaults to dry-run. `--from YYYY-MM-DD` sets the reference to midnight UTC on that date. By default it uses the current time. The report gives the applied windows and the numbers of expired, deletable and excluded payloads for each import family.
+
+The [policy file](config/import-retention.json) defaults to 90 days overall and 30 days for `employees` and `work_days`. Each payload uses the shortest applicable window from the global default and the family and site overrides. Approved exceptions protect matching payloads until midnight UTC on their `until` date.
+
+**Obtain Product Owner approval before running `--apply` on real data.** Run it manually with `npm run retention -- --apply`, adding the same `--from` date if you used one for the preview. The command rejects invalid policies and clears only eligible file payloads, preserving the import receipts and identity bindings. Retention has no scheduler.
 
 ## Development and testing
 
@@ -208,6 +270,30 @@ npm run test:browser:c03
 Browser testing requires Playwright and Chromium dependencies. CI includes the SQLite/PGlite suite, a real PostgreSQL suite, the C03 browser regression job and a content scan. Check the **[latest GitHub Actions results](https://github.com/AS76/SiteAssistant/actions)** for current status rather than treating historical test counts as permanent.
 
 Successful tests provide evidence for the behaviours covered; they are **not** a certification of production readiness.
+
+### Migration manifest and catalog snapshots
+
+After appending a migration in both dialects, regenerate the manifest and SQLite snapshot from the repository root.
+
+```sh
+npm run migrations:manifest
+npm run migrations:schema -- sqlite
+```
+
+The manifest records each version, filename and SHA-256 for both dialects in version order. Only CRLF is normalized to LF before hashing. The SQLite snapshot comes from Node 24's bundled SQLite on a newly migrated database. PGlite checks migration execution and the common table, view and column layout with SQLite.
+
+Generate the PostgreSQL snapshot against an isolated, already running PostgreSQL **16** test database. Set `DATABASE_URL_TEST` to that database in the shell and set `SA_TEST_DB` if its name differs from `siteassistant_test`.
+
+```sh
+DB_DRIVER=pg npm run migrations:schema -- pg16
+npm run test:pg
+```
+
+The generator checks the server major version and cleans up its temporary schema. The first real PostgreSQL 16 capture is pending. The real PostgreSQL job exercises the committed chain and compares it with the ordinary database opening path. The exact comparison runs once `pg16.schema.json` is present.
+
+Review the diff in `tests/fixtures/migrations/` alongside the matching SQL changes. Manifest entries may only be appended. Each snapshot key names the affected object. The comparison reports missing, added and changed objects. A data-only migration should leave both catalog snapshots unchanged and should have a populated upgrade fixture that verifies the backfill. For structural changes, check each affected object's columns, constraints, index definitions, views, triggers and functions against the migration's intent.
+
+CI reads the manifest and available baseline snapshots from the pull request base or the pre-push commit on `main`. It checks the unchanged manifest prefix and compares the catalog immediately after that prefix commits. With an empty tail, CI also requires identical baseline snapshot files. The initial manifest bootstrap is tied to the introducing commit's base and requires unchanged migration sources.
 
 ### Repository structure
 

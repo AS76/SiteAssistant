@@ -1,6 +1,6 @@
 import { moduleAllowed, requireModule } from './module-access.mjs';
 import { randomUUID } from 'node:crypto';
-import { RepositoryError, getSite, requireRole, WRITE_ROLES } from './repository.mjs';
+import { REVIEW_ROLES, RepositoryError, getSite, requireRole, WRITE_ROLES } from './repository.mjs';
 
 const fail = (status, message, code) => { throw new RepositoryError(status, message, code); };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -86,7 +86,7 @@ export async function transitionCostImpact(db, id, input, user) {
   requireUser(user);
   return db.transaction(async tx => {
     const row = await getCostImpact(tx, id);
-    await requireRole(tx, row.site_id, user, ['owner', 'verifier']);
+    await requireRole(tx, row.site_id, user, REVIEW_ROLES);
     await requireModule(tx, row.site_id, user, 'impacts');
     const to = input?.to;
     if (!statuses.includes(to)) fail(400, 'Unknown cost impact status.', 'VALIDATION_ERROR');
