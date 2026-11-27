@@ -8,8 +8,8 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { once } = require('node:events');
 
-const ORIGIN = 'https://siteassistant.asassi.cloud';
-const API_ORIGIN = 'https://api.siteassistant.asassi.cloud';
+const ORIGIN = 'https://app.example.invalid';
+const API_ORIGIN = 'https://api.example.invalid';
 const appRoot = path.join(__dirname, '..', 'app');
 const shell = ['index.html', 'app.mjs', 'api.mjs', 'webauthn-client.mjs', 'domain.mjs', 'hse-permissions.mjs',
   'dashboard-layout.mjs', 'offline.mjs', 'i18n.mjs', 'language.mjs', 'places-ui.mjs', 'place-selector.mjs',

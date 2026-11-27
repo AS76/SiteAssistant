@@ -1,8 +1,8 @@
 # Identificazione QR, stampa etichette e inventario fisico
 
-Proposta per SiteAssistant, verificata su `origin/main` al commit `0e44e3c`. Il comportamento futuro descritto qui richiede implementazione e approvazione. Le osservazioni sullo stato attuale riportano i riferimenti al checkout. Card di riferimento: `d46007b1`.
+Proposta per SiteAssistant, verificata su `origin/main` al commit `0e44e3c`. Il comportamento futuro descritto qui richiede implementazione e approvazione. Le osservazioni sullo stato attuale riportano i riferimenti al checkout. Card di riferimento: *QR Identification & Inventory* nel Workboard interno.
 
-Questa specifica nasce da un'esigenza operativa maturata con InsiteLMS: in cantiere e in magazzino l'etichetta fisica è il modo con cui un oggetto viene ritrovato, non un accessorio grafico. La specifica **non** autorizza implementazione e **non** anticipa gli incrementi Luoghi e Asset 2a (`54409604`) e 2b (`4d0094c6`), che restano prioritari e invariati.
+Questa specifica nasce da un'esigenza operativa maturata con InsiteLMS: in cantiere e in magazzino l'etichetta fisica è il modo con cui un oggetto viene ritrovato, non un accessorio grafico. La specifica **non** autorizza implementazione e **non** anticipa gli incrementi Luoghi e Asset 2a e 2b, che restano prioritari e invariati.
 
 Le decisioni di prodotto sono state approvate dall'owner il 27/11/2026 e sono recepite integralmente nel testo; quanto resta aperto è elencato in §14.
 
@@ -100,7 +100,7 @@ urn:siteassistant:entity:1:<uuid>
 | Identificativo permanente e versionato | Il numero di versione sta nel payload: una futura versione 2 resta distinguibile senza registro centrale né migrazione delle etichette già stampate. |
 | Indipendente dal tag | Il payload non contiene il tag, che è univoco solo fra i record attivi e quindi riciclabile dopo la dismissione. |
 | Indipendente dalla posizione | Nessun percorso, nessun `place_id`, nessun testo di ubicazione. Lo spostamento non invalida l'etichetta. |
-| Indipendente dal dominio di hosting | Nessun URL. La stessa etichetta funziona su demo Railway, su istanza `asassi.cloud` e in locale. |
+| Indipendente dal dominio di hosting | Nessun URL. La stessa etichetta funziona sulla demo Railway, su un'istanza self-hosted e in locale. |
 | Nessun dato sensibile | Solo un identificatore opaco: nessun nome, seriale, dato personale, token, firma o URL firmata con scadenza. |
 
 L'UUID identifica l'**oggetto fisico**, non il registro che lo descrive in quel momento. Un'istanza di materiale e il bene installato in cui si trasforma condividono lo stesso identificativo fisico: si veda §4.6. È questa scelta, e non un dettaglio implementativo, a permettere che un'etichetta stampata al ricevimento resti valida dopo l'installazione.

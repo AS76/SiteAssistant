@@ -1,6 +1,6 @@
 # Site Materials & Inventory
 
-Proposta per SiteAssistant, verificata su `origin/main` al commit `0e44e3c`. Modulo autonomo approvato dall'owner il 27/11/2026 e inserito in roadmap. **Solo specifica**: nessuna implementazione autorizzata, nessuna dipendenza installata. Card di riferimento: `853a0078`.
+Proposta per SiteAssistant, verificata su `origin/main` al commit `0e44e3c`. Modulo autonomo approvato dall'owner il 27/11/2026 e inserito in roadmap. **Solo specifica**: nessuna implementazione autorizzata, nessuna dipendenza installata. Card di riferimento: *Site Materials & Inventory* nel Workboard interno.
 
 Perimetro dichiarato dall'owner: **logistica operativa di cantiere**. SiteAssistant non deve diventare un ERP né un WMS generalista. Questo vincolo non è una premessa retorica: è il criterio con cui, in ogni sezione, si accetta o si rifiuta un requisito.
 
