@@ -1,11 +1,11 @@
 ---
 title: Impostazioni
-description: Account, cambio password, passkey, giorno operativo del cantiere, valuta e separatori.
+description: Account, cambio password, passkey, giorno operativo del cantiere, assistente dati, valuta e separatori.
 ---
 
 import Shot from '../../../components/Shot.astro';
 
-L'ingranaggio in alto a destra apre le **Impostazioni**. In cima trovi il tuo account. Sotto trovi le preferenze di visualizzazione e, se sei proprietario del cantiere selezionato, le impostazioni del cantiere.
+L'ingranaggio in alto a destra apre le **Impostazioni**. In cima trovi il tuo account. Sotto trovi le impostazioni del cantiere selezionato e le preferenze di visualizzazione.
 
 ## Il tuo account
 
@@ -32,6 +32,17 @@ Per modificare il fuso orario e l'inizio del giorno operativo serve una connessi
 4. Premi **Salva impostazioni cantiere**.
 
 Il salvataggio vale per tutti i membri del cantiere. Vedi [Il giorno operativo](../../amministrazione/configurare-cantiere/#il-giorno-operativo).
+
+## Assistente
+
+Nella sezione **Assistente**, accanto al titolo trovi il nome del cantiere selezionato. Editor, Verificatori e Lettori vedono lo stato **Attivo** o **Disattivato**. Per cambiare le impostazioni servono una connessione e il ruolo **Proprietario**.
+
+1. Seleziona il cantiere e apri l'ingranaggio delle **Impostazioni**.
+2. In **Assistente**, usa **Abilita l’assistente per questo cantiere** per attivarlo o disattivarlo.
+3. Nel campo **Tempo massimo di risposta (ms)** imposta un numero intero tra **5000** e **60000**. Il valore predefinito è **20000 ms** (20 secondi) e il limite vale per l'intera elaborazione della domanda.
+4. Premi **Salva impostazioni assistente**.
+
+Le modifiche valgono per tutti i membri di quel cantiere e vengono registrate nell'audit. Per rispondere alle domande serve anche un provider configurato sul server. Vedi [Assistente dati](../assistente-ai/).
 
 ## Impostare valuta e formato
 

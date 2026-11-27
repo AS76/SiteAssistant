@@ -7,6 +7,8 @@ This page collects the changes visible to those who use the application. It is n
 
 ## 22 November 2026
 
+- **Data assistant can be enabled per site.** The assistant is off by default. The owner can turn it on for the selected site and set its response timeout. The **AI** button appears only on sites where the assistant is on. Switching sites clears the conversation. See [Assistant settings](../../guida/impostazioni/#assistant).
+
 - **Demo notice and limits.** On your first visit, **Demo data** explains that the dataset resets periodically and links to GitHub for feedback. Use **×** to dismiss the notice and open **About the demo** at the bottom of the page whenever you need it. See [Demo data](../../guida/dati-dimostrativi/#demo-notice-and-limits).
 
 - **Past diary entries and version history.** Owners, editors and verifiers can record contributions up to seven days back. Older dates require an owner and a reason. Use **Correct** to update your own contribution within seven days and **Version history** to view previous content. See [Site diary](../../moduli/diario/).

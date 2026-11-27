@@ -9,7 +9,9 @@ The **data assistant** answers questions about the selected site's data. It read
 
 ## Where it is
 
-After signing in the **AI** button is at the bottom right on desktop and in the **top bar** on a phone, just before the settings gear. It always opens the same **Data assistant** panel.
+After you sign in, the **AI** button appears only if the assistant is on for the selected site. Below **1180 px**, it appears in the **top bar**, just before the settings gear. At **1180 px** and above, it appears at the bottom right. The button opens the **Data assistant** panel.
+
+The assistant is off by default, including on existing sites. All site members can see whether it is on in **Settings**, and the site **Owner** can change the setting. See [Assistant settings](../impostazioni/#assistant).
 
 The panel contains:
 
@@ -24,12 +26,12 @@ On the sign-in screen the buttons are not there.
 What it is for: getting a figure or a list without walking through the views.
 
 1. Open the view you are interested in, so the suggestions are already in the right context.
-2. Press **AI**: at the bottom right on desktop, in the top bar on a phone.
+2. Press **AI** to open the panel.
 3. Pick a suggestion or type your question in the **Ask about this site's data** field.
 4. Press **Send** and read the answer: cited records appear in square brackets.
 5. Open a citation when it is a button: it takes you to the record detail.
 
-The panel's **×** closes it and returns focus to the **AI** button: on screens up to **800 px** wide that is the one in the top bar, on the desktop the one at the bottom right.
+Select **×** to close the panel and return focus to the **AI** button.
 
 <Shot
   src="/images/2026-11/en/assistant-desktop.png"
@@ -81,17 +83,17 @@ It does not see other sites and does not read the content of photos and PDFs.
 - **It does not compute totals it did not query**: the numbers in the answers come from queries on the data.
 
 :::caution[If the assistant does not answer]
-- **Panel shows an error on opening:** the assistant is not configured on the server. Report it to whoever administers the installation.
-- **Answer says the data is not there:** the record is not on the selected site. Check the site selector and the view you opened the panel from.
-- **No answer after Send:** a connection is required, because questions go through the server. Check the network and try again.
-- **Conversation lost:** reloading starts from scratch; the conversation is not saved.
+- If the **AI** button is missing, check the selected site and its status in the **Assistant** section of **Settings**.
+- If the request times out, the panel shows a message. Try again, perhaps with a narrower question.
+- If you see a message about too many requests, wait before trying again. If the service is unavailable, check your connection and report the problem to whoever administers the installation if it persists.
+- If the answer says the data is missing, check the selected site and the view you opened the panel from.
 :::
 
 ## Practical limits
 
 - A connection is required: questions go through the server.
-- The conversation stays while the page is open; reloading starts from scratch.
-- If the assistant is not configured on the server, the panel shows an error.
+- The conversation stays in memory for the selected site. Switching sites or reloading the page starts it afresh.
+- In the demo, the first time you open a site where the assistant is on, a message says that the data is synthetic.
 - Questions and the returned records are sent to the model provider configured on the server. Do not enter confidential information.
 
 For the endpoint list see [REST API](../../riferimento/api/).

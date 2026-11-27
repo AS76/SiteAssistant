@@ -1,0 +1,23 @@
+{
+  "code_commit": "79ce738ac807b14a75d87449ca19856906cca0ab",
+  "reviewed_at": "2026-11-25",
+  "documentation_required": true,
+  "pages": [
+    "docs-site/src/content/docs/amministrazione/configurare-cantiere.md",
+    "docs-site/src/content/docs/en/amministrazione/configurare-cantiere.md",
+    "docs-site/src/content/docs/en/guida/assistente-ai.mdx",
+    "docs-site/src/content/docs/en/guida/funzioni-comuni.mdx",
+    "docs-site/src/content/docs/en/guida/impostazioni.mdx",
+    "docs-site/src/content/docs/en/guida/mobile.mdx",
+    "docs-site/src/content/docs/en/note/novita.md",
+    "docs-site/src/content/docs/en/note/rilascio.md",
+    "docs-site/src/content/docs/en/riferimento/api.md",
+    "docs-site/src/content/docs/guida/assistente-ai.mdx",
+    "docs-site/src/content/docs/guida/funzioni-comuni.mdx",
+    "docs-site/src/content/docs/guida/impostazioni.mdx",
+    "docs-site/src/content/docs/guida/mobile.mdx",
+    "docs-site/src/content/docs/note/novita.md",
+    "docs-site/src/content/docs/note/rilascio.md",
+    "docs-site/src/content/docs/riferimento/api.md"
+  ]
+}

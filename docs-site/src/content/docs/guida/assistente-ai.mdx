@@ -9,7 +9,9 @@ L'**assistente dati** risponde a domande sui dati del cantiere selezionato. Legg
 
 ## Dove si trova
 
-Dopo l'accesso il pulsante **AI** è in basso a destra sul desktop e nell'**intestazione** sul telefono, subito prima dell'ingranaggio delle impostazioni. Apre sempre lo stesso pannello **Assistente dati**.
+Dopo l'accesso, il pulsante **AI** compare solo se l'assistente è attivo nel cantiere selezionato. Sotto i **1180 px** è nell'**intestazione**, subito prima dell'ingranaggio delle impostazioni. Da **1180 px** in su è in basso a destra. Il pulsante apre il pannello **Assistente dati**.
+
+L'assistente è disattivato per impostazione predefinita, anche nei cantieri già esistenti. Nelle **Impostazioni**, tutti i membri possono vedere se è attivo e il **Proprietario** può cambiare l'impostazione. Vedi [Assistente nelle Impostazioni](../impostazioni/#assistente).
 
 Il pannello contiene:
 
@@ -24,12 +26,12 @@ Sulla schermata di accesso i pulsanti non ci sono.
 A cosa serve: ottenere un dato o un elenco senza attraversare le viste.
 
 1. Apri la vista che ti interessa, così i suggerimenti sono già nel contesto giusto.
-2. Premi **AI**: in basso a destra sul desktop, nell'intestazione sul telefono.
+2. Premi **AI** per aprire il pannello.
 3. Scegli un suggerimento oppure scrivi la domanda nel campo **Chiedi sui dati del cantiere**.
 4. Premi **Invia** e leggi la risposta: i record citati compaiono tra parentesi quadre.
 5. Apri una citazione quando è un pulsante: porta al dettaglio del record.
 
-La **×** del pannello lo chiude e riporta il focus al pulsante **AI**: su schermi fino a **800 px** di larghezza quello dell'intestazione, sul desktop quello in basso a destra.
+La **×** chiude il pannello e riporta il focus al pulsante **AI**.
 
 <Shot
   src="/images/2026-11/assistant-desktop.png"
@@ -81,17 +83,17 @@ Non vede altri cantieri e non legge il contenuto di foto e PDF.
 - **Non calcola totali che non ha interrogato**: i numeri delle risposte arrivano dalle query sui dati.
 
 :::caution[Se l'assistente non risponde]
-- **Pannello con un errore all'apertura:** l'assistente non è configurato sul server. Segnalalo a chi amministra l'installazione.
-- **Risposta «non risulta nei dati»:** il dato non è nel cantiere selezionato. Controlla il selettore del cantiere e la vista da cui hai aperto il pannello.
-- **Nessuna risposta dopo Invia:** serve la connessione, perché le domande passano dal server. Controlla la rete e riprova.
-- **Conversazione persa:** ricaricando la pagina si riparte da zero; la conversazione non viene salvata.
+- Se il pulsante **AI** manca, controlla il cantiere selezionato e lo stato in **Impostazioni**, nella sezione **Assistente**.
+- Se la richiesta supera il tempo massimo, il pannello mostra un avviso. Riprova, anche con una domanda più circoscritta.
+- Se compare un avviso per troppe richieste, attendi prima di riprovare. Se il servizio risulta indisponibile, controlla la connessione e, se il problema persiste, segnalalo a chi amministra l'installazione.
+- Se la risposta dice «non risulta nei dati», controlla il cantiere selezionato e la vista da cui hai aperto il pannello.
 :::
 
 ## Limiti pratici
 
 - Serve la connessione: le domande passano dal server.
-- La conversazione resta finché la pagina è aperta; ricaricando si riparte da zero.
-- Se l'assistente non è configurato sul server, il pannello mostra un errore.
+- La conversazione resta in memoria per il cantiere selezionato. Cambiando cantiere o ricaricando la pagina si riparte da zero.
+- Nel demo, alla prima apertura di un cantiere con l'assistente attivo, un avviso ricorda che i dati sono sintetici.
 - Le domande e i record restituiti vengono inviati al provider del modello configurato sul server. Non inserire dati riservati.
 
 Per l'elenco degli endpoint vedi [API REST](../../riferimento/api/).
