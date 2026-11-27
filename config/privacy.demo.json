@@ -1,9 +1,9 @@
 {
   "updatedAt": "2026-11-25",
   "operator": {
-    "name": "Andrea Sassi",
-    "address": "Italia",
-    "privacyEmail": "privacy@asassi.cloud",
+    "name": "Demo Operator (synthetic)",
+    "address": "Demo site, fictional jurisdiction",
+    "privacyEmail": "privacy@example.invalid",
     "dpo": ""
   },
   "legalBases": [
