@@ -50,7 +50,7 @@ import { listTools, createTool, updateTool, deleteTool } from './tools.mjs';
 import { listCertifications, createCertification, updateCertification, deleteCertification, certificationSummary } from './certifications.mjs';
 import { listHseEvents, createHseEvent, updateHseEvent, deleteHseEvent, hseSummary } from './hse.mjs';
 import { templatesForJurisdiction } from './checklists.mjs';
-import { archivePlace, createPlace, listPlaces, updatePlace } from './places.mjs';
+import { archivePlace, createPlace, getPlace, listPlaceHistory, listPlaces, updatePlace } from './places.mjs';
 import { archiveAsset, createAsset, listAssets, moveAsset, updateAsset } from './assets.mjs';
 import { listHseAssets, createHseAsset, updateHseAsset, deleteHseAsset } from './hse-assets.mjs';
 import { createInspection, listInspections, getInspection } from './hse-inspections.mjs';
@@ -551,8 +551,15 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 201, await createAsset(db, await readJson(request), user));
       }
       const place = /^\/api\/places\/([^/]+)$/.exec(path);
+      if (place && method === 'GET') {
+        return json(response, 200, await getPlace(db, place[1], user));
+      }
       if (place && method === 'PATCH') {
         return json(response, 200, await updatePlace(db, place[1], await readJson(request), user));
+      }
+      const placeHistory = /^\/api\/places\/([^/]+)\/history$/.exec(path);
+      if (placeHistory && method === 'GET') {
+        return json(response, 200, await listPlaceHistory(db, placeHistory[1], user));
       }
       const placeArchive = /^\/api\/places\/([^/]+)\/archive$/.exec(path);
       if (placeArchive && method === 'POST') {

@@ -2,6 +2,7 @@ import { formatDisplayNumber, formatDateInput, parseDateInput, initialView, toda
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
 import { messages } from './i18n.mjs';
+import { mountPlaces } from './places-ui.mjs';
 import { resolveSessionLanguage } from './language.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
 import { hasOpenProgressSteps } from './domain.mjs';
@@ -165,6 +166,7 @@ const paths = {
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   bookings: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',
   workforce_presence: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m1-13a3 3 0 0 1 0 6m1 3a4 4 0 0 1 4 4"/>',
+  places: '<path d="M19 10c0 5-7 11-7 11s-7-6-7-11a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/>',
   wbs: '<path d="M12 8v4M5 16v-4h14v4"/><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="2" y="16" width="6" height="5" rx="1"/><rect x="16" y="16" width="6" height="5" rx="1"/>',
   impacts: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/>',
   certifications: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 12h6m-3-3v6"/>',
@@ -1152,7 +1154,7 @@ function renderSites() {
       <p>${t('evidenceChecksumHint')}</p>${button('evidenceExport', 'evidence-export')}</div></section>`);
   }
   if (role() === 'owner' && siteId) {
-    const modules = [...navGroups(ownerModules).flatMap(group => group.items), 'workforce_names'];
+    const modules = [...navGroups(ownerModules).flatMap(group => group.items).filter(module => module !== 'places'), 'workforce_names'];
     const members = state.memberAccess?.[siteId]?.members || [];
     $('#main').insertAdjacentHTML('beforeend', `<section class="panel module-access"><div class="panel-body"><h2>${t('moduleAccess')}</h2><p>${t('moduleAccessHint')}</p><div class="table-scroll"><table><thead><tr><th scope="col">${t('accessMember')}</th>${modules.map(module => `<th scope="col">${t(module)}</th>`).join('')}</tr></thead><tbody>${members.map(member => `<tr><th scope="row">${esc(member.name)}<br><small>${esc(member.email)} · ${esc(member.role === 'owner' ? t('accessOwner') : member.role === 'demo_user' ? t('responsibleRole_demo_user') : member.role)}</small></th>${modules.map(module => {
       const locked = ['owner', 'demo_user'].includes(member.role) || ['sites', 'overview'].includes(module);
@@ -1638,7 +1640,7 @@ const moduleVisible = module => visibleModules([module], currentModules()).lengt
 const permissions = () => corePermissions(role());
 const moduleResources = { deviations: ['deviations', 'reconciliation'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress', 'workforceSummary'], workforce_presence: ['workforcePresence'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'], hse: ['hse', 'hseAssets'], logistics: ['purchaseOrders', 'packages', 'shipments'] };
 // Mobile keeps four destinations reachable with the thumb; the rest lives behind «Altro».
-const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'workforce_presence', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'reporting'];
+const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'places', 'deviations', 'progress', 'bookings', 'workforce_presence', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'reporting'];
 const MOBILE_PRIMARY = ['today', 'tasks', 'diary', 'deviations', 'progress'];
 const TABLET_PRIMARY = [...MOBILE_PRIMARY, 'bookings'];
 const headerNavItems = () => window.matchMedia('(width < 640px)').matches ? MOBILE_PRIMARY : TABLET_PRIMARY;
@@ -3659,6 +3661,10 @@ function render() {
     return;
   }
   if (!moduleVisible(view)) { $('#main').innerHTML = empty('moduleUnavailable', 'moduleUnavailableHint'); return; }
+  if (view === 'places') {
+    mountPlaces($('#main'), { api, site: currentSite(), role: role(), userId: session.user.id, language, offline, t });
+    return;
+  }
   ({ today: renderToday, report: renderReport, reporting: renderReporting, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, workforce_presence: renderCore, impacts: renderCore, tools: renderCore, certifications: renderCore, hse: renderCore, logistics: renderCore })[view]();
 }
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
