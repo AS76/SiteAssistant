@@ -96,6 +96,66 @@ test('transition 409 stays failed, keeps server status and is not automatically 
   await f.store.removeOp(ops[0].id); assert.equal((await f.store.listOps(scope)).length, 0);
 });
 
+test('replay 403 retains the failed operation without retrying it or blocking later work', async () => {
+  const f = await fixture();
+  const denied = await f.enqueue('create_task', task);
+  const later = await f.enqueue('create_diary', { ...diary, siteId: 'other-site' });
+  const calls = [];
+  f.api.createTask = async () => {
+    calls.push('task');
+    throw new ApiError('Forbidden', { status: 403, code: 'FORBIDDEN' });
+  };
+  f.api.createDiary = async payload => {
+    calls.push('diary');
+    return { ...payload, id: 'server-diary' };
+  };
+
+  assert.deepEqual(await f.replay(), { confirmed: 1, failed: 1, pending: 0 });
+  const retained = { ...denied, retries: 1, status: 'failed', error: { status: 403, code: 'FORBIDDEN' } };
+  const ops = await f.store.listOps(scope);
+  assert.deepEqual(ops, [retained]);
+  assert.equal(overlayPending({}, ops).tasks[0].syncStatus, 'failed');
+  assert.equal((await f.store.confirmedCreation(scope, later.entity_id)).id, 'server-diary');
+
+  assert.deepEqual(await f.replay(), { confirmed: 0, failed: 0, pending: 0 });
+  assert.deepEqual(calls, ['task', 'diary']);
+  assert.deepEqual(await f.store.listOps(scope), [retained]);
+});
+
+test('replay 404 for a removed parent retains the failed operation without retrying it or blocking later work', async () => {
+  const f = await fixture();
+  const blob = new Blob(['synthetic photo bytes'], { type: 'image/png' });
+  const photo = await f.enqueue('create_attachment', {
+    site_id: task.siteId, entity_type: 'task', entity_id: 'removed-task', filename: 'synthetic.png', blob,
+  });
+  const later = await f.enqueue('create_task', task);
+  const calls = [];
+  f.api.listAttachments = async () => {
+    calls.push('list attachments');
+    return [];
+  };
+  f.api.createAttachment = async () => {
+    calls.push('upload');
+    throw new ApiError('Parent not found', { status: 404, code: 'NOT_FOUND' });
+  };
+  f.api.createTask = async payload => {
+    calls.push('task');
+    return { ...payload, id: 'server-task' };
+  };
+
+  assert.deepEqual(await f.replay(), { confirmed: 1, failed: 1, pending: 0 });
+  const retained = { ...photo, before_ids: [], retries: 1, status: 'failed', error: { status: 404, code: 'NOT_FOUND' } };
+  const ops = await f.store.listOps(scope);
+  assert.deepEqual(ops, [retained]);
+  assert.equal(await ops[0].payload.blob.text(), await blob.text());
+  assert.equal(overlayPending({}, ops).attachments[0].syncStatus, 'failed');
+  assert.equal((await f.store.confirmedCreation(scope, later.entity_id)).id, 'server-task');
+
+  assert.deepEqual(await f.replay(), { confirmed: 0, failed: 0, pending: 0 });
+  assert.deepEqual(calls, ['list attachments', 'upload', 'task']);
+  assert.deepEqual(await f.store.listOps(scope), [retained]);
+});
+
 test('blobs survive reload and dependent photo uses confirmed server entity ID', async () => {
   const f = await fixture(); const parent = await f.enqueue('create_task', task);
   const blob = new Blob(['synthetic photo bytes'], { type: 'image/png' });
@@ -343,6 +403,78 @@ test('quarantining a scope removes rendered state but preserves pending operatio
   assert.deepEqual((await store.listOps(scope)).map(op => op.op_type), ['create_diary']);
   assert.deepEqual(await store.getMirror(`state:${other}`), { tasks: [{ id: 'other' }] });
   assert.deepEqual(await store.listOps(other), [otherOp]);
+});
+
+test('restart preserves a pending operation and replays it exactly once', async () => {
+  const { api, enqueue, indexedDB, locks } = await fixture();
+  const pending = await enqueue('create_task', task);
+  const reloaded = createOfflineStore({ indexedDB, locks });
+  const ops = await reloaded.listOps(scope);
+  assert.deepEqual(ops, [pending]);
+  assert.equal(ops[0].status, 'pending');
+  const keys = [];
+  api.createTask = async (payload, { idempotencyKey }) => {
+    keys.push(idempotencyKey);
+    return { ...payload, id: 'server-task' };
+  };
+
+  assert.deepEqual(await reloaded.replayOps(api, { scope, userId }), { confirmed: 1, failed: 0, pending: 0 });
+  assert.deepEqual(await reloaded.listOps(scope), []);
+  assert.deepEqual(await reloaded.replayOps(api, { scope, userId }), { confirmed: 0, failed: 0, pending: 0 });
+  assert.deepEqual(keys, [pending.idempotency_key]);
+});
+
+test('restart keeps operations quarantined while their scope is inactive', async () => {
+  const { api, store, enqueue, indexedDB, locks } = await fixture();
+  const queued = [await enqueue('create_task', task), await enqueue('create_diary', diary)];
+  await store.quarantineScope(scope);
+  await store.setMirror('active', null);
+
+  const reloaded = createOfflineStore({ indexedDB, locks });
+  assert.equal(await reloaded.getMirror('active'), null);
+  assert.equal(await reloaded.getMirror(`state:${scope}`), undefined);
+  assert.deepEqual(await reloaded.listOps(scope), queued);
+  let sessionChecks = 0;
+  api.me = async () => {
+    sessionChecks++;
+    return { user: { id: userId } };
+  };
+
+  assert.deepEqual(await reloaded.replayOps(api, { scope, userId }), { confirmed: 0, failed: 0, pending: 0 });
+  assert.equal(sessionChecks, 0);
+  assert.deepEqual(await reloaded.listOps(scope), queued);
+});
+
+test('restart with an empty quarantined queue leaves the queue empty and another scope can replay', async () => {
+  const { store, enqueue, indexedDB, locks } = await fixture();
+  const discarded = await enqueue('create_task', task);
+  await store.quarantineScope(scope);
+  await store.setMirror('active', null);
+  await store.removeOp(discarded.id);
+
+  const otherUserId = 'other-user';
+  const other = scopeFor(baseUrl, otherUserId);
+  const otherOp = await store.enqueue({ scope: other, op_type: 'create_task', payload: { ...task, siteId: 'other-site' } });
+  const reloaded = createOfflineStore({ indexedDB, locks });
+  assert.equal(await reloaded.getMirror('active'), null);
+  assert.equal(await reloaded.getMirror(`state:${scope}`), undefined);
+  assert.deepEqual(await reloaded.listOps(scope), []);
+  assert.deepEqual(await reloaded.listOps(other), [otherOp]);
+
+  const session = { user: { id: otherUserId } };
+  const keys = [];
+  const api = {
+    baseUrl,
+    me: async () => session,
+    createTask: async (payload, { idempotencyKey }) => {
+      keys.push(idempotencyKey);
+      return { ...payload, id: 'other-server-task' };
+    },
+  };
+  await reloaded.setMirror('active', { scope: other, baseUrl, session });
+  assert.deepEqual(await reloaded.replayOps(api, { scope: other, userId: otherUserId }), { confirmed: 1, failed: 0, pending: 0 });
+  assert.deepEqual(keys, [otherOp.idempotency_key]);
+  assert.deepEqual(await reloaded.listOps(), []);
 });
 
 test('purging a scope with an empty queue removes its mirror, receipt and active record', async () => {
