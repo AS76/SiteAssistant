@@ -9,8 +9,8 @@ import { messages } from '../app/i18n.mjs';
 test('desktop navigation groups keep every route in the requested sections', () => {
   assert.deepEqual(navGroups(), [
     { label: 'navOperations', items: ['overview', 'tasks', 'deviations', 'diary'] },
-    // Places is a core site destination, alongside the optional site modules.
-    { label: 'navSite', items: ['progress', 'bookings', 'wbs', 'places', 'impacts'] },
+    // Places and Assets are core site destinations, alongside the optional site modules.
+    { label: 'navSite', items: ['progress', 'bookings', 'wbs', 'places', 'assets', 'impacts'] },
     { label: 'navManagement', items: ['sites', 'tools', 'certifications', 'hse', 'reporting'] },
   ]);
   const groups = navGroups();

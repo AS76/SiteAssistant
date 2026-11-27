@@ -51,7 +51,7 @@ import { listCertifications, createCertification, updateCertification, deleteCer
 import { listHseEvents, createHseEvent, updateHseEvent, deleteHseEvent, hseSummary } from './hse.mjs';
 import { templatesForJurisdiction } from './checklists.mjs';
 import { archivePlace, createPlace, getPlace, listPlaceHistory, listPlaces, updatePlace } from './places.mjs';
-import { archiveAsset, createAsset, listAssets, moveAsset, updateAsset } from './assets.mjs';
+import { archiveAsset, createAsset, getAsset, listAssetPositions, listAssets, moveAsset, updateAsset } from './assets.mjs';
 import { listHseAssets, createHseAsset, updateHseAsset, deleteHseAsset } from './hse-assets.mjs';
 import { createInspection, listInspections, getInspection } from './hse-inspections.mjs';
 import { importRequest, MAX_IMPORT_BYTES, importDeviationWorkbook, listImportMappings, saveImportMapping, deleteImportMapping } from './planning-import.mjs';
@@ -542,7 +542,8 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const options = { siteId: url.searchParams.get('siteId'),
           includeArchived: url.searchParams.get('includeArchived') === '1' };
         if (path === '/api/places') return json(response, 200, await listPlaces(db, options, user));
-        return json(response, 200, await listAssets(db, { ...options, asOf: url.searchParams.get('asOf') }, user));
+        const filters = Object.fromEntries(['asOf', 'tag', 'serial', 'status', 'placeId'].map(key => [key, url.searchParams.get(key)]));
+        return json(response, 200, await listAssets(db, { ...options, ...filters }, user));
       }
       if (path === '/api/places' && method === 'POST') {
         return json(response, 201, await createPlace(db, await readJson(request), user));
@@ -566,8 +567,15 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 200, await archivePlace(db, placeArchive[1], await readJson(request), user));
       }
       const installedAsset = /^\/api\/assets\/([^/]+)$/.exec(path);
+      if (installedAsset && method === 'GET') {
+        return json(response, 200, await getAsset(db, installedAsset[1], user));
+      }
       if (installedAsset && method === 'PATCH') {
         return json(response, 200, await updateAsset(db, installedAsset[1], await readJson(request), user));
+      }
+      const assetPositions = /^\/api\/assets\/([^/]+)\/positions$/.exec(path);
+      if (assetPositions && method === 'GET') {
+        return json(response, 200, await listAssetPositions(db, assetPositions[1], user));
       }
       const assetArchive = /^\/api\/assets\/([^/]+)\/archive$/.exec(path);
       if (assetArchive && method === 'POST') {

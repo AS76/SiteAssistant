@@ -151,6 +151,12 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     createPlace: input => request('/api/places', input),
     updatePlace: (id, input) => request(`/api/places/${encodeURIComponent(id)}`, input, { method: 'PATCH' }),
     archivePlace: (id, input) => request(`/api/places/${encodeURIComponent(id)}/archive`, input),
+    listAssets: (siteId, { includeArchived = false, asOf, tag, serial, status, placeId } = {}) =>
+      request(`/api/assets${query({ siteId, includeArchived: includeArchived ? 1 : undefined, asOf, tag, serial, status, placeId })}`),
+    getAsset: id => request(`/api/assets/${encodeURIComponent(id)}`),
+    listAssetPositions: id => request(`/api/assets/${encodeURIComponent(id)}/positions`),
+    updateAsset: (id, input) => request(`/api/assets/${encodeURIComponent(id)}`, input, { method: 'PATCH' }),
+    moveAsset: (id, input) => request(`/api/assets/${encodeURIComponent(id)}/move`, input),
     listTasks: filters => listAll('/api/tasks', filters, taskFromApi, 'Task'),
     listViews: (siteId, module) => request(`/api/views${query({ site_id: siteId, module })}`),
     createView: input => request('/api/views', input),

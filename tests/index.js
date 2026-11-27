@@ -89,6 +89,8 @@ import './hse-assets.test.mjs';
 import './places-assets.test.mjs';
 import './places-ui.test.mjs';
 import './places-read.test.mjs';
+import './assets-ui.test.mjs';
+import './assets-read.test.mjs';
 import './hse-inspections.test.mjs';
 import './increment-42-ui.test.mjs';
 import './increment-44-ui.test.mjs';

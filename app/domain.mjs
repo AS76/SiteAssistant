@@ -194,7 +194,7 @@ export function counts(tasks, referenceDate = today()) {
     blocked: tasks.filter(task => task.status === 'blocked').length };
 }
 
-const APP_VIEWS = ['today', 'overview', 'sites', 'tasks', 'wbs', 'places', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'report', 'reporting', 'workforce_presence'];
+const APP_VIEWS = ['today', 'overview', 'sites', 'tasks', 'wbs', 'places', 'assets', 'deviations', 'progress', 'bookings', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'report', 'reporting', 'workforce_presence'];
 export function initialView({ width, hash = '' }) {
   if (!hash) return width < 800 ? 'today' : 'overview';
   const name = hash.replace(/^#/, '');
@@ -305,12 +305,12 @@ export const TOOL_STATUS_LABELS = Object.freeze({
 });
 const NAV_GROUPS = Object.freeze([
   Object.freeze({ label: 'navOperations', items: Object.freeze(['overview', 'tasks', 'deviations', 'diary']) }),
-  Object.freeze({ label: 'navSite', items: Object.freeze(['progress', 'bookings', 'workforce_presence', 'wbs', 'places', 'impacts']) }),
+  Object.freeze({ label: 'navSite', items: Object.freeze(['progress', 'bookings', 'workforce_presence', 'wbs', 'places', 'assets', 'impacts']) }),
   Object.freeze({ label: 'navManagement', items: Object.freeze(['sites', 'tools', 'certifications', 'hse', 'logistics', 'reporting']) }),
 ]);
 const strictModules = new Set(['logistics', 'workforce_names', 'workforce_presence']);
 export function visibleModules(items, modules = {}) {
-  return items.filter(module => ['sites', 'overview', 'today', 'places'].includes(module) ||
+  return items.filter(module => ['sites', 'overview', 'today', 'places', 'assets'].includes(module) ||
     (strictModules.has(module) ? modules[module] === true || modules[module] === 1 : modules[module] !== false));
 }
 export function navGroups(modules = {}) {

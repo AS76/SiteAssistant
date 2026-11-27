@@ -270,8 +270,8 @@ test('navigation filters only explicit denials, preserves anchors and does not m
   assert.deepEqual(navGroups({}), defaults);
   assert.deepEqual(navGroups(modules)[0].items, ['overview']);
   assert.deepEqual(visibleModules(['tasks', 'diary', 'sites', 'overview'], modules), ['sites', 'overview']);
-  // Places stays available when all optional modules are off.
-  assert.deepEqual(navGroups(Object.fromEntries(MODULES.map(module => [module, false]))).flatMap(group => group.items), ['overview', 'places', 'sites']);
+  // Places and Assets stay available when all optional modules are off.
+  assert.deepEqual(navGroups(Object.fromEntries(MODULES.map(module => [module, false]))).flatMap(group => group.items), ['overview', 'places', 'assets', 'sites']);
   assert.deepEqual(modules, before);
   const groups = navGroups(modules); groups[0].items.push('synthetic');
   assert.deepEqual(navGroups(), defaults);
