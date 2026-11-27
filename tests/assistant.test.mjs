@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createSite, updateSiteAssistant } from '../server/repository.mjs';
-import { chat, allowRequest, MAX_PER_WINDOW } from '../server/assistant.mjs';
+import { chat, allowRequest, MAX_PER_WINDOW, providerPolicy } from '../server/assistant.mjs';
 import { authFixture } from './helpers/auth.mjs';
 import { openSqliteTestDb } from './helpers/db.mjs';
 
@@ -45,6 +45,51 @@ test('assistant: without a key the endpoint refuses instead of failing open', as
   t.after(close);
   await assert.rejects(() => chat(db, { siteId: site.id, user: auth.users.viewer, messages: [{ role: 'user', content: 'ciao' }] },
     { apiKey: '', fetchImpl: async () => reply({ content: 'x' }) }), { status: 503, code: 'ASSISTANT_NOT_CONFIGURED' });
+});
+
+test('assistant: provider routing policy is sent only when explicitly configured', async t => {
+  const { db, auth, site, close } = await fixture();
+  t.after(close);
+  const bodies = [];
+  const fetchImpl = async (url, options) => {
+    bodies.push(JSON.parse(options.body));
+    return reply({ role: 'assistant', content: 'OK' });
+  };
+  await chat(db, { siteId: site.id, user: auth.users.viewer, messages: [{ role: 'user', content: 'x' }] },
+    { fetchImpl, apiKey: 'test-key', provider: { zdr: true, data_collection: 'deny', allow_fallbacks: false, only: ['together'] } });
+  assert.deepEqual(bodies[0].provider, { zdr: true, data_collection: 'deny', allow_fallbacks: false, only: ['together'] });
+  await chat(db, { siteId: site.id, user: auth.users.viewer, messages: [{ role: 'user', content: 'x' }] },
+    { fetchImpl, apiKey: 'test-key', provider: null });
+  assert.equal(bodies[1].provider, undefined);
+});
+
+test('assistant: malformed provider routing policy fails closed', async t => {
+  const { db, auth, site, close } = await fixture();
+  t.after(close);
+  await assert.rejects(() => chat(db, { siteId: site.id, user: auth.users.viewer, messages: [{ role: 'user', content: 'x' }] },
+    { apiKey: 'test-key', fetchImpl: async () => reply({ content: 'x' }), provider: { invalid: true } }),
+  { status: 503, code: 'ASSISTANT_NOT_CONFIGURED' });
+});
+
+test('assistant: provider policy rejects unknown keys and invalid types', async t => {
+  const { db, auth, site, close } = await fixture();
+  t.after(close);
+  for (const provider of [{ headers: { authorization: 'x' } }, { zdr: 'yes' }, { data_collection: 'sometimes' }, { only: 'together' }]) {
+    await assert.rejects(() => chat(db, { siteId: site.id, user: auth.users.viewer, messages: [{ role: 'user', content: 'x' }] },
+      { apiKey: 'test-key', fetchImpl: async () => reply({ content: 'x' }), provider }),
+    { status: 503, code: 'ASSISTANT_NOT_CONFIGURED' });
+  }
+});
+
+test('assistant: environment policy validation rejects reserved or malformed shapes', () => {
+  assert.deepEqual(providerPolicy('{"zdr":true,"data_collection":"deny","only":["together"],"allow_fallbacks":false}'),
+    { zdr: true, data_collection: 'deny', only: ['together'], allow_fallbacks: false });
+  assert.deepEqual(providerPolicy('{"messages":[]}'), { invalid: true });
+  assert.deepEqual(providerPolicy('{"zdr":"true"}'), { invalid: true });
+  assert.deepEqual(providerPolicy('{"only":"together"}'), { invalid: true });
+  assert.deepEqual(providerPolicy('[]'), { invalid: true });
+  assert.deepEqual(providerPolicy('not-json'), { invalid: true });
+  assert.equal(providerPolicy(''), null);
 });
 
 test('assistant: a tool error is returned to the model, not thrown at the user', async t => {

@@ -11,6 +11,33 @@ const DEFAULT_MODEL = process.env.ASSISTANT_MODEL || 'deepseek-flash';
 const MAX_TOOL_ROUNDS = 4;
 const MAX_ROWS = 20;
 
+// Optional provider-routing policy for OpenAI-compatible gateways. OpenRouter uses
+// this to enforce ZDR and a provider allowlist per request; direct providers ignore it.
+function validProvider(parsed) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || JSON.stringify(parsed).length > 4000) return false;
+  const strings = value => Array.isArray(value) && value.length <= 20 && value.every(item => typeof item === 'string' && item.length <= 120);
+  const allowed = new Set(['order', 'allow_fallbacks', 'only', 'ignore', 'data_collection', 'zdr', 'sort', 'max_price', 'quantizations', 'require_parameters']);
+  for (const [key, item] of Object.entries(parsed)) {
+    if (!allowed.has(key)) return false;
+    if (['order', 'only', 'ignore', 'quantizations'].includes(key) && !strings(item)) return false;
+    if (['allow_fallbacks', 'zdr', 'require_parameters'].includes(key) && typeof item !== 'boolean') return false;
+    if (key === 'data_collection' && !['allow', 'deny'].includes(item)) return false;
+    if (key === 'sort' && (typeof item !== 'string' || item.length > 40)) return false;
+    if (key === 'max_price' && !((typeof item === 'number' && Number.isFinite(item) && item >= 0) || (item && typeof item === 'object' && !Array.isArray(item)))) return false;
+  }
+  return true;
+}
+export function providerPolicy(value = process.env.ASSISTANT_PROVIDER_JSON) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return validProvider(parsed) ? parsed : { invalid: true };
+  } catch {
+    return { invalid: true };
+  }
+}
+const DEFAULT_PROVIDER = providerPolicy();
+
 const FAMILIES = {
   deviations: { table: 'deviations', label: 'deviation_no',
     columns: 'id, deviation_no, title, status, priority, assigned_to, creation_date, closed_date',
@@ -156,13 +183,14 @@ function citationsFrom(calls, results) {
 }
 
 export async function chat(db, { siteId, user, messages, view, language = 'it' }, { fetchImpl = fetch, apiKey = process.env.DEEPSEEK_API_KEY,
-  baseUrl = DEFAULT_BASE, model = DEFAULT_MODEL } = {}) {
+  baseUrl = DEFAULT_BASE, model = DEFAULT_MODEL, provider = DEFAULT_PROVIDER } = {}) {
   if (!user?.id) fail('UNAUTHENTICATED', 'Authentication required.', 401);
   await requireRole(db, siteId, user);
   const site = await getSite(db, siteId);
   if (!site.assistant_enabled) fail('ASSISTANT_DISABLED', 'Assistente disattivato per questo cantiere.', 409);
   await assertAssistantBudget(db, siteId);
   if (!apiKey) fail('ASSISTANT_NOT_CONFIGURED', 'Assistente non configurato.', 503);
+  if (provider && (!validProvider(provider) || provider.invalid)) fail('ASSISTANT_NOT_CONFIGURED', 'Configurazione del provider non valida.', 503);
   if (!allowRequest(user.id)) fail('ASSISTANT_RATE_LIMITED', 'Troppe richieste: riprova tra qualche minuto.', 429);
   const history = (Array.isArray(messages) ? messages : []).slice(-8)
     .filter(message => ['user', 'assistant'].includes(message?.role) && typeof message.content === 'string')
@@ -185,18 +213,19 @@ export async function chat(db, { siteId, user, messages, view, language = 'it' }
   });
   try {
     return await Promise.race([deadline, completeChat(db, { siteId, user, lang, conversation },
-      { fetchImpl, apiKey, baseUrl, model, prices, signal: controller.signal, deadline })]);
+      { fetchImpl, apiKey, baseUrl, model, provider, prices, signal: controller.signal, deadline })]);
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function providerCompletion(conversation, { fetchImpl, apiKey, baseUrl, model, signal }) {
+async function providerCompletion(conversation, { fetchImpl, apiKey, baseUrl, model, provider, signal }) {
   signal.throwIfAborted();
   try {
     const response = await fetchImpl(`${baseUrl}/chat/completions`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages: conversation, tools: TOOLS, tool_choice: 'auto', temperature: 0.2, max_tokens: 700 }),
+      body: JSON.stringify({ model, messages: conversation, tools: TOOLS, tool_choice: 'auto', temperature: 0.2, max_tokens: 700,
+        ...(provider ? { provider } : {}) }),
       signal,
     });
     if (!response.ok) {
