@@ -84,5 +84,6 @@ test('legacy area text is searchable on the unmapped choice', () => {
 test('Places deep links resolve on desktop and mobile, even with an explicit module denial', () => {
   for (const width of [390, 1440]) assert.equal(initialView({ width, hash: '#places' }), 'places');
   const [, siteGroup] = navGroups({ places: false, progress: false, bookings: false, wbs: false, impacts: false });
-  assert.deepEqual(siteGroup.items, ['places']);
+  // Places stays visible under an explicit denial; assets is the other core Site destination.
+  assert.deepEqual(siteGroup.items, ['places', 'assets']);
 });

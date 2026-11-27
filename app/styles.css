@@ -1031,3 +1031,30 @@ footer{font-size:11px}
 .place-selector-options .is-highlighted { background: var(--brick-tint); box-shadow: inset 0 0 0 2px var(--brick); }
 .places-detail [tabindex="-1"] { scroll-margin-top: 12rem; }
 @media (max-width: 800px) { .places-layout { grid-template-columns: minmax(0, 1fr); } }
+
+.assets-view { overflow-wrap: anywhere; }
+.assets-view h1, .assets-view h2, .assets-view h3, .assets-dialog h2 { font-family: var(--serif); }
+.assets-view h2 { margin-block: 0 12px; }
+.assets-view h3 { margin-block: 20px 8px; }
+.assets-filters, .assets-dialog fieldset { display: grid; gap: 12px; }
+.assets-filters { margin-block-end: 12px; }
+.assets-dialog fieldset { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+.assets-view button, .assets-dialog button,
+.assets-view .field :is(input, select), .assets-dialog .field :is(input, textarea) {
+  min-block-size: 44px; min-inline-size: 44px; max-inline-size: 100%;
+  border-color: var(--rule-2); border-radius: var(--radius); background: var(--surface);
+}
+.assets-view button:hover, .assets-dialog button:hover { background: var(--surface-2); }
+.assets-view button.primary, .assets-dialog button.primary {
+  background: var(--brick); border-color: var(--brick); color: var(--surface);
+}
+.assets-view button.primary:hover, .assets-dialog button.primary:hover { background: var(--brick-deep); }
+.assets-dialog button.danger { border-color: #e5c4c1; }
+.assets-dialog .form-actions { flex-wrap: wrap; }
+.assets-dialog-error { overflow-wrap: anywhere; margin-block: 0 12px; }
+.assets-dialog-error:empty { margin: 0; }
+.assets-results { list-style: none; margin: 0; padding: 0; }
+.assets-results li + li { margin-block-start: 4px; }
+.assets-view .assets-results button { display: grid; gap: 4px; inline-size: 100%; text-align: start; }
+.assets-results button span { color: var(--ink-2); font-size: 0.875rem; font-weight: 400; }
+.assets-view .assets-results button[aria-current] { background: var(--brick-tint); border-color: var(--brick); }

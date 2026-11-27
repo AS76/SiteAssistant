@@ -13,6 +13,7 @@ const API_ORIGIN = 'https://api.siteassistant.asassi.cloud';
 const appRoot = path.join(__dirname, '..', 'app');
 const shell = ['index.html', 'app.mjs', 'api.mjs', 'webauthn-client.mjs', 'domain.mjs', 'hse-permissions.mjs',
   'dashboard-layout.mjs', 'offline.mjs', 'i18n.mjs', 'language.mjs', 'places-ui.mjs', 'place-selector.mjs',
+  'assets-ui.mjs',
   'styles.css', 'fonts.css', 'manifest.webmanifest', 'assets/logo.svg'];
 
 async function setup() {
