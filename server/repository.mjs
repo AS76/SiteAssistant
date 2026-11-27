@@ -79,37 +79,40 @@ async function uniqueWrite(db, write, message, code) {
   }
 }
 
-const publicSite = site => ({ ...site, assistant_enabled: site.assistant_enabled === true || site.assistant_enabled === 1 });
+const publicSite = ({ demo_sandbox, ...site }) => ({ ...site, assistant_enabled: site.assistant_enabled === true || site.assistant_enabled === 1 });
 
 export async function listSites(db, user) {
-  const sites = await db.all(`SELECT * FROM sites ${user ? 'WHERE id IN (SELECT site_id FROM site_members WHERE user_id = ?)' : ''}
+  const sites = await db.all(`SELECT * FROM sites ${user ? 'WHERE id IN (SELECT site_id FROM accessible_site_members WHERE user_id = ?)' : ''}
     ORDER BY created_at, id`, ...(user ? [user.id] : []));
   return sites.map(publicSite);
 }
 
-export const WRITE_ROLES = ['owner', 'editor', 'verifier'];
+export const DEMO_ROLE = 'demo_user';
+export const EDIT_ROLES = ['owner', 'editor', DEMO_ROLE];
+export const REVIEW_ROLES = ['owner', 'verifier', DEMO_ROLE];
+export const WRITE_ROLES = [...EDIT_ROLES, 'verifier'];
 export const ROLES = [...WRITE_ROLES, 'viewer'];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function requireRole(db, siteId, user, roles = ROLES) {
   await getSite(db, siteId);
-  const member = await db.get('SELECT role FROM site_members WHERE site_id = ? AND user_id = ?', siteId, user.id);
+  const member = await db.get('SELECT role FROM accessible_site_members WHERE site_id = ? AND user_id = ?', siteId, user.id);
   if (!member || !roles.includes(member.role)) fail(403, 'Insufficient site role.', 'FORBIDDEN');
   return member.role;
 }
 
 export async function listMembers(db, siteId, user) {
   await requireRole(db, siteId, user, ['owner']);
-  return await db.all(`SELECT u.id, u.email, u.name, m.role FROM site_members m
+  return await db.all(`SELECT u.id, u.email, u.name, m.role FROM accessible_site_members m
     JOIN users u ON u.id = m.user_id WHERE m.site_id = ? ORDER BY u.id`, siteId);
 }
 
 export async function listAssignable(db, siteId, user, { forDeviation = false } = {}) {
-  await requireRole(db, siteId, user, forDeviation ? ['owner', 'editor'] : WRITE_ROLES);
+  await requireRole(db, siteId, user, forDeviation ? EDIT_ROLES : WRITE_ROLES);
   if (forDeviation) await requireModule(db, siteId, user, 'deviations');
-  return await db.all(`SELECT u.id AS user_id, u.name, m.role FROM site_members m
+  return await db.all(`SELECT u.id AS user_id, u.name, m.role FROM accessible_site_members m
     JOIN users u ON u.id = m.user_id
-    WHERE m.site_id = ? AND u.disabled_at IS NULL ${forDeviation ? '' : "AND m.role IN ('owner', 'editor', 'verifier')"}
+    WHERE m.site_id = ? AND u.disabled_at IS NULL ${forDeviation ? '' : "AND m.role <> 'viewer'"}
     ORDER BY lower(u.name), u.name, u.id`, siteId);
 }
 
@@ -123,7 +126,14 @@ export async function setMember(db, siteId, input, user) {
       fail(400, 'A user UUID and valid role (or null for removal) are required.', 'VALIDATION_ERROR');
     }
     const userId = input.user_id.toLowerCase();
-    if (!await tx.get('SELECT id FROM users WHERE id = ?', userId)) fail(404, 'User not found.', 'USER_NOT_FOUND');
+    const member = await tx.get('SELECT demo_sandbox FROM users WHERE id = ?', userId);
+    if (!member) fail(404, 'User not found.', 'USER_NOT_FOUND');
+    if (input.role !== null && (member.demo_sandbox || input.role === DEMO_ROLE)) {
+      const site = await tx.get('SELECT demo_sandbox FROM sites WHERE id = ?', siteId);
+      if (!member.demo_sandbox || !site.demo_sandbox || input.role === 'owner') {
+        fail(400, 'This role cannot be assigned to the account on this site.', 'DEMO_SCOPE_INVALID');
+      }
+    }
     // Prevent accidental self-removal by an administrator.
     if (userId === user.id && input.role !== 'owner') fail(400, 'An owner cannot downgrade themselves.', 'VALIDATION_ERROR');
     if (input.role === null) await tx.run('DELETE FROM site_members WHERE site_id = ? AND user_id = ?', siteId, userId);
@@ -164,7 +174,7 @@ function siteDayCutoff(value) {
   return value;
 }
 
-export async function createSite(db, input) {
+export async function createSite(db, input, { demoSandbox = false } = {}) {
   object(input);
   const jurisdiction = siteJurisdiction(input.jurisdiction === undefined ? 'IT' : input.jurisdiction);
   const timeZone = input.time_zone === undefined
@@ -184,7 +194,20 @@ export async function createSite(db, input) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, id, code, name, location, start, end, new Date().toISOString(), jurisdiction, timeZone, cutoff),
   'Site code already exists.', 'DUPLICATE_SITE_CODE');
+  if (demoSandbox) await db.run('UPDATE sites SET demo_sandbox = TRUE WHERE id = ?', id);
   return await getSite(db, id);
+}
+
+export async function createSiteForUser(db, input, user, { demoSandbox }) {
+  return db.transaction(async tx => {
+    const account = await tx.get('SELECT demo_sandbox FROM users WHERE id = ? AND disabled_at IS NULL', user.id);
+    const role = account?.demo_sandbox ? DEMO_ROLE
+      : (await tx.get("SELECT role FROM accessible_site_members WHERE user_id = ? AND role = 'owner' LIMIT 1", user.id))?.role;
+    if (!role) fail(403, 'A site owner or demo account is required to create sites.', 'FORBIDDEN');
+    const site = await createSite(tx, input, { demoSandbox: demoSandbox || role === DEMO_ROLE });
+    await tx.run('INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, ?)', site.id, user.id, role);
+    return site;
+  });
 }
 
 export async function updateSite(db, id, input, user) {
@@ -255,7 +278,7 @@ export async function updateTaskWbs(db, id, input, user) {
   if (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'wbsId')) fail(400, 'Only wbsId may be updated.', 'VALIDATION_ERROR');
   return db.transaction(async tx => {
     const task = await getTask(tx, id);
-    await requireRole(tx, task.site_id, user, ['owner', 'editor']);
+    await requireRole(tx, task.site_id, user, EDIT_ROLES);
     await requireModule(tx, task.site_id, user, 'tasks');
     const wbsId = await validateTaskWbs(tx, task.site_id, input.wbsId);
     await tx.run('UPDATE tasks SET wbs_id = ? WHERE id = ?', wbsId, id);
@@ -283,14 +306,13 @@ function taskFilters({ siteId, status, kind, closedWithWaiver }, user) {
   if (type && !TASK_KINDS.includes(type)) fail(400, 'Unknown task kind.', 'VALIDATION_ERROR');
   const clauses = [];
   const values = [];
-  if (user) { clauses.push('site_id IN (SELECT site_id FROM site_members WHERE user_id = ?)'); values.push(user.id); }
   if (site) { clauses.push('site_id = ?'); values.push(site); }
   if (state) { clauses.push('status = ?'); values.push(state); }
   if (type) { clauses.push("COALESCE(kind, 'ordinary') = ?"); values.push(type); }
   if (closedWithWaiver) clauses.push(`status = 'closed' AND ${currentWaiver} = TRUE`);
   if (user) {
-    clauses.push(`site_id IN (SELECT m.site_id FROM site_members m WHERE m.user_id = ?
-      AND (m.role = 'owner' OR NOT EXISTS (SELECT 1 FROM member_module_access a
+    clauses.push(`site_id IN (SELECT m.site_id FROM accessible_site_members m WHERE m.user_id = ?
+      AND (m.role IN ('owner', 'demo_user') OR NOT EXISTS (SELECT 1 FROM member_module_access a
         WHERE a.site_id = m.site_id AND a.user_id = m.user_id AND a.module = 'tasks' AND a.allowed = FALSE)))`);
     values.push(user.id);
   }
@@ -367,9 +389,9 @@ export async function createTask(db, input) {
   const at = new Date().toISOString();
   const write = async tx => {
     await getSite(tx, siteId);
-    for (const [userId, roles] of [[executorId, WRITE_ROLES], [verifierId, ['owner', 'verifier']]]) {
+    for (const [userId, roles] of [[executorId, WRITE_ROLES], [verifierId, REVIEW_ROLES]]) {
       if (userId) {
-        const member = await tx.get(`SELECT m.role FROM site_members m JOIN users u ON u.id = m.user_id
+        const member = await tx.get(`SELECT m.role FROM accessible_site_members m JOIN users u ON u.id = m.user_id
           WHERE m.site_id = ? AND m.user_id = ? AND u.disabled_at IS NULL`, siteId, userId);
         if (!member || !roles.includes(member.role)) fail(400, 'Invalid task assignment for this site.', 'VALIDATION_ERROR');
       }
@@ -484,7 +506,7 @@ export async function acceptTask(db, id, input, user) {
   if (!user?.id) fail(401, 'Authentication required.', 'UNAUTHENTICATED');
   return db.transaction(async tx => {
     const task = await getTask(tx, id);
-    const role = await requireRole(tx, task.site_id, user, ['owner', 'verifier']);
+    const role = await requireRole(tx, task.site_id, user, REVIEW_ROLES);
     await requireModule(tx, task.site_id, user, 'tasks');
     if (role !== 'owner' && task.verifier_id !== user.id) fail(403, 'Only the designated verifier or an owner may accept this task.', 'FORBIDDEN');
     const invalid = () => fail(422, 'Formal acceptance requires a task attachment and a valid date.', 'TASK_ACCEPTANCE_EVIDENCE_REQUIRED');
@@ -512,10 +534,9 @@ function diaryFilters({ siteId }, user) {
   const site = text(siteId, 'siteId');
   const clauses = [], values = [];
   if (site) { clauses.push('site_id = ?'); values.push(site); }
-  if (user) { clauses.push('site_id IN (SELECT site_id FROM site_members WHERE user_id = ?)'); values.push(user.id); }
   if (user) {
-    clauses.push(`site_id IN (SELECT m.site_id FROM site_members m WHERE m.user_id = ?
-      AND (m.role = 'owner' OR NOT EXISTS (SELECT 1 FROM member_module_access a
+    clauses.push(`site_id IN (SELECT m.site_id FROM accessible_site_members m WHERE m.user_id = ?
+      AND (m.role IN ('owner', 'demo_user') OR NOT EXISTS (SELECT 1 FROM member_module_access a
         WHERE a.site_id = m.site_id AND a.user_id = m.user_id AND a.module = 'diary' AND a.allowed = FALSE)))`);
     values.push(user.id);
   }
@@ -568,7 +589,7 @@ export async function createDiary(db, input, user) {
   const age = calendarDayAge(entryDate, calendarDateFormatter(timeZone)(createdAt));
   if (age < 0) fail(400, 'operational_date cannot be in the future.', 'VALIDATION_ERROR');
   const recordedLate = age > 7;
-  if (user && recordedLate && role !== 'owner') fail(403, 'Insufficient site role.', 'FORBIDDEN');
+  if (user && recordedLate && !['owner', DEMO_ROLE].includes(role)) fail(403, 'Insufficient site role.', 'FORBIDDEN');
   const motivation = diaryMotivation(input, Boolean(user && recordedLate));
   const requestedShift = input.shift === undefined ? undefined : text(input.shift, 'shift', true);
   if (requestedShift !== undefined && !['day', 'night'].includes(requestedShift)) {
@@ -615,7 +636,7 @@ export async function updateDiary(db, id, input, user) {
       const role = await requireRole(tx, before.site_id, user);
       await requireModule(tx, before.site_id, user, 'diary');
       const updatedAt = new Date().toISOString();
-      if (role !== 'owner') {
+      if (!['owner', DEMO_ROLE].includes(role)) {
         if (role !== 'editor') fail(403, 'Insufficient site role.', 'FORBIDDEN');
         const { time_zone: timeZone, day_cutoff_time: dayStart } = await getSite(tx, before.site_id);
         if (before.operational_date !== operationalDate(updatedAt, { timeZone, dayStart })) {
@@ -656,7 +677,6 @@ export async function listDiaryVersions(db, id, user) {
 }
 
 export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
-const ATTACHMENT_ROLES = ['owner', 'editor'];
 const attachmentTables = { task: 'tasks', diary: 'diary', site: 'sites', hse_event: 'hse_events', hse_inspection: 'hse_inspections', deviation: 'deviations' };
 const attachmentModules = { task: 'tasks', diary: 'diary', site: 'sites', hse_event: 'hse', hse_inspection: 'hse', deviation: 'deviations' };
 const hseAttachmentTypes = ['hse_event', 'hse_inspection'];
@@ -729,7 +749,7 @@ async function attachmentRecord(db, id, user, roles) {
 
 export async function createAttachment(db, input, user, storage = new S3Storage()) {
   object(input);
-  const { siteId, entityId } = await attachmentEntity(db, input, user, ATTACHMENT_ROLES);
+  const { siteId, entityId } = await attachmentEntity(db, input, user, EDIT_ROLES);
   const { filename, mime, data } = attachmentData(input);
   const id = randomUUID();
   const sha256 = createHash('sha256').update(data).digest('hex');
@@ -756,7 +776,7 @@ export async function createAttachment(db, input, user, storage = new S3Storage(
     }
     return await db.transaction(async tx => {
       // Recheck scope and membership after the storage round trip.
-      const current = await attachmentEntity(tx, input, user, ATTACHMENT_ROLES);
+      const current = await attachmentEntity(tx, input, user, EDIT_ROLES);
       if (current.siteId !== siteId) fail(403, 'Attachment entity changed site.', 'FORBIDDEN');
       await tx.run(`INSERT INTO attachments (id, site_id, entity_type, entity_id, filename, mime, size,
         content_sha256, storage_locator, manifest_version, uploaded_by, created_at)
@@ -813,10 +833,10 @@ export async function getAttachment(db, id, user, storage = new S3Storage()) {
 
 export async function deleteAttachment(db, id, user, storage = new S3Storage()) {
   await db.transaction(async tx => {
-    let row = await attachmentRecord(tx, id, user, ATTACHMENT_ROLES);
+    let row = await attachmentRecord(tx, id, user, EDIT_ROLES);
     if (row.entity_type === 'task') {
       await tx.run('UPDATE tasks SET id = id WHERE id = ?', row.entity_id);
-      row = await attachmentRecord(tx, id, user, ATTACHMENT_ROLES);
+      row = await attachmentRecord(tx, id, user, EDIT_ROLES);
       if (await tx.get('SELECT id FROM tasks WHERE acceptance_document_id = ?', row.id)) {
         fail(409, 'This attachment is referenced by a formal acceptance.', 'TASK_ACCEPTANCE_DOCUMENT_IN_USE');
       }

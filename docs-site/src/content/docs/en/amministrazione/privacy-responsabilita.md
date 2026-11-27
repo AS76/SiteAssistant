@@ -28,11 +28,14 @@ The legal position follows the activities performed, not merely the wording of a
 ## What information can SiteAssistant contain?
 
 - **People and work:** accounts, names, contractors, roles, attendance, hours, assignments, action history and identifiers of people performing actions.
+- **Invitations:** recipient email, inviter identity, language, any proposed site and role, delivery results and audit records. The database stores a token hash. The link expires after 72 hours, while the invitation and audit records follow the deployment's retention policy.
 - **Site records:** tasks, diary, WBS, progress, deviations, HSE, cost impacts and reports. Free-text fields may contain personal data even where that is not their intended purpose.
 - **Potential health information:** certifications, medical checks, fitness outcomes, notes or photographs revealing health conditions. Even a concise fitness-to-work outcome may require special safeguards.
 - **Copies and metadata:** attachments, exports, backups, information stored by the browser and queued offline operations. Session records also retain IP address, user-agent and authentication metadata; audit records may include the actor, timestamp, previous and updated values of changed or deleted records, and access to HSE attachments. The PWA's offline copies include lists and attachment metadata, **not** the attached binary files.
 
 Collect only what is necessary. Avoid diagnoses, medical reports or unnecessary clinical detail in operational notes.
+
+The demo access log and the other entries documented by the project are in the [record of processing activities](../inventario-trattamenti/).
 
 ## Where does the data go in an independent installation?
 
@@ -42,7 +45,7 @@ The application uses **SQLite by default** or optional PostgreSQL. The reviewed 
 | --- | --- |
 | Database | Stored in the organisation's configured SQLite or PostgreSQL environment. |
 | Attachments | Require configured S3-compatible object storage; the reviewed version has no automatic on-disk fallback. |
-| Email | Account requests and password recovery depend on configured SMTP. |
+| Email | Account requests, password recovery and invitations use the configured mail service. Invitation emails give that service the recipient address and the single-use link. |
 | AI assistant | Optional: without a provider key it does not respond. When enabled, it sends questions and query results to a model service. With `DEEPSEEK_API_KEY` set and `ASSISTANT_BASE_URL` unset, the default endpoint is **DeepSeek**. A compatible endpoint, including a self-hosted one, can be configured. Disable the assistant by removing the provider key from server configuration and restarting the service; no UI, per-user or per-site toggle exists. |
 | Address search | When used, it queries the public **Nominatim** geocoding service (using OpenStreetMap data) by default. With `GOOGLE_MAPS_API_KEY` it tries Google Maps, but may fall back to Nominatim if Google returns no results or fails. The reviewed version has no dedicated application switch to disable all external address lookups. |
 | Reporting | May use an optional separate reporting database. |

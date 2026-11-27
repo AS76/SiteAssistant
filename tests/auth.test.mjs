@@ -6,6 +6,7 @@ import { attachTaskEvidence } from './helpers/object-storage.mjs';
 import { createServer } from '../server/http.mjs';
 import { createSite, createTask, getTask } from '../server/repository.mjs';
 import { createLoginLimiter, hashPassword, verifyPassword, SESSION_TTL, tokenHash } from '../server/auth.mjs';
+import { truncateIp } from '../server/auth-events.mjs';
 import { seed } from '../server/seed.mjs';
 
 async function fixture(t, options) {
@@ -42,7 +43,7 @@ test('login normalizes email, emits HttpOnly cookie, persists only token hash an
   t.assert.strictEqual(stored.token_hash.length, 64);
   t.assert.strictEqual(Date.parse(stored.expires_at) - Date.parse(stored.created_at), SESSION_TTL);
   t.assert.strictEqual(stored.user_agent, 'Synthetic agent');
-  t.assert.strictEqual(stored.ip, '127.0.0.1');
+  t.assert.strictEqual(stored.ip, '127.0.0.0');
   t.assert.doesNotMatch(JSON.stringify(stored), new RegExp(token));
   const me = await request('/api/auth/me', { cookie: cookie.split(';')[0] });
   const user = { ...users.owner, language: null, shared_demo: false };
@@ -54,6 +55,61 @@ test('login normalizes email, emits HttpOnly cookie, persists only token hash an
     t.assert.strictEqual(failed.status, 401); t.assert.strictEqual(failed.body.code, 'INVALID_CREDENTIALS');
     t.assert.strictEqual(failed.headers['set-cookie'], undefined);
   }
+});
+
+test('access audit captures login and logout metadata without credentials or complete IPs', async t => {
+  const { db, request, users } = await fixture(t);
+  const ip = '203.0.113.77';
+  const headers = { 'user-agent': 'Synthetic audit agent' };
+  const password = 'Synthetic-test-password!';
+  const wrong = 'Synthetic-incorrect-password!';
+  const at = Date.now();
+  const submit = (password, email = users.owner.email) => request('/api/auth/login', {
+    method: 'POST', body: { email, password }, ip, headers,
+  });
+  const signedIn = await submit(password);
+  t.assert.strictEqual(signedIn.status, 200);
+  t.assert.strictEqual((await submit(wrong)).status, 401);
+  t.assert.strictEqual((await submit(wrong, 'absent@example.invalid')).status, 401);
+  t.assert.strictEqual((await submit('')).status, 400);
+  const cookie = signedIn.headers['set-cookie'].split(';')[0];
+  const v6 = '2001:db8:abcd:1234:5678:9abc:def0:1234';
+  const exit = () => request('/api/auth/logout', { method: 'POST', cookie, ip: v6, headers });
+  t.assert.strictEqual((await exit()).status, 200);
+  t.assert.strictEqual((await exit()).status, 401);
+
+  const events = await db.all('SELECT * FROM auth_events WHERE user_agent = ?', headers['user-agent']);
+  t.assert.deepStrictEqual(events.map(row => [row.event, row.user_id, row.outcome, row.ip, JSON.parse(row.detail_json).reason]).sort(), [
+    ['login.failure', users.owner.id, 'failure', '203.0.113.0', 'invalid_credentials'],
+    ['login.failure', users.owner.id, 'failure', '203.0.113.0', 'invalid_request'],
+    ['login.failure', null, 'failure', '203.0.113.0', 'invalid_credentials'],
+    ['login.success', users.owner.id, 'success', '203.0.113.0', undefined],
+    ['logout', users.owner.id, 'success', '2001:db8:abcd::/48', undefined],
+  ].sort());
+  t.assert.ok(events.every(row => Date.parse(row.created_at) >= at && Date.parse(row.created_at) <= Date.now()));
+  const payload = JSON.stringify(events);
+  for (const secret of [password, wrong, cookie.slice('sa_session='.length), ip, v6]) t.assert.ok(!payload.includes(secret));
+  t.assert.strictEqual((await db.get('SELECT ip FROM sessions WHERE token_hash = ?', tokenHash(cookie.slice('sa_session='.length)))).ip, '203.0.113.0');
+  t.assert.strictEqual(truncateIp('::ffff:203.0.113.77'), '203.0.113.0');
+  t.assert.strictEqual(truncateIp('2001:db8::abcd'), '2001:db8::/48');
+  t.assert.strictEqual(truncateIp('::1'), '::/48');
+  t.assert.strictEqual(truncateIp('invalid'), null);
+});
+
+test('concurrent requests with an expired cookie audit the session once', async t => {
+  const { db, request, cookies, users } = await fixture(t);
+  await db.run('UPDATE sessions SET expires_at = ? WHERE user_id = ?', '2020-01-01T00:00:00.000Z', users.owner.id);
+  const options = { cookie: cookies.owner, ip: '203.0.113.77', headers: { 'user-agent': 'Synthetic expiry agent' } };
+  const at = Date.now();
+  const responses = await Promise.all(Array.from({ length: 4 }, () => request('/api/auth/me', options)));
+  t.assert.deepStrictEqual(responses.map(response => response.status), [401, 401, 401, 401]);
+  const events = await db.all("SELECT * FROM auth_events WHERE event = 'session.expired'");
+  t.assert.strictEqual(events.length, 1);
+  t.assert.strictEqual(events[0].user_id, users.owner.id);
+  t.assert.strictEqual(events[0].ip, '203.0.113.0');
+  t.assert.strictEqual(events[0].user_agent, options.headers['user-agent']);
+  t.assert.ok(Date.parse(events[0].created_at) >= at);
+  t.assert.strictEqual((await db.get('SELECT expiry_logged_at FROM sessions WHERE user_id = ?', users.owner.id)).expiry_logged_at, events[0].created_at);
 });
 
 test('language preferences require a session, persist for personal accounts and reject shared demos', async t => {
@@ -110,7 +166,7 @@ test('public health, protected routes, expiry, disabled users and revocation', a
 test('login limiter limits IP and account independently and slides its window', async t => {
   let now = 0;
   const limiter = createLoginLimiter({ now: () => now });
-  const { request } = await fixture(t, { limiter });
+  const { db, request } = await fixture(t, { limiter });
   const attempt = (email = 'missing@example.invalid', ip = '127.0.0.1') => request('/api/auth/login', {
     method: 'POST', ip, body: { email, password: 'Wrong' },
   });
@@ -118,6 +174,8 @@ test('login limiter limits IP and account independently and slides its window', 
   const limited = await attempt(' MISSING@EXAMPLE.INVALID ');
   t.assert.strictEqual(limited.status, 429); t.assert.strictEqual(limited.body.code, 'RATE_LIMITED');
   t.assert.strictEqual(limited.headers['retry-after'], '890');
+  t.assert.deepStrictEqual((await db.all("SELECT detail_json FROM auth_events WHERE event = 'login.failure'"))
+    .map(row => JSON.parse(row.detail_json).reason).sort(), [...Array(10).fill('invalid_credentials'), 'rate_limited']);
   t.assert.strictEqual((await attempt('another@example.invalid')).status, 401);
   t.assert.strictEqual((await attempt('missing@example.invalid', '127.0.0.2')).status, 429);
   for (let n = 11; n < 50; n++) limiter.fail('127.0.0.1', `synthetic-${n}@example.invalid`);

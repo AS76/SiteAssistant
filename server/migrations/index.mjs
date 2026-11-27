@@ -1,9 +1,10 @@
 import { readdir, readFile } from 'node:fs/promises';
+import { isDemoSandbox, migrateDemoSandbox } from '../demo-sandbox.mjs';
 import { calendarDateFormatter, calendarDayAge } from '../operational-day.mjs';
 
 // Also usable for a manual replay, independently of schema_migrations.
 // SQLite has no ADD COLUMN IF NOT EXISTS; keep its 004 SQL additive only.
-export async function applyMigration(tx, file, { driver }) {
+export async function applyMigration(tx, file, { driver, demoSandbox = isDemoSandbox() }) {
   if (!['sqlite', 'pg'].includes(driver) || !/^\d{3}_[a-z_]+\.sql$/.test(file)) {
     throw new Error('Invalid migration selection.');
   }
@@ -32,6 +33,25 @@ export async function applyMigration(tx, file, { driver }) {
     }
     return;
   }
+  if (file === '051_demo_user.sql') {
+    await tx.exec(sql);
+    if (demoSandbox) await migrateDemoSandbox(tx);
+    return;
+  }
+  if (driver === 'sqlite' && file === '054_demo_seed_records.sql') {
+    const existing = await tx.get("SELECT type FROM main.sqlite_schema WHERE name = 'demo_seed_records' COLLATE NOCASE AND type IN ('table', 'view', 'index')");
+    if (!existing) await tx.exec(sql);
+    const table = await tx.get("SELECT type FROM pragma_table_list('demo_seed_records') WHERE schema = 'main'");
+    const columns = await tx.all("PRAGMA main.table_xinfo('demo_seed_records')");
+    const expected = ['table_name', 'record_id'];
+    if (table?.type !== 'table' || columns.length !== expected.length ||
+        !columns.every((column, index) => column.name === expected[index] &&
+          column.type.toUpperCase() === 'TEXT' && column.notnull === 1 &&
+          column.pk === index + 1 && column.hidden === 0)) {
+      throw new Error('Migration 054: incompatible demo_seed_records schema; expected two NOT NULL TEXT columns and PRIMARY KEY (table_name, record_id)');
+    }
+    return;
+  }
   if (driver !== 'sqlite' || file !== '004_physical_types.sql') return await tx.exec(sql);
   for (const statement of sql.split(';').filter(part => part.trim())) {
     const match = /^\s*ALTER TABLE (\w+) ADD COLUMN (\w+)\s/i.exec(statement);
@@ -42,7 +62,7 @@ export async function applyMigration(tx, file, { driver }) {
   }
 }
 
-export async function migrate(db, { driver }) {
+export async function migrate(db, { driver, demoSandbox = isDemoSandbox() }) {
   if (!['sqlite', 'pg'].includes(driver)) throw new Error(`Unknown DB_DRIVER: ${driver}`);
   const directory = new URL(`./${driver}/`, import.meta.url);
   const files = (await readdir(directory)).filter(name => /^\d{3}_.+\.sql$/.test(name)).sort();
@@ -55,7 +75,7 @@ export async function migrate(db, { driver }) {
     const version = file.slice(0, 3);
     const changed = await db.transaction(async tx => {
       if (await tx.get('SELECT version FROM schema_migrations WHERE version = ?', version)) return;
-      await applyMigration(tx, file, { driver });
+      await applyMigration(tx, file, { driver, demoSandbox });
       await tx.run('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)',
         version, new Date().toISOString());
       return true;

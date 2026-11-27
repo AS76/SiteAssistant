@@ -1,6 +1,6 @@
 import { isIP } from 'node:net';
 
-function normalizeIp(address) {
+export function normalizeIp(address) {
   const version = isIP(address);
   if (version === 4) return address;
   if (version !== 6 || address.includes('%')) return null;

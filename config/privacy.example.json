@@ -1,0 +1,45 @@
+{
+  "updatedAt": "",
+  "operator": {
+    "name": "",
+    "address": "",
+    "privacyEmail": "",
+    "dpo": ""
+  },
+  "legalBases": [],
+  "services": [
+    {
+      "name": "Railway",
+      "purpose": "Hosting dell'applicazione e database PostgreSQL della demo",
+      "location": "ams (Europa)"
+    },
+    {
+      "name": "Hostinger / relay SMTP",
+      "purpose": "Invio delle email transazionali di accesso e reset",
+      "location": "da confermare"
+    },
+    {
+      "name": "OpenRouter / provider di inferenza",
+      "purpose": "Assistente AI, se configurato",
+      "location": "da confermare in base al provider e all'endpoint"
+    },
+    {
+      "name": "Nominatim / OpenStreetMap; Google Maps se configurato",
+      "purpose": "Ricerca indirizzi, quando usata",
+      "location": "da confermare"
+    },
+    {
+      "name": "GitHub Pages",
+      "purpose": "Pubblicazione della manualistica",
+      "location": "globale"
+    }
+  ],
+  "retention": {
+    "activeSessions": "7 giorni",
+    "expiredSessions": "30 giorni dalla scadenza o revoca",
+    "authEvents": "90 giorni",
+    "signupRequests": "30 giorni dalla conclusione",
+    "applicationLogs": "30 giorni, se gestiti dall'hosting",
+    "backups": "secondo la configurazione dell'hosting; retention da confermare"
+  }
+}

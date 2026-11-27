@@ -3,7 +3,7 @@ title: Utenti e ruoli
 description: I ruoli per cantiere, come si creano gli account e come si gestiscono le appartenenze.
 ---
 
-I permessi in SiteAssistant sono **per cantiere**, non globali: la stessa persona può essere `owner` su un cantiere e `viewer` su un altro. Senza appartenenza, il cantiere non esiste per quell'utente.
+I permessi di cantiere dipendono dall'appartenenza. La stessa persona può essere `owner` su un cantiere e `viewer` su un altro. Senza appartenenza, il cantiere non esiste per quell'utente.
 
 ## I ruoli
 
@@ -40,10 +40,11 @@ Le operazioni sul diario richiedono l'accesso al modulo **Diario**. Un autore ma
 
 ## Come nasce un account
 
-Un account può nascere in due modi:
+Un account può nascere in tre modi:
 
 1. **Richiesta autonoma.** Dal modulo di accesso, chiunque può premere **Richiedi accesso** e inserire la propria email; un owner la approva e l'utente riceve una password temporanea (vedi [Accesso e account](../../guida/accesso/)).
-2. **Creazione dall'amministratore.** Chi gestisce il server può creare account e assegnarli subito a un cantiere con la CLI `create-user`:
+2. **Invito via email.** Chi ha il permesso `invitations.manage` invia un link monouso. Per impostazione predefinita l'account nasce senza cantieri. L'owner del cantiere può assegnare un ruolo successivamente oppure includerlo nell'invito se ha anche il permesso di invito.
+3. **Creazione dall'amministratore.** Chi gestisce il server può creare account e assegnarli subito a un cantiere con la CLI `create-user`:
 
 ```sh
 npm run create-user -- \
@@ -65,6 +66,26 @@ Regole principali:
 Le capacità marcate **solo API** si usano chiamando gli endpoint descritti in [API REST](../../riferimento/api/).
 
 L'import dall'interfaccia è descritto in [Importare un export di pianificazione](../import-pianificazione/). I passaggi di stato degli impatti economici e la chiusura con esito sono disponibili anche nel dettaglio dell'impatto.
+
+## Inviare e revocare un invito
+
+Nessun account riceve automaticamente `invitations.manage`. Il permesso abilita la gestione degli inviti. I ruoli e l'accesso ai cantieri dipendono dalle appartenenze. Chi gestisce il server assegna e revoca il permesso da CLI.
+
+```sh
+npm run admin -- grant invitations.manage operatore@example.invalid
+npm run admin -- revoke invitations.manage operatore@example.invalid
+```
+
+Invia l'invito con `POST /api/admin/invitations` e scegli `locale: "it"` oppure `"en"`. Il link scade dopo **72 ore**. Con `POST /api/admin/invitations/{id}/revoke` puoi invalidarlo prima dell'attivazione. Vedi [API REST](../../riferimento/api/#autenticazione-e-account).
+
+```sh
+npm run invitations -- list
+npm run invitations -- retry <id|email>
+npm run invitations -- reissue <id|email>
+npm run invitations -- revoke <id|email>
+```
+
+`list` mostra gli inviti non scaduti e ancora utilizzabili. `retry` riprova un invio fallito con un link nuovo per lo stesso invito. `reissue` revoca l'invito in attesa e ne crea un altro con 72 ore di validità. Usalo anche se l'invio si è interrotto e lo stato resta `pending`. `revoke` invalida il link. Per inviare da CLI, configura l'email e l'URL pubblico HTTPS (`PUBLIC_URL`).
 
 ## Gestire i membri
 

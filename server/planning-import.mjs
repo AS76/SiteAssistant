@@ -2,7 +2,7 @@ import { requireModule } from './module-access.mjs';
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { deviationImportMeta, recordDeviationImportEvent, registeredDeviationExport, storeDeviationExport } from './deviations.mjs';
 import { readWorkbook, XlsxLimitError } from './xlsx.mjs';
-import { RepositoryError, getSite, requireRole } from './repository.mjs';
+import { DEMO_ROLE, EDIT_ROLES, RepositoryError, getSite, requireRole } from './repository.mjs';
 import { sourceTimestamp, stableId, reconcileWbsSource, reconcileWbsMissing } from './wbs.mjs';
 
 const fail = (code, message, status = 400) => { throw new RepositoryError(status, message, code); };
@@ -178,7 +178,7 @@ async function mappingSite(db, siteId, user) {
     fail('VALIDATION_ERROR', 'site_id must be a UUID.');
   }
   siteId = siteId.toLowerCase();
-  await requireRole(db, siteId, user, ['owner', 'editor']);
+  await requireRole(db, siteId, user, EDIT_ROLES);
   return siteId;
 }
 export async function listImportMappings(db, siteId, user) {
@@ -191,7 +191,7 @@ export async function saveImportMapping(db, input, user) {
   const mapping = resolveMapping(family, { aliases_json: JSON.stringify(input.aliases), identity_json: JSON.stringify(input.identity) });
   const row = { aliases_json: JSON.stringify(mapping.aliases), identity_json: JSON.stringify(mapping.identity) };
   await db.transaction(async tx => {
-    await requireRole(tx, siteId, user, ['owner', 'editor']);
+    await requireRole(tx, siteId, user, EDIT_ROLES);
     const at = new Date().toISOString();
     await tx.run(`INSERT INTO import_mappings (id, site_id, family, aliases_json, identity_json, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (site_id, family)
@@ -203,7 +203,7 @@ export async function saveImportMapping(db, input, user) {
 export async function deleteImportMapping(db, siteId, family, user) {
   siteId = await mappingSite(db, siteId, user); familyOf(family);
   await db.transaction(async tx => {
-    await requireRole(tx, siteId, user, ['owner', 'editor']);
+    await requireRole(tx, siteId, user, EDIT_ROLES);
     await tx.run('DELETE FROM import_mappings WHERE site_id = ? AND family = ?', siteId, family);
   });
   return mappingResult(family, null);
@@ -468,7 +468,7 @@ export async function applyFamily(db, { siteId, family, rows, rejected = [], use
   familyOf(family);
   if (!user?.id) fail('UNAUTHENTICATED', 'Authentication required.', 401);
   return db.transaction(async tx => {
-    await requireRole(tx, siteId, user, ['owner', 'editor']);
+    await requireRole(tx, siteId, user, EDIT_ROLES);
     if (familyModule(family)) await requireModule(tx, siteId, user, familyModule(family));
     const currentMapping = await loadMapping(tx, siteId, family);
     if (mapping && mappingDigest(mapping) !== mappingDigest(currentMapping)) fail('PREVIEW_MISMATCH', 'Mapping changed; request a new preview.', 409);
@@ -542,7 +542,7 @@ export async function importDeviationWorkbook(db, input, user) {
   const site = input.site_id.toLowerCase();
   const meta = deviationImportMeta(input.meta);
   return db.transaction(async tx => {
-    await requireRole(tx, site, user, ['owner']);
+    await requireRole(tx, site, user, ['owner', DEMO_ROLE]);
     await requireModule(tx, site, user, 'deviations');
     await tx.run('UPDATE sites SET id = id WHERE id = ?', site);
     const buffer = workbookFile(input);
@@ -565,7 +565,7 @@ export async function importRequest(db, input, user, { apply = false } = {}) {
   if (!user?.id) fail('UNAUTHENTICATED', 'Authentication required.', 401);
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.site_id || '')) fail('VALIDATION_ERROR', 'site_id must be a UUID.');
   const siteId = input.site_id.toLowerCase(), family = input.family;
-  await requireRole(db, siteId, user, ['owner', 'editor']);
+  await requireRole(db, siteId, user, EDIT_ROLES);
   familyOf(family);
   if (familyModule(family)) await requireModule(db, siteId, user, familyModule(family));
   const buffer = workbookFile(input);

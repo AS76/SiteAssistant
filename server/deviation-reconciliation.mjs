@@ -36,7 +36,7 @@ export async function deviationReconciliation(db, { siteId } = {}, user) {
     throw new RepositoryError(400, 'site_id must be a UUID.', 'VALIDATION_ERROR');
   }
   const site = siteId.toLowerCase();
-  await requireRole(db, site, user, ['owner', 'editor', 'verifier', 'viewer']);
+  await requireRole(db, site, user);
   await requireModule(db, site, user, 'deviations');
   const rows = await db.all(`SELECT id, deviation_no, title, status, approved_date, closed_date
     FROM deviations WHERE site_id = ?
