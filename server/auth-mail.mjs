@@ -157,8 +157,9 @@ export function createSmtpMailer({ env = process.env, connect = netConnect, conn
 }
 export function createHttpMailer({ env = process.env, fetchImpl = fetch, timeoutMs = 20000 } = {}) {
   const configured = () => {
-    if (!env.MAIL_API_URL || !env.MAIL_API_TOKEN) throw new MailNotConfiguredError();
-    return { url: env.MAIL_API_URL, token: env.MAIL_API_TOKEN };
+    const { MAIL_API_URL: url, MAIL_API_TOKEN: token } = env;
+    if (!url || !token || URL.parse(url)?.protocol !== 'https:') throw new MailNotConfiguredError();
+    return { url, token };
   };
   const send = async message => {
     const { url, token } = configured();
@@ -167,10 +168,13 @@ export function createHttpMailer({ env = process.env, fetchImpl = fetch, timeout
     try {
       const response = await fetchImpl(url, {
         method: 'POST',
+        redirect: 'error',
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
         body: JSON.stringify({ to: message.to, subject: message.subject, text: message.text, html: message.html }),
         signal: controller.signal,
       });
+      // Discard the response body without buffering it and keep it within the request deadline.
+      await response.body?.pipeTo(new WritableStream(), { signal: controller.signal });
       if (!response.ok) throw new MailDeliveryError();
     } catch {
       throw new MailDeliveryError();

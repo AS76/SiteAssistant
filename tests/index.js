@@ -23,10 +23,12 @@ import './secure-cookie.test.mjs';
 
 import './signup.test.mjs';
 import './signup-schema.test.mjs';
+import './signup-decision.test.mjs';
 import './invitations.test.mjs';
 import './roles-demo-user.test.mjs';
 import './stats.test.mjs';
 import './auth-mail.test.mjs';
+import './mail-relay.test.mjs';
 import './attachments.test.mjs';
 import './attachments-schema.test.mjs';
 import './s3.test.mjs';
