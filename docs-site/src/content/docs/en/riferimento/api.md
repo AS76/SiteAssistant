@@ -21,10 +21,20 @@ The API is an HTTP service that the frontend calls directly. There are no API to
 | GET/POST | `/api/auth/request/decide` | owner (via email link) | Approve or reject a request |
 | POST | `/api/auth/password` | authenticated | Change password |
 | POST | `/api/auth/forgot` | none | Reset password `{ email }` |
+| POST | `/api/admin/invitations` | `invitations.manage` | `{ email, locale?, cantiere_id?, role? }` → `201` with invitation and delivery metadata |
+| GET | `/attiva?token=…` | email link | Activation form or `410` page |
+| POST | `/api/auth/activate` | invitation token | `{ token, password }` → `200` with `{ user }` and a session cookie |
+| POST | `/api/admin/invitations/{id}/revoke` | `invitations.manage` | Revokes an outstanding invitation. Returns `200` with `id` and `revoked_at`, or `404` |
 
 `POST /api/auth/login` counts failed password sign-ins for the same email and network address over a rolling **15-minute** window. A successful password sign-in clears the count. After **10 failures** within the window, the next request receives `429 RATE_LIMITED`. The `Retry-After` header and the numeric `retry_after` field in the JSON body both give the remaining wait in seconds. Passkey sign-in has a separate limit based on the number of requests.
 
 `POST /api/auth/request` and `POST /api/auth/forgot` always answer `202 accepted`, even when the email does not match an account: the response never reveals whether the address exists. The review link emailed to the owner expires after **72 hours** and can be used once. Access requests, resets and password changes are rate-limited per network address and email address. If the email service is not configured, the response is `503` with code `MAIL_NOT_CONFIGURED`.
+
+An invitation expires after **72 hours** and works once. `locale` accepts `it` or `en` after trimming whitespace and converting to lowercase. It defaults to `en` when omitted or blank. Accounts start with zero sites. To assign one, supply both the site UUID as `cantiere_id` and a site role as `role`. The inviter must own that site. SiteAssistant checks the inviter's authority again at activation and creates the account without membership if that authority has been lost.
+
+The administration routes return `403` for authenticated users without the permission. Creation returns `409` when the account or an unexpired invitation already exists. Missing mail configuration returns `503 MAIL_NOT_CONFIGURED` and leaves no new invitation. A delivery error after commit returns `503` with an error code and invitation metadata. Metadata includes `id`, `email`, `created_at`, `expires_at`, `locale`, `delivery_status`, `delivery_attempts`, `delivered_at` and `last_delivery_error`. Use the CLI to retry or reissue.
+
+Activation requires at least **12 characters** and returns `410 INVITATION_UNAVAILABLE` for an unusable link. The browser form also asks for confirmation and redirects to the app with `303` after activation. Invitation routes have independent limits of **10 attempts per 15 minutes** per network address and per email when identifiable.
 
 ## Passkeys (WebAuthn)
 

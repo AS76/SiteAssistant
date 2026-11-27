@@ -1,5 +1,5 @@
 import test from 'node:test';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
@@ -7,6 +7,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { openDb, closeDb } from '../server/db.mjs';
 import { SqliteStorage, PgStorage } from '../server/storage/index.mjs';
 import { applyMigration } from '../server/migrations/index.mjs';
+import { manifest, prefixBefore, versions } from './helpers/migrations.mjs';
 
 async function fixture(t, driver) {
   const connections = [];
@@ -75,20 +76,19 @@ for (const driver of ['sqlite', 'pg']) {
   test(`openDb preserves a pending migration when disabled and applies it by default: ${driver}`, async t => {
     const database = await fixture(t, driver);
     const original = await database.create();
-    const files = (await readdir(new URL(`../server/migrations/${driver}/`, import.meta.url)))
-      .filter(file => /^\d{3}_.+\.sql$/.test(file)).sort();
-    // Keep 025 pending to exercise creation of audit_events as well as its newer constraints.
-    t.assert.strictEqual(files.at(-1), '048_password_resets.sql');
-    const pending = files.filter(file => file >= '025');
+    // Keep 025 pending to exercise creation of audit_events and its newer constraints.
+    const prefix = prefixBefore('025');
+    const pending = manifest.slice(prefix.length);
+    t.assert.strictEqual(pending[0]?.version, '025');
     await original.exec('CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
-    for (const file of files.filter(file => file < '025')) {
+    for (const { file, version } of prefix) {
       await original.transaction(async tx => {
         await applyMigration(tx, file, { driver });
-        await tx.run('INSERT INTO schema_migrations VALUES (?, ?)', file.slice(0, 3), '2026-01-01T00:00:00.000Z');
+        await tx.run('INSERT INTO schema_migrations VALUES (?, ?)', version, '2026-01-01T00:00:00.000Z');
       });
     }
     const before = await original.all('SELECT * FROM schema_migrations ORDER BY version');
-    t.assert.strictEqual(before.length, files.length - pending.length);
+    t.assert.deepStrictEqual(before.map(row => row.version), prefix.map(entry => entry.version));
     t.assert.strictEqual(await tableExists(original, driver, 'audit_events'), false);
     await closeDb(original);
 
@@ -102,8 +102,7 @@ for (const driver of ['sqlite', 'pg']) {
     const migrated = await database.open({ onMigrationsApplied });
     const after = await migrated.all('SELECT * FROM schema_migrations ORDER BY version');
     t.assert.deepStrictEqual(after.slice(0, -pending.length), before);
-    t.assert.strictEqual(after.length, files.length);
-    t.assert.strictEqual(after.at(-1).version, '048');
+    t.assert.deepStrictEqual(after.map(row => row.version), versions);
     t.assert.strictEqual(await tableExists(migrated, driver, 'audit_events'), true);
     t.assert.deepStrictEqual(await migrated.all('SELECT * FROM audit_events'), []);
     t.assert.strictEqual(onMigrationsApplied.mock.callCount(), 1);

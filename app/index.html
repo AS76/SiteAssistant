@@ -1,21 +1,21 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#FAF6EC">
-  <meta name="description" content="SiteAssistant — cantieri, attività e diario giornaliero.">
+  <meta name="description" content="SiteAssistant — sites, tasks and daily log.">
   <meta name="siteassistant-api-base" content="/">
   <title>SiteAssistant</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="fonts.css">
   <link rel="stylesheet" href="styles.css">
   <link rel="manifest" href="manifest.webmanifest">
-  <script type="module" src="app.mjs"></script>
+  <script type="module" src="app.mjs" blocking="render"></script>
 </head>
 <body>
-  <a class="skip" href="#main" id="skip">Vai al contenuto</a>
+  <a class="skip" href="#main" id="skip">Skip to content</a>
   <aside class="sidebar">
     <a href="#overview" class="brand">
       <svg class="brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
@@ -39,12 +39,12 @@
       </div>
       <div class="topbar-actions">
         <button id="ai-top" class="ai-top text-button" type="button" data-command="ai-open" aria-label="Assistente AI" aria-expanded="false" aria-controls="ai-panel" hidden>AI</button>
-        <button id="settings-button" class="text-button" type="button" data-command="open-settings" aria-label="Impostazioni" title="Impostazioni">⚙</button>
-        <a id="manual-link" class="manual-link" href="https://as76.github.io/SiteAssistant/" target="_blank" rel="noopener noreferrer">Manuale</a>
-        <button id="language" class="language" type="button" aria-label="Switch to English">EN</button>
+        <button id="settings-button" class="text-button" type="button" data-command="open-settings" aria-label="Settings" title="Settings">⚙</button>
+        <a id="manual-link" class="manual-link" href="https://as76.github.io/SiteAssistant/en/guida/accesso/" target="_blank" rel="noopener noreferrer">Manual</a>
+        <button id="language" class="language" type="button" aria-label="Passa all’italiano" lang="it">IT</button>
       </div>
-      <div class="site-control">
-        <label id="site-label" for="site-select">Cantiere</label>
+      <div class="site-control" hidden>
+        <label id="site-label" for="site-select">Site</label>
         <span class="topbar-code" id="topbar-code" hidden></span>
         <div class="site-choice">
           <select id="site-select"></select>
@@ -52,13 +52,13 @@
         </div>
       </div>
       <div class="operational-context" id="operational-context" hidden>
-        <span class="operational-label" id="operational-label">Giorno operativo</span>
+        <span class="operational-label" id="operational-label">Operational day</span>
         <time id="operational-date"></time>
         <span id="operational-shift"></span>
         <span class="actor-control"><span id="actor-name"></span><strong id="actor-role"></strong></span>
       </div>
       <div class="topbar-navigation">
-        <nav id="navigation" aria-label="Principale" hidden></nav>
+        <nav id="navigation" aria-label="Main" hidden></nav>
       </div>
     </header>
     <section class="demo-banner" id="demo-banner" aria-labelledby="demo-notice-title" hidden>
@@ -82,6 +82,8 @@
   </aside>
   <footer>
     <span id="footer-note"></span>
+    <a id="privacy-link" class="text-button" href="/privacy"></a>
+    <a id="cookie-link" class="text-button" href="/cookie-policy"></a>
     <button id="demo-info" type="button" class="text-button" data-command="open-demo-info" aria-haspopup="dialog" hidden></button>
   </footer>
   </div>

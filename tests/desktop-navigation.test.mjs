@@ -65,7 +65,8 @@ test('desktop renders three native collapsible sections in order with their modu
       assert.match(sections[index][1], new RegExp(`^<summary class="nav-section">${messages.it[group.label]}</summary>`));
       assert.deepEqual([...sections[index][1].matchAll(/href="#([^"]+)"/g)].map(match => match[1]), group.items);
     });
-    assert.equal((html.match(/<a href=/g) || []).length, 14);
+    // Today is outside the groups, which include Places and Assets as core links.
+    assert.equal((html.match(/<a href=/g) || []).length, 16);
     assert.deepEqual(openState(ui), { operations: true, site: true, management: true });
   }
 });
@@ -136,7 +137,10 @@ test('initial and detached toggle notifications cannot overwrite current prefere
 test('disabled modules are omitted without empty sections or lost preferences', () => {
   const modules = Object.fromEntries(['progress', 'bookings', 'wbs', 'impacts', 'tasks', 'tools'].map(key => [key, false]));
   const ui = navigation({ modules, saved: '{"site":false}' }), html = ui.render();
-  assert.deepEqual(ui.details.map(item => item.dataset.group), ['operations', 'management']);
+  // The Site section retains Places and Assets when all its optional destinations are disabled.
+  assert.deepEqual(ui.details.map(item => item.dataset.group), ['operations', 'site', 'management']);
+  const siteSection = html.match(/<details class="nav-group" data-group="site"[^>]*>(.*?)<\/details>/)?.[1] ?? '';
+  assert.deepEqual([...siteSection.matchAll(/href="#([^"]+)"/g)].map(match => match[1]), ['places', 'assets']);
   for (const key of Object.keys(modules)) assert.ok(!html.includes(`href="#${key}"`));
   ui.toggle('management', false);
   assert.equal(JSON.parse(ui.values.get('sa-nav-open')).site, false);

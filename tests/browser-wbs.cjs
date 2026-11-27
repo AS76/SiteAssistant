@@ -9,6 +9,7 @@ async function run() {
   const { openDb } = await import('../server/db.mjs');
   const { createServer } = await import('../server/http.mjs');
   const { seed } = await import('../server/seed.mjs');
+  const { provisionDemoFixture, withDemoEnvironment } = await import('./helpers/demo-seed.mjs');
   const { apply } = await import('../server/seed-demo.mjs');
   const { wbsSource, attachSyntheticIngestion } = await import('./helpers/wbs.mjs');
   const { importWbs } = await import('../server/wbs.mjs');
@@ -18,7 +19,8 @@ async function run() {
     await seed(db);
     // Keep the login fixture; the demo seed owns diaries for this site/date.
     await db.run("DELETE FROM diary WHERE site_id IN (SELECT id FROM sites WHERE code = 'FITT-01') AND operational_date = '2026-11-06'");
-    await db.transaction(tx => apply(tx)); await attachSyntheticIngestion(db);
+    await provisionDemoFixture(db);
+    await withDemoEnvironment(() => apply(db)); await attachSyntheticIngestion(db);
     const site = await db.get("SELECT * FROM sites WHERE code = 'FITT-03'");
     const other = await db.get("SELECT * FROM sites WHERE code = 'FITT-05'");
     const owner = await db.get("SELECT * FROM users WHERE email = 'owner@example.invalid'");
@@ -41,7 +43,7 @@ async function run() {
           return route.fulfill({ response });
         }
         const file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-        if (!['index.html', 'app.mjs', 'api.mjs', 'webauthn-client.mjs', 'domain.mjs', 'hse-permissions.mjs', 'dashboard-layout.mjs', 'offline.mjs', 'i18n.mjs', 'styles.css'].includes(file)) return route.fulfill({ status: 404, body: '' });
+        if (!['index.html', 'app.mjs', 'api.mjs', 'webauthn-client.mjs', 'domain.mjs', 'hse-permissions.mjs', 'dashboard-layout.mjs', 'offline.mjs', 'i18n.mjs', 'language.mjs', 'styles.css'].includes(file)) return route.fulfill({ status: 404, body: '' });
         return route.fulfill({ contentType: file.endsWith('.html') ? 'text/html' : file.endsWith('.css') ? 'text/css' : 'text/javascript', body: await fs.readFile(path.join(__dirname, '../app', file)) });
       });
       const signIn = async role => {

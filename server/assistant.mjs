@@ -3,12 +3,40 @@ import { requireModule } from './module-access.mjs';
 // The key never reaches the browser, every query is scoped to one site and the caller's
 // role, and the model can only read: writes stay in the forms the user confirms.
 import { getSite, RepositoryError, requireRole } from './repository.mjs';
+import { assistantPrices, assertAssistantBudget, beginAssistantUsage, finishAssistantUsage } from './assistant-usage.mjs';
 
 const fail = (code, message, status = 400) => { throw new RepositoryError(status, message, code); };
 const DEFAULT_BASE = process.env.ASSISTANT_BASE_URL || 'https://api.deepseek.com';
 const DEFAULT_MODEL = process.env.ASSISTANT_MODEL || 'deepseek-flash';
 const MAX_TOOL_ROUNDS = 4;
 const MAX_ROWS = 20;
+
+// Optional provider-routing policy for OpenAI-compatible gateways. OpenRouter uses
+// this to enforce ZDR and a provider allowlist per request; direct providers ignore it.
+function validProvider(parsed) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || JSON.stringify(parsed).length > 4000) return false;
+  const strings = value => Array.isArray(value) && value.length <= 20 && value.every(item => typeof item === 'string' && item.length <= 120);
+  const allowed = new Set(['order', 'allow_fallbacks', 'only', 'ignore', 'data_collection', 'zdr', 'sort', 'max_price', 'quantizations', 'require_parameters']);
+  for (const [key, item] of Object.entries(parsed)) {
+    if (!allowed.has(key)) return false;
+    if (['order', 'only', 'ignore', 'quantizations'].includes(key) && !strings(item)) return false;
+    if (['allow_fallbacks', 'zdr', 'require_parameters'].includes(key) && typeof item !== 'boolean') return false;
+    if (key === 'data_collection' && !['allow', 'deny'].includes(item)) return false;
+    if (key === 'sort' && (typeof item !== 'string' || item.length > 40)) return false;
+    if (key === 'max_price' && !((typeof item === 'number' && Number.isFinite(item) && item >= 0) || (item && typeof item === 'object' && !Array.isArray(item)))) return false;
+  }
+  return true;
+}
+export function providerPolicy(value = process.env.ASSISTANT_PROVIDER_JSON) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return validProvider(parsed) ? parsed : { invalid: true };
+  } catch {
+    return { invalid: true };
+  }
+}
+const DEFAULT_PROVIDER = providerPolicy();
 
 const FAMILIES = {
   deviations: { table: 'deviations', label: 'deviation_no',
@@ -155,17 +183,20 @@ function citationsFrom(calls, results) {
 }
 
 export async function chat(db, { siteId, user, messages, view, language = 'it' }, { fetchImpl = fetch, apiKey = process.env.DEEPSEEK_API_KEY,
-  baseUrl = DEFAULT_BASE, model = DEFAULT_MODEL } = {}) {
+  baseUrl = DEFAULT_BASE, model = DEFAULT_MODEL, provider = DEFAULT_PROVIDER } = {}) {
   if (!user?.id) fail('UNAUTHENTICATED', 'Authentication required.', 401);
   await requireRole(db, siteId, user);
   const site = await getSite(db, siteId);
   if (!site.assistant_enabled) fail('ASSISTANT_DISABLED', 'Assistente disattivato per questo cantiere.', 409);
+  await assertAssistantBudget(db, siteId);
   if (!apiKey) fail('ASSISTANT_NOT_CONFIGURED', 'Assistente non configurato.', 503);
+  if (provider && (!validProvider(provider) || provider.invalid)) fail('ASSISTANT_NOT_CONFIGURED', 'Configurazione del provider non valida.', 503);
   if (!allowRequest(user.id)) fail('ASSISTANT_RATE_LIMITED', 'Troppe richieste: riprova tra qualche minuto.', 429);
   const history = (Array.isArray(messages) ? messages : []).slice(-8)
     .filter(message => ['user', 'assistant'].includes(message?.role) && typeof message.content === 'string')
     .map(message => ({ role: message.role, content: message.content.slice(0, 4000) }));
   if (!history.length) fail('INVALID_MESSAGES', 'Serve almeno un messaggio.');
+  const prices = assistantPrices();
 
   const lang = language === 'en' ? 'en' : 'it';
   const context = lang === 'en' ? `Current view: ${view || 'overview'}. Interface language: English.`
@@ -182,18 +213,19 @@ export async function chat(db, { siteId, user, messages, view, language = 'it' }
   });
   try {
     return await Promise.race([deadline, completeChat(db, { siteId, user, lang, conversation },
-      { fetchImpl, apiKey, baseUrl, model, signal: controller.signal })]);
+      { fetchImpl, apiKey, baseUrl, model, provider, prices, signal: controller.signal, deadline })]);
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function providerCompletion(conversation, { fetchImpl, apiKey, baseUrl, model, signal }) {
+async function providerCompletion(conversation, { fetchImpl, apiKey, baseUrl, model, provider, signal }) {
   signal.throwIfAborted();
   try {
     const response = await fetchImpl(`${baseUrl}/chat/completions`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages: conversation, tools: TOOLS, tool_choice: 'auto', temperature: 0.2, max_tokens: 700 }),
+      body: JSON.stringify({ model, messages: conversation, tools: TOOLS, tool_choice: 'auto', temperature: 0.2, max_tokens: 700,
+        ...(provider ? { provider } : {}) }),
       signal,
     });
     if (!response.ok) {
@@ -211,15 +243,30 @@ async function providerCompletion(conversation, { fetchImpl, apiKey, baseUrl, mo
   }
 }
 
+async function meteredCompletion(db, { siteId, user, conversation }, provider) {
+  const { model, prices, signal, deadline } = provider;
+  const id = await beginAssistantUsage(db, { siteId, userId: user.id, model, signal });
+  let payload, failure;
+  try {
+    payload = await Promise.race([providerCompletion(conversation, provider), deadline]);
+    return payload;
+  } catch (error) {
+    failure = signal.aborted ? 'provider_timeout' : 'provider_error';
+    throw error;
+  } finally {
+    await finishAssistantUsage(db, id, { payload, requestedModel: model, prices, failure });
+  }
+}
+
 async function completeChat(db, { siteId, user, lang, conversation }, provider) {
   const toolCalls = [], toolResults = [];
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const payload = await providerCompletion(conversation, provider);
+    const payload = await meteredCompletion(db, { siteId, user, conversation }, provider);
     const message = payload?.choices?.[0]?.message;
     if (!message) fail('ASSISTANT_UNAVAILABLE', 'Risposta non valida del provider.', 502);
     if (!message.tool_calls?.length) {
       return { reply: String(message.content || '').trim(), citations: citationsFrom(toolCalls, toolResults),
-        model: payload.model || provider.model, usage: payload.usage || null };
+        model: payload.model || provider.model };
     }
     conversation.push({ role: 'assistant', content: message.content || '', tool_calls: message.tool_calls });
     for (const call of message.tool_calls) {
@@ -236,5 +283,5 @@ async function completeChat(db, { siteId, user, lang, conversation }, provider) 
   }
   return { reply: lang === 'en' ? 'I could not answer with the available data. Try narrowing the question.'
     : 'Non riesco a chiudere la risposta con i dati disponibili. Prova a restringere la domanda.',
-    citations: citationsFrom(toolCalls, toolResults), model: provider.model, usage: null };
+    citations: citationsFrom(toolCalls, toolResults), model: provider.model };
 }

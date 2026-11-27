@@ -1,12 +1,13 @@
 import { createApi } from './api.mjs';
 import { getMirror, replayOps, SYNC_TAG } from './offline.mjs';
 
-const VERSION = 'siteassistant-v15-54';
+const VERSION = 'siteassistant-v15-62';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data-`;
 const shellUrls = [
   './', './index.html', './styles.css', './fonts.css', './app.mjs', './api.mjs', './webauthn-client.mjs',
-  './domain.mjs', './hse-permissions.mjs', './dashboard-layout.mjs', './i18n.mjs', './offline.mjs', './manifest.webmanifest', './assets/logo.svg',
+  './places-ui.mjs', './place-selector.mjs', './assets-ui.mjs',
+  './domain.mjs', './hse-permissions.mjs', './dashboard-layout.mjs', './i18n.mjs', './language.mjs', './offline.mjs', './manifest.webmanifest', './assets/logo.svg',
   './assets/fonts/SourceSans3-normal-300-700-37.woff2', './assets/fonts/SourceSans3-italic-400-30.woff2',
   './assets/fonts/SourceSerif4-normal-400-11.woff2', './assets/fonts/SourceSerif4-italic-400-5.woff2',
 ].map(path => new URL(path, self.registration.scope).href);
@@ -53,6 +54,9 @@ self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
+  // Server-rendered pages must reach the network: the activation route and the
+  // privacy/Cookie notices are answered by the server, not by the cached shell.
+  if (url.pathname === '/attiva' || url.pathname === '/privacy' || url.pathname === '/cookie-policy') return;
   if (shellUrls.includes(url.href) || (request.mode === 'navigate' && url.origin === self.location.origin && url.pathname.startsWith(new URL(self.registration.scope).pathname) && !url.pathname.includes('/api/'))) {
     event.respondWith((async () => {
       const cache = await caches.open(SHELL);

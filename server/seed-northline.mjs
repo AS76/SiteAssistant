@@ -1,5 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { hashPassword } from './auth.mjs';
+import { stat } from 'node:fs/promises';
+import { requireDemoAppEnv, requireDemoDatabase } from './demo-seed-environment.mjs';
+import { clearNorthlineFixtures, compositeKeys, recordNorthlineFixtures } from './demo-seed-registry.mjs';
 import { findTemplate } from './checklists.mjs';
 import { closeDb, openDb } from './db.mjs';
 
@@ -30,6 +33,10 @@ const ACCOUNTS = [
   ['verifier.it', 'Verifica Listarovo', 'verifier'], ['owner.uk', 'Flintmere Site Lead', 'owner'],
   ['editor.uk', 'Copperquill Crew Lead', 'editor'], ['verifier.uk', 'Nacrewharf Reviewer', 'verifier'],
   ['viewer', 'Northline Portfolio', 'viewer'],
+  ['viewer.schedule', 'Northline Schedule Review', 'viewer'],
+  ['viewer.logistics', 'Northline Logistics Review', 'viewer'],
+  ['owner.delivery', 'Northline Delivery Office', 'owner'],
+  ['owner.hse', 'Northline Safety Office', 'owner'],
 ].map(([login, name, role]) => ({ id: id('user', login), email: `${login}@northline.invalid`, login, name, role }));
 
 // WBS code, Italian and English description, planned day offsets, planned hours, work area.
@@ -170,6 +177,25 @@ const NIGHTS = [
     ['Consolidare il conteggio dei dieci cicli', 'Reconcile the total of ten cycles']],
 ];
 
+// Four weekly batches of integrated trials follow the initial installation diary.
+const TRIALS = [
+  ['YARD', ['Preparare il lotto di prova', 'Prepare the trial batch'],
+    ['Verificati gli identificativi dei contenitori.', 'Container identifiers checked.'],
+    ['Portare il lotto alla linea 1', 'Move the batch to line 1']],
+  ['L1', ['Provare il trasferimento a carico', 'Run the loaded transfer test'],
+    ['Registrati cinque passaggi a carico.', 'Five loaded passes recorded.'],
+    ['Controllare l’ingresso al magazzino', 'Check the store infeed']],
+  ['ASRS', ['Provare il deposito e il prelievo', 'Test storage and retrieval'],
+    ['Recuperati tutti i contenitori del lotto.', 'All containers in the batch were retrieved.'],
+    ['Verificare i segnali di fine ciclo', 'Check end-of-cycle signals']],
+  ['Q01', ['Verificare i segnali di fine ciclo', 'Check end-of-cycle signals'],
+    ['Rilevati i riscontri sul quadro di prova.', 'Feedback signals were recorded at the test panel.'],
+    ['Confrontare i riscontri con la sequenza', 'Compare feedback with the sequence']],
+  ['TEST', ['Riesaminare le prove del lotto', 'Review the batch trials'],
+    ['Esiti e misure raccolti nel verbale simulato.', 'Results and measurements recorded in the simulated test log.'],
+    ['Aggiornare il riepilogo delle prove', 'Update the trial summary']],
+];
+
 const PEOPLE = {
   IT: [
     'Nerivo Tramagel', 'Livessa Broccen', 'Taverno Filorosso', 'Orelva Spondiva',
@@ -265,8 +291,9 @@ function buildDataset() {
     const context = { site, key, day, stamp, wbsId, owner, editor, verifier, local, company, area, add, addSite };
 
     for (const user of ACCOUNTS) {
-      if ([owner, editor, verifier].includes(user)) addSite('site_members', { user_id: user.id, role: user.role });
-      else if (['owner', 'viewer'].includes(user.role)) addSite('site_members', { user_id: user.id, role: 'viewer' });
+      if (['editor', 'verifier'].includes(user.role) && user !== editor && user !== verifier) continue;
+      const otherSiteOwner = user.role === 'owner' && /[.](it|uk)$/.test(user.login) && user !== owner;
+      addSite('site_members', { user_id: user.id, role: otherSiteOwner ? 'viewer' : user.role });
     }
     for (const [index, [code, it, en, start, finish, hours, zone]] of WBS.entries()) {
       const parent = code.split('.')[0];
@@ -320,15 +347,35 @@ function addTasksAndDiary({ site, key, day, stamp, wbsId, owner, editor, verifie
     if (verifiedAt) event(verifiedAt, verifier, 'to_verify', 'closed', 'verify',
       ['Verifica indipendente eseguita. Criterio soddisfatto.', 'Independent review complete. Criterion met.']);
   }
-  const entry = (index, shift, zone, plan, actual, next, obstruction) => addSite('diary', {
-    id: key('diary', index, shift), operational_date: day(index), shift, plan: `${area(zone)}. ${local(plan)}.`,
-    actual: local(actual), next_step: `${local(next)}.`,
-    impediments: local(obstruction ?? ['Nessun impedimento registrato.', 'No issues recorded.']),
-    time_zone: site.timeZone, day_cutoff_time: '06:00',
-    created_at: shift === 'day' ? stamp(index) : at(addDays(day(index), 1), '03:00'),
-  });
+  const entry = (index, shift, zone, plan, actual, next, obstruction) => {
+    const diaryId = key('diary', index, shift);
+    const date = day(index);
+    const createdAt = shift === 'day' ? stamp(index) : at(addDays(date, 1), '03:00');
+    addSite('diary', {
+      id: diaryId, operational_date: date, shift, plan: `${area(zone)}. ${local(plan)}.`,
+      actual: local(actual), next_step: `${local(next)}.`,
+      impediments: local(obstruction ?? ['Nessun impedimento registrato.', 'No issues recorded.']),
+      time_zone: site.timeZone, day_cutoff_time: '06:00', created_at: createdAt,
+    });
+    const filename = `synthetic-${site.code}-${date}-${shift}.txt`;
+    // Derive metadata from an in-memory sample. No file or storage object is created.
+    const sample = `${filename}\n${local(actual)}\n`;
+    addSite('attachments', {
+      id: key('diary-attachment', index, shift), entity_type: 'diary', entity_id: diaryId,
+      filename, mime: 'text/plain', size: Buffer.byteLength(sample),
+      content_sha256: createHash('sha256').update(sample).digest('hex'),
+      storage_locator: `synthetic/northline/${site.code}/diary/${filename}`,
+      uploaded_by: editor.id, created_at: createdAt,
+    });
+  };
   for (const [index, content] of DIARY.entries()) entry(index, 'day', ...content);
   for (const [index, ...content] of NIGHTS) entry(index, 'night', ...content);
+  for (let batch = 1; batch <= 4; batch++) {
+    for (const [offset, [zone, plan, actual, next]] of TRIALS.entries()) {
+      entry(DIARY.length + (batch - 1) * TRIALS.length + offset, 'day', zone, plan,
+        [`Lotto ${batch}. ${actual[0]}`, `Batch ${batch}. ${actual[1]}`], next);
+    }
+  }
 }
 
 function addProgress({ key, stamp, wbsId, owner, editor, local, area, add, addSite }) {
@@ -540,14 +587,7 @@ function addLogistics({ key, day, stamp, wbsId, local, company, add, addSite }) 
 
 // Keys also define the reset scope. Task events use their logical key because
 // the database allocates their integer primary key.
-const KEYS = {
-  site_members: ['site_id', 'user_id'],
-  task_events: ['task_id', 'at', 'action'],
-  deviation_links: ['deviation_id', 'entity_type', 'entity_id'],
-  cost_impact_deviations: ['cost_impact_id', 'deviation_id'],
-  shipment_packages: ['shipment_id', 'package_id'],
-};
-const rowKeys = table => KEYS[table] ?? ['id'];
+const rowKeys = table => table === 'task_events' ? ['task_id', 'at', 'action'] : (compositeKeys[table] ?? ['id']);
 const whereKey = keys => keys.map(key => `${key} = ?`).join(' AND ');
 const eventKey = row => JSON.stringify([row.task_id, new Date(row.at).toISOString(), row.action]);
 
@@ -580,7 +620,11 @@ async function insert(tx, table, rows) {
   };
   const tuples = rows.map(row => `(${columns.map(column => bind(row[column])).join(', ')})`);
   const conflict = table === 'task_events' ? '' : ` ON CONFLICT (${keys.join(', ')}) DO NOTHING`;
-  return Number((await tx.run(`INSERT INTO ${table} (${columns.join(', ')}) VALUES ${tuples.join(', ')}${conflict}`, ...values)).rowCount);
+  const primaryKey = (compositeKeys[table] ?? ['id']).join(', ');
+  const inserted = await tx.all(`INSERT INTO ${table} (${columns.join(', ')})
+    VALUES ${tuples.join(', ')}${conflict} RETURNING ${primaryKey}`, ...values);
+  await recordNorthlineFixtures(tx, table, inserted);
+  return inserted.length;
 }
 
 async function lockSites(tx, sites) {
@@ -588,14 +632,21 @@ async function lockSites(tx, sites) {
   for (const site of sites) await tx.run('UPDATE sites SET id = id WHERE id = ?', site.id);
 }
 
-export async function apply(db, { password = process.env.NORTHLINE_SEED_PASSWORD } = {}) {
+export async function apply(db, { password = process.env.NORTHLINE_SEED_PASSWORD, demoSandbox = true } = {}) {
+  requireDemoAppEnv();
   if (password !== undefined && (typeof password !== 'string' || !password || password.length > 1024)) {
     throw new Error('Invalid NORTHLINE_SEED_PASSWORD.');
   }
   const tables = buildDataset();
   return db.transaction(async tx => {
+    await requireDemoDatabase(tx);
     const counts = { sites: await insert(tx, 'sites', tables.get('sites')) };
     await lockSites(tx, tables.get('sites'));
+    if (demoSandbox) {
+      for (const site of tables.get('sites')) {
+        await tx.run('UPDATE sites SET demo_sandbox = TRUE WHERE id = ? AND NOT demo_sandbox', site.id);
+      }
+    }
     for (const [table, plannedRows] of tables) {
       if (table === 'sites') continue;
       let rows = plannedRows;
@@ -622,8 +673,10 @@ export async function apply(db, { password = process.env.NORTHLINE_SEED_PASSWORD
 }
 
 export async function reset(db) {
+  requireDemoAppEnv();
   const tables = buildDataset();
   return db.transaction(async tx => {
+    await requireDemoDatabase(tx);
     await lockSites(tx, tables.get('sites'));
     const removed = {};
     for (const [table, rows] of [...tables].reverse()) {
@@ -634,6 +687,7 @@ export async function reset(db) {
       }
       removed[table] = Number((await tx.run(`DELETE FROM ${table} WHERE ${where}`, ...values)).rowCount);
     }
+    await clearNorthlineFixtures(tx);
     return removed;
   });
 }
@@ -647,7 +701,14 @@ if (import.meta.main) {
       throw new Error('Usage: node server/seed-northline.mjs [--apply | --reset]');
     }
     if (process.env.NODE_ENV === 'production') throw new Error('Synthetic seed is disabled in production.');
-    const db = await openDb();
+    requireDemoAppEnv();
+    if ((process.env.DB_DRIVER || 'sqlite') === 'sqlite') {
+      const path = process.env.DATA_DIR || './data/app.db';
+      if (!(await stat(path, { throwIfNoEntry: false }))?.isFile()) {
+        throw new Error('Demo seed operation requires an existing SQLite database file.');
+      }
+    }
+    const db = await openDb(undefined, { migrate: false, initializeSchema: false });
     try {
       const result = args[0] === '--apply' ? { applied: true, inserted: await apply(db) } : { reset: true, removed: await reset(db) };
       console.log(JSON.stringify(result, null, 2));

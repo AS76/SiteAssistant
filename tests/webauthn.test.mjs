@@ -58,7 +58,7 @@ test('registration stores hashed challenges, stable user handle, excludes creden
   await f.registration();
   const c = await f.api.registrationOptions(f.users.owner);
   t.assert.equal(c.excludeCredentials[0].id, f.credentialId);
-  t.assert.equal((await f.db.get('SELECT * FROM auth_events')).outcome, 'success');
+  t.assert.equal((await f.db.get("SELECT * FROM auth_events WHERE event = 'webauthn.registration'")).outcome, 'success');
 });
 
 test('expired and replayed challenges fail and audit failures', async t => {
@@ -74,6 +74,7 @@ test('expired and replayed challenges fail and audit failures', async t => {
 
 test('login known, unknown and discoverable options; verified sessions have passkey assurance', async t => {
   const f = await fixture(t); await f.registration();
+  await f.db.run("UPDATE users SET language = 'it', shared_demo = true WHERE id = ?", f.users.owner.id);
   const known = await f.api.loginOptions({ email: f.users.owner.email });
   const unknown = await f.api.loginOptions({ email: 'unknown@example.invalid' });
   const discoverable = await f.api.loginOptions({ discoverable: true });
@@ -82,10 +83,18 @@ test('login known, unknown and discoverable options; verified sessions have pass
   t.assert.deepEqual(discoverable.allowCredentials, []);
   f.setCurrent(known);
   const input = { challenge_id: known.challenge_id, response: { id: f.credentialId } };
-  const result = await f.api.loginVerify(input);
+  const context = { ip: '2001:db8:beef::1234', userAgent: 'Synthetic passkey agent' };
+  const result = await f.api.loginVerify(input, context);
   t.assert.equal(result.assurance, 'passkey');
+  t.assert.deepEqual(result.user, { ...f.users.owner, language: 'it', shared_demo: true });
   const session = await f.db.get('SELECT * FROM sessions WHERE token_hash = ?', tokenHash(result.token));
   t.assert.equal(session.assurance, 'passkey'); t.assert.equal(session.auth_method, 'webauthn');
+  t.assert.equal(session.ip, '2001:db8:beef::/48');
+  const audits = await f.db.all(`SELECT event, user_id, created_at, ip FROM auth_events WHERE user_agent = ? ORDER BY event`, context.userAgent);
+  t.assert.deepEqual(audits.map(e => [e.event, e.user_id, e.created_at, e.ip]), [
+    ['login.success', f.users.owner.id, session.created_at, session.ip],
+    ['webauthn.authentication', f.users.owner.id, session.created_at, session.ip],
+  ]);
   t.assert.equal((await f.db.get('SELECT * FROM webauthn_credentials')).sign_count, 1);
   await t.assert.rejects(() => f.api.loginVerify(input), { code: 'INVALID_CREDENTIALS' });
 });
@@ -98,6 +107,9 @@ test('failed verification consumes challenge, audits failure and creates no sess
   t.assert.equal((await f.db.all('SELECT * FROM sessions')).length, before);
   t.assert.ok((await f.db.get('SELECT * FROM webauthn_challenges WHERE id = ?', a.challenge_id)).used_at);
   t.assert.equal((await f.db.get("SELECT * FROM auth_events WHERE event = 'webauthn.authentication'")).outcome, 'failure');
+  const failure = await f.db.get("SELECT user_id, detail_json FROM auth_events WHERE event = 'login.failure'");
+  t.assert.equal(failure.user_id, f.users.owner.id);
+  t.assert.deepEqual(JSON.parse(failure.detail_json), { method: 'webauthn', reason: 'passkey_verification_failed' });
 });
 
 test('credentials are scoped, rename validated, last credential deletion refused', async t => {

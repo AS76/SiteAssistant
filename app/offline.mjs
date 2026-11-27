@@ -1,7 +1,8 @@
 // Browser data is scoped to the API and signed-in user; it is never authentication.
 export const SYNC_TAG = 'siteassistant-pending-ops';
 export const DB_NAME = 'siteassistant-offline-v1';
-export const scopeFor = (baseUrl, userId) => JSON.stringify([baseUrl, userId]);
+export const scopeFor = (baseUrl, userId, demoSandbox = false) =>
+  JSON.stringify(demoSandbox ? [baseUrl, userId, 'demo'] : [baseUrl, userId]);
 const types = ['create_task', 'transition_task', 'create_diary', 'create_attachment'];
 const collection = type => ({ create_task: 'tasks', transition_task: 'tasks', create_diary: 'diary', create_attachment: 'attachments' })[type];
 const failed = code => Object.assign(new Error(code), { code, status: 409 });
@@ -52,6 +53,11 @@ export function createOfflineStore({ indexedDB = globalThis.indexedDB, name = DB
       const store = tx.objectStore(name), request = store.getAll();
       request.onsuccess = () => { for (const row of request.result.filter(belongs)) store.delete(row.id); };
     }
+  });
+  // Keep unsynchronised operations quarantined under their original scope. The
+  // mirror state and rendered data are removed, but the queue is not silently lost.
+  const quarantineScope = scope => transaction(['mirror'], 'readwrite', tx => {
+    if (scope) tx.objectStore('mirror').delete(`state:${scope}`);
   });
   const listOps = (scope) => transaction(['pending_ops'], 'readonly', (tx, done) => {
     const request = tx.objectStore('pending_ops').getAll();
@@ -212,7 +218,7 @@ export function createOfflineStore({ indexedDB = globalThis.indexedDB, name = DB
       return summary;
     });
   }
-  return { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, purgeScope, withSyncLock, confirmedCreation };
+  return { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, purgeScope, quarantineScope, withSyncLock, confirmedCreation };
 }
 
 // Overlay only queued local creations. A proposed transition never replaces the authoritative status.
@@ -234,7 +240,7 @@ export function overlayPending(state, ops) {
 }
 
 const defaultStore = createOfflineStore();
-export const { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, purgeScope, withSyncLock, confirmedCreation } = defaultStore;
+export const { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, purgeScope, quarantineScope, withSyncLock, confirmedCreation } = defaultStore;
 export async function registerSync(registration) {
   try { await registration?.sync?.register(SYNC_TAG); } catch { /* The page's online/visibility/retry hooks remain available. */ }
 }

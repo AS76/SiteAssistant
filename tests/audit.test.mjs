@@ -13,6 +13,7 @@ import { createTool, updateTool, deleteTool, listTools } from '../server/tools.m
 import { saveModuleAccess } from '../server/module-access.mjs';
 import { createServer } from '../server/http.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
+import { assertUpgrade } from './helpers/migrations.mjs';
 
 // Same in-process PostgreSQL adapter as the HSE suite; no database service required.
 async function database(t, driver, initialize = true) {
@@ -302,7 +303,7 @@ for (const driver of ['sqlite', 'pg']) test(`Audit migration upgrades populated 
   await db.run(`INSERT INTO tools (id, site_id, name, status, created_at, updated_at)
     VALUES (?, ?, 'Synthetic legacy tool', 'available', ?, ?)`, ids[2], site.id, at, at);
   const before = await Promise.all(modules.map(module => db.get(`SELECT * FROM ${module.table}`)));
-  t.assert.strictEqual(await migrate(db, { driver }), 18);
+  await assertUpgrade(db, { driver, first: '025' });
   for (let index = 0; index < modules.length; index++) {
     t.assert.deepStrictEqual(plain(await db.get(`SELECT * FROM ${modules[index].table}`)), plain({ ...before[index], deleted_at: null }));
   }

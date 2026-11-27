@@ -2,12 +2,14 @@ import { formatDisplayNumber, formatDateInput, parseDateInput, initialView, toda
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
 import { messages } from './i18n.mjs';
+import { mountPlaces } from './places-ui.mjs';
+import { resolveSessionLanguage } from './language.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
 import { hasOpenProgressSteps } from './domain.mjs';
 import { taskFormalAcceptance, taskVerificationOutcome } from './domain.mjs';
 import { INSPECTION_STATUSES, inspectionStatusLabelKey, filterHseAssets, sortHseAssets, hseAssetCounts, inspectionOutcomeLabelKey, inspectionModeLabelKey, inspectionItemResultLabelKey, inspectionTally, sortInspections, inspectionSuggestion, inspectionProgress, inspectionPayload } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
-import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, purgeScope, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
+import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, purgeScope, quarantineScope, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
 
 const api = createApi({ baseUrl: new URL(document.querySelector('meta[name=siteassistant-api-base]')?.content || DEFAULT_BASE_URL, location.href).href, onUnauthorized: () => clearSession(true) });
 const freshApi = createApi({ baseUrl: api.baseUrl, fresh: true, onUnauthorized: () => clearSession(true) });
@@ -37,7 +39,18 @@ let logoutPending = false;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 let session = null;
-let state = { sites: [], tasks: [], diary: [], attachments: [] }, language = 'it', siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
+const LANGUAGE_KEY = 'sa-language';
+let deviceLanguage, language = 'it', loginLanguage, pendingLanguage;
+function interfaceLanguage({ profile, sharedDemo, chosen, pending } = {}) {
+  return resolveSessionLanguage({
+    profile, sharedDemo, chosen, pending, device: deviceLanguage, browser: navigator.languages?.length ? navigator.languages : navigator.language,
+  });
+}
+function initLanguage() {
+  try { deviceLanguage = localStorage.getItem(LANGUAGE_KEY); } catch { /* storage can be unavailable */ }
+  language = interfaceLanguage();
+}
+let state = { sites: [], tasks: [], diary: [], attachments: [] }, siteId, actor = '', loading = true, loadError = null, toastTimer, modalVersion = 0;
 let view = initialView({ width: window.innerWidth, hash: location.hash });
 let filters = { search: '', status: '', person: '', priority: '', kind: '' };
 let taskView = 'board';
@@ -47,6 +60,7 @@ let wbsView = 'tree', wbsLoad = null;
 const wbsCache = new Map();
 let reportDate = operationalDay(new Date(), null).date;
 let reportPrintIntent = null, lastReport = null;
+let assistantUsageLoad = 0;
 const evidenceLabels = {
   evidenceExport: ['Esporta registro delle prove', 'Export evidence register'],
   evidenceCsv: ['Scarica CSV', 'Download CSV'],
@@ -152,6 +166,8 @@ const paths = {
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   bookings: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',
   workforce_presence: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m1-13a3 3 0 0 1 0 6m1 3a4 4 0 0 1 4 4"/>',
+  places: '<path d="M19 10c0 5-7 11-7 11s-7-6-7-11a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/>',
+  assets: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm0 9 8-4.5M12 12 4 7.5M12 12v9"/>',
   wbs: '<path d="M12 8v4M5 16v-4h14v4"/><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="2" y="16" width="6" height="5" rx="1"/><rect x="16" y="16" width="6" height="5" rx="1"/>',
   impacts: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/>',
   certifications: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 12h6m-3-3v6"/>',
@@ -187,22 +203,30 @@ const errorKeys = {
   TASK_CLOSURE_EVIDENCE_REQUIRED: 'taskEvidenceRequired', TASK_ACCEPTANCE_EVIDENCE_REQUIRED: 'evidenceAcceptanceMissing',
   DEVIATION_OWNER_INVALID: 'evidenceOwnerError', DEVIATION_IDENTITY_UNRESOLVED: 'evidenceIdentityError',
   DEVIATION_EXPORT_META_INVALID: 'evidenceImportError', DEVIATION_EXPORT_INVALID: 'evidenceImportError',
-  DEVIATION_EXPORT_CHECKSUM_MISMATCH: 'evidenceImportError', SHIPMENT_NOT_FOUND: 'shpNotFound', SHIPMENT_DUPLICATE_NUMBER: 'shpDuplicateNumber', SHIPMENT_PACKAGE_NOT_FOUND: 'shpPackageUnavailable', SHIPMENT_PACKAGE_SITE_MISMATCH: 'shpPackageUnavailable', SHIPMENT_PACKAGE_TAKEN: 'shpPackageTaken', SHIPMENT_STATUS_CONFLICT: 'shpStatusConflict', SHIPMENT_ITEM_NOT_FOUND: 'shpItemNotFound', PACKAGE_NOT_FOUND: 'pkgNotFound', PACKAGE_ITEM_NOT_FOUND: 'poItemNotFound', PACKAGE_DUPLICATE_NUMBER: 'pkgDuplicateNumber', PACKAGE_QUANTITY_EXCEEDED: 'pkgQuantityExceeded', PACKAGE_STATUS_CONFLICT: 'pkgStatusConflict', PO_STATUS_CONFLICT: 'poStatusConflict', PO_DUPLICATE_NUMBER: 'poDuplicateNumber', PO_DUPLICATE_LINE: 'poDuplicateLine', PO_NOT_FOUND: 'poNotFound', PO_ITEM_NOT_FOUND: 'poItemNotFound', HSE_INVALID: 'hseInvalid', HSE_FORBIDDEN: 'forbidden', HSE_NOT_FOUND: 'hseNotFound', MODULE_FORBIDDEN: 'moduleUnavailable', ACCESS_INVALID: 'accessInvalid', LAYOUT_INVALID: 'layoutInvalid', MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
+  DEVIATION_EXPORT_CHECKSUM_MISMATCH: 'evidenceImportError', SHIPMENT_NOT_FOUND: 'shpNotFound', SHIPMENT_DUPLICATE_NUMBER: 'shpDuplicateNumber', SHIPMENT_PACKAGE_NOT_FOUND: 'shpPackageUnavailable', SHIPMENT_PACKAGE_SITE_MISMATCH: 'shpPackageUnavailable', SHIPMENT_PACKAGE_TAKEN: 'shpPackageTaken', SHIPMENT_STATUS_CONFLICT: 'shpStatusConflict', SHIPMENT_ITEM_NOT_FOUND: 'shpItemNotFound', PACKAGE_NOT_FOUND: 'pkgNotFound', PACKAGE_ITEM_NOT_FOUND: 'poItemNotFound', PACKAGE_DUPLICATE_NUMBER: 'pkgDuplicateNumber', PACKAGE_QUANTITY_EXCEEDED: 'pkgQuantityExceeded', PACKAGE_STATUS_CONFLICT: 'pkgStatusConflict', PO_STATUS_CONFLICT: 'poStatusConflict', PO_DUPLICATE_NUMBER: 'poDuplicateNumber', PO_DUPLICATE_LINE: 'poDuplicateLine', PO_NOT_FOUND: 'poNotFound', PO_ITEM_NOT_FOUND: 'poItemNotFound', HSE_INVALID: 'hseInvalid', HSE_FORBIDDEN: 'forbidden', HSE_NOT_FOUND: 'hseNotFound', MODULE_FORBIDDEN: 'moduleUnavailable', ACCESS_INVALID: 'accessInvalid', LAYOUT_INVALID: 'layoutInvalid', MAP_INVALID: 'importMappingInvalid', PREVIEW_MISMATCH: 'importPreviewStale', PREVIEW_EXPIRED: 'importPreviewStale', VIEW_NAME_TAKEN: 'viewNameTaken', VIEW_NOT_FOUND: 'viewNotFound', VIEW_FORBIDDEN: 'forbidden', VIEW_INVALID: 'viewInvalid', TOOL_NOT_FOUND: 'toolNotFound', TOOL_FORBIDDEN: 'forbidden', TOOL_INVALID: 'toolInvalid', VALIDATION_ERROR: 'invalidData', TIME_BOOKING_NOT_FOUND: 'coreRecordGone', WORK_DAY_NOT_FOUND: 'coreRecordGone', SITE_PROGRESS_ITEM_NOT_FOUND: 'coreRecordGone', DEVIATION_NOT_FOUND: 'coreRecordGone', COST_IMPACT_NOT_FOUND: 'coreRecordGone', TIME_BOOKING_DUPLICATE: 'coreDuplicateBooking', TIME_BOOKING_SITE_MISMATCH: 'coreSiteMismatch', COST_IMPACT_CONFLICT: 'coreImpactConflict', SHARED_DEMO_PREFERENCE: 'sharedDemoPreference', MAIL_NOT_CONFIGURED: 'mailUnavailable', MAIL_UNAVAILABLE: 'mailUnavailable', DUPLICATE_SITE_CODE: 'duplicateCode', DUPLICATE_DIARY: 'duplicateDiary', SEPARATE_PEOPLE_REQUIRED: 'separatePeople', INVALID_TRANSITION: 'actionDenied', VERIFIER_REQUIRED: 'verifierRequired', NOTE_REQUIRED: 'noteRequired', REASON_REQUIRED: 'reasonRequired' };
 function errorMessage(error) { if (error.code === 'PASSWORD_CHANGE_REQUIRED') return t('passwordChangeNotice'); if (error.code === 'MODULE_FORBIDDEN') return t('moduleUnavailable'); if (error.code === 'PAGINATION_LIMIT') return t('paginationLimit'); return t(({ 401: error.code === 'INVALID_CREDENTIALS' ? 'invalidCredentials' : 'authRequired', 403: 'forbidden', 429: 'rateLimited' })[error.status] || errorKeys[error.code] || (error.message in messages[language] ? error.message : 'apiError')); }
 function clearSession(invalidate = false) {
   reportPrintIntent = null; lastReport = null;
   resetSavedViews();
   overviewCache.clear();
   wbsCache.clear(); wbsLoad = null; resetCore();
-  session = null; actor = ''; siteId = undefined; loadError = null; offlineScope = undefined; pendingOps = [];
+  session = null; pendingLanguage = undefined; language = interfaceLanguage(); actor = ''; siteId = undefined; loadError = null; offlineScope = undefined; pendingOps = [];
   state = { sites: [], tasks: [], diary: [], attachments: [] };
   filters = { search: '', status: '', person: '', priority: '', kind: '' };
   closeModal();
-  if (invalidate) void forgetActive().catch(() => { storageError = true; });
+  if (invalidate) void accountLock(forgetActive).catch(() => { storageError = true; });
   if (!loading) render();
 }
 async function forgetActive() {
-  if (storageReady) await setMirror('active', null);
+  const active = storageReady ? await getMirror('active') : null;
+  if (storageReady) {
+    if (active?.scope && (await listOps(active.scope)).length === 0) {
+      await purgeScope(active.scope);
+    } else {
+      if (active?.scope) await quarantineScope(active.scope);
+      await setMirror('active', null);
+    }
+  }
   if ('caches' in window) for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.includes('-data-')) await caches.delete(key);
 }
 async function flushLogout() {
@@ -217,8 +241,22 @@ async function logout() {
     await accountLock(async () => {
       const active = storageReady ? await getMirror('active') : null;
       const scope = offlineScope ?? active?.scope;
+      if (storageReady && scope && (await listOps(scope)).length) {
+        await quarantineScope(scope);
+        if (storageReady) await setMirror('active', null);
+        if ('caches' in window) {
+          for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.includes('-data-')) await caches.delete(key);
+        }
+        clearSession(); setDeviceLock(scope); accountChannel?.postMessage('changed');
+        if (navigator.onLine) {
+          try { await api.logout(); clearDeviceLock(); } catch { /* offline-equivalent: keep local lock */ }
+        }
+        toast(t('deviceLocked'));
+        return;
+      }
       const current = !active || active.scope === scope;
       if (storageReady) await purgeScope(scope, current ? logoutKey : undefined);
+      clearDeviceLock();
       if ('caches' in window && scope) {
         const suffix = `-data-${encodeURIComponent(scope)}`;
         try {
@@ -252,9 +290,39 @@ async function loadPages(load) {
     if (page.length < limit) return rows;
   }
 }
-async function loadData() {
+async function saveLanguagePreference() {
+  const choice = pendingLanguage;
+  const user = session?.user;
+  if (!choice || choice.userId !== user?.id || user.shared_demo !== false) return;
+  if (user.language === choice.language) {
+    pendingLanguage = undefined;
+    return;
+  }
+  try {
+    const { user: updated } = await api.updatePreferences({ language: choice.language });
+    if (session?.user.id !== choice.userId) return;
+    session.user = updated;
+    if (pendingLanguage === choice) pendingLanguage = undefined;
+    if (storageReady && offlineScope && (await getMirror('active'))?.scope === offlineScope) {
+      await setMirror('active', { scope: offlineScope, baseUrl: api.baseUrl, session });
+    }
+  } catch (error) {
+    if (session?.user.id === choice.userId) toast(errorMessage(error));
+  }
+}
+
+async function loadData({ signedIn = false } = {}) {
   coreCache.clear(); overviewCache.clear();
   loading = true; loadError = null; render();
+  if (deviceLocked()) {
+    if (navigator.onLine) {
+      try { await api.logout(); clearDeviceLock(); } catch { /* remain locally locked */ }
+    }
+    if (deviceLocked()) {
+      session = null; state = { sites: [], tasks: [], diary: [], attachments: [] };
+      loading = false; render(); return;
+    }
+  }
   try {
     await accountLock(async () => {
       if (logoutPending || (storageReady && await getMirror(logoutKey))) {
@@ -264,7 +332,18 @@ async function loadData() {
       let active = storageReady ? await getMirror('active') : null;
       try {
         session = await freshApi.me(); actor = session.user.name; offline = false;
-        offlineScope = scopeFor(api.baseUrl, session.user.id);
+        if (pendingLanguage?.userId !== session.user.id) pendingLanguage = undefined;
+        const chosen = signedIn ? loginLanguage : null;
+        loginLanguage = undefined;
+        if (chosen) pendingLanguage = { userId: session.user.id, language: chosen };
+        language = interfaceLanguage({
+          profile: session.user.language, sharedDemo: session.user.shared_demo,
+          chosen, pending: pendingLanguage?.language,
+        });
+        renderChrome();
+        offlineScope = scopeFor(api.baseUrl, session.user.id, session.user.demo_sandbox);
+        await saveLanguagePreference();
+        if (!session) return;
         active = { scope: offlineScope, baseUrl: api.baseUrl, session };
         if (storageReady) await setMirror('active', active);
       } catch (error) {
@@ -272,6 +351,10 @@ async function loadData() {
         const saved = await getMirror(`state:${active.scope}`);
         if (!saved && !active.session.password_change_required) throw error;
         offline = true; session = active.session; actor = session.user.name; offlineScope = active.scope; state = saved;
+        language = interfaceLanguage({
+          profile: session.user.language, sharedDemo: session.user.shared_demo,
+          pending: pendingLanguage?.userId === session.user.id ? pendingLanguage.language : undefined,
+        });
       }
       if (session.password_change_required) {
         state = { sites: [], tasks: [], diary: [], attachments: [] };
@@ -363,6 +446,16 @@ function heading(title, subtitle, actions = '') {
 }
 function empty(title, subtitle, action = '') { return `<div class="empty"><strong>${t(title)}</strong>${t(subtitle)}${action ? `<div style="margin-top:16px">${action}</div>` : ''}</div>`; }
 const DEMO_NOTICE_KEY = 'sa-demo-notice-dismissed';
+const DEVICE_LOCK_KEY = 'sa-device-locked';
+function deviceLocked() {
+  try { return localStorage.getItem(DEVICE_LOCK_KEY); } catch { return null; }
+}
+function setDeviceLock(scope) {
+  try { localStorage.setItem(DEVICE_LOCK_KEY, scope || 'unknown'); } catch { /* storage unavailable */ }
+}
+function clearDeviceLock() {
+  try { localStorage.removeItem(DEVICE_LOCK_KEY); } catch { /* storage unavailable */ }
+}
 function initDemoNotice() {
   const banner = $('#demo-banner');
   try { banner.hidden = localStorage.getItem(DEMO_NOTICE_KEY) === '1'; }
@@ -420,7 +513,8 @@ function renderChrome() {
   renderOffline();
   const accountReady = Boolean(session && !session.password_change_required);
   document.documentElement.lang = language;
-  document.title = `SiteAssistant · ${t(view)}`;
+  if (document.documentElement.dataset) document.documentElement.dataset.lang = language;
+  document.title = `SiteAssistant · ${t(session ? view : 'login')}`;
   renderAssistantChrome();
   const nav = $('#navigation');
   const rail = window.matchMedia('(min-width: 1180px)').matches;
@@ -445,7 +539,11 @@ function renderChrome() {
   $('#settings-button').hidden = Boolean(session?.password_change_required);
   $('#settings-button').setAttribute('aria-label', t('settingsTitle'));
   $('#manual-link').textContent = t('manual');
-  $('#manual-link').href = `https://as76.github.io/SiteAssistant/${language === 'en' ? 'en/' : ''}${manualPages[view] || ''}`;
+  $('#manual-link').href = `https://as76.github.io/SiteAssistant/${language === 'en' ? 'en/' : ''}${session ? manualPages[view] || '' : 'guida/accesso/'}`;
+  $('#privacy-link').textContent = t('privacy');
+  $('#privacy-link').href = `/privacy?lang=${language}`;
+  $('#cookie-link').textContent = t('cookiePolicy');
+  $('#cookie-link').href = `/cookie-policy?lang=${language}`;
   $('#site-select').innerHTML = state.sites.map(site => `<option value="${esc(site.id)}" ${site.id === siteId ? 'selected' : ''}>${esc(site.name)}</option>`).join('');
   const site = currentSite();
   $('#site-select').title = site?.name || '';
@@ -485,6 +583,7 @@ function renderChrome() {
   $('#site-select').disabled = loading || !state.sites.length;
   $('#language').textContent = language === 'it' ? 'EN' : 'IT';
   $('#language').setAttribute('aria-label', language === 'it' ? 'Switch to English' : 'Passa all’italiano');
+  $('#language').lang = language === 'it' ? 'en' : 'it';
   renderDemoNotice();
   let loginLegend = $('#login-demo-language');
   if (!loginLegend) {
@@ -690,7 +789,7 @@ function renderToday() {
   const quickActions = [
     tasksVisible && verify.length && canTransitionTask() ? quick('todayVerificationList', 'verify', true) : '',
     diaryVisible ? quick('todayWriteDiary', 'diary', canWriteTask()) : '',
-    (tasksVisible || diaryVisible) ? quick('todayTakePhoto', 'photo', ['owner', 'editor'].includes(role())) : '',
+    (tasksVisible || diaryVisible) ? quick('todayTakePhoto', 'photo', ['owner', 'editor', 'demo_user'].includes(role())) : '',
     moduleVisible('progress') ? quick('todayOpenProgress', 'progress', true) : '',
   ].join('');
   $('#main').innerHTML = `<div class="notebook today-content">
@@ -745,7 +844,7 @@ function runTodayQuick(action) {
     reportDate = operationalDay().date; showEntryForm();
   } else if (action === 'progress' && moduleVisible('progress')) {
     coreFilters.progress = { wbsId: '' }; go('progress');
-  } else if (action === 'photo' && ['owner', 'editor'].includes(role()) && (moduleVisible('tasks') || moduleVisible('diary'))) {
+  } else if (action === 'photo' && ['owner', 'editor', 'demo_user'].includes(role()) && (moduleVisible('tasks') || moduleVisible('diary'))) {
     const targets = todayPhotoTargets();
     showModal(t('todayTakePhoto'), `<p class="note">${t('todayPhotoTarget')}</p>${targets.length
       ? `<div class="today-photo-targets">${targets.map(item => `<button type="button" data-command="today-photo-target" data-entity-type="${item.type}" data-id="${esc(item.id)}">${esc(item.title)}</button>`).join('')}</div>`
@@ -764,8 +863,50 @@ function renderOverview() {
     + (canWriteTask() ? button('newTask', 'new-task', '', 'primary') : ''))
     + demoLanguageLegend()
     + `<div class="date-caption">${t('today')} · ${new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}</div>`
+    + (role() === 'owner' ? `<section class="panel assistant-usage" id="assistant-usage" aria-labelledby="assistant-usage-title">
+      <div class="panel-header"><h2 id="assistant-usage-title">${t('aiUsageTitle')}</h2></div>
+      <div class="panel-body" id="assistant-usage-body" aria-live="polite"><p role="status">${t('loading')}</p></div>
+    </section>` : '')
     + `<div id="overview-widgets" aria-live="polite" aria-busy="true"><p role="status">${t('loading')}</p></div>`;
   void loadOverviewDashboard();
+  void loadAssistantUsage();
+}
+
+async function loadAssistantUsage() {
+  const target = $('#assistant-usage-body'), selected = siteId, user = session?.user.id;
+  if (!target || !selected || role() !== 'owner') return;
+  const load = ++assistantUsageLoad;
+  const current = () => load === assistantUsageLoad && view === 'overview' && siteId === selected
+    && session?.user.id === user && role() === 'owner' && target.isConnected;
+  if (offline) {
+    target.textContent = t('aiUsageUnavailable');
+    return;
+  }
+  try {
+    const usage = await freshApi.assistantUsage(selected);
+    if (!current()) return;
+    const stateLabel = {
+      normal: ['aiUsageNormal', ''], warning: ['aiUsageWarning', 'high'],
+      critical: ['aiUsageCritical', 'urgent'], blocked: ['aiUsageBlocked', 'urgent'],
+    }[usage.status];
+    const usd = (value, maximumFractionDigits = 2) => formatDisplayNumber(value, {
+      kind: 'money', language, currency: 'USD', currencyDisplay: 'code', maximumFractionDigits, roundingMode: 'trunc',
+    });
+    const month = new Intl.DateTimeFormat(language, { month: 'long', year: 'numeric', timeZone: 'UTC' })
+      .format(new Date(`${usage.month}-01T00:00:00Z`));
+    const amount = usage.estimated_cost_usd;
+    const total = amount == null ? t('aiUsageAmountUnknown') : usd(amount, amount < 0.01 ? 9 : 2);
+    const thresholds = t('aiUsageThresholds').replace(/\{(warning|critical|blocked)\}/g,
+      (_, key) => usd(usage.thresholds_usd[key]));
+    target.innerHTML = `<div class="assistant-usage-summary"><span>${esc(month)}</span>
+      <strong>${esc(total)}</strong> <span class="badge ${stateLabel[1]}">${t(stateLabel[0])}</span></div>
+      <p class="note">${esc(thresholds)}</p>${usage.unpriced_requests
+      ? `<p class="note">${esc(t('aiUsageIncomplete').replace('{count}', usage.unpriced_requests))}</p>` : ''}`;
+  } catch (error) {
+    if (!current()) return;
+    if (error.status === 403) target.closest('section').hidden = true;
+    else target.textContent = t('aiUsageUnavailable');
+  }
 }
 
 function localOverviewWidgets() {
@@ -1059,10 +1200,10 @@ function renderSites() {
       <p>${t('evidenceChecksumHint')}</p>${button('evidenceExport', 'evidence-export')}</div></section>`);
   }
   if (role() === 'owner' && siteId) {
-    const modules = [...navGroups(ownerModules).flatMap(group => group.items), 'workforce_names'];
+    const modules = [...navGroups(ownerModules).flatMap(group => group.items).filter(module => !['places', 'assets'].includes(module)), 'workforce_names'];
     const members = state.memberAccess?.[siteId]?.members || [];
-    $('#main').insertAdjacentHTML('beforeend', `<section class="panel module-access"><div class="panel-body"><h2>${t('moduleAccess')}</h2><p>${t('moduleAccessHint')}</p><div class="table-scroll"><table><thead><tr><th scope="col">${t('accessMember')}</th>${modules.map(module => `<th scope="col">${t(module)}</th>`).join('')}</tr></thead><tbody>${members.map(member => `<tr><th scope="row">${esc(member.name)}<br><small>${esc(member.email)} · ${esc(member.role === 'owner' ? t('accessOwner') : member.role)}</small></th>${modules.map(module => {
-      const locked = member.role === 'owner' || ['sites', 'overview'].includes(module);
+    $('#main').insertAdjacentHTML('beforeend', `<section class="panel module-access"><div class="panel-body"><h2>${t('moduleAccess')}</h2><p>${t('moduleAccessHint')}</p><div class="table-scroll"><table><thead><tr><th scope="col">${t('accessMember')}</th>${modules.map(module => `<th scope="col">${t(module)}</th>`).join('')}</tr></thead><tbody>${members.map(member => `<tr><th scope="row">${esc(member.name)}<br><small>${esc(member.email)} · ${esc(member.role === 'owner' ? t('accessOwner') : member.role === 'demo_user' ? t('responsibleRole_demo_user') : member.role)}</small></th>${modules.map(module => {
+      const locked = ['owner', 'demo_user'].includes(member.role) || ['sites', 'overview'].includes(module);
       return `<td><input type="checkbox" data-member-access data-site="${esc(siteId)}" data-member="${esc(member.user_id)}" data-module="${module}" aria-label="${esc(member.name)} · ${t(module)}" ${locked || visibleModules([module], member.modules).length ? 'checked' : ''} ${locked || offline ? 'disabled' : ''}></td>`;
     }).join('')}</tr>`).join('')}</tbody></table></div></div></section>`);
   }
@@ -1081,10 +1222,10 @@ function filteredTasks() {
 }
 const currentViewState = () => viewStatePayload({ filters, sort: taskSort, columns: taskColumns, layout: taskView });
 const selectedSavedView = () => savedViewsCache?.data?.find(item => item.id === selectedViewId);
-const canCreateView = () => ['owner', 'editor', 'verifier'].includes(role());
-const canWriteTask = () => ['owner', 'editor', 'verifier'].includes(role());
-const canEditTask = () => canWriteTask() && ['owner', 'editor'].includes(role()) && moduleVisible('tasks');
-const canAttachDiary = () => ['owner', 'editor'].includes(role()) && moduleVisible('diary');
+const canCreateView = () => ['owner', 'editor', 'verifier', 'demo_user'].includes(role());
+const canWriteTask = () => ['owner', 'editor', 'verifier', 'demo_user'].includes(role());
+const canEditTask = () => canWriteTask() && ['owner', 'editor', 'demo_user'].includes(role()) && moduleVisible('tasks');
+const canAttachDiary = () => ['owner', 'editor', 'demo_user'].includes(role()) && moduleVisible('diary');
 const canTransitionTask = () => canWriteTask() && moduleVisible('tasks');
 const savingTaskTransitions = new Set();
 function canReviewTask(task) {
@@ -1111,7 +1252,7 @@ function taskActionButton(id, to, label, { primary = false, resume = false, toda
   const busy = savingTaskTransitions.has(id) ? ' disabled aria-busy="true"' : '';
   return `<button type="button" class="${primary ? 'notebook-primary' : 'notebook-outline'}" data-command="${resume ? 'status-transition' : 'transition'}" data-id="${esc(id)}" data-to="${to}"${origin}${busy}>${esc(label)}</button>`;
 }
-const canCreateSite = () => role() === 'owner';
+const canCreateSite = () => role() === 'owner' || (!offline && session?.user.demo_sandbox === true);
 const canEditView = item => Boolean(item && session && (item.owner_id === session.user.id || role() === 'owner'));
 function applyViewState(payload) {
   const next = sanitizeViewState(payload);
@@ -1328,7 +1469,7 @@ function diaryDayAge(day) {
   return (Date.parse(`${year}-${month}-${localDay}`) - Date.parse(day)) / 86_400_000;
 }
 const canCorrectDiary = entry => !offline && !entry.syncStatus && moduleVisible('diary') &&
-  (role() === 'owner' || (role() === 'editor' && entry.date === operationalDay().date));
+  (['owner', 'demo_user'].includes(role()) || (role() === 'editor' && entry.date === operationalDay().date));
 const diaryTimestamp = (instant, entry) => new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: entry.time_zone || timeZoneForSite(currentSite()),
 }).format(new Date(instant));
@@ -1350,7 +1491,7 @@ function renderDiary() {
   const availableShifts = ['day', 'night'].filter(shift => !shifts.includes(shift));
   const shownShifts = shifts.length || current.date !== reportDate ? shifts : [current.shift];
   const age = diaryDayAge(reportDate);
-  const canWrite = canWriteTask() && availableShifts.length > 0 && age >= 0 && (age <= 7 || role() === 'owner');
+  const canWrite = canWriteTask() && availableShifts.length > 0 && age >= 0 && (age <= 7 || ['owner', 'demo_user'].includes(role()));
   const canAttach = canAttachDiary();
   const count = (number, single, multiple) => `<span class="num">${number} ${t(number === 1 ? single : multiple)}</span>`;
   $('#main').innerHTML = `<div class="notebook diary-notebook">
@@ -1436,7 +1577,7 @@ async function loadWbs() {
   })();
   return token.promise;
 }
-const canWriteWbs = () => ['owner', 'editor'].includes(role()) && moduleVisible('wbs') && !offline;
+const canWriteWbs = () => ['owner', 'editor', 'demo_user'].includes(role()) && moduleVisible('wbs') && !offline;
 function wbsState(node) {
   return `${node.archived_at ? ` <span class="badge">${t('wbsArchived')}</span>` : ''}${node.missing_from_source ? ` <span class="badge">${t('wbsMissing')}</span>` : ''}${Object.keys(node.conflicts || {}).length ? ` <span class="badge">${t('wbsConflict')}</span>` : ''}`;
 }
@@ -1539,13 +1680,13 @@ function renderWbs() {
 // Core modules are online-only and never write to the offline operation queue.
 const role = () => session?.roles?.find(member => member.site_id === siteId)?.role;
 const ownerModules = { logistics: true, workforce_names: true, workforce_presence: true };
-const currentModules = () => role() === 'owner' ? ownerModules : state.memberAccess?.[siteId]?.members?.find(member => member.user_id === session?.user.id)?.modules || {};
+const currentModules = () => ['owner', 'demo_user'].includes(role()) ? ownerModules : state.memberAccess?.[siteId]?.members?.find(member => member.user_id === session?.user.id)?.modules || {};
 const moduleVisible = module => visibleModules([module], currentModules()).length > 0;
 
 const permissions = () => corePermissions(role());
 const moduleResources = { deviations: ['deviations', 'reconciliation'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress', 'workforceSummary'], workforce_presence: ['workforcePresence'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'], hse: ['hse', 'hseAssets'], logistics: ['purchaseOrders', 'packages', 'shipments'] };
 // Mobile keeps four destinations reachable with the thumb; the rest lives behind «Altro».
-const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'deviations', 'progress', 'bookings', 'workforce_presence', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'reporting'];
+const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'places', 'assets', 'deviations', 'progress', 'bookings', 'workforce_presence', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'reporting'];
 const MOBILE_PRIMARY = ['today', 'tasks', 'diary', 'deviations', 'progress'];
 const TABLET_PRIMARY = [...MOBILE_PRIMARY, 'bookings'];
 const headerNavItems = () => window.matchMedia('(width < 640px)').matches ? MOBILE_PRIMARY : TABLET_PRIMARY;
@@ -1765,7 +1906,7 @@ function renderCore() {
 function auditEntityType() {
   return ({ hse: 'hse_event', certifications: 'certification', tools: 'tool' })[view];
 }
-function canReadAudit() { return ['owner', 'verifier'].includes(role()); }
+function canReadAudit() { return ['owner', 'verifier', 'demo_user'].includes(role()); }
 function renderAuditPanel() {
   if (!auditEntityType() || !canReadAudit()) return '';
   return `<details id="audit-panel" class="panel audit-panel"><summary>${t('auditTitle')}</summary><div class="panel-body" aria-live="polite"></div></details>`;
@@ -1970,7 +2111,7 @@ function renderDeviations() {
     html += `<div class="toolbar core-toolbar">
       ${button('evidenceWithoutOwner', 'deviation-filter', `data-key="withoutOwner" aria-pressed="${Boolean(withoutOwner)}"`, withoutOwner ? 'selected' : '')}
       ${button('evidenceAbsentFilter', 'deviation-filter', `data-key="absent" aria-pressed="${Boolean(absent)}"`, absent ? 'selected' : '')}
-      ${role() === 'owner' && !offline ? button('evidenceImport', 'deviation-import') : ''}</div>`;
+      ${['owner', 'demo_user'].includes(role()) && !offline ? button('evidenceImport', 'deviation-import') : ''}</div>`;
   }
   html += '</div>';
   const priorityText = priority => coreValue(priority == null ? null : t(priority));
@@ -2107,7 +2248,7 @@ function bookingVariance(value) {
   return `<strong class="booking-variance booking-variance-${direction}"><span class="mono">${esc(formatted)}</span><small>${t(label)}</small></strong>`;
 }
 const PURCHASE_ORDER_STATUSES = ['open', 'template_generated', 'in_execution', 'completed', 'not_relevant'];
-const purchaseOrderCanWrite = () => moduleVisible('logistics') && ['owner', 'editor'].includes(role());
+const purchaseOrderCanWrite = () => moduleVisible('logistics') && ['owner', 'editor', 'demo_user'].includes(role());
 const purchaseOrderStatus = status => coreStatus(status, t(`poStatus_${status}`));
 const purchaseOrderQuantity = value => esc(formatDisplayNumber(value, { kind: 'number', language }));
 function purchaseOrderTransitions(order) {
@@ -2625,6 +2766,10 @@ function hseReadBlock(entry) {
   if (entry.pending) return `<p role="status">${t('loading')}</p>`;
   return '';
 }
+function hseDueDate(value, frequencyVerified) {
+  if (!value) return '—';
+  return esc(dateLabel(value)) + (frequencyVerified === false ? ` <small class="note">${esc(t('hseFrequencyUnverified'))}</small>` : '');
+}
 function renderHseAssetDetail() {
   const asset = coreData('hseAssets').find(row => row.id === hseAssetDetail.id);
   if (!asset) return `<p role="alert">${t('hseAssetNotFound')}</p>`;
@@ -2635,8 +2780,8 @@ function renderHseAssetDetail() {
   const date = value => value ? esc(dateLabel(value)) : '—';
   let html = `<section class="panel hse-subject"><div class="panel-body"><h2>${esc(asset.name)}</h2>${asset.code ? `<small class="note hse-asset-code">${esc(asset.code)}</small>` : ''}
     <p class="note">${esc(family?.title ?? asset.templateTitle ?? '—')}${family?.reference ? `<br>${esc(family.reference)}` : ''}</p>
-    ${family?.draft ? `<p class="note">${t('hseAssetChecklistReview')}</p>` : ''}${hseReadBlock(templates)}
-    <dl class="detail-grid"><div><dt>${t('status')}</dt><dd>${hseInspectionStatus(asset.status)}</dd></div><div><dt>${t('hseAssetLastInspection')}</dt><dd>${date(asset.lastInspectionOn)}</dd></div><div><dt>${t('hseAssetNextDue')}</dt><dd>${date(asset.nextDueOn)}</dd></div></dl>
+    ${family?.status === 'draft' || family?.draft ? `<p class="note">${t('hseAssetChecklistReview')}</p>` : ''}${hseReadBlock(templates)}
+    <dl class="detail-grid"><div><dt>${t('status')}</dt><dd>${hseInspectionStatus(asset.status)}</dd></div><div><dt>${t('hseAssetLastInspection')}</dt><dd>${date(asset.lastInspectionOn)}</dd></div><div><dt>${t('hseAssetNextDue')}</dt><dd>${hseDueDate(asset.nextDueOn, asset.frequencyVerified ?? family?.frequency_verified)}</dd></div></dl>
     ${family ? `<p class="note">${family.items.length} ${t(family.items.length === 1 ? 'hseAssetCheck' : 'hseAssetChecks')}</p>` : ''}
     ${permissions().hseWrite ? button('hseInspectionNew', 'hse-inspection-new', '', 'primary') : ''}</div></section>
     <section class="panel section-gap hse-history" aria-labelledby="hse-history-title"><div class="panel-header"><h2 id="hse-history-title">${t('hseInspectionHistory')}</h2></div><div class="panel-body">`;
@@ -2647,9 +2792,12 @@ function renderHseAssetDetail() {
     const detail = coreResource(`hseInspection:${row.id}`, () => freshApi.getInspection(row.id));
     const expanded = hseAssetDetail.expanded.has(row.id);
     const tally = detail.data ? inspectionTally(detail.data.items) : null;
-    const outcomeStyle = { pass: 'closed', pass_with_notes: 'high', fail: 'urgent' }[row.outcome] || '';
+    const outcome = row.computedOutcome ?? row.outcome;
+    const outcomeStyle = { pass: 'closed', pass_with_notes: 'high', fail: 'urgent' }[outcome] || '';
+    const outcomeLabel = row.outcomeSource === 'computed' ? 'hseInspectionComputedOutcome' : 'hseInspectionRecordedOutcome';
+    const declaration = row.declaredOutcome ? esc(t(inspectionOutcomeLabelKey(row.declaredOutcome))) : '—';
     return `<article class="hse-history-row"><h3><button type="button" data-command="hse-inspection-toggle" data-id="${esc(row.id)}" aria-expanded="${expanded}" aria-controls="hse-inspection-${esc(row.id)}">${date(row.performedOn)}</button></h3>
-      <dl class="detail-grid"><div><dt>${t('hseInspectionPerformer')}</dt><dd>${coreValue(row.performedBy)}</dd></div><div><dt>${t('hseInspectionRole')}</dt><dd>${coreValue(row.performerRole)}</dd></div><div><dt>${t('hseInspectionMode')}</dt><dd>${esc(t(inspectionModeLabelKey(row.mode)))}</dd></div><div><dt>${t('hseInspectionOutcome')}</dt><dd><span class="badge ${outcomeStyle}">${esc(t(inspectionOutcomeLabelKey(row.outcome)))}</span></dd></div><div><dt>${t('hseAssetNextDue')}</dt><dd>${date(row.nextDueOn)}</dd></div></dl>
+      <dl class="detail-grid"><div><dt>${t('hseInspectionPerformer')}</dt><dd>${coreValue(row.performedBy)}</dd></div><div><dt>${t('hseInspectionRole')}</dt><dd>${coreValue(row.performerRole)}</dd></div><div><dt>${t('hseInspectionMode')}</dt><dd>${esc(t(inspectionModeLabelKey(row.mode)))}</dd></div><div><dt>${t(outcomeLabel)}</dt><dd><span class="badge ${outcomeStyle}">${esc(t(inspectionOutcomeLabelKey(outcome)))}</span></dd></div><div><dt>${t('hseInspectionDeclaredOutcome')}</dt><dd>${declaration}</dd></div><div><dt>${t('hseAssetNextDue')}</dt><dd>${hseDueDate(row.nextDueOn, row.frequencyVerified)}</dd></div></dl>
       ${row.notes ? `<p class="prewrap">${esc(row.notes)}</p>` : ''}
       ${tally ? `<p class="note hse-inspection-tally">${[['ok', tally.ok], ['not_ok', tally.notOk], ['na', tally.na]].map(([result, count]) => `${esc(t(inspectionItemResultLabelKey(result)))}: ${count}`).join(' · ')}</p>` : hseReadBlock(detail)}
       <div id="hse-inspection-${esc(row.id)}"${expanded ? '' : ' hidden'}>${expanded && detail.data ? `<ol class="hse-inspection-items">${detail.data.items.map(item => `<li><span>${esc(item.label)}</span> <span class="badge ${item.result === 'not_ok' ? 'urgent' : item.result === 'ok' ? 'closed' : ''}">${esc(t(inspectionItemResultLabelKey(item.result)))}</span>${item.note ? `<p class="prewrap">${esc(item.note)}</p>` : ''}</li>`).join('')}</ol>${attachmentSection('hse_inspection', row.id)}` : ''}</div></article>`;
@@ -2678,14 +2826,16 @@ function renderHseAssets() {
     return [
       `<div>${coreDetailButton('hseAssets', row, row.name)}${row.code ? `<small class="note hse-asset-code">${esc(row.code)}</small>` : ''}${row.active === false || row.active === 0 ? `<span class="badge">${t('hseAssetInactive')}</span>` : ''}</div>`,
       `<small class="note">${esc(row.templateTitle ?? '—')}</small>`,
-      row.lastInspectionOn ? esc(dateLabel(row.lastInspectionOn)) : '—', row.nextDueOn ? esc(dateLabel(row.nextDueOn)) : '—',
+      row.lastInspectionOn ? esc(dateLabel(row.lastInspectionOn)) : '—', hseDueDate(row.nextDueOn, row.frequencyVerified),
       hseInspectionStatus(row.status),
       ...(canWrite ? [button('edit', 'hse-asset-edit', `data-id="${esc(row.id)}"`, 'small')] : []),
     ];
   }));
 }
 function hseInspectionMessage(error) {
-  return error.code === 'INSPECTION_ITEMS_INCOMPLETE' ? t('hseInspectionIncomplete') : t(error.message);
+  const key = { INSPECTION_ITEMS_INCOMPLETE: 'hseInspectionIncomplete', INSPECTION_NA_NOTE_REQUIRED: 'hseInspectionNaNoteRequired',
+    OUTCOME_CONTRADICTS_ITEMS: 'hseInspectionOutcomeMismatch' }[error.code];
+  return t(key ?? error.message);
 }
 async function showHseInspectionForm() {
   if (!permissions().hseWrite) return toast(t('forbidden'));
@@ -2702,17 +2852,21 @@ async function showHseInspectionForm() {
     if (!family?.items.length) throw new Error('hseInspectionTemplateMissing');
     const options = (values, labelKey) => values.map(value => `<option value="${value}">${esc(t(labelKey(value)))}</option>`).join('');
     showModal(t('hseInspectionNew'), `<form id="hse-inspection-form" data-site="${esc(selected)}">
-      <div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">
+      <div class="form-error" role="alert" tabindex="-1" hidden></div>
+      ${family.status === 'draft' || family.draft ? `<p class="note">${t('hseAssetChecklistReview')}</p>` : ''}
+      ${family.frequency_verified === false ? `<p class="note">${t('hseFrequencyUnverified')}</p>` : ''}
+      <div class="form-grid">
       ${field('hseInspectionDate', 'performedOn', today(), { type: 'date', required: true })}
       ${field('hseInspectionPerformer', 'performedBy', session.user.name, { required: true, max: 200 })}
       <label class="field" for="field-performerRole"><span>${t('hseInspectionRole')} <small>(${t('optional')})</small></span><input id="field-performerRole" name="performerRole" maxlength="120" list="hse-inspection-roles"></label>
       <datalist id="hse-inspection-roles"><option value="${esc(t('hseInspectionRoleManager'))}"></option><option value="${esc(t('hseInspectionRoleTechnician'))}"></option></datalist>
       ${field('hseInspectionMode', 'mode', 'internal', { required: true, options: options(['internal', 'external'], inspectionModeLabelKey) })}
       <p class="note full" id="hse-inspection-external" hidden>${t('hseInspectionExternalHint')}</p>
-      ${field('hseInspectionOutcome', 'outcome', 'pass', { required: true, options: options(['pass', 'pass_with_notes', 'fail'], inspectionOutcomeLabelKey) })}</div>
+      <p class="note"><strong>${t('hseInspectionComputedOutcome')}</strong> <output id="hse-inspection-computed" aria-live="polite">—</output></p>
+      ${field('hseInspectionDeclaredOutcome', 'outcome', '', { required: true, options: `<option value="">${t('coreChoose')}</option>` + options(['pass', 'pass_with_notes', 'fail'], inspectionOutcomeLabelKey) })}</div>
       <p id="hse-inspection-progress" role="status" aria-live="polite"></p>
       <div class="hse-inspection-checklist">${family.items.map((item, index) => `<div class="hse-inspection-check" data-inspection-row="${index}">
-        <span id="hse-check-label-${index}" class="hse-check-label">${esc(item.label)}</span>
+        <span id="hse-check-label-${index}" class="hse-check-label">${esc(item.label)}${item.critical === true ? ` <small class="note">(${esc(t('hseInspectionCriticalItem'))})</small>` : ''}</span>
         <div class="hse-check-choices" role="group" aria-labelledby="hse-check-label-${index}">${['ok', 'not_ok', 'na'].map(result => button(inspectionItemResultLabelKey(result), 'hse-inspection-result', `data-index="${index}" data-result="${result}" aria-pressed="false"`)).join('')}</div>
         <label class="field hse-check-note" hidden for="hse-check-note-${index}">${t('hseInspectionItemNote')}<textarea id="hse-check-note-${index}" data-inspection-note="${index}" maxlength="2000" disabled></textarea></label>
       </div>`).join('')}</div>
@@ -2722,15 +2876,14 @@ async function showHseInspectionForm() {
     const form = $('#hse-inspection-form');
     form.inspectionAsset = asset;
     form.inspectionUser = user;
-    form.inspectionItems = family.items.map(item => ({ code: item.code, result: '', note: '' }));
-    form.inspectionOutcomeTouched = false;
-    form.addEventListener('change', event => {
-      if (event.target.name === 'outcome') form.inspectionOutcomeTouched = true;
-      updateHseInspectionForm(form);
-    });
+    form.inspectionItems = family.items.map(({ code, label, critical }) => ({ code, label, critical, result: '', note: '' }));
+    form.addEventListener('change', () => updateHseInspectionForm(form));
     form.addEventListener('input', event => {
       const index = event.target.dataset.inspectionNote;
-      if (index !== undefined) form.inspectionItems[Number(index)].note = event.target.value;
+      if (index !== undefined) {
+        form.inspectionItems[Number(index)].note = event.target.value;
+        updateHseInspectionForm(form);
+      }
     });
     updateHseInspectionForm(form);
   } catch (error) {
@@ -2739,11 +2892,24 @@ async function showHseInspectionForm() {
 }
 function updateHseInspectionForm(form) {
   const { answered, total, missing } = inspectionProgress(form.inspectionItems);
+  const { outcome, reasons } = inspectionSuggestion(form.inspectionItems);
+  const declaration = form.elements.outcome.value;
+  const statusMessages = [];
+  if (missing.length) statusMessages.push(t('hseInspectionMissing').replace('{count}', missing.length));
+  for (const [code, key] of [['INSPECTION_NA_NOTE_REQUIRED', 'hseInspectionNaNoteItems'], ['INSPECTION_CRITICAL_NOT_OK', 'hseInspectionCriticalFailed']]) {
+    const labels = reasons.filter(reason => reason.code === code)
+      .map(reason => form.inspectionItems.find(item => item.code === reason.itemCode).label);
+    if (labels.length) statusMessages.push(t(key).replace('{items}', () => labels.join(', ')));
+  }
+  if (outcome && !declaration) statusMessages.push(t('hseInspectionDeclareOutcome'));
+  if (outcome && declaration && declaration !== outcome) statusMessages.push(t('hseInspectionOutcomeMismatch'));
+  const ready = outcome !== null && declaration === outcome;
   form.querySelector('#hse-inspection-progress').textContent = t('hseInspectionProgress').replace('{answered}', answered).replace('{total}', total);
-  form.querySelector('#hse-inspection-missing').textContent = missing.length ? t('hseInspectionMissing').replace('{count}', missing.length) : t('hseInspectionComplete');
-  form.elements.outcome.value = inspectionSuggestion(form.inspectionItems, form.elements.outcome.value, form.inspectionOutcomeTouched);
+  form.querySelector('#hse-inspection-missing').textContent = statusMessages.join(' ');
+  form.querySelector('#hse-inspection-computed').textContent = outcome ? t(inspectionOutcomeLabelKey(outcome)) : '—';
   form.querySelector('#hse-inspection-external').hidden = form.elements.mode.value !== 'external';
-  form.querySelector('[type=submit]').disabled = Boolean(form.dataset.saving) || missing.length > 0;
+  form.querySelector('[type=submit]').disabled = Boolean(form.dataset.saving) || !ready;
+  return ready;
 }
 function setHseInspectionResult(target) {
   const form = target.closest('#hse-inspection-form');
@@ -2753,8 +2919,8 @@ function setHseInspectionResult(target) {
   form.inspectionItems[index].result = result;
   const row = target.closest('[data-inspection-row]');
   row.querySelectorAll('[data-result]').forEach(control => control.setAttribute('aria-pressed', String(control.dataset.result === result)));
-  row.querySelector('.hse-check-note').hidden = result !== 'not_ok';
-  row.querySelector('textarea').disabled = result !== 'not_ok';
+  row.querySelector('.hse-check-note').hidden = result === 'ok';
+  row.querySelector('textarea').disabled = result === 'ok';
   updateHseInspectionForm(form);
 }
 async function submitHseInspection(form) {
@@ -2764,9 +2930,7 @@ async function submitHseInspection(form) {
   try {
     if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
     if (selected !== siteId || user !== session?.user.id || !permissions().hseWrite) throw new Error('forbidden');
-    if (inspectionProgress(form.inspectionItems).missing.length) {
-      updateHseInspectionForm(form); return;
-    }
+    if (!updateHseInspectionForm(form)) return;
     const fields = typeof dateFormData === 'function' ? dateFormData(form) : Object.fromEntries(new FormData(form));
     if (!fields) return;
     form.dataset.saving = 'true'; errorBox.hidden = true;
@@ -2774,11 +2938,12 @@ async function submitHseInspection(form) {
     const saved = await api.createInspection(inspectionPayload({ asset: form.inspectionAsset, siteId: selected, fields, items: form.inspectionItems }));
     if (session?.user.id !== user) return;
     const cache = coreCache.get(selected);
-    for (const key of ['hseAssets', 'hse', `hseInspectionHistory:${form.inspectionAsset.id}`]) cache?.delete(key);
+    for (const key of ['hseAssets', `hseInspectionHistory:${form.inspectionAsset.id}`]) cache?.delete(key);
     if (selected !== siteId) return;
     if (version === modalVersion) closeModal();
     render();
-    toast(t('hseInspectionSaved').replace('{date}', saved.nextDueOn ? dateLabel(saved.nextDueOn) : t('noDue')));
+    const message = t('hseInspectionSaved').replace('{date}', saved.nextDueOn ? dateLabel(saved.nextDueOn) : t('noDue'));
+    toast(saved.nextDueOn && saved.frequencyVerified === false ? `${message} ${t('hseFrequencyUnverified')}` : message);
   } catch (error) {
     if (version === modalVersion && form.isConnected) {
       errorBox.textContent = hseInspectionMessage(error); errorBox.hidden = false; errorBox.focus();
@@ -2937,6 +3102,7 @@ const AI_MODULES = { deviations: 'deviations', site_progress_items: 'progress', 
 const assistantErrorKeys = {
   ASSISTANT_DISABLED: 'aiErrorDisabled', ASSISTANT_TIMEOUT: 'aiErrorTimeout',
   ASSISTANT_AUTH: 'aiErrorAuth', ASSISTANT_RATE_LIMITED: 'aiErrorRate',
+  ASSISTANT_BUDGET_EXCEEDED: 'aiErrorBudget',
   ASSISTANT_UNAVAILABLE: 'aiErrorUnavailable', ASSISTANT_NOT_CONFIGURED: 'aiErrorUnavailable', NETWORK_ERROR: 'aiErrorUnavailable',
 };
 function renderAssistant() {
@@ -2982,13 +3148,13 @@ async function askAssistant(text) {
     }
     aiError = error;
   } finally {
-    if (isCurrent()) { aiBusy = false; renderAssistant(); }
+    if (isCurrent()) { aiBusy = false; renderAssistant(); void loadAssistantUsage(); }
   }
 }
 
 // Import runs in two steps: a preview that writes nothing, then a confirmation bound to that preview.
 let importPreview = null;
-const canImport = () => ['owner', 'editor'].includes(role());
+const canImport = () => ['owner', 'editor', 'demo_user'].includes(role());
 const IMPORT_FAMILIES = ['employees', 'work_days', 'time_schedule', 'site_progress_items', 'deviations', 'daily_log'];
 const formatImportAliases = aliases => aliases.map(alias => alias.replaceAll('\\', '\\\\').replaceAll(',', '\\,')).join(', ');
 function parseImportAliases(input) {
@@ -3016,8 +3182,18 @@ function passkeyError(error) {
     ? `${errorMessage(error)} (${error.code}): ${error.message}` : errorMessage(error);
 }
 function passkeyFormError(form, error) {
-  const target = form.querySelector('.form-error');
-  target.textContent = passkeyError(error); target.hidden = false; target.focus();
+  formError(form, error, passkeyError);
+}
+
+function localizeLogin(form) {
+  $('#main').querySelectorAll('[data-login-text]').forEach(element => {
+    element.textContent = t(element.dataset.loginText);
+  });
+  form.querySelector('.password-toggle').setAttribute('aria-label',
+    t(form.elements.password.type === 'password' ? 'showPassword' : 'hidePassword'));
+  const error = form.querySelector('.form-error');
+  if (!error.hidden) error.textContent = error.localizedMessage();
+  updateLoginRetry(form);
 }
 
 let loginRetryUntil = 0, loginRetryTimer;
@@ -3056,7 +3232,7 @@ async function passkeyLogin(discoverable) {
       await runPasskey(api, 'login', discoverable ? { discoverable: true } : { email: email.value.trim() });
       await forgetActive(); clearSession(); accountChannel?.postMessage('changed');
     });
-    await loadData(); await syncQueue();
+    await loadData({ signedIn: true }); await syncQueue();
   } catch (error) { if (form.isConnected) passkeyFormError(form, error); }
   finally {
     delete form.dataset.saving;
@@ -3288,7 +3464,7 @@ async function handleImport(form) {
   return applied;
 }
 
-const deviationWrite = () => ['owner', 'editor'].includes(role()) && moduleVisible('deviations') && !offline;
+const deviationWrite = () => ['owner', 'editor', 'demo_user'].includes(role()) && moduleVisible('deviations') && !offline;
 const deviationSourceLabels = new Map([
   ['internal', 'evidenceSourceInternal'], ['other', 'evidenceSourceOther'],
 ]);
@@ -3343,7 +3519,7 @@ function deviationGovernance(row, events, members) {
     ${deviationHistory(events)}${attachmentSection('deviation', row.id)}`;
 }
 function showDeviationImport() {
-  if (role() !== 'owner' || offline) return;
+  if (!['owner', 'demo_user'].includes(role()) || offline) return;
   const options = [...deviationSourceLabels].map(([value, label]) => `<option value="${value}">${esc(t(label))}</option>`).join('');
   showModal(t('evidenceImport'), `<form id="deviation-import-form"><div class="form-error" role="alert" tabindex="-1" hidden></div>
     <p>${t('evidenceImportHint')}</p><div class="form-grid">
@@ -3499,13 +3675,57 @@ function render() {
   }
   if (session?.password_change_required) { $('#main').innerHTML = ''; return; }
   if (!session && (!loadError || loadError.status === 401)) {
-    $('#main').innerHTML = `<section class="panel"><div class="panel-body"><h1>${t('login')}</h1><form id="login-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div id="login-rate-limit" class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><label class="field">${t('email')}<input name="email" type="email" autocomplete="username" required></label><label class="field">${t('password')}<span class="password-row"><input name="password" type="password" autocomplete="current-password" required maxlength="1024"><button type="button" class="text-button password-toggle" data-command="toggle-password" aria-label="${t('showPassword')}">◉</button></span></label></div><div class="form-actions"><button type="submit" class="primary">${t('login')}</button>${button('passkeyLogin', 'passkey-login', supportsPasskeys() ? '' : 'disabled')}</div>${button('passkeyDiscoverable', 'passkey-discoverable', supportsPasskeys() ? '' : 'disabled')}${!supportsPasskeys() ? `<p class="note">${t('passkeyUnsupported')}</p>` : ''}</form><div class="heading-actions">${button('requestAccess', 'request-access')}${button('forgotPassword', 'forgot-password')}</div></div></section>`;
-    if (loginRetryUntil > Date.now()) updateLoginRetry();
+    const passkeys = supportsPasskeys();
+    $('#main').innerHTML = `<section class="panel"><div class="panel-body">
+      <h1 data-login-text="login"></h1>
+      <form id="login-form">
+        <div class="form-error" role="alert" tabindex="-1" hidden></div>
+        <div id="login-rate-limit" class="form-error" role="alert" tabindex="-1" hidden></div>
+        <div class="form-grid">
+          <label class="field"><span data-login-text="email"></span><input name="email" type="email" autocomplete="username" required></label>
+          <label class="field"><span data-login-text="password"></span><span class="password-row">
+            <input name="password" type="password" autocomplete="current-password" required maxlength="1024">
+            <button type="button" class="text-button password-toggle" data-command="toggle-password">◉</button>
+          </span></label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="primary"></button>${button('passkeyLogin', 'passkey-login', `data-login-text="passkeyLogin" ${passkeys ? '' : 'disabled'}`)}
+        </div>
+        ${button('passkeyDiscoverable', 'passkey-discoverable', `data-login-text="passkeyDiscoverable" ${passkeys ? '' : 'disabled'}`)}
+        ${passkeys ? '' : '<p class="note" data-login-text="passkeyUnsupported"></p>'}
+      </form>
+      <div class="heading-actions">${button('requestAccess', 'request-access', 'data-login-text="requestAccess"')}${button('forgotPassword', 'forgot-password', 'data-login-text="forgotPassword"')}</div>
+    </div></section>`;
+    if (typeof localizeLogin === 'function') localizeLogin($('#login-form'));
+    else if (typeof updateLoginRetry === 'function') updateLoginRetry($('#login-form'));
     return;
   }
   if (loadError) { $('#main').innerHTML = `<div role="alert"><p>${esc(errorMessage(loadError))}</p>${button('retry', 'reload')}</div>`; return; }
-  if (!state.sites.length && view !== 'sites') { $('#main').innerHTML = empty('noSites', 'noSitesHint', button('newSite', 'new-site', '', 'primary')); return; }
+  if (!state.sites.length) {
+    if (canCreateSite()) renderSites();
+    else $('#main').innerHTML = empty('noSites', 'noSitesHint');
+    return;
+  }
   if (!moduleVisible(view)) { $('#main').innerHTML = empty('moduleUnavailable', 'moduleUnavailableHint'); return; }
+  if (view === 'places') {
+    mountPlaces($('#main'), { api, site: currentSite(), role: role(), userId: session.user.id, language, offline, t });
+    return;
+  }
+  if (view === 'assets') {
+    const root = $('#main');
+    const mount = root.assetMount = Symbol();
+    const userId = session.user.id;
+    const canMount = () => view === 'assets' && root.assetMount === mount && session?.user.id === userId;
+    if (!root.firstElementChild?.matches('.assets-view')) root.innerHTML = `<p role="status">${esc(t('loading'))}</p>`;
+    import('./assets-ui.mjs').then(({ mountAssets }) => {
+      if (canMount()) {
+        mountAssets(root, { api, site: currentSite(), role: role(), userId, language, offline, t });
+      }
+    }).catch(error => {
+      if (canMount()) root.innerHTML = `<p role="alert">${esc(errorMessage(error))}</p>`;
+    });
+    return;
+  }
   ({ today: renderToday, report: renderReport, reporting: renderReporting, overview: renderOverview, sites: renderSites, tasks: renderTasks, diary: renderDiary, wbs: renderWbs, deviations: renderCore, progress: renderCore, bookings: renderCore, workforce_presence: renderCore, impacts: renderCore, tools: renderCore, certifications: renderCore, hse: renderCore, logistics: renderCore })[view]();
 }
 function go(next) { if (location.hash !== `#${next}`) location.hash = next; else { view = next; render(); } }
@@ -3576,9 +3796,10 @@ function dateFormData(form) {
   return data;
 }
 const formActions = (label = 'save') => `<div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="primary">${t(label)}</button></div>`;
-function formError(form, error) {
+function formError(form, error, format = errorMessage) {
   const target = form.querySelector('.form-error');
-  target.textContent = errorMessage(error); target.hidden = false; target.focus();
+  if (form.id === 'login-form') target.localizedMessage = () => format(error);
+  target.textContent = format(error); target.hidden = false; target.focus();
 }
 function showPasswordForm() {
   showModal(t('changePassword'), `<form id="password-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('passwordPolicy')}</p><div class="form-grid">${['current_password', 'new_password', 'confirm_password'].map((name, index) => `<label class="field">${t(['currentPassword', 'newPassword', 'confirmPassword'][index])}<input name="${name}" type="password" autocomplete="${index ? 'new-password' : 'current-password'}" required maxlength="1024" ${index ? 'minlength="12"' : ''}></label>`).join('')}</div>${formActions()}</form>`);
@@ -3649,7 +3870,7 @@ function wireTaskResponsibles(form) {
       // Keep placeholder and free-name choice, including a name typed while loading.
       while (control.select.options.length > 2) control.select.remove(1);
       for (const member of members) {
-        if (control.key === 'verifier' && !['owner', 'verifier'].includes(member.role)) continue;
+        if (control.key === 'verifier' && !['owner', 'verifier', 'demo_user'].includes(member.role)) continue;
         const option = document.createElement('option');
         option.value = member.user_id;
         option.textContent = `${member.name} (${t(`responsibleRole_${member.role}`)})`;
@@ -3681,7 +3902,7 @@ async function showTaskForm() {
 function taskEvidence(task) {
   const files = state.attachments.filter(file => file.entity_type === 'task' && file.entity_id === task.id && !file.localOnly);
   const document = files.find(file => file.id === task.acceptance_document_id);
-  const canAccept = canTransitionTask() && !offline && !task.localOnly && (role() === 'owner' || (role() === 'verifier' && task.verifier_id === session?.user.id));
+  const canAccept = canTransitionTask() && !offline && !task.localOnly && (role() === 'owner' || (['verifier', 'demo_user'].includes(role()) && task.verifier_id === session?.user.id));
   const outcome = { pending: 'evidenceVerificationPending', waived: 'evidenceWaiver', verified: 'evidenceVerificationRecorded', legacy: 'evidenceVerificationLegacy' };
   const form = canAccept && files.length ? `<form id="task-acceptance-form" data-id="${esc(task.id)}">
     <div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">
@@ -3834,7 +4055,7 @@ async function showDiaryVersions(id) {
 function showEntryForm(preferredShift = '') {
   if (!canWriteTask() || !moduleVisible('diary')) return;
   const age = diaryDayAge(reportDate);
-  if (age < 0 || (age > 7 && role() !== 'owner')) return;
+  if (age < 0 || (age > 7 && !['owner', 'demo_user'].includes(role()))) return;
   const current = operationalDay();
   const shift = preferredShift || (reportDate === current.date ? current.shift : 'day');
   const isCurrent = !offline && reportDate === current.date && shift === current.shift;
@@ -4174,7 +4395,7 @@ document.addEventListener('submit', async event => {
       return;
     }
     if (form.id === 'deviation-import-form') {
-      if (role() !== 'owner' || offline) throw new Error('forbidden');
+      if (!['owner', 'demo_user'].includes(role()) || offline) throw new Error('forbidden');
       const { file, sourceSystem, exportDate, scope } = data;
       if (!file?.size || file.size > 20 * 1024 * 1024) throw new Error('evidenceImportError');
       const hash = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
@@ -4250,8 +4471,8 @@ document.addEventListener('submit', async event => {
     if (['hse-form', 'hse-delete-form'].includes(form.id)) { await submitHse(form, data); return; }
     if (['cert-form', 'cert-delete-form'].includes(form.id)) { await submitCertification(form, data); return; }
     if (form.id === 'login-form') {
-      await accountLock(async () => { await flushLogout(); await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
-      await loadData(); await syncQueue(); return;
+      await accountLock(async () => { await flushLogout(); await api.login(data); clearDeviceLock(); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
+      await loadData({ signedIn: true }); await syncQueue(); return;
     }
     if (form.id === 'password-form') {
       if (data.new_password !== data.confirm_password) throw new Error('passwordMismatch');
@@ -4261,12 +4482,24 @@ document.addEventListener('submit', async event => {
       await loadData(); await syncQueue(); toast(t('passwordChanged')); return;
     }
     if (['request-form', 'forgot-form'].includes(form.id)) {
-      await (form.id === 'request-form' ? api.requestAccess(data) : api.forgotPassword({ ...data, language }));
+      await (form.id === 'request-form' ? api.requestAccess({ ...data, language }) : api.forgotPassword({ ...data, language }));
       if (version === modalVersion) closeModal();
       toast(t('emailAccepted')); return;
     }
     let message, detail;
-    if (form.id === 'site-form') { const site = await api.createSite(data); state.sites.push(site); resetSavedViews(); siteId = site.id; filters = { search: '', status: '', person: '', priority: '', kind: '' }; message = 'siteCreated'; }
+    if (form.id === 'site-form') {
+      if (!canCreateSite()) throw new Error('forbidden');
+      const userId = session.user.id;
+      const site = await api.createSite(data);
+      if (session?.user.id !== userId) return;
+      resetSavedViews();
+      siteId = site.id;
+      state.sites.push(site);
+      reportDate = operationalDay().date;
+      filters = { search: '', status: '', person: '', priority: '', kind: '' };
+      await loadData();
+      message = 'siteCreated';
+    }
     if (form.id === 'task-form') { const payload = { ...data, siteId: selectedSite }; taskPayload(payload); await writeOperation('create_task', payload); message = 'taskCreated'; }
     if (form.id === 'diary-correction-form') {
       const original = form.originalEntry;
@@ -4339,7 +4572,6 @@ document.addEventListener('submit', async event => {
       await writeOperation('create_attachment', { site_id: selectedSite, entity_type: form.dataset.entityType, entity_id: form.dataset.entityId, filename: blob.name, blob });
       message = 'attachmentSaved';
     }
-    if (form.id === 'site-form') await accountLock(persistState);
     const sameModal = version === modalVersion;
     if (sameModal) closeModal();
     render();
@@ -4472,17 +4704,34 @@ document.addEventListener('input', event => {
     invalidateImportPreview(form);
   }
   if (event.target.id === 'filter-search') { filters.search = event.target.value; renderTaskResults(); } });
-$('#language').addEventListener('click', () => { if ($('#modal').open) return toast(t('saveDraftFirst')); language = language === 'it' ? 'en' : 'it'; render(); });
+$('#language').addEventListener('click', () => {
+  if ($('#modal').open) return toast(t('saveDraftFirst'));
+  language = deviceLanguage = language === 'it' ? 'en' : 'it';
+  try { localStorage.setItem(LANGUAGE_KEY, deviceLanguage); } catch { /* keep the in-memory choice */ }
+  const form = $('#login-form');
+  if (form) {
+    loginLanguage = language;
+    renderChrome();
+    localizeLogin(form);
+  } else {
+    render();
+  }
+  if (session) {
+    pendingLanguage = { userId: session.user.id, language };
+    if (session.user.shared_demo === false) void accountLock(saveLanguagePreference);
+  }
+});
 window.addEventListener('resize', updateDeviationBoardScroll);
 window.matchMedia('(max-width: 520px)').addEventListener('change', () => { if (view === 'deviations') render(); });
 window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = initialView({ width: window.innerWidth, hash: next ? `#${next}` : '#overview' }); if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
-window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view] || view === 'today') { closeModal(); render(); } });
+window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view] || view === 'today' || view === 'assets') { closeModal(); render(); } void loadAssistantUsage(); });
 for (const breakpoint of ['(width < 640px)', '(min-width: 1180px)']) {
   window.matchMedia(breakpoint).addEventListener('change', renderChrome);
 }
 window.addEventListener('online', () => {
   offline = false; coreCache.clear(); renderOffline();
-  if (moduleResources[view] || view === 'today' || view === 'tasks') render();
+  if (moduleResources[view] || ['today', 'tasks', 'assets'].includes(view)) render();
+  void loadAssistantUsage();
   if (session) void syncQueue();
   else void accountLock(flushLogout).catch(error => toast(errorMessage(error)));
 });
@@ -4495,12 +4744,14 @@ navigator.serviceWorker?.addEventListener('message', event => {
   if (event.data.type === 'offline-access-denied') {
     if (event.data.status === 401) clearSession(true);
     else if (event.data.code === 'MODULE_FORBIDDEN') { wbsCache.clear(); void loadData(); }
-    else { void forgetActive(); state = { sites: [], tasks: [], diary: [], attachments: [] }; loadError = { status: 403 }; render(); }
+    else { void accountLock(forgetActive).catch(() => { storageError = true; }); state = { sites: [], tasks: [], diary: [], attachments: [] }; loadError = { status: 403 }; render(); }
   }
 });
 setInterval(() => { if (pendingOps.some(op => op.status !== 'failed') && navigator.onLine) void syncQueue(); }, 30000);
 async function start() {
   initDemoNotice();
+  initLanguage();
+  render();
   try { await openDb(); storageReady = true; } catch { storageError = true; }
   if ('serviceWorker' in navigator) {
     try {
@@ -4514,6 +4765,12 @@ async function start() {
     }
   }
   await loadData();
+  try {
+    if (session && sessionStorage.getItem('sa-activated')) {
+      sessionStorage.removeItem('sa-activated');
+      toast(t('invitationActivated'));
+    }
+  } catch { /* The session works without browser storage. */ }
   if (pendingOps.length) { await registerSync(swRegistration); await syncQueue(); }
 }
 void start();

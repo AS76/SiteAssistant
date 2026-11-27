@@ -1,3 +1,4 @@
+import { isDemoSandbox } from './demo-sandbox.mjs';
 import { HSE_READ_ROLES } from '../app/hse-permissions.mjs';
 import { requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
 import { createServer as createHttpServer } from 'node:http';
@@ -6,11 +7,15 @@ import { extname } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { pipeline } from 'node:stream/promises';
 import { S3Storage, ObjectStorageError, encodeS3Component } from './s3.mjs';
-import { authenticate, assertAuthBypassAllowed, login, memberships, publicUser, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
+import { authenticate, assertAuthBypassAllowed, login, logout, memberships, publicUser, updateLanguage, sessionCookie, isSecureRequest, createLoginLimiter } from './auth.mjs';
+import { recordLoginFailure } from './auth-events.mjs';
 import { createWebAuthn } from './webauthn.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { createStaticHandler } from './static-dev.mjs';
+import { loadPrivacyConfig, privacyResponse } from './privacy.mjs';
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage, RESET_PATH, readPasswordReset, confirmPasswordReset, resetPage } from './signup.mjs';
+import { ACTIVATION_PATH, activationPage, activationScriptHash, activateInvitation, createInvitation, invitationMessage, readInvitation, revokeInvitation } from './invitations.mjs';
+import { canManageInvitations } from './admin.mjs';
 import { createTaskResponse } from './idempotency.mjs';
 import { createClientIpResolver, createRateLimiter } from './limits.mjs';
 import { readPagination } from './pagination.mjs';
@@ -33,6 +38,7 @@ import { listPackages, getPackage, createPackage, closePackage } from './package
 import { listShipments, getShipment, createShipment, transitionShipment, addShipmentReceipt } from './shipments.mjs';
 import { listTimeBookings, countTimeBookings, createTimeBooking, deleteTimeBooking, bookedHoursForItem } from './time_bookings.mjs';
 import { chat as assistantChat } from './assistant.mjs';
+import { getAssistantUsage } from './assistant-usage.mjs';
 import { searchPlaces } from './geocode.mjs';
 import { dashboard } from './dashboard.mjs';
 import { getDashboardLayout, saveDashboardLayout, deleteDashboardLayout } from './dashboard-layouts.mjs';
@@ -45,12 +51,14 @@ import { listTools, createTool, updateTool, deleteTool } from './tools.mjs';
 import { listCertifications, createCertification, updateCertification, deleteCertification, certificationSummary } from './certifications.mjs';
 import { listHseEvents, createHseEvent, updateHseEvent, deleteHseEvent, hseSummary } from './hse.mjs';
 import { templatesForJurisdiction } from './checklists.mjs';
+import { archivePlace, createPlace, getPlace, listPlaceHistory, listPlaces, updatePlace } from './places.mjs';
+import { archiveAsset, createAsset, getAsset, listAssetPositions, listAssets, moveAsset, updateAsset } from './assets.mjs';
 import { listHseAssets, createHseAsset, updateHseAsset, deleteHseAsset } from './hse-assets.mjs';
 import { createInspection, listInspections, getInspection } from './hse-inspections.mjs';
 import { importRequest, MAX_IMPORT_BYTES, importDeviationWorkbook, listImportMappings, saveImportMapping, deleteImportMapping } from './planning-import.mjs';
 import { importTemplate } from './import-template.mjs';
 import {
-  RepositoryError, listSites, createSite, getSite, updateSite, updateSiteAssistant, updateTaskWbs, listTasks, countTasks, getTask,
+  RepositoryError, listSites, createSiteForUser, getSite, updateSite, updateSiteAssistant, updateTaskWbs, listTasks, countTasks, getTask,
   transitionTask, acceptTask, listDiary, countDiary, createDiary, updateDiary, listDiaryVersions, requireRole, WRITE_ROLES, listMembers, setMember, listAssignable,
   createAttachment, listAttachments, getAttachment, deleteAttachment, MAX_ATTACHMENT_BYTES,
 } from './repository.mjs';
@@ -70,10 +78,12 @@ async function paginatedJson(response, url, db, list, count, filters, user) {
   return json(response, 200, rows);
 }
 
-const rateLimitExempt = new Set(['/api/auth/login', '/api/auth/forgot', '/api/auth/password', '/api/auth/request']);
+const activatePath = '/api/auth/activate';
+const invitationsPath = '/api/admin/invitations';
+const rateLimitExempt = new Set(['/api/auth/login', '/api/auth/forgot', '/api/auth/password', '/api/auth/request', activatePath, invitationsPath]);
 const authBypassExcluded = new Set([
   '/api/auth/login', '/api/auth/logout', '/api/auth/forgot', '/api/auth/request',
-  '/api/auth/request/decide', '/api/auth/password', '/api/auth/me', '/api/health', RESET_PATH,
+  '/api/auth/request/decide', '/api/auth/password', '/api/auth/me', '/api/auth/me/preferences', '/api/health', RESET_PATH, activatePath,
 ]);
 const browserPolicy = [
   "default-src 'self'", "base-uri 'none'", "frame-ancestors 'none'", "object-src 'none'",
@@ -114,6 +124,17 @@ async function readJson(request, { includeHash = false, maxBytes = 65536 } = {})
   return includeHash ? { input, requestHash: hash.digest('hex') } : input;
 }
 
+async function readLoginJson(db, request, context, method, limiter) {
+  try {
+    limiter?.attempt(context.ip);
+    return await readJson(request);
+  } catch (error) {
+    const reason = { INVALID_JSON: 'invalid_request', RATE_LIMITED: 'rate_limited' }[error.code];
+    if (reason) await recordLoginFailure(db, reason, { ...context, method });
+    throw error;
+  }
+}
+
 async function readForm(request, maxBytes = 4096) {
   const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
   if (contentType !== 'application/x-www-form-urlencoded') {
@@ -135,6 +156,15 @@ function html(response, status, message, review) {
   response.end(decisionPage(message, review));
 }
 
+function serveActivationPage(response, status, page) {
+  response.writeHead(status, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Referrer-Policy': 'no-referrer',
+    'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-${activationScriptHash}'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`,
+  });
+  response.end(activationPage(page));
+}
+
 // The caller owns the connection and closes it after the HTTP server stops.
 // The task and diary lists historically read `siteId`; every other list reads
 // `site_id`. Accept both and refuse unknown parameters, so a mistyped filter is
@@ -150,20 +180,24 @@ function createAuthRequestLimiter({ ipMax = 50 } = {}) {
   const windowMs = 15 * 60 * 1000;
   const byIp = createRateLimiter({ max: ipMax, windowMs });
   const byAccount = createRateLimiter({ max: 10, windowMs });
+  function check({ allowed, retryAfter }) {
+    if (allowed) return;
+    const error = new RepositoryError(429, 'Too many login attempts.', 'RATE_LIMITED');
+    error.retryAfter = retryAfter;
+    throw error;
+  }
   return {
+    attemptAccount(key) { check(byAccount.attempt(key)); },
     attempt(ip, key) {
-      let { allowed, retryAfter } = byIp.attempt(ip);
-      if (allowed && key) ({ allowed, retryAfter } = byAccount.attempt(key));
-      if (allowed) return;
-      const error = new RepositoryError(429, 'Too many login attempts.', 'RATE_LIMITED');
-      error.retryAfter = retryAfter;
-      throw error;
+      check(byIp.attempt(ip));
+      if (key) check(byAccount.attempt(key));
     },
   };
 }
 
 export function createServer(db, { limiter = createLoginLimiter(), production = process.env.NODE_ENV === 'production',
   authBypassUser = process.env.AUTH_BYPASS_USER || '',
+  privacyConfig = loadPrivacyConfig(),
   trustedProxyIps = process.env.TRUSTED_PROXY_IPS || '',
   mailer = sendMail, ownerEmail = process.env.OWNER_EMAIL,
   publicUrl = process.env.PUBLIC_URL || 'https://api.siteassistant.asassi.cloud',
@@ -173,6 +207,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   storage = new S3Storage(),
   reporting = reportingOverview,
   reportingGlobalOwnerIds = process.env.REPORTING_GLOBAL_OWNER_IDS || '',
+  demoSandbox = isDemoSandbox(),
   assistant = {},
   webauthn = {},
   // Development only: serve the browser client from the same origin as the API.
@@ -184,6 +219,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
   const passkeyLimiter = createAuthRequestLimiter();
   const resetLimiter = createAuthRequestLimiter();
   const passkeyVerifyLimiter = createAuthRequestLimiter({ ipMax: 10 });
+  const inviteLimiter = createAuthRequestLimiter({ ipMax: 10 });
+  const invitePageLimiter = createAuthRequestLimiter({ ipMax: 10 });
+  const activateLimiter = createAuthRequestLimiter({ ipMax: 10 });
+  const revokeLimiter = createAuthRequestLimiter({ ipMax: 10 });
   const serveStatic = staticDir ? createStaticHandler(staticDir) : null;
   const authBypassEmail = authBypassUser.trim().toLowerCase();
   const globalReportingOwners = new Set(reportingGlobalOwnerIds.split(',').map(id => id.trim().toLowerCase()));
@@ -217,6 +256,24 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       path = url.pathname;
       const method = request.method;
       const ip = clientIp(request);
+      if (!path.startsWith('/api/') && privacyResponse(request, response, url, privacyConfig)) return;
+      const authContext = { ip, userAgent: request.headers['user-agent'] || '' };
+      const revoke = /^\/api\/admin\/invitations\/([^/]+)\/revoke$/.exec(path);
+      if (path === ACTIVATION_PATH && method === 'GET') {
+        const token = url.searchParams.get('token');
+        let locale;
+        try {
+          invitePageLimiter.attempt(ip);
+          const invitation = await readInvitation(db, token);
+          locale = invitation.locale;
+          invitePageLimiter.attemptAccount(invitation.email);
+          return serveActivationPage(response, 200, { locale, showForm: true });
+        } catch (error) {
+          if (!['INVITATION_UNAVAILABLE', 'RATE_LIMITED'].includes(error.code)) throw error;
+          if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
+          return serveActivationPage(response, error.status, { locale: error.locale ?? locale, code: error.code });
+        }
+      }
       if (serveStatic && !path.startsWith('/api/')) {
         if (await serveStatic(request, response, url)) return;
         // A client-side route (hash routing aside) still gets the shell.
@@ -226,10 +283,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       let user = null, authError;
       if (path.startsWith('/api/')) {
-        try { user = await authenticate(db, request.headers.cookie); }
+        try { user = await authenticate(db, request.headers.cookie, authContext); }
         catch (error) {
           if (!(error instanceof RepositoryError) || error.status !== 401) throw error;
-          if (authBypassEmail && !authBypassExcluded.has(path)) {
+          if (authBypassEmail && !authBypassExcluded.has(path) && path !== invitationsPath && !revoke) {
             user = await db.get(`SELECT id, email, name, password_change_required FROM users
               WHERE lower(email) = ? AND disabled_at IS NULL`, authBypassEmail);
             if (user) {
@@ -246,7 +303,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           // Public routes retain anonymous access; protected routes rethrow below.
           if (!user) authError = error;
         }
-        if (!rateLimitExempt.has(path)) {
+        if (!rateLimitExempt.has(path) && !revoke) {
           const result = user ? userLimiter.attempt(`user:${user.id}`)
             : anonLimiter.attempt(`ip:${ip}`);
           response.setHeader('X-RateLimit-Remaining', String(result.remaining));
@@ -267,7 +324,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           return html(response, 200, 'Esamina la richiesta di accesso e scegli se approvarla o rifiutarla.', { email: row.email, requested_at: row.requested_at, token });
         }
         const form = await readForm(request);
-        const decision = await decideSignup(db, form.get('token'), form.get('decision'), { mailer });
+        const decision = await decideSignup(db, form.get('token'), form.get('decision'), { mailer, demoSandbox });
         return html(response, 200, decision === 'approve' ? 'Request approved. A temporary password has been emailed to the applicant.' : 'Request rejected. No account was created.');
       }
       if (path === RESET_PATH && ['GET', 'POST'].includes(method)) {
@@ -295,11 +352,14 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const input = await readJson(request);
         const email = normalizeEmail(input.email);
         const signup = path === '/api/auth/request';
+        if (signup && input.language != null && !['it', 'en'].includes(input.language)) {
+          throw new RepositoryError(400, 'Language must be it, en or null.', 'VALIDATION_ERROR');
+        }
         (signup ? requestLimiter : forgotLimiter).attempt(ip, email);
         // Preflight also covers no-op cases, keeping configuration errors uniform.
         if (signup && (typeof ownerEmail !== 'string' || !ownerEmail.trim())) throw new MailNotConfiguredError();
         mailer.assertConfigured?.();
-        if (signup) await requestSignup(db, email, { mailer, ownerEmail, publicUrl });
+        if (signup) await requestSignup(db, email, { mailer, ownerEmail, publicUrl, language: input.language });
         else await forgotPassword(db, email, { mailer, publicUrl, language: input.language });
         return json(response, 202, { status: 'accepted' });
       }
@@ -307,44 +367,96 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         status: 'ok', auth_bypass: Boolean(authBypassEmail),
       });
       if (path === '/api/auth/login' && method === 'POST') {
-        const result = await login(db, await readJson(request), {
-          ip, userAgent: request.headers['user-agent'] || '', limiter,
-        });
+        const input = await readLoginJson(db, request, authContext, 'password');
+        const result = await login(db, input, { ...authContext, limiter });
         response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user });
       }
-      const passkeyContext = { ip, userAgent: request.headers['user-agent'] || '' };
+      if (path === activatePath && method === 'POST') {
+        const contentType = request.headers['content-type']?.split(';')[0].trim().toLowerCase();
+        const isForm = contentType === 'application/x-www-form-urlencoded';
+        let locale;
+        try {
+          activateLimiter.attempt(ip);
+          if (isForm && (request.headers['sec-fetch-site']
+            ? request.headers['sec-fetch-site'] !== 'same-origin'
+            : request.headers.origin !== new URL(publicUrl).origin)) {
+            throw new RepositoryError(403, invitationMessage(locale, 'FORBIDDEN'), 'FORBIDDEN');
+          }
+          const input = isForm ? Object.fromEntries(await readForm(request, 25000)) : await readJson(request);
+          const invitation = await readInvitation(db, input?.token);
+          locale = invitation.locale;
+          activateLimiter.attemptAccount(invitation.email);
+          const result = await activateInvitation(db, invitation, input.password, isForm ? input.confirmation : input.password, authContext);
+          response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
+          if (!isForm) return json(response, 200, { user: result.user });
+          response.writeHead(303, { Location: '/', 'Referrer-Policy': 'no-referrer' });
+          return response.end();
+        } catch (error) {
+          locale = error.locale ?? locale;
+          if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
+          if (isForm) {
+            if (!(error instanceof RepositoryError)) console.error('Activation request failed.');
+            return serveActivationPage(response, error.status ?? 500, { locale, code: error.code ?? 'INTERNAL_ERROR' });
+          }
+          if (error.code === 'RATE_LIMITED') error.message = invitationMessage(locale, error.code);
+          throw error;
+        }
+      }
       if (path === '/api/auth/webauthn/login/options' && method === 'POST') {
         const input = await readJson(request);
-        passkeyLimiter.attempt(passkeyContext.ip, typeof input.email === 'string' ? input.email.trim().toLowerCase() : '');
+        passkeyLimiter.attempt(ip, typeof input.email === 'string' ? input.email.trim().toLowerCase() : '');
         return json(response, 200, await passkeys.loginOptions(input));
       }
       if (path === '/api/auth/webauthn/login/verify' && method === 'POST') {
-        passkeyVerifyLimiter.attempt(ip);
-        const result = await passkeys.loginVerify(await readJson(request), passkeyContext);
+        const input = await readLoginJson(db, request, authContext, 'webauthn', passkeyVerifyLimiter);
+        const result = await passkeys.loginVerify(input, authContext);
         response.setHeader('Set-Cookie', sessionCookie(result.token, { production, secure: isSecureRequest(request, { production }) }));
         return json(response, 200, { user: result.user, assurance: result.assurance });
       }
       if (user?.password_change_required && !(
         (path === '/api/auth/me' && method === 'GET') ||
+        (path === '/api/auth/me/preferences' && method === 'PATCH') ||
         (['/api/auth/password', '/api/auth/logout'].includes(path) && method === 'POST')
       )) throw new RepositoryError(403, 'Change the temporary password to continue.', 'PASSWORD_CHANGE_REQUIRED');
       if (path.startsWith('/api/auth/webauthn/register/') || path === '/api/auth/credentials' || path.startsWith('/api/auth/credentials/')) {
-        const sessionUser = await authenticate(db, request.headers.cookie);
+        const sessionUser = await authenticate(db, request.headers.cookie, authContext);
         if (path === '/api/auth/webauthn/register/options' && method === 'POST') {
           await readJson(request);
           return json(response, 200, await passkeys.registrationOptions(sessionUser));
         }
         if (path === '/api/auth/webauthn/register/verify' && method === 'POST') {
-          return json(response, 200, await passkeys.registrationVerify(sessionUser, await readJson(request), passkeyContext));
+          return json(response, 200, await passkeys.registrationVerify(sessionUser, await readJson(request), authContext));
         }
         if (path === '/api/auth/credentials' && method === 'GET') return json(response, 200, await passkeys.credentials(sessionUser));
         const credential = /^\/api\/auth\/credentials\/([^/]+)$/.exec(path);
         if (credential && ['PATCH', 'DELETE'].includes(method)) {
-          return json(response, 200, await passkeys.manageCredential(sessionUser, credential[1], method === 'PATCH' ? await readJson(request) : null, passkeyContext));
+          return json(response, 200, await passkeys.manageCredential(sessionUser, credential[1], method === 'PATCH' ? await readJson(request) : null, authContext));
         }
       }
       if (authError) throw authError;
+      if (method === 'POST' && (path === invitationsPath || revoke)) {
+        if (!await canManageInvitations(db, user.id)) {
+          throw new RepositoryError(403, 'Invitation management permission is required.', 'FORBIDDEN');
+        }
+        if (revoke) {
+          revokeLimiter.attempt(ip);
+          return json(response, 200, await revokeInvitation(db, revoke[1], user.id, revokeLimiter.attemptAccount));
+        }
+        inviteLimiter.attempt(ip);
+        const input = await readJson(request);
+        const email = normalizeEmail(input?.email);
+        inviteLimiter.attemptAccount(email);
+        const { locale, cantiere_id, role } = input;
+        const { revoked_at, ...invitation } = await createInvitation(db, email, user.id, {
+          mailer, publicUrl, locale, cantiere_id, role, demoSandbox, context: authContext,
+        });
+        if (revoked_at) return json(response, 409, { ...invitation, code: 'INVITATION_REVOKED', error: 'Invitation was revoked during delivery.' });
+        if (invitation.delivery_status === 'failed') {
+          return json(response, 503, { ...invitation, code: invitation.last_delivery_error, error: 'Invitation email delivery failed.' });
+        }
+        return json(response, 201, invitation);
+      }
       if (path === '/api/reporting/overview' && method === 'GET') {
         const scopeIds = await reportingScopeIds(db, user, globalReportingOwners);
         return json(response, 200, await reporting({ scopeIds }));
@@ -429,6 +541,53 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (hseInspection && method === 'GET') {
         return json(response, 200, await getInspection(db, hseInspection[1], user));
       }
+      if ((path === '/api/places' || path === '/api/assets') && method === 'GET') {
+        const options = { siteId: url.searchParams.get('siteId'),
+          includeArchived: url.searchParams.get('includeArchived') === '1' };
+        if (path === '/api/places') return json(response, 200, await listPlaces(db, options, user));
+        const filters = Object.fromEntries(['asOf', 'tag', 'serial', 'status', 'placeId'].map(key => [key, url.searchParams.get(key)]));
+        return json(response, 200, await listAssets(db, { ...options, ...filters }, user));
+      }
+      if (path === '/api/places' && method === 'POST') {
+        return json(response, 201, await createPlace(db, await readJson(request), user));
+      }
+      if (path === '/api/assets' && method === 'POST') {
+        return json(response, 201, await createAsset(db, await readJson(request), user));
+      }
+      const place = /^\/api\/places\/([^/]+)$/.exec(path);
+      if (place && method === 'GET') {
+        return json(response, 200, await getPlace(db, place[1], user));
+      }
+      if (place && method === 'PATCH') {
+        return json(response, 200, await updatePlace(db, place[1], await readJson(request), user));
+      }
+      const placeHistory = /^\/api\/places\/([^/]+)\/history$/.exec(path);
+      if (placeHistory && method === 'GET') {
+        return json(response, 200, await listPlaceHistory(db, placeHistory[1], user));
+      }
+      const placeArchive = /^\/api\/places\/([^/]+)\/archive$/.exec(path);
+      if (placeArchive && method === 'POST') {
+        return json(response, 200, await archivePlace(db, placeArchive[1], await readJson(request), user));
+      }
+      const installedAsset = /^\/api\/assets\/([^/]+)$/.exec(path);
+      if (installedAsset && method === 'GET') {
+        return json(response, 200, await getAsset(db, installedAsset[1], user));
+      }
+      if (installedAsset && method === 'PATCH') {
+        return json(response, 200, await updateAsset(db, installedAsset[1], await readJson(request), user));
+      }
+      const assetPositions = /^\/api\/assets\/([^/]+)\/positions$/.exec(path);
+      if (assetPositions && method === 'GET') {
+        return json(response, 200, await listAssetPositions(db, assetPositions[1], user));
+      }
+      const assetArchive = /^\/api\/assets\/([^/]+)\/archive$/.exec(path);
+      if (assetArchive && method === 'POST') {
+        return json(response, 200, await archiveAsset(db, assetArchive[1], await readJson(request), user));
+      }
+      const assetMove = /^\/api\/assets\/([^/]+)\/move$/.exec(path);
+      if (assetMove && method === 'POST') {
+        return json(response, 201, await moveAsset(db, assetMove[1], await readJson(request), user));
+      }
       if (path === '/api/hse/assets' && method === 'GET') {
         return json(response, 200, await listHseAssets(db, { siteId: url.searchParams.get('siteId') }, user));
       }
@@ -497,6 +656,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         const query = url.searchParams.get('q') || '';
         return json(response, 200, { results: await searchPlaces(query) });
       }
+      if (path === '/api/assistant/usage' && method === 'GET') {
+        return json(response, 200, await getAssistantUsage(db, { siteId: siteFromQuery(url, ['site_id']), user }));
+      }
       if (path === '/api/assistant/chat' && method === 'POST') {
         const input = await readJson(request);
         const siteId = input.site_id;
@@ -535,11 +697,15 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         await changePassword(db, user, await readJson(request));
         return json(response, 200, { status: 'ok' });
       }
+      if (path === '/api/auth/me/preferences' && method === 'PATCH') {
+        const { language } = await readJson(request);
+        return json(response, 200, { user: await updateLanguage(db, user.id, language) });
+      }
       if (path === '/api/auth/me' && method === 'GET') {
         return json(response, 200, { user: publicUser(user), roles: await memberships(db, user.id), password_change_required: Boolean(user.password_change_required) });
       }
       if (path === '/api/auth/logout' && method === 'POST') {
-        await db.run('UPDATE sessions SET revoked_at = ? WHERE id = ?', new Date().toISOString(), user.session_id);
+        await logout(db, user, authContext);
         response.setHeader('Set-Cookie', sessionCookie('', { production, secure: isSecureRequest(request, { production }), clear: true }));
         return json(response, 200, { status: 'ok' });
       }
@@ -824,16 +990,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (path === '/api/sites' && method === 'GET') return json(response, 200, await listSites(db, user));
       if (path === '/api/sites' && method === 'POST') {
-        const input = await readJson(request);
-        const created = await db.transaction(async tx => {
-          if (!await tx.get("SELECT site_id FROM site_members WHERE user_id = ? AND role = 'owner'", user.id)) {
-            throw new RepositoryError(403, 'An owner role is required to create sites.', 'FORBIDDEN');
-          }
-          const created = await createSite(tx, input);
-          await tx.run("INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'owner')", created.id, user.id);
-          return created;
-        });
-        return json(response, 201, created);
+        return json(response, 201, await createSiteForUser(db, await readJson(request), user, { demoSandbox }));
       }
       const evidence = /^\/api\/sites\/([^/]+)\/evidence-export$/.exec(path);
       if (evidence && method === 'GET') {

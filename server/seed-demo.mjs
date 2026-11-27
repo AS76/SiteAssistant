@@ -1,6 +1,5 @@
-// Demo dataset for four synthetic construction sites (FITT-01 through FITT-04).
-// Every identifier is derived from a fixed namespace, so re-running upserts the same rows
-// and `--reset` removes exactly what this script created. No real people, sites or emails.
+// Demo dataset for five synthetic construction sites (FITT-01 through FITT-05).
+// The registry records fixture ownership, including database-generated identifiers.
 //
 // Usage:
 //   node server/seed-demo.mjs            # dry run: prints the plan
@@ -8,8 +7,13 @@
 //   node server/seed-demo.mjs --reset    # delete only the rows created here
 import { createHash } from 'node:crypto';
 import process from 'node:process';
+import { stat } from 'node:fs/promises';
+import { demoDatabaseIsSqlite, DEMO_SEED_MARKER, requireDemoAppEnv, requireDemoDatabase } from './demo-seed-environment.mjs';
+import { isDemoSandbox } from './demo-sandbox.mjs';
 import { openDb, closeDb } from './db.mjs';
 import { registeredDeviationExport, storeDeviationExport } from './deviations.mjs';
+import { compositeKeys, fixtureRecordId, groupDemoReferences, inboundDemoReferences, keyForRecord, northlineLedgerPrefix, recordFixture, referencingOperationalLink, referencingParent, referencingTable } from './demo-seed-registry.mjs';
+import { stableId } from './wbs.mjs';
 import { TEMPLATES } from './checklists.mjs';
 
 const NS = '6d1f7c42-8f0e-4a4c-9d2b0f7a2c9d1e3f';
@@ -693,33 +697,68 @@ export function plan() {
       inspectionEvents: total(HSE_INSPECTIONS), media: mediaPlan().length } };
 }
 
+const CERT_PLAN = [
+  ['qualification', 'Patentino PLE', 'Ente certificatore sintetico', -400, -120],
+  ['medical', 'Visita medica periodica', 'Medico competente sintetico', -370, -10],
+  ['training', 'Corso sicurezza 4 ore', 'Ente formazione sintetico', -370, -1],
+  ['medical', 'Visita medica periodica', 'Medico competente sintetico', -360, 5],
+  ['qualification', 'Abilitazione gru', 'Ente certificatore sintetico', -344, 18],
+  ['training', 'Formazione primo soccorso', 'Ente formazione sintetico', -350, 30],
+  ['medical', 'Visita medica periodica', 'Medico competente sintetico', -160, 200],
+  ['qualification', 'Patentino carrello elevatore', 'Ente certificatore sintetico', -200, 365],
+  ['training', 'Corso PES-PAV', 'Ente formazione sintetico', -120, 540],
+  ['qualification', 'Abilitazione ponteggi', 'Ente certificatore sintetico', -90, 800],
+  ['medical', 'Visita medica periodica', 'Medico competente sintetico', -30, 1200],
+  ['training', 'Formazione anticaduta', 'Ente formazione sintetico', -600, null],
+];
+
+const progressTypeFor = (code, index) => index % 3 === 0 ? TYPES[code][0] : index % 3 === 1 ? TYPES[code].at(-1) : undefined;
+const workDayKey = (code, employeeId, day) => id(`${code}:day:${employeeId}:${legacyWorkingDate(day)}`);
+const diaryKey = (code, index) => id(`${code}:diary:${legacyWorkingDate(index)}:${index % 5 === 4 ? 'night' : 'day'}`);
+
 const evidenceOwnerId = id('responsibility:synthetic-account');
 const waiverTaskKey = 'FITT-01:evidence:waiver';
-async function seedEvidence(db, siteId, bump) {
+function evidenceExports(siteId) {
   const examples = [
     ['FITT-EV-1', 'Verifica del supporto campione', 'in_progress'],
     ['FITT-EV-2', 'Allineamento della guida campione', 'open'],
     ['FITT-EV-3', 'Controllo della passerella campione', 'approved'],
   ].map(([source_id, title, status]) => ({ source_id, deviation_no: source_id, title, status, source_status: status }));
-  for (const [sourceSystem, exportDate, scope, rows] of [
+  return [
     ['internal', '2026-11-10', 'Area dimostrativa A', examples.slice(0, 2)],
     ['internal', '2026-11-11', 'Area dimostrativa A', []],
     ['other', '2026-11-10', 'Area dimostrativa B', examples.slice(2)],
     ['other', '2026-11-11', 'Area dimostrativa C', []],
-  ]) {
+  ].map(([sourceSystem, exportDate, scope, rows]) => {
     const fileSha256 = createHash('sha256').update(JSON.stringify([siteId, sourceSystem, exportDate, scope, rows])).digest('hex');
-    const meta = { sourceSystem, exportDate, scope, complete: true, fileSha256 };
-    if (!await registeredDeviationExport(db, siteId, meta)) {
-      await storeDeviationExport(db, siteId, meta, rows, at);
-      const batch = await registeredDeviationExport(db, siteId, meta);
-      await db.run(`INSERT INTO demo_seed_records (table_name, record_id) VALUES ('deviation_exports', ?) ON CONFLICT DO NOTHING`, String(batch.id));
+    return { sourceSystem, exportDate, scope, complete: true, fileSha256, rows };
+  });
+}
+
+async function seedEvidence(db, siteId, bump) {
+  for (const meta of evidenceExports(siteId)) {
+    const { sourceSystem, rows } = meta;
+    const existing = await registeredDeviationExport(db, siteId, meta);
+    if (existing) await requireRegistered(db, 'deviation_exports', existing.id);
+    if (!existing) {
+      const batch = await storeDeviationExport(db, siteId, meta, rows, at, {
+        beforeExistingWrite: async previous => {
+          await requireRegistered(db, 'deviations', previous.id);
+          throw new Error(`Demo evidence export missing for existing deviation (${previous.id}). Reset before reapplying.`);
+        },
+      });
+      await recordFixture(db, 'deviation_exports', batch.id);
       if (rows.length) {
         await db.run(`INSERT INTO users (id, email, name, password_hash, password_algo, created_at)
           VALUES (?, 'demo-responsible@example.invalid', 'Responsabile dimostrativo', 'unusable', 'scrypt', ?) ON CONFLICT (id) DO NOTHING`,
         evidenceOwnerId, at);
         await db.run("INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, 'editor') ON CONFLICT DO NOTHING", siteId, evidenceOwnerId);
-        await db.run(`UPDATE deviations SET internal_owner_id = ?, internal_owner_since = ?
-          WHERE site_id = ? AND source_system = ? AND source_id IN ('FITT-EV-1', 'FITT-EV-3')`, evidenceOwnerId, at, siteId, sourceSystem);
+        for (const { source_id: sourceId } of rows.filter(row => row.source_id !== 'FITT-EV-2')) {
+          const deviation = await db.get('SELECT id FROM deviations WHERE site_id = ? AND source_system = ? AND source_id = ?',
+            siteId, sourceSystem, sourceId);
+          await requireRegistered(db, 'deviations', deviation.id);
+          await db.run('UPDATE deviations SET internal_owner_id = ?, internal_owner_since = ? WHERE id = ?', evidenceOwnerId, at, deviation.id);
+        }
       }
     }
     rows.forEach(() => bump('deviations'));
@@ -727,79 +766,328 @@ async function seedEvidence(db, siteId, bump) {
   const taskId = id(waiverTaskKey), declared = '2026-11-10T08:00:00.000Z', closed = '2026-11-11T08:00:00.000Z';
   const reason = 'Taratura dimostrativa registrata a mano durante la simulazione.';
   const task = await db.get('SELECT id FROM tasks WHERE id = ?', taskId);
+  if (task) await requireRegistered(db, 'tasks', taskId);
   if (!task) {
     await db.run(`INSERT INTO tasks (id, site_id, title, executor, verifier, status, created_at, declared_at, acceptance_state)
       VALUES (?, ?, 'Registrare la taratura campione', 'Squadra dimostrativa', 'Verificatore dimostrativo', 'closed', ?, ?, 'declared')`, taskId, siteId, at, declared);
-    await db.run(`INSERT INTO task_events (task_id, at, actor, from_status, to_status, action, note, reason, waiver)
+    const events = await db.all(`INSERT INTO task_events (task_id, at, actor, from_status, to_status, action, note, reason, waiver)
       VALUES (?, ?, 'Squadra dimostrativa', 'in_progress', 'to_verify', 'submit', 'Taratura dichiarata.', NULL, FALSE),
-      (?, ?, 'Verificatore dimostrativo', 'to_verify', 'closed', 'close', NULL, ?, TRUE)`,
+      (?, ?, 'Verificatore dimostrativo', 'to_verify', 'closed', 'close', NULL, ?, TRUE) RETURNING id`,
     taskId, declared, taskId, closed, reason);
+    for (const event of events) await recordFixture(db, 'task_events', event.id);
   }
   bump('tasks');
 }
 
-// The seed manifest records exact inserted/upserted IDs. Reset never deletes by
-// site alone. Unknown rows and legacy seeds without a manifest remain untouched;
-// inbound operational references block deletion and roll back the reset.
-export async function reset(db) {
-  await db.exec(`CREATE TABLE IF NOT EXISTS demo_seed_records (table_name TEXT NOT NULL, record_id TEXT NOT NULL, PRIMARY KEY (table_name, record_id))`);
-  let removed = 0;
-  const ids = table => db.all('SELECT record_id FROM demo_seed_records WHERE table_name = ?', table);
-  const tables = ['deviation_exports', 'shipment_receipts', 'shipments', 'package_items', 'packages', 'purchase_order_items', 'purchase_orders',
-    'site_progress_item_steps', 'employee_certifications', 'time_bookings', 'cost_impacts', 'deviations',
-    'progress_entries', 'site_progress_items', 'progress_type_steps', 'progress_types', 'work_days', 'employees',
-    'hse_inspection_items', 'hse_inspections', 'hse_assets', 'hse_events', 'task_events', 'tasks', 'diary', 'project_structure'];
-  for (const table of tables) {
-    for (const { record_id: recordId } of await ids(table)) {
-      if (table === 'shipments') await db.run('DELETE FROM shipment_packages WHERE shipment_id = ?', recordId);
-      if (table === 'packages') await db.run('DELETE FROM package_items WHERE package_id = ?', recordId);
-      if (table === 'cost_impacts') await db.run('DELETE FROM cost_impact_deviations WHERE cost_impact_id = ?', recordId);
-      if (table === 'deviations') await db.run('DELETE FROM deviation_links WHERE deviation_id = ?', recordId);
-      if (table === 'tasks') {
-        await db.run('DELETE FROM task_events WHERE task_id = ? AND at = ?', recordId, at);
-        if (recordId === id(waiverTaskKey)) await db.run(`DELETE FROM task_events WHERE task_id = ?
-          AND ((at = ? AND action = 'submit') OR (at = ? AND action = 'close' AND waiver = TRUE))`,
-        recordId, '2026-11-10T08:00:00.000Z', '2026-11-11T08:00:00.000Z');
-      }
-      if (table === 'project_structure') {
-        // Seed descendants may refer to earlier seed roots. All seed links are
-        // removed together; an unrelated child still prevents deleting its parent.
-        await db.run(`UPDATE project_structure SET parent_id = NULL WHERE CAST(id AS TEXT) IN
-          (SELECT record_id FROM demo_seed_records WHERE table_name = 'project_structure')`);
-      }
-      removed += Number((await db.run(`DELETE FROM ${table} WHERE id = ?`, recordId)).rowCount);
-    }
+async function requireDemoSeedRecords(db) {
+  try {
+    await db.get('SELECT table_name, record_id FROM demo_seed_records LIMIT 0');
+  } catch (error) {
+    if (error.code !== '42P01' &&
+        !(error.code === 'ERR_SQLITE_ERROR' && error.message === 'no such table: demo_seed_records')) throw error;
+    throw new Error('Missing demo_seed_records table. Apply the database migrations (including 054) before running the demo seed.', { cause: error });
   }
-  if ((await ids('users')).some(row => row.record_id === evidenceOwnerId)) {
-    await db.run(`DELETE FROM site_members WHERE user_id = ? AND site_id IN
-      (SELECT id FROM sites WHERE code = 'FITT-01')`, evidenceOwnerId);
-    await db.run('DELETE FROM users WHERE id = ?', evidenceOwnerId);
-  }
-  await db.run("DELETE FROM demo_seed_records WHERE table_name <> 'sites'");
-  return removed;
 }
 
-export async function apply(db) {
-  await db.exec(`CREATE TABLE IF NOT EXISTS demo_seed_records (table_name TEXT NOT NULL, record_id TEXT NOT NULL, PRIMARY KEY (table_name, record_id))`);
+function deterministicFixtures() {
+  const tables = new Map();
+  const addId = (table, recordId) => {
+    if (!tables.has(table)) tables.set(table, []);
+    tables.get(table).push(recordId);
+  };
+  const add = (table, key) => addId(table, id(key));
+  const indexed = (table, code, label, rows) => rows.forEach((_, i) => add(table, `${code}:${label}:${i + 1}`));
+  for (const code of SITES) {
+    add('sites', `${code}:site`);
+    for (const [wbsCode] of WBS[code]) add('project_structure', `${code}:wbs:${wbsCode}`);
+    for (const { poNo, items } of PURCHASE_ORDERS[code]) {
+      add('purchase_orders', `${code}:purchase-order:${poNo}`);
+      for (const { lineNo } of items) add('purchase_order_items', `${code}:purchase-order:${poNo}:line:${lineNo}`);
+    }
+    for (const { key, items } of PACKAGES[code]) {
+      add('packages', `${code}:package:${key}`);
+      for (const { lineNo } of items) add('package_items', `${code}:package:${key}:line:${lineNo}`);
+    }
+    for (const { shipmentNo, receipts = [] } of SHIPMENTS[code]) {
+      add('shipments', `${code}:shipment:${shipmentNo}`);
+      for (const { poNo, lineNo } of receipts) add('shipment_receipts', `${code}:shipment:${shipmentNo}:receipt:${poNo}:${lineNo}`);
+    }
+    for (const type of TYPES[code]) {
+      add('progress_types', `${code}:type:${type.code}`);
+      for (const [stepCode] of type.steps) add('progress_type_steps', `${code}:step:${type.code}:${stepCode}`);
+    }
+    const employees = EMPLOYEES[code].map(([number]) => `${code}:employee:${number}`);
+    for (const key of employees) add('employees', key);
+    if (employees.length) {
+      for (const [index, [category]] of CERT_PLAN.entries()) add('employee_certifications', `${code}:cert:${index}:${category}`);
+    }
+    indexed('site_progress_items', code, 'item', ITEMS[code]);
+    for (const index of ITEMS[code].keys()) {
+      const itemId = id(`${code}:item:${index + 1}`);
+      const type = progressTypeFor(code, index);
+      for (const [stepCode] of type?.steps ?? []) {
+        const stepId = id(`${code}:step:${type.code}:${stepCode}`);
+        add('site_progress_item_steps', `${code}:state:${index + 1}:${stepId}`);
+        for (let week = 0; week < SITE_META[code].weeks; week++) {
+          add('progress_entries', `${code}:history:${itemId}:${stepId}:${week}`);
+        }
+      }
+    }
+    for (let day = 0; day < SITE_META[code].weeks * 5; day++) {
+      for (const [index, employee] of employees.entries()) {
+        const dayId = workDayKey(code, id(employee), day);
+        addId('work_days', dayId);
+        const bookingIndex = day * employees.length + index;
+        if (bookingIndex % 3 !== 2) {
+          const itemId = id(`${code}:item:${bookingIndex % Math.min(ITEMS[code].length, 8) + 1}`);
+          add('time_bookings', `${code}:booking:${dayId}:${itemId}`);
+        }
+      }
+    }
+    indexed('deviations', code, 'deviation', DEVIATIONS[code]);
+    indexed('cost_impacts', code, 'impact', IMPACTS[code]);
+    indexed('hse_events', code, 'hse', HSE[code]);
+    indexed('hse_assets', code, 'hse-asset', HSE_ASSETS[code]);
+    indexed('hse_events', code, 'hse-inspection-event', HSE_INSPECTIONS[code]);
+    indexed('hse_inspections', code, 'hse-inspection', HSE_INSPECTIONS[code]);
+    for (const [index, [assetName]] of HSE_INSPECTIONS[code].entries()) {
+      const asset = HSE_ASSETS[code].find(([, , name]) => name === assetName);
+      const template = TEMPLATES.find(item => item.code === asset?.[4]);
+      for (const item of template?.items ?? []) {
+        add('hse_inspection_items', `${code}:hse-inspection:${index + 1}:item:${item.code}`);
+      }
+    }
+    indexed('tasks', code, 'task', TASK_PROFILES[code]);
+    for (const index of DIARY[code].keys()) addId('diary', diaryKey(code, index));
+  }
+  for (const [table, suffix] of Object.entries({
+    employees: 'employee', site_progress_items: 'progress', work_days: 'night', time_bookings: 'booking',
+    tasks: 'task', deviations: 'deviation', diary: 'diary',
+  })) add(table, `FITT-03:c03:${suffix}`);
+  add('tasks', waiverTaskKey);
+  add('users', 'responsibility:synthetic-account');
+  return tables;
+}
+
+async function checkFixtureCollisions(db, residual = new Map()) {
+  const fixtures = deterministicFixtures();
+  const site = await db.get("SELECT id FROM sites WHERE code = 'FITT-01'");
+  if (site) {
+    for (const meta of evidenceExports(site.id)) {
+      const batch = await registeredDeviationExport(db, site.id, meta);
+      if (batch) await requireRegistered(db, 'deviation_exports', batch.id);
+      for (const row of meta.rows) {
+        const existing = await db.get('SELECT id FROM deviations WHERE site_id = ? AND source_system = ? AND source_id = ?',
+          site.id, meta.sourceSystem, row.source_id);
+        if (existing) await requireRegistered(db, 'deviations', existing.id);
+        fixtures.get('deviations').push(stableId('deviation', site.id, meta.sourceSystem, row.source_id));
+      }
+    }
+  }
+  for (const [table, plannedIds] of fixtures) {
+    const ids = plannedIds.filter(id => !residual.get(table)?.has(id));
+    for (let offset = 0; offset < ids.length; offset += 400) {
+      const batch = ids.slice(offset, offset + 400);
+      const conflict = await db.get(`SELECT candidate.id FROM ${table} candidate
+        WHERE candidate.id IN (${batch.map(() => '?').join(', ')}) AND NOT EXISTS (
+          SELECT 1 FROM demo_seed_records owned WHERE owned.table_name = ? AND owned.record_id = CAST(candidate.id AS TEXT)
+        ) LIMIT 1`, ...batch, table);
+      if (conflict) throw collisionError(table, conflict.id);
+    }
+  }
+}
+
+// Site shells and copied login roles survive a fixture reset.
+export async function reset(db) {
+  requireDemoAppEnv();
+  return db.transaction(async tx => {
+    await requireDemoDatabase(tx);
+    await requireDemoSeedRecords(tx);
+    return resetFixtures(tx);
+  });
+}
+
+const resetTables = [
+  'deviation_export_rows', 'deviation_exports', 'shipment_receipts', 'shipment_packages', 'shipments',
+  'package_items', 'packages', 'purchase_order_items', 'purchase_orders', 'cost_impact_deviations', 'deviation_links',
+  'site_progress_item_steps', 'employee_certifications', 'time_bookings', 'cost_impacts', 'deviations',
+  'progress_entries', 'site_progress_items', 'progress_type_steps', 'progress_types', 'work_days', 'employees',
+  'hse_inspection_items', 'hse_inspections', 'hse_assets', 'hse_events', 'task_events', 'tasks', 'diary', 'project_structure',
+  'site_members', 'users',
+];
+
+// Follow ownership FKs only. For example, a package item belongs to its package;
+// its purchase order line is a secondary reference and must not confer ownership.
+const cascadeParents = new Map(Object.entries({
+  deviation_export_rows: 'deviation_exports',
+  shipment_packages: 'shipments',
+  shipment_receipts: 'shipments',
+  packages: 'purchase_orders',
+  purchase_order_items: 'purchase_orders',
+  package_items: 'packages',
+  cost_impact_deviations: 'cost_impacts',
+  deviation_links: 'deviations',
+  site_progress_item_steps: 'site_progress_items',
+  progress_entries: 'site_progress_items',
+  progress_type_steps: 'progress_types',
+  employee_certifications: 'employees',
+  hse_inspection_items: 'hse_inspections',
+  task_events: 'tasks',
+}));
+
+async function resetFixtures(db) {
+  const sqlite = await demoDatabaseIsSqlite(db);
+  const references = groupDemoReferences(await inboundDemoReferences(db, sqlite));
+  const pending = new Map(resetTables.map(table => [table, new Map()]));
+  const northline = new Map(resetTables.map(table => [table, new Set()]));
+  const ledger = await db.all(`SELECT fixture.table_name, fixture.record_id, EXISTS (
+    SELECT 1 FROM demo_seed_records AS owner
+    WHERE owner.table_name = ? || fixture.table_name AND owner.record_id = fixture.record_id
+  ) AS northline FROM demo_seed_records AS fixture ORDER BY fixture.record_id`, northlineLedgerPrefix);
+  for (const { table_name: table, record_id: id, northline: ownedByNorthline } of ledger) {
+    if (!pending.has(table)) continue;
+    if (ownedByNorthline) {
+      northline.get(table).add(id);
+      continue;
+    }
+    if (table === 'users' && id !== evidenceOwnerId) continue;
+    if (table === 'site_members' && keyForRecord(table, id).values[1] !== evidenceOwnerId) continue;
+    pending.get(table).set(id, null);
+  }
+
+  const residual = new Map(resetTables.map(table => [table, new Set()]));
+  const parents = [...pending].flatMap(([table, records]) => [...records.keys()].map(id => ({ table, id })));
+  for (const { table, id } of parents) {
+    const { where, values } = keyForRecord(table, id);
+    for (const reference of references.get(table) ?? []) {
+      const { child } = reference;
+      if (!reference.local || cascadeParents.get(child) !== table) continue;
+      const predicate = referencingParent(reference, table, where);
+      const columns = (compositeKeys[child] ?? ['id']).join(', ');
+      for (const row of await db.all(`SELECT ${columns} FROM ${reference.qualifiedChild} AS child WHERE ${predicate}`, ...values)) {
+        const childId = fixtureRecordId(child, row);
+        if (pending.get(child).has(childId) || northline.get(child).has(childId)) continue;
+        pending.get(child).set(childId, { predicate, values });
+        residual.get(child).add(childId);
+        parents.push({ table: child, id: childId });
+      }
+    }
+  }
+
+  // Deterministic IDs without ledger entries are safe only if reached through a declared ownership FK.
+  await checkFixtureCollisions(db, residual);
+  for (const id of pending.get('project_structure').keys()) {
+    await db.run('UPDATE project_structure SET parent_id = NULL WHERE id = ?', id);
+  }
+
+  let removed = 0;
+  const cascaded = {};
+  const maxPasses = 64;
+  for (let pass = 0; pass < maxPasses; pass++) {
+    let progressed = false;
+    let blocked;
+    for (const [table, records] of pending) {
+      for (const [id, parent] of records) {
+        const { where, values } = keyForRecord(table, id);
+        const inbound = references.has(table);
+        if (inbound && !sqlite) await db.get(`SELECT 1 FROM ${table} WHERE ${where} FOR UPDATE`, ...values);
+        const dependent = (inbound && await referencingTable(db, references, table, where, values))
+          || await referencingOperationalLink(db, table, id);
+        if (dependent) {
+          if (table === 'users') records.delete(id);
+          else blocked ??= `Demo reset blocked: ${table} (${id}) is referenced by ${dependent}.`;
+          continue;
+        }
+        const result = parent
+          ? await db.run(`DELETE FROM ${table} AS child WHERE ${where} AND ${parent.predicate}`, ...values, ...parent.values)
+          : await db.run(`DELETE FROM ${table} WHERE ${where}`, ...values);
+        const count = Number(result.rowCount);
+        if (parent) {
+          if (count) cascaded[table] = (cascaded[table] ?? 0) + count;
+        } else {
+          await db.run('DELETE FROM demo_seed_records WHERE table_name = ? AND record_id = ?', table, id);
+        }
+        removed += count;
+        records.delete(id);
+        progressed = true;
+      }
+    }
+    if (!progressed) {
+      if (blocked) throw new Error(blocked);
+      return { removed, cascaded };
+    }
+  }
+  throw new Error(`Demo reset did not reach a fixed point after ${maxPasses} passes.`);
+}
+
+async function isRegistered(db, table, recordId) {
+  return Boolean(await db.get('SELECT 1 FROM demo_seed_records WHERE table_name = ? AND record_id = ?', table, String(recordId)));
+}
+
+const collisionError = (table, recordId) => new Error(`Unregistered demo fixture collision: ${table} (${recordId}).`);
+
+async function requireRegistered(db, table, recordId) {
+  if (!await isRegistered(db, table, recordId)) {
+    throw collisionError(table, recordId);
+  }
+}
+
+export async function apply(db, { demoSandbox = isDemoSandbox() } = {}) {
+  requireDemoAppEnv();
+  return db.transaction(async tx => {
+    await requireDemoDatabase(tx);
+    await requireDemoSeedRecords(tx);
+    return applyFixtures(tx, demoSandbox);
+  });
+}
+
+async function applyFixtures(db, demoSandbox) {
+  await checkFixtureCollisions(db);
   const storage = db;
+  const lock = await demoDatabaseIsSqlite(db) ? '' : ' FOR UPDATE';
   db = { ...storage, run: async (sql, ...args) => {
+    const insert = /^\s*INSERT INTO (\w+)\s*\(\s*id\s*,/.exec(sql);
+    if (!insert) {
+      const table = /^\s*INSERT INTO (\w+)/.exec(sql)?.[1];
+      const columns = compositeKeys[table];
+      const result = await storage.run(sql, ...args);
+      if (columns) {
+        // Composite fixture inserts bind their primary key columns first.
+        const key = args.slice(0, columns.length);
+        if (result.rowCount > 0) await recordFixture(storage, table, key);
+        else if (table !== 'site_members') await requireRegistered(storage, table, JSON.stringify(key.map(String)));
+      }
+      return result;
+    }
+    const [, table] = insert;
+    const recordId = args[0];
+    const existing = await storage.get(`SELECT id FROM ${table} WHERE id = ?${lock}`, recordId);
+    if (existing) await requireRegistered(storage, table, recordId);
+    else sql = sql.split(/\s+ON CONFLICT\b/i, 1)[0];
     const result = await storage.run(sql, ...args);
-    const insert = /^\s*INSERT INTO (\w+)\s*\(id,/.exec(sql);
-    if (insert && typeof args[0] === 'string') await storage.run(`INSERT INTO demo_seed_records (table_name, record_id)
-      VALUES (?, ?) ON CONFLICT DO NOTHING`, insert[1], args[0]);
+    if (!existing && result.rowCount > 0) await recordFixture(storage, table, recordId);
     return result;
   } };
+  const referenceSite = await db.get('SELECT demo_sandbox FROM sites WHERE code = ?', SITES[0]);
   const counts = {};
   const bump = key => { counts[key] = (counts[key] || 0) + 1; };
   for (const code of SITES) {
     const meta = SITE_META[code];
-    const existing = await db.get('SELECT id FROM sites WHERE code = ?', code);
-    await db.run(`INSERT INTO sites (id, code, name, location, start_date, end_date, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (code) DO UPDATE SET name = excluded.name, location = excluded.location,
-        start_date = excluded.start_date, end_date = excluded.end_date`,
-    id(`${code}:site`), code, meta.name, meta.location, meta.start, meta.end, at);
-    const site = await db.get('SELECT id FROM sites WHERE code = ?', code);
-    if (!site) throw new Error(`Missing synthetic site ${code}`);
+    const fixtureId = id(`${code}:site`);
+    let site = await db.get('SELECT id FROM sites WHERE code = ?', code);
+    // The base seed provides login sites with its own IDs. Use them as anchors.
+    if (!site || site.id === fixtureId) {
+      await db.run(`INSERT INTO sites (id, code, name, location, start_date, end_date, created_at, demo_sandbox)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ${demoSandbox || referenceSite?.demo_sandbox ? 'TRUE' : 'FALSE'})
+        ON CONFLICT (id) DO UPDATE SET name = excluded.name, location = excluded.location,
+          start_date = excluded.start_date, end_date = excluded.end_date,
+          demo_sandbox = sites.demo_sandbox OR excluded.demo_sandbox`,
+      fixtureId, code, meta.name, meta.location, meta.start, meta.end, at);
+      site = { id: fixtureId };
+    } else if (await db.get('SELECT id FROM sites WHERE id = ?', fixtureId)) {
+      await requireRegistered(db, 'sites', fixtureId);
+      throw new Error(`Conflicting demo site identity: ${code} (${fixtureId}).`);
+    }
     const siteId = site.id;
     const at2 = at;
 
@@ -966,26 +1254,13 @@ export async function apply(db) {
 
     // Personnel fitness records: the picture a site clerk actually needs to see — a few
     // already expired, a few about to lapse, most valid, one without any expiry.
-    const certPlan = [
-      ['qualification', 'Patentino PLE', 'Ente certificatore sintetico', -400, -120],
-      ['medical', 'Visita medica periodica', 'Medico competente sintetico', -370, -10],
-      ['training', 'Corso sicurezza 4 ore', 'Ente formazione sintetico', -370, -1],
-      ['medical', 'Visita medica periodica', 'Medico competente sintetico', -360, 5],
-      ['qualification', 'Abilitazione gru', 'Ente certificatore sintetico', -344, 18],
-      ['training', 'Formazione primo soccorso', 'Ente formazione sintetico', -350, 30],
-      ['medical', 'Visita medica periodica', 'Medico competente sintetico', -160, 200],
-      ['qualification', 'Patentino carrello elevatore', 'Ente certificatore sintetico', -200, 365],
-      ['training', 'Corso PES-PAV', 'Ente formazione sintetico', -120, 540],
-      ['qualification', 'Abilitazione ponteggi', 'Ente certificatore sintetico', -90, 800],
-      ['medical', 'Visita medica periodica', 'Medico competente sintetico', -30, 1200],
-      ['training', 'Formazione anticaduta', 'Ente formazione sintetico', -600, null],
-    ];
+
     const englishCertNames = ['Mobile elevating work platform qualification', 'Periodic fitness examination',
       'Four-hour safety training', 'Periodic fitness examination', 'Crane operator qualification', 'First aid training',
       'Periodic fitness examination', 'Forklift operator qualification', 'Electrical work safety training',
       'Scaffold erection qualification', 'Periodic fitness examination', 'Fall protection training'];
     const englishIssuers = { qualification: 'Synthetic qualification body', medical: 'Synthetic occupational health provider', training: 'Synthetic training body' };
-    for (const [index, [category, name, issuer, issuedOffset, expiresOffset]] of certPlan.entries()) {
+    for (const [index, [category, name, issuer, issuedOffset, expiresOffset]] of CERT_PLAN.entries()) {
       const employeeId = employeeIds[index % employeeIds.length];
       if (!employeeId) break;
       const certId = id(`${code}:cert:${index}:${category}`);
@@ -1006,7 +1281,7 @@ export async function apply(db) {
         const operationalDate = workingDate(code, week * 5 + day);
         for (const [index, employeeId] of employeeIds.entries()) {
           const night = index % 4 === 3;
-          const workDayId = id(`${code}:day:${employeeId}:${legacyWorkingDate(week * 5 + day)}`);
+          const workDayId = workDayKey(code, employeeId, week * 5 + day);
           workDays.push({ id: workDayId, employeeId, operationalDate });
           await db.run(`INSERT INTO work_days (id, site_id, employee_id, operational_date, shift, start_time, finish_time, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET operational_date = excluded.operational_date`,
@@ -1020,7 +1295,7 @@ export async function apply(db) {
     for (const [index, [description, wbsCode, section, area, progress]] of ITEMS[code].entries()) {
       const itemId = id(`${code}:item:${index + 1}`);
       itemIds.push(itemId);
-      const typeCode = index % 3 === 0 ? TYPES[code][0].code : index % 3 === 1 ? TYPES[code][TYPES[code].length - 1].code : null;
+      const typeCode = progressTypeFor(code, index)?.code;
       // Use SQL boolean literals for compatibility with SQLite drivers that cannot bind JS booleans.
       await db.run(`INSERT INTO site_progress_items (id, site_id, wbs_id, description, section, plc_area, progress_pct,
           planned_progress_pct, assigned_to, planned_start, planned_finish, has_files, has_notes, has_deviations, source_row, created_at, progress_type_id, planned_hours)
@@ -1052,6 +1327,7 @@ export async function apply(db) {
     // Eight chronological weekly samples, from zero to current; original suffixes 0–6 remain stable.
     const typedItems = await db.all(`SELECT s.id, s.progress_type_id, st.progress_type_step_id, st.percent
       FROM site_progress_items s JOIN site_progress_item_steps st ON st.site_progress_item_id = s.id
+      JOIN demo_seed_records owned ON owned.table_name = 'site_progress_item_steps' AND owned.record_id = CAST(st.id AS TEXT)
       WHERE s.site_id = ? AND s.progress_type_id IS NOT NULL`, siteId);
     for (const row of typedItems) {
       for (let week = 0; week < meta.weeks; week++) {
@@ -1104,13 +1380,10 @@ export async function apply(db) {
         title = excluded.title, closed_at = excluded.closed_at`,
       impactId, siteId, IMPACT_TITLES[code][index], status, claim, settlement, result, at2, status === 'closed' ? at2 : null);
       bump('impacts');
-      await db.run('DELETE FROM cost_impact_deviations WHERE cost_impact_id = ?', impactId);
       await db.run(`INSERT INTO cost_impact_deviations (cost_impact_id, deviation_id) VALUES (?, ?) ON CONFLICT DO NOTHING`,
         impactId, deviationIds[IMPACT_DEVIATIONS[code][index]]);
     }
 
-    // The previous revision had an eighth manual event on FITT-01. Remove only that seed ID.
-    if (code === 'FITT-01') await db.run('DELETE FROM hse_events WHERE id = ? AND site_id = ?', id(`${code}:hse:8`), siteId);
     for (const [index, [type, severity, dayOffset, location, persons, measures, notes]] of (HSE[code] || []).entries()) {
       const eventId = id(`${code}:hse:${index + 1}`);
       await db.run(`INSERT INTO hse_events (id, site_id, event_no, type, severity, occurred_on, location, persons_involved, measures, notes, created_at, updated_at)
@@ -1171,6 +1444,7 @@ export async function apply(db) {
     const taskStatuses = TASK_PROFILES[code];
     for (let index = 0; index < taskStatuses.length; index++) {
       const taskId = id(`${code}:task:${index + 1}`);
+      const existingTask = await db.get('SELECT id FROM tasks WHERE id = ?', taskId);
       const status = taskStatuses[index];
       const due = status === 'closed' || status === 'to_verify' ? workingDate(code, 39) : date(3 + index, workingDate(code, 39));
       const reviewDay = due < REFERENCE_DAY ? due : REFERENCE_DAY;
@@ -1187,38 +1461,32 @@ export async function apply(db) {
       textFor(code, 'Impresa dimostrativa', 'Demonstration contractor'), executor, verifier, ['low', 'medium', 'high'][index % 3],
       due, status, at2, declaredAt, verifiedAt, declaredAt ? executor : null);
       bump('tasks');
-      if (declaredAt) {
-        const events = [[at2, executor, 'todo', 'in_progress', 'start'],
-          [declaredAt, executor, 'in_progress', 'to_verify', 'submit']];
-        if (verifiedAt) events.push([verifiedAt, verifier, 'to_verify', 'closed', 'verify']);
+      const events = declaredAt
+        ? [[at2, executor, 'todo', 'in_progress', 'start'], [declaredAt, executor, 'in_progress', 'to_verify', 'submit']]
+        : status === 'todo' ? [] : [[at2, executor, 'todo', status, null]];
+      if (verifiedAt) events.push([verifiedAt, verifier, 'to_verify', 'closed', 'verify']);
+      if (!existingTask) {
         for (const [time, actor, from, to, action] of events) {
           const event = await db.get(`INSERT INTO task_events (task_id, at, actor, from_status, to_status, action)
-            SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS
-              (SELECT 1 FROM task_events WHERE task_id = ? AND at = ? AND action = ?)
-            RETURNING id`, taskId, time, actor, from, to, action, taskId, time, action);
-          if (event) await db.run(`INSERT INTO demo_seed_records (table_name, record_id)
-            VALUES ('task_events', ?) ON CONFLICT DO NOTHING`, String(event.id));
+            VALUES (?, ?, ?, ?, ?, ?) RETURNING id`, taskId, time, actor, from, to, action);
+          await recordFixture(db, 'task_events', event.id);
         }
-      } else if (status !== 'todo') {
-        await db.run(`UPDATE task_events SET actor = ? WHERE task_id = ? AND at = ? AND from_status = 'todo' AND to_status = ?`,
-          executor, taskId, at2, status);
-        await db.run(`INSERT INTO task_events (task_id, at, actor, from_status, to_status)
-          SELECT ?, ?, ?, 'todo', ? WHERE NOT EXISTS
-            (SELECT 1 FROM task_events WHERE task_id = ? AND at = ? AND from_status = 'todo' AND to_status = ?)`,
-          taskId, at2, executor, status, taskId, at2, status);
       }
     }
 
     for (const [index, [dPlan, dActual, dImp, dNext]] of DIARY[code].entries()) {
       const operationalDate = workingDate(code, index);
       // Keep the original Friday shift in identity keys; all displayed entries describe daytime work.
-      const legacyShift = index % 5 === 4 ? 'night' : 'day';
+      const diaryId = diaryKey(code, index);
+      if (await db.get('SELECT id FROM diary WHERE id = ?', diaryId)) await requireRegistered(db, 'diary', diaryId);
+      // The base seed may already own this slot. Leave its entry outside the demo reset manifest.
+      if (await db.get(`SELECT id FROM diary
+        WHERE site_id = ? AND operational_date = ? AND shift = 'day' AND id <> ?`, siteId, operationalDate, diaryId)) continue;
       await db.run(`INSERT INTO diary (id, site_id, operational_date, shift, plan, actual, impediments, next_step, created_at, time_zone, day_cutoff_time)
         VALUES (?, ?, ?, 'day', ?, ?, ?, ?, ?, 'Europe/Rome', '06:00')
         ON CONFLICT (id) DO UPDATE SET operational_date = excluded.operational_date, shift = excluded.shift,
           plan = excluded.plan, actual = excluded.actual, impediments = excluded.impediments, next_step = excluded.next_step`,
-      id(`${code}:diary:${legacyWorkingDate(index)}:${legacyShift}`), siteId, operationalDate,
-      dPlan, dActual, dImp, dNext, at2);
+      diaryId, siteId, operationalDate, dPlan, dActual, dImp, dNext, at2);
       bump('diary');
     }
   }
@@ -1238,19 +1506,19 @@ export async function apply(db) {
   await db.run(`INSERT INTO deviations (id, site_id, deviation_no, title, problem_description, status, creation_date, created_at)
     VALUES (?, ?, 'DEMO-C03', 'C03 access impediment', 'Synthetic access clearance awaited', 'open', ?, ?) ON CONFLICT (id) DO NOTHING`, deviation, main.id, '2026-09-21', at);
   await db.run(`INSERT INTO deviation_links (deviation_id, entity_type, entity_id)
-    VALUES (?, 'task', ?) ON CONFLICT DO NOTHING`, deviation, task);
+    VALUES (?, ?, ?) ON CONFLICT DO NOTHING`, deviation, 'task', task);
   await db.run(`INSERT INTO diary (id, site_id, operational_date, shift, plan, actual, impediments, next_step, created_at, time_zone, day_cutoff_time)
     VALUES (?, ?, '2026-11-16', 'night', 'Install C03 section', 'C03: six hours booked against the linked progress item',
       'C03 access clearance awaited', 'Resume C03 after clearance', ?, 'Europe/Rome', '06:00') ON CONFLICT (id) DO NOTHING`, id('FITT-03:c03:diary'), main.id, at);
-  // Membership: whoever owns the first synthetic site gets the same role on the others, so the
-  // extra sites are visible to the same account that already uses the demo.
+  // Copy active roles from the reference site while keeping sandbox roles in the sandbox.
   const reference = await db.get('SELECT id FROM sites WHERE code = ?', SITES[0]);
   if (reference) {
-    const members = await db.all('SELECT user_id, role FROM site_members WHERE site_id = ? AND user_id <> ?', reference.id, evidenceOwnerId);
+    const members = await db.all('SELECT user_id, role FROM accessible_site_members WHERE site_id = ? AND user_id <> ?', reference.id, evidenceOwnerId);
     for (const code of SITES.slice(1)) {
-      const site = await db.get('SELECT id FROM sites WHERE code = ?', code);
+      const site = await db.get('SELECT id, demo_sandbox FROM sites WHERE code = ?', code);
       if (!site) continue;
       for (const member of members) {
+        if (member.role === 'demo_user' && !site.demo_sandbox) continue;
         await db.run('INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
           site.id, member.user_id, member.role);
         bump('members');
@@ -1262,20 +1530,42 @@ export async function apply(db) {
 }
 
 if (process.argv[1] === new URL(import.meta.url).pathname) {
-  const applyFlag = process.argv.includes('--apply');
-  const resetFlag = process.argv.includes('--reset');
-  if (!applyFlag && !resetFlag) {
+  const args = process.argv.slice(2);
+  const [operation] = args;
+  if (args.length > 1 || (operation && !['--apply', '--reset', '--mark-demo-database'].includes(operation))) {
+    throw new Error('Usage: node server/seed-demo.mjs [--apply | --reset | --mark-demo-database]');
+  }
+  if (!operation) {
     const dataset = plan();
     console.log(JSON.stringify({ dryRun: true, plan: Object.fromEntries(Object.entries(dataset).map(([key, value]) =>
       [key, key === 'counts' ? value : Array.isArray(value) ? value.length : typeof value === 'object' ? Object.keys(value).length : value])) }, null, 1));
   } else {
-    const db = await openDb();
+    requireDemoAppEnv();
+    if ((process.env.DB_DRIVER || 'sqlite') === 'sqlite') {
+      const path = process.env.DATA_DIR || './data/app.db';
+      if (!(await stat(path, { throwIfNoEntry: false }))?.isFile()) {
+        throw new Error('Demo seed operation requires an existing SQLite database file.');
+      }
+    }
+    const db = await openDb(undefined, { migrate: false, initializeSchema: false });
     try {
-      if (resetFlag) {
-        const removed = await db.transaction(tx => reset(tx));
-        console.log(JSON.stringify({ reset: true, removed }));
+      if (operation === '--mark-demo-database') {
+        await db.transaction(async tx => {
+          await requireDemoSeedRecords(tx);
+          const existing = await tx.get('SELECT marker FROM demo_seed_environment WHERE singleton = 1');
+          if (!existing && await tx.get('SELECT 1 FROM demo_seed_records LIMIT 1')) {
+            throw new Error('Legacy demo seed registry requires manual reconciliation before marking this database.');
+          }
+          await tx.run(`INSERT INTO demo_seed_environment (singleton, marker) VALUES (1, ?)
+            ON CONFLICT (singleton) DO NOTHING`, DEMO_SEED_MARKER);
+          await requireDemoDatabase(tx);
+        });
+        console.log(JSON.stringify({ markedDemoDatabase: true }));
+      } else if (operation === '--reset') {
+        const result = await reset(db);
+        console.log(JSON.stringify({ reset: true, ...result }));
       } else {
-        const counts = await db.transaction(tx => apply(tx));
+        const counts = await apply(db);
         console.log(JSON.stringify({ applied: true, counts }));
       }
     } finally {

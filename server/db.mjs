@@ -6,13 +6,13 @@ import { SqliteStorage, PgStorage } from './storage/index.mjs';
 // migrate defaults to true. Use migrate: false only in inspection/diagnostic
 // scripts, never in the server. It skips migrations and onMigrationsApplied
 // without checking the schema version; compatibility is the caller's responsibility.
-export async function openDb(location, { driver = process.env.DB_DRIVER || 'sqlite', schema = 'app', migrate: shouldMigrate = true, onMigrationsApplied } = {}) {
+export async function openDb(location, { driver = process.env.DB_DRIVER || 'sqlite', schema = 'app', migrate: shouldMigrate = true, onMigrationsApplied, initializeSchema = true } = {}) {
   if (!['sqlite', 'pg'].includes(driver)) throw new Error(`Unknown DB_DRIVER: ${driver}`);
   const db = driver === 'pg'
     ? new PgStorage(location ?? process.env.DATABASE_URL, { schema })
     : new SqliteStorage(location ?? (process.env.DATA_DIR || './data/app.db'));
   try {
-    if (driver === 'pg') await db.open();
+    if (driver === 'pg' && initializeSchema) await db.open();
     if (driver === 'sqlite') await db.exec('PRAGMA foreign_keys = ON;');
     if (shouldMigrate) {
       const applied = await migrate(db, { driver });

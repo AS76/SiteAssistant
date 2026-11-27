@@ -10,6 +10,14 @@ export class MailDeliveryError extends Error {
   constructor() { super('Transactional email is temporarily unavailable.'); this.code = 'MAIL_UNAVAILABLE'; }
 }
 
+export async function deliver(mailer, message) {
+  try { await mailer(message); }
+  catch (error) {
+    if (error instanceof MailNotConfiguredError) throw error;
+    throw new MailDeliveryError();
+  }
+}
+
 const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // Read once; templates are pure functions of their arguments and this cached asset.
 let logo = '';
@@ -20,7 +28,10 @@ function template(subject, content, text, language = 'en') {
 export function signupNotifyEmail({ email, reviewUrl }) {
   return template('SiteAssistant access request', `<p>Access requested for <strong>${escapeHtml(email)}</strong>.</p><p>This link expires in 72 hours. Review the request before approving or rejecting it:</p><p><a style="color:#126c57" href="${escapeHtml(reviewUrl)}">Review request</a></p>`, `SiteAssistant access request\nEmail: ${email}\nLink expires in 72 hours. Review the request before approving or rejecting it.\nReview request: ${reviewUrl}`);
 }
-export function welcomeEmail({ password }) {
+export function welcomeEmail({ password, language }) {
+  if (language === 'it') return template('Benvenuto in SiteAssistant',
+    `<p>La tua richiesta di accesso è stata approvata.</p><p>Password temporanea: <strong>${escapeHtml(password)}</strong></p><p>Accedi e usa l’avviso per cambiare la password.</p>`,
+    `La tua richiesta di accesso a SiteAssistant è stata approvata.\nPassword temporanea: ${password}\nAccedi e usa l’avviso per cambiare la password.`, 'it');
   return template('Welcome to SiteAssistant', `<p>Your access request has been approved.</p><p>Temporary password: <strong>${escapeHtml(password)}</strong></p><p>Sign in and change this password using the password banner.</p>`, `Your SiteAssistant access request has been approved.\nTemporary password: ${password}\nSign in and change this password using the password banner.`);
 }
 export function resetEmail({ resetUrl, language }) {
@@ -31,6 +42,17 @@ export function resetEmail({ resetUrl, language }) {
   return template('SiteAssistant password reset',
     `<p>This link expires in 30 minutes.</p><p><a href="${link}">Reset your password</a></p><p>Ignore this message if you did not request a reset.</p>`,
     `This link expires in 30 minutes: ${resetUrl}\nIgnore this message if you did not request a reset.`);
+}
+
+export function invitationEmail({ activationUrl, locale = 'en' }) {
+  const it = locale === 'it';
+  const subject = it ? 'Il tuo invito a SiteAssistant' : 'Your SiteAssistant invitation';
+  const expiry = it ? 'Il link di attivazione scade dopo 72 ore.' : 'The activation link expires after 72 hours.';
+  const password = it ? 'Scegli tu la password e nessuno te la chiederà via email.' : 'Choose your password. Nobody will ask for it by email.';
+  const action = it ? 'Attiva il tuo account' : 'Activate your account';
+  return template(subject,
+    `<p>${expiry}</p><p><a href="${escapeHtml(activationUrl)}">${action}</a></p><p>${password}</p>`,
+    `${subject}\n${expiry}\n${activationUrl}\n${password}`, it ? 'it' : 'en');
 }
 
 const mailbox = value => typeof value === 'string' && value.length <= 254 && /^[^\s@<>\x00-\x1f\x7f]+@[^\s@<>\x00-\x1f\x7f]+\.[^\s@<>\x00-\x1f\x7f]+$/.test(value);

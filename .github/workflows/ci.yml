@@ -32,11 +32,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - run: npm ci || npm install --no-audit --no-fund
       - run: env -u DATABASE_URL npm test
+        env:
+          SA_MIGRATION_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
       - run: npm run test:schema
 
   postgres:
@@ -60,8 +64,12 @@ jobs:
       DATABASE_URL_TEST: postgres://postgres:postgres@127.0.0.1:5432/siteassistant_test
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - run: npm ci || npm install --no-audit --no-fund
       - run: env -u DATABASE_URL npm run test:pg
+        env:
+          SA_MIGRATION_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
