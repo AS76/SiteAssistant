@@ -1,10 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { RepositoryError, requireRole } from './repository.mjs';
+import { EDIT_ROLES, RepositoryError, requireRole } from './repository.mjs';
 import { requireModule } from './module-access.mjs';
 import { appendAuditEvent } from './audit.mjs';
 import { recomputePurchaseOrder } from './purchase-orders.mjs';
 
-const WRITE_ROLES = ['owner', 'editor'];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fail = (status, message, code) => { throw new RepositoryError(status, message, code); };
 const invalid = message => fail(400, message, 'VALIDATION_ERROR');
@@ -47,9 +46,9 @@ async function access(db, siteId, user, roles) {
 }
 
 async function lockSite(tx, siteId, user) {
-  await access(tx, siteId, user, WRITE_ROLES);
+  await access(tx, siteId, user, EDIT_ROLES);
   await tx.run('UPDATE sites SET id = id WHERE id = ?', siteId);
-  await access(tx, siteId, user, WRITE_ROLES);
+  await access(tx, siteId, user, EDIT_ROLES);
 }
 
 async function findPackage(db, id) {

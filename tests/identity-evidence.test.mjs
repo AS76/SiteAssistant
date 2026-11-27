@@ -1,7 +1,10 @@
+import { provisionDemoFixture, withDemoEnvironment } from './helpers/demo-seed.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from '../server/http.mjs';
+import { changePermission, INVITATION_PERMISSION } from '../server/admin.mjs';
+import { createInvitation } from '../server/invitations.mjs';
 import { applyMigration } from '../server/migrations/index.mjs';
 import { importDeviationWorkbook } from '../server/planning-import.mjs';
 import {
@@ -10,6 +13,7 @@ import {
 import { createAttachment, deleteAttachment, getAttachment, createSite, createTask, getTask, listTasks } from '../server/repository.mjs';
 import { writeWorkbook } from '../server/xlsx-write.mjs';
 import { apply as seedDemo, reset as resetDemo } from '../server/seed-demo.mjs';
+import { seed } from '../server/seed.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
 import { deviationsDatabase, deviationsSource } from './helpers/deviations.mjs';
 import { MemoryObjectStorage } from './helpers/object-storage.mjs';
@@ -47,7 +51,14 @@ for (const driver of ['sqlite', 'pg']) {
     await db.run(`INSERT INTO hse_events (id, site_id, type, severity, occurred_on, deviation_id, created_at, updated_at, deleted_at)
       VALUES (?, ?, 'observation', 'low', '2026-11-01', ?, ?, ?, ?)`, hse, site.id, deviation, at, at, at);
     const storage = new MemoryObjectStorage();
-    const attachment = await createAttachment(db, fileInput('task', task.id), users.owner, storage);
+    const attachmentId = randomUUID();
+    const locator = `attachments/${site.id}/${attachmentId}/v1`;
+    const checksum = sha(fileContent);
+    await storage.put(locator, fileContent, { mime: 'application/pdf', sha256: checksum });
+    await db.run(`INSERT INTO attachments (id, site_id, entity_type, entity_id, filename, mime, size,
+      content_sha256, storage_locator, uploaded_by, created_at)
+      VALUES (?, ?, 'task', ?, 'synthetic.pdf', 'application/pdf', ?, ?, ?, ?, ?)`,
+    attachmentId, site.id, task.id, fileContent.length, checksum, locator, users.owner.id, at);
     await db.run(`INSERT INTO audit_events (id, site_id, entity_type, entity_id, action, at, actor, changes)
       VALUES (?, ?, 'hse_event', ?, 'update', ?, ?, '{}')`, randomUUID(), site.id, hse, at, users.owner.id);
     const tables = ['sites', 'tasks', 'task_events', 'deviations', 'deviation_links', 'cost_impact_deviations', 'hse_events', 'attachments', 'audit_events'];
@@ -72,7 +83,11 @@ for (const driver of ['sqlite', 'pg']) {
     assert.equal(legacy.acceptance_state, 'none');
     assert.deepEqual(legacy.acceptance_events, []);
     assert.equal(legacy.events.find(event => event.action === 'verify').waiver, false);
-    const copy = await getAttachment(db, attachment.id, users.viewer, storage);
+    for (const file of ['040_site_time_zone.sql', '045_diary_versions.sql', '047_site_assistant.sql',
+      '048_password_resets.sql', '049_interface_language.sql', '050_invitations.sql', '051_demo_user.sql']) {
+      await db.transaction(tx => applyMigration(tx, file, { driver }));
+    }
+    const copy = await getAttachment(db, attachmentId, users.viewer, storage);
     assert.deepEqual(await streamBytes(copy.stream), fileContent);
   });
 
@@ -323,7 +338,10 @@ for (const driver of ['sqlite', 'pg']) {
 
 test('synthetic evidence seed presents comparable and incomparable exports and a waiver, and resets cleanly', async t => {
   const db = await wbsDatabase(t, 'sqlite');
-  await db.transaction(seedDemo);
+  await seed(db, { environment: 'test' });
+  const baseDiary = await db.get('SELECT * FROM diary');
+  await provisionDemoFixture(db);
+  await withDemoEnvironment(() => seedDemo(db));
   const site = await db.get("SELECT id FROM sites WHERE code = 'FITT-01'");
   const all = await listDeviations(db, { siteId: site.id });
   assert.equal(all.filter(row => row.absence === true).length, 2);
@@ -331,11 +349,20 @@ test('synthetic evidence seed presents comparable and incomparable exports and a
   assert.equal(all.filter(row => row.internal_owner_id != null).length, 2);
   assert.ok(all.some(row => row.source_system === 'internal' && row.traceability === 'none' && row.internal_owner_id == null));
   assert.equal((await listTasks(db, { siteId: site.id, closedWithWaiver: true })).length, 1);
-  await db.transaction(seedDemo);
+  await withDemoEnvironment(() => seedDemo(db));
   assert.deepEqual(await listDeviations(db, { siteId: site.id }), all);
-  await db.transaction(resetDemo);
+  const account = await db.get("SELECT id, email FROM users WHERE email = 'demo-responsible@example.invalid'");
+  assert.deepEqual(await db.all('SELECT user_id FROM user_permissions'), []);
+  await changePermission(db, 'grant', INVITATION_PERMISSION, account.email);
+  const invitation = await createInvitation(db, 'reset-check@example.invalid', account.id,
+    { mailer: async () => {}, publicUrl: 'https://invite.example.invalid' });
+  await changePermission(db, 'revoke', INVITATION_PERMISSION, account.email);
+  await withDemoEnvironment(() => resetDemo(db));
   assert.deepEqual(await db.all('SELECT * FROM deviation_exports'), []);
   assert.deepEqual(await db.all('SELECT * FROM deviation_export_rows'), []);
+  assert.deepEqual(await db.get('SELECT * FROM diary WHERE id = ?', baseDiary.id), baseDiary);
+  assert.equal((await db.get('SELECT created_by FROM invitations WHERE id = ?', invitation.id)).created_by, account.id);
+  assert.ok((await db.get('SELECT revoked_at FROM user_permissions WHERE user_id = ?', account.id)).revoked_at);
 });
 
 async function streamBytes(stream) {

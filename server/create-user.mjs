@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { emitKeypressEvents } from 'node:readline';
 import process from 'node:process';
 import { hashPassword } from './auth.mjs';
+import { DEMO_ROLE, ROLES } from './repository.mjs';
 import { openDb, closeDb } from './db.mjs';
 
 // Only fixed, application-owned messages are safe to print; never echo input or driver errors.
@@ -19,8 +20,8 @@ function validateAssignment(siteCode, role) {
   if (siteCode !== undefined && (typeof siteCode !== 'string' || !siteCode.trim())) {
     throw new UserError('A non-empty site code is required.', 2);
   }
-  if (role !== undefined && !['owner', 'editor', 'verifier', 'viewer'].includes(role)) {
-    throw new UserError('Role must be owner, editor, verifier or viewer.', 2);
+  if (role !== undefined && !ROLES.includes(role)) {
+    throw new UserError('Role must be owner, editor, verifier, viewer or demo_user.', 2);
   }
 }
 
@@ -44,6 +45,9 @@ export async function createUser(db, { email, name, password, siteCode, role }) 
     }
     const site = siteCode === undefined ? null : await tx.get('SELECT id, code FROM sites WHERE code = ?', siteCode);
     if (siteCode !== undefined && !site) throw new UserError('Site code does not exist.');
+    if (role === DEMO_ROLE && !await tx.get('SELECT id FROM sites WHERE id = ? AND demo_sandbox', site.id)) {
+      throw new UserError('The demo_user role requires a sandbox site.');
+    }
     const user = { id: randomUUID(), email, name };
     try {
       await tx.run(`INSERT INTO users (id, email, name, password_hash, password_algo, created_at)
@@ -53,6 +57,7 @@ export async function createUser(db, { email, name, password, siteCode, role }) 
       if (tx.isUniqueViolation(error)) throw new UserError('A user with this email already exists.');
       throw new UserError('Unable to create user.');
     }
+    if (role === DEMO_ROLE) await tx.run('UPDATE users SET demo_sandbox = TRUE WHERE id = ?', user.id);
     if (site) {
       await tx.run(`INSERT INTO site_members (site_id, user_id, role) VALUES (?, ?, ?)
         ON CONFLICT (site_id, user_id) DO UPDATE SET role = excluded.role`, site.id, user.id, role);

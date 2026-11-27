@@ -38,21 +38,31 @@ test('all seven draft templates have valid metadata and unique visual checks', (
     [code, jurisdiction, kind, intervalMonths, reference]), expected);
   for (const template of TEMPLATES) {
     assert.equal(template.draft, true);
+    assert.equal(template.status, 'draft');
+    assert.equal(template.frequency_verified, false);
     assert.ok(Number.isInteger(template.intervalMonths) && template.intervalMonths > 0);
     assert.match(template.code, /^[a-z]+(?:_[a-z]+)*$/);
     assert.match(template.category, /^[a-z]+(?:_[a-z]+)*$/);
-    for (const field of ['title', 'reference']) {
+    for (const field of ['title', 'reference', 'source']) {
       assert.equal(typeof template[field], 'string');
       assert.ok(template[field].trim().length > 0);
     }
     assert.ok(template.items.length >= 8 && template.items.length <= 14);
     assert.equal(new Set(template.items.map(item => item.code)).size, template.items.length);
+    assert.ok(template.items.some(item => item.critical));
     for (const item of template.items) {
       assert.match(item.code, /^[a-z]+(?:_[a-z]+)*$/);
+      assert.equal(typeof item.critical, 'boolean');
       assert.equal(typeof item.label, 'string');
       assert.ok(item.label.trim().length > 0);
     }
   }
+  for (const [family, code, expected] of [
+    ['it_lifting', 'structure', true], ['it_lifting', 'identification', false],
+    ['uk_lifting_accessories', 'hooks', true], ['uk_lifting_accessories', 'rated_load', false],
+    ['uk_ppe', 'harness_webbing', true], ['uk_ppe', 'gloves', false],
+    ['it_scaffolding', 'guardrails', true], ['uk_scaffolding', 'load_signs', false],
+  ]) assert.equal(findTemplate(family).items.find(item => item.code === code).critical, expected);
 });
 
 test('findTemplate returns the catalogue entry or undefined', () => {
