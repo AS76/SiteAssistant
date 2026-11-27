@@ -54,6 +54,11 @@ export function createOfflineStore({ indexedDB = globalThis.indexedDB, name = DB
       request.onsuccess = () => { for (const row of request.result.filter(belongs)) store.delete(row.id); };
     }
   });
+  // Keep unsynchronised operations quarantined under their original scope. The
+  // mirror state and rendered data are removed, but the queue is not silently lost.
+  const quarantineScope = scope => transaction(['mirror'], 'readwrite', tx => {
+    if (scope) tx.objectStore('mirror').delete(`state:${scope}`);
+  });
   const listOps = (scope) => transaction(['pending_ops'], 'readonly', (tx, done) => {
     const request = tx.objectStore('pending_ops').getAll();
     request.onsuccess = () => done(request.result.filter(op => scope === undefined || op.scope === scope).sort((a, b) => a.sequence - b.sequence));
@@ -213,7 +218,7 @@ export function createOfflineStore({ indexedDB = globalThis.indexedDB, name = DB
       return summary;
     });
   }
-  return { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, purgeScope, withSyncLock, confirmedCreation };
+  return { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, purgeScope, quarantineScope, withSyncLock, confirmedCreation };
 }
 
 // Overlay only queued local creations. A proposed transition never replaces the authoritative status.
@@ -235,7 +240,7 @@ export function overlayPending(state, ops) {
 }
 
 const defaultStore = createOfflineStore();
-export const { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, purgeScope, withSyncLock, confirmedCreation } = defaultStore;
+export const { openDb, enqueue, listOps, removeOp, replayOps, getMirror, setMirror, purgeScope, quarantineScope, withSyncLock, confirmedCreation } = defaultStore;
 export async function registerSync(registration) {
   try { await registration?.sync?.register(SYNC_TAG); } catch { /* The page's online/visibility/retry hooks remain available. */ }
 }

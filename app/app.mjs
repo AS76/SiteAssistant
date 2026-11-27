@@ -9,7 +9,7 @@ import { hasOpenProgressSteps } from './domain.mjs';
 import { taskFormalAcceptance, taskVerificationOutcome } from './domain.mjs';
 import { INSPECTION_STATUSES, inspectionStatusLabelKey, filterHseAssets, sortHseAssets, hseAssetCounts, inspectionOutcomeLabelKey, inspectionModeLabelKey, inspectionItemResultLabelKey, inspectionTally, sortInspections, inspectionSuggestion, inspectionProgress, inspectionPayload } from './domain.mjs';
 import { DASHBOARD_WIDGETS, defaultDashboardLayout, validDashboardWidgets } from './dashboard-layout.mjs';
-import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, purgeScope, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
+import { openDb, enqueue, listOps, replayOps, removeOp, getMirror, setMirror, purgeScope, quarantineScope, overlayPending, scopeFor, registerSync, withSyncLock, confirmedCreation } from './offline.mjs';
 
 const api = createApi({ baseUrl: new URL(document.querySelector('meta[name=siteassistant-api-base]')?.content || DEFAULT_BASE_URL, location.href).href, onUnauthorized: () => clearSession(true) });
 const freshApi = createApi({ baseUrl: api.baseUrl, fresh: true, onUnauthorized: () => clearSession(true) });
@@ -214,11 +214,19 @@ function clearSession(invalidate = false) {
   state = { sites: [], tasks: [], diary: [], attachments: [] };
   filters = { search: '', status: '', person: '', priority: '', kind: '' };
   closeModal();
-  if (invalidate) void forgetActive().catch(() => { storageError = true; });
+  if (invalidate) void accountLock(forgetActive).catch(() => { storageError = true; });
   if (!loading) render();
 }
 async function forgetActive() {
-  if (storageReady) await setMirror('active', null);
+  const active = storageReady ? await getMirror('active') : null;
+  if (storageReady) {
+    if (active?.scope && (await listOps(active.scope)).length === 0) {
+      await purgeScope(active.scope);
+    } else {
+      if (active?.scope) await quarantineScope(active.scope);
+      await setMirror('active', null);
+    }
+  }
   if ('caches' in window) for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.includes('-data-')) await caches.delete(key);
 }
 async function flushLogout() {
@@ -233,8 +241,22 @@ async function logout() {
     await accountLock(async () => {
       const active = storageReady ? await getMirror('active') : null;
       const scope = offlineScope ?? active?.scope;
+      if (storageReady && scope && (await listOps(scope)).length) {
+        await quarantineScope(scope);
+        if (storageReady) await setMirror('active', null);
+        if ('caches' in window) {
+          for (const key of await caches.keys()) if (key.startsWith('siteassistant-v') && key.includes('-data-')) await caches.delete(key);
+        }
+        clearSession(); setDeviceLock(scope); accountChannel?.postMessage('changed');
+        if (navigator.onLine) {
+          try { await api.logout(); clearDeviceLock(); } catch { /* offline-equivalent: keep local lock */ }
+        }
+        toast(t('deviceLocked'));
+        return;
+      }
       const current = !active || active.scope === scope;
       if (storageReady) await purgeScope(scope, current ? logoutKey : undefined);
+      clearDeviceLock();
       if ('caches' in window && scope) {
         const suffix = `-data-${encodeURIComponent(scope)}`;
         try {
@@ -292,6 +314,15 @@ async function saveLanguagePreference() {
 async function loadData({ signedIn = false } = {}) {
   coreCache.clear(); overviewCache.clear();
   loading = true; loadError = null; render();
+  if (deviceLocked()) {
+    if (navigator.onLine) {
+      try { await api.logout(); clearDeviceLock(); } catch { /* remain locally locked */ }
+    }
+    if (deviceLocked()) {
+      session = null; state = { sites: [], tasks: [], diary: [], attachments: [] };
+      loading = false; render(); return;
+    }
+  }
   try {
     await accountLock(async () => {
       if (logoutPending || (storageReady && await getMirror(logoutKey))) {
@@ -415,6 +446,16 @@ function heading(title, subtitle, actions = '') {
 }
 function empty(title, subtitle, action = '') { return `<div class="empty"><strong>${t(title)}</strong>${t(subtitle)}${action ? `<div style="margin-top:16px">${action}</div>` : ''}</div>`; }
 const DEMO_NOTICE_KEY = 'sa-demo-notice-dismissed';
+const DEVICE_LOCK_KEY = 'sa-device-locked';
+function deviceLocked() {
+  try { return localStorage.getItem(DEVICE_LOCK_KEY); } catch { return null; }
+}
+function setDeviceLock(scope) {
+  try { localStorage.setItem(DEVICE_LOCK_KEY, scope || 'unknown'); } catch { /* storage unavailable */ }
+}
+function clearDeviceLock() {
+  try { localStorage.removeItem(DEVICE_LOCK_KEY); } catch { /* storage unavailable */ }
+}
 function initDemoNotice() {
   const banner = $('#demo-banner');
   try { banner.hidden = localStorage.getItem(DEMO_NOTICE_KEY) === '1'; }
@@ -4430,7 +4471,7 @@ document.addEventListener('submit', async event => {
     if (['hse-form', 'hse-delete-form'].includes(form.id)) { await submitHse(form, data); return; }
     if (['cert-form', 'cert-delete-form'].includes(form.id)) { await submitCertification(form, data); return; }
     if (form.id === 'login-form') {
-      await accountLock(async () => { await flushLogout(); await api.login(data); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
+      await accountLock(async () => { await flushLogout(); await api.login(data); clearDeviceLock(); await forgetActive(); clearSession(); accountChannel?.postMessage('changed'); });
       await loadData({ signedIn: true }); await syncQueue(); return;
     }
     if (form.id === 'password-form') {
@@ -4703,7 +4744,7 @@ navigator.serviceWorker?.addEventListener('message', event => {
   if (event.data.type === 'offline-access-denied') {
     if (event.data.status === 401) clearSession(true);
     else if (event.data.code === 'MODULE_FORBIDDEN') { wbsCache.clear(); void loadData(); }
-    else { void forgetActive(); state = { sites: [], tasks: [], diary: [], attachments: [] }; loadError = { status: 403 }; render(); }
+    else { void accountLock(forgetActive).catch(() => { storageError = true; }); state = { sites: [], tasks: [], diary: [], attachments: [] }; loadError = { status: 403 }; render(); }
   }
 });
 setInterval(() => { if (pendingOps.some(op => op.status !== 'failed') && navigator.onLine) void syncQueue(); }, 30000);

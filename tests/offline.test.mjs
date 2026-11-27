@@ -330,3 +330,33 @@ test('purging a scope removes its mirror, pending operations and receipts while 
   assert.deepEqual(await store.getMirror(`state:${other}`), { tasks: [] });
   await assert.rejects(() => store.enqueue({ scope, op_type: 'create_task', payload: task }, { requireActive: true }), /authRequired/);
 });
+
+test('quarantining a scope removes rendered state but preserves pending operations', async () => {
+  const { store, enqueue } = await fixture();
+  const other = scopeFor(baseUrl, 'other-user');
+  await enqueue('create_diary', diary);
+  await store.setMirror(`state:${scope}`, { tasks: [] });
+  await store.setMirror(`state:${other}`, { tasks: [{ id: 'other' }] });
+  const otherOp = await store.enqueue({ scope: other, op_type: 'create_task', payload: task });
+  await store.quarantineScope(scope);
+  assert.equal(await store.getMirror(`state:${scope}`), undefined);
+  assert.deepEqual((await store.listOps(scope)).map(op => op.op_type), ['create_diary']);
+  assert.deepEqual(await store.getMirror(`state:${other}`), { tasks: [{ id: 'other' }] });
+  assert.deepEqual(await store.listOps(other), [otherOp]);
+});
+
+test('purging a scope with an empty queue removes its mirror, receipt and active record', async () => {
+  const { store, replay, api, enqueue } = await fixture();
+  api.createTask = async () => ({ id: 'confirmed-task' });
+  const confirmed = await enqueue('create_task', task);
+  await replay();
+  assert.deepEqual(await store.listOps(scope), []);
+  assert.ok(await store.confirmedCreation(scope, confirmed.entity_id));
+
+  await store.purgeScope(scope);
+
+  assert.equal(await store.getMirror('active'), undefined);
+  assert.equal(await store.getMirror(`state:${scope}`), undefined);
+  assert.equal(await store.confirmedCreation(scope, confirmed.entity_id), undefined);
+  assert.deepEqual(await store.listOps(scope), []);
+});
