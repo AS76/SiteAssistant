@@ -50,7 +50,7 @@ Non sono ipotesi: sono incroci già visibili nel codice o nelle specifiche appro
 3. **Diario probatorio.** È una fondazione condivisa, e sta ricevendo input da più parti: sessioni di inventario, handover, ispezioni. Il rischio non è l'uso, è l'abuso: diventare il contenitore di tutto e perdere il carattere probatorio che lo rende utile.
 4. **Luoghi come ubicazioni di magazzino.** Logistics userà `places` per depositi, container e scaffali. Se `places` cresce per esigenze di magazzino, cambia il modello per tutti e tre i pilastri, non solo per uno.
 5. **Allegati e registro documenti.** `attachments` copre oggi sei tipi di entità e non asset e luoghi; il registro documenti versionato non deve diventare un secondo sistema di allegati accanto al primo.
-6. **Permessi per modulo o per pilastro.** `logistics` e `materials` sono strict, gli altri moduli no. La visione a pilastri suggerisce di ragionare per pilastro; il modello attuale è per modulo. È una decisione aperta, non un cambiamento da fare adesso.
+6. **Permessi per modulo o per pilastro.** Oggi sono strict `logistics`, `workforce_names` e `workforce_presence`: senza una concessione esplicita restano chiusi. Gli altri moduli no. `materials` non è ancora un modulo: è un requisito futuro, non un permesso attivo. La visione a pilastri suggerisce di ragionare per pilastro; il modello attuale è per modulo. È una decisione aperta, non un cambiamento da fare adesso.
 
 ## 6. Come usare questa visione
 
