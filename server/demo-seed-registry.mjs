@@ -7,6 +7,31 @@ export const compositeKeys = {
   site_members: ['site_id', 'user_id'],
 };
 
+// Northline rows have normal ledger entries plus ownership entries so the FITT
+// reset can exclude them without changing the ledger schema.
+export const northlineLedgerPrefix = 'northline:';
+
+export function fixtureRecordId(table, row) {
+  const columns = compositeKeys[table];
+  return columns ? JSON.stringify(columns.map(column => String(row[column]))) : String(row.id);
+}
+
+export async function recordNorthlineFixtures(db, table, rows) {
+  if (!rows.length) return;
+  const keys = rows.map(row => fixtureRecordId(table, row));
+  await db.run(`INSERT INTO demo_seed_records (table_name, record_id)
+    VALUES ${keys.map(() => '(?, ?), (?, ?)').join(', ')} ON CONFLICT DO NOTHING`,
+  ...keys.flatMap(key => [table, key, northlineLedgerPrefix + table, key]));
+}
+
+export async function clearNorthlineFixtures(db) {
+  await db.run(`DELETE FROM demo_seed_records AS fixture WHERE EXISTS (
+    SELECT 1 FROM demo_seed_records AS owner
+    WHERE owner.table_name = ? || fixture.table_name AND owner.record_id = fixture.record_id
+  )`, northlineLedgerPrefix);
+  await db.run('DELETE FROM demo_seed_records WHERE table_name LIKE ?', northlineLedgerPrefix + '%');
+}
+
 export function recordFixture(db, table, key) {
   const recordId = Array.isArray(key) ? JSON.stringify(key.map(String)) : String(key);
   return db.run(`INSERT INTO demo_seed_records (table_name, record_id)
@@ -25,16 +50,16 @@ export function keyForRecord(table, recordId) {
 
 const quote = name => '"' + name.replaceAll('"', '""') + '"';
 
-// Check cascading foreign keys before deleting a parent. Restrictive foreign
-// keys are enforced by the engine, except for users we intentionally retain.
+// Include restrictive and mutating foreign keys so reset can check every dependency.
 export async function inboundDemoReferences(db, sqlite) {
-  if (sqlite) return db.all(`SELECT 'main' AS child_schema, child.name AS child_table,
+  if (sqlite) return db.all(`SELECT 'main' AS child_schema, TRUE AS child_local, child.name AS child_table,
       fk."table" AS parent_table, fk.id AS constraint_id, fk."from" AS child_column,
       COALESCE(fk."to", pk.name) AS parent_column
     FROM main.sqlite_schema child JOIN pragma_foreign_key_list(child.name, 'main') fk
     LEFT JOIN pragma_table_info(fk."table", 'main') pk ON pk.pk = fk.seq + 1
-    WHERE child.type = 'table' AND (fk.on_delete IN ('CASCADE', 'SET NULL', 'SET DEFAULT') OR fk."table" = 'users')`);
-  return db.all(`SELECT child_ns.nspname AS child_schema, child.relname AS child_table,
+    WHERE child.type = 'table'`);
+  return db.all(`SELECT child_ns.nspname AS child_schema, child_ns.nspname = current_schema() AS child_local,
+      child.relname AS child_table,
       parent.relname AS parent_table, fk.oid AS constraint_id,
       child_key.attname AS child_column, parent_key.attname AS parent_column
     FROM pg_constraint fk
@@ -45,23 +70,34 @@ export async function inboundDemoReferences(db, sqlite) {
     CROSS JOIN LATERAL unnest(fk.conkey, fk.confkey) AS keys(child_attnum, parent_attnum)
     JOIN pg_attribute child_key ON child_key.attrelid = child.oid AND child_key.attnum = keys.child_attnum
     JOIN pg_attribute parent_key ON parent_key.attrelid = parent.oid AND parent_key.attnum = keys.parent_attnum
-    WHERE fk.contype = 'f' AND parent_ns.nspname = current_schema()
-      AND (fk.confdeltype IN ('c', 'n', 'd') OR parent.relname = 'users')`);
+    WHERE fk.contype = 'f' AND parent_ns.nspname = current_schema()`);
 }
 
-export async function referencingTable(db, references, table, where, values) {
-  const constraints = new Map();
-  for (const column of references.filter(reference => reference.parent_table === table)) {
+export function groupDemoReferences(references) {
+  const parents = new Map();
+  for (const column of references) {
+    if (!parents.has(column.parent_table)) parents.set(column.parent_table, new Map());
+    const constraints = parents.get(column.parent_table);
     const key = JSON.stringify([column.child_schema, column.child_table, column.constraint_id]);
     if (!constraints.has(key)) constraints.set(key, []);
     constraints.get(key).push(column);
   }
-  for (const columns of constraints.values()) {
-    const [{ child_schema: schema, child_table: child }] = columns;
+  return new Map([...parents].map(([table, constraints]) => [table, [...constraints.values()].map(columns => {
+    const [{ child_schema: schema, child_table: child, child_local: local }] = columns;
     const join = columns.map(({ child_column, parent_column }) => `child.${quote(child_column)} = parent.${quote(parent_column)}`).join(' AND ');
-    if (await db.get(`SELECT 1 FROM ${quote(schema)}.${quote(child)} child
-      WHERE EXISTS (SELECT 1 FROM (SELECT * FROM ${table} WHERE ${where}) parent WHERE ${join}) LIMIT 1`, ...values)) {
-      return child;
+    return { child, local, qualifiedChild: `${quote(schema)}.${quote(child)}`, join };
+  })]));
+}
+
+export function referencingParent(reference, table, where) {
+  return `EXISTS (SELECT 1 FROM (SELECT * FROM ${quote(table)} WHERE ${where}) parent WHERE ${reference.join})`;
+}
+
+export async function referencingTable(db, references, table, where, values) {
+  for (const reference of references.get(table) ?? []) {
+    if (await db.get(`SELECT 1 FROM ${reference.qualifiedChild} AS child
+      WHERE ${referencingParent(reference, table, where)} LIMIT 1`, ...values)) {
+      return reference.child;
     }
   }
 }

@@ -300,7 +300,12 @@ test('administrative CLI assignment is repeatable; resetting and reapplying demo
   const access = await memberships(f.db, legacy.id);
   t.assert.ok(access.length > 1);
   t.assert.ok(access.every(row => row.role === 'demo_user'));
-  t.assert.ok(await withDemoEnvironment(() => resetDemo(f.db)) > 0);
+  const beforeReset = await f.db.all('SELECT * FROM users WHERE id IN (?, ?) ORDER BY id', legacy.id, created.id);
+  t.assert.equal(beforeReset.length, 2);
+  t.assert.ok((await withDemoEnvironment(() => resetDemo(f.db))).removed > 0);
+  t.assert.deepStrictEqual(await f.db.all('SELECT * FROM users WHERE id IN (?, ?) ORDER BY id', legacy.id, created.id), beforeReset);
+  t.assert.deepStrictEqual(await memberships(f.db, legacy.id), access);
+  t.assert.deepStrictEqual(await memberships(f.db, created.id), access);
   await withDemoEnvironment(() => applyDemo(f.db, { demoSandbox: false }));
   t.assert.deepStrictEqual(await memberships(f.db, legacy.id), access);
   t.assert.deepStrictEqual(await memberships(f.db, created.id), access);

@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { hashPassword } from './auth.mjs';
 import { stat } from 'node:fs/promises';
 import { requireDemoAppEnv, requireDemoDatabase } from './demo-seed-environment.mjs';
+import { clearNorthlineFixtures, compositeKeys, recordNorthlineFixtures } from './demo-seed-registry.mjs';
 import { findTemplate } from './checklists.mjs';
 import { closeDb, openDb } from './db.mjs';
 
@@ -586,14 +587,7 @@ function addLogistics({ key, day, stamp, wbsId, local, company, add, addSite }) 
 
 // Keys also define the reset scope. Task events use their logical key because
 // the database allocates their integer primary key.
-const KEYS = {
-  site_members: ['site_id', 'user_id'],
-  task_events: ['task_id', 'at', 'action'],
-  deviation_links: ['deviation_id', 'entity_type', 'entity_id'],
-  cost_impact_deviations: ['cost_impact_id', 'deviation_id'],
-  shipment_packages: ['shipment_id', 'package_id'],
-};
-const rowKeys = table => KEYS[table] ?? ['id'];
+const rowKeys = table => table === 'task_events' ? ['task_id', 'at', 'action'] : (compositeKeys[table] ?? ['id']);
 const whereKey = keys => keys.map(key => `${key} = ?`).join(' AND ');
 const eventKey = row => JSON.stringify([row.task_id, new Date(row.at).toISOString(), row.action]);
 
@@ -626,7 +620,11 @@ async function insert(tx, table, rows) {
   };
   const tuples = rows.map(row => `(${columns.map(column => bind(row[column])).join(', ')})`);
   const conflict = table === 'task_events' ? '' : ` ON CONFLICT (${keys.join(', ')}) DO NOTHING`;
-  return Number((await tx.run(`INSERT INTO ${table} (${columns.join(', ')}) VALUES ${tuples.join(', ')}${conflict}`, ...values)).rowCount);
+  const primaryKey = (compositeKeys[table] ?? ['id']).join(', ');
+  const inserted = await tx.all(`INSERT INTO ${table} (${columns.join(', ')})
+    VALUES ${tuples.join(', ')}${conflict} RETURNING ${primaryKey}`, ...values);
+  await recordNorthlineFixtures(tx, table, inserted);
+  return inserted.length;
 }
 
 async function lockSites(tx, sites) {
@@ -689,6 +687,7 @@ export async function reset(db) {
       }
       removed[table] = Number((await tx.run(`DELETE FROM ${table} WHERE ${where}`, ...values)).rowCount);
     }
+    await clearNorthlineFixtures(tx);
     return removed;
   });
 }
