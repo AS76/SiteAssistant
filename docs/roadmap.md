@@ -1,88 +1,88 @@
-# Roadmap SiteAssistant
+# SiteAssistant roadmap
 
-Documento **derivato**. Le fonti autorevoli sono le card del board `siteassistant`; questo file ne è la rappresentazione leggibile e va aggiornato al merge di ogni incremento. In caso di divergenza vale la card.
+**Derived** document. The authoritative sources are the cards of the `siteassistant` board; this file is their readable representation and must be updated when each increment is merged. In case of divergence, the card prevails.
 
-## Visione di prodotto
+## Product vision
 
-Direzione confermata dall'owner il 27/11/2026, documento `docs/product-vision.md`.
+Direction confirmed by the owner on 27/11/2026, document `docs/product-vision.md`.
 
-Tre pilastri — **Site Execution** (WBS, attività, avanzamento, risorse, impegni, deviazioni), **Site Logistics** (procurement, spedizioni, materiali, inventario, asset, attrezzature) e **Site Assurance** (HSE, qualità, ispezioni, evidenze, verifiche, handover, Permit to Work) — su fondamenta condivise: luoghi, persone, imprese, identità, permessi, diario probatorio, giurisdizioni, documenti, audit trail.
+Three pillars — **Site Execution** (WBS, tasks, progress, resources, commitments, deviations), **Site Logistics** (procurement, shipments, materials, inventory, assets, equipment) and **Site Assurance** (HSE, quality, inspections, evidence, verifications, handover, Permit to Work) — on shared foundations: places, people, companies, identity, permissions, evidentiary diary, jurisdictions, documents, audit trail.
 
-Serve a stabilire dove vive un requisito e a prevenire duplicazioni tra moduli. Non è un mandato di refactoring né un cambio di priorità: Luoghi e Asset 2a e 2b restano davanti.
+It serves to establish where a requirement lives and to prevent duplication between modules. It is neither a refactoring mandate nor a change of priority: Places and Assets 2a and 2b remain first.
 
-## Sequenza HSE concordata
+## Agreed HSE sequence
 
-| Ordine | Fase | Stato | Riferimenti |
+| Order | Phase | Status | References |
 | --- | --- | --- | --- |
-| 1 | Safety hardening ispezioni (Fase 0) | **fatto**, in `main` con `d9beec3` | card della Fase 0; migrazione 056; criteri F0-01…F0-10 formalizzati nel commento della PR #62 |
-| 2 | Foundations | da aprire | dipende da luoghi/asset e persone/imprese |
-| 3 | Audit e ispezioni | backlog | card C-03…C-13 |
-| 4 | Handover | backlog | card Handover |
-| 5 | Permit to Work | backlog, non attivo | card Permit to Work (design separato) |
+| 1 | Inspection safety hardening (Phase 0) | **done**, in `main` with `d9beec3` | Phase 0 card; migration 056; criteria F0-01…F0-10 formalised in the comment on PR #62 |
+| 2 | Foundations | to be opened | depends on places/assets and people/companies |
+| 3 | Audit and inspections | backlog | cards C-03…C-13 |
+| 4 | Handover | backlog | Handover card |
+| 5 | Permit to Work | backlog, not active | Permit to Work card (separate design) |
 
-## Flussi funzionali
+## Functional flows
 
-### 1. Luoghi e asset installati — primo incremento funzionale
-Specifica in `docs/places-and-assets.md` (PR #58). Gerarchia sito → edificio → piano → zona → locale, registro asset con ciclo di vita e garanzia, intervalli di posizione. Sblocca diario probatorio, qualità, documenti e handover.
+### 1. Places and installed assets — first functional increment
+Specification in `docs/places-and-assets.md` (PR #58). Hierarchy site → building → floor → zone → room, asset register with lifecycle and warranty, location intervals. Unblocks the evidentiary diary, quality, documents and handover.
 
-### 2. Persone, imprese e partecipazione esterna
-Specifica in `docs/people-and-companies.md` (PR #59). Da costruire insieme ai luoghi per evitare anagrafiche duplicate: un asset ha un installatore, un luogo ha un responsabile, un'attività ha esecutore e verificatore.
+### 2. People, companies and external participation
+Specification in `docs/people-and-companies.md` (PR #59). To be built together with places to avoid duplicate registers: an asset has an installer, a place has a manager, a task has an executor and a verifier.
 
-### 3. Diario probatorio e archivio visivo
-Specifica in `docs/evidentiary-diary.md` (PR #60). Dipende da luoghi (dove) e persone (chi firma), e dagli allegati esistenti.
+### 3. Evidentiary diary and visual archive
+Specification in `docs/evidentiary-diary.md` (PR #60). Depends on places (where) and people (who signs), and on the existing attachments.
 
-### 4. Ciclo dell'impegno settimanale
-Specifica in `docs/weekly-commitment-cycle.md` (PR #61). Dipende da attività e squadre; alimenta il diario con gli impegni mantenuti o mancati.
+### 4. Weekly commitment cycle
+Specification in `docs/weekly-commitment-cycle.md` (PR #61). Depends on tasks and crews; feeds the diary with commitments kept or missed.
 
-### 5. Moduli paese e lingua dei contenuti
-Specifica in `docs/country-modules.md` (PR #61). Trasversale: tocca documenti, HSE, unità e formati. Le fixture Northline IT/UK (`d8dc3cb`) sono la base di prova.
+### 5. Country modules and content language
+Specification in `docs/country-modules.md` (PR #61). Cross-cutting: touches documents, HSE, units and formats. The Northline IT/UK fixtures (`d8dc3cb`) are the test basis.
 
-### 6. Identificazione QR, etichette e inventario fisico
-Specifica in `docs/qr-identification-inventory.md`. Nasce dall'esperienza operativa con InsiteLMS. Copre identificazione QR di asset installati, attrezzature e — quando esisterà il modulo materiali — articoli di magazzino; etichette in tre formati (compatto, descrittivo, logistico); stampa singola, massiva, ristampa, anteprima e dimensioni personalizzabili su A4 e con driver di sistema; scansione mobile con apertura della scheda e azioni contestuali; sessioni di inventario con duplicati, sconosciuti, ubicazioni discordanti e riconciliazione. **Solo specifica**: nessuna implementazione autorizzata, nessuna dipendenza installata.
+### 6. QR identification, labels and physical inventory
+Specification in `docs/qr-identification-inventory.md`. Born from operational experience with InsiteLMS. Covers QR identification of installed assets, equipment and — when the materials module exists — warehouse items; labels in three formats (compact, descriptive, logistic); single, bulk, reprint, preview and customisable sizes on A4 and with system drivers; mobile scanning with opening of the record and contextual actions; inventory sessions with duplicates, unknowns, discordant locations and reconciliation. **Specification only**: no implementation authorised, no dependency installed.
 
-Decisioni approvate dall'owner il 27/11/2026: identità unica per oggetto fisico con Attrezzature autorevole e HSE che non duplica l'identità; payload canonico URN versionato con UUID, indipendente da tag, posizione e dominio; codice digitabile non basato sul tag; `qrcode` (soldair) come candidato, con SVG prioritario e PNG alternativo, approvazione subordinata alla verifica in implementazione; scansione reale su Safari/iPhone e Chrome/Android come criterio di prima release con decoder di riserva caricato su richiesta; permessi dei moduli esistenti più quattro autorizzazioni distinte per l'inventario (apertura/chiusura, rilevazioni, riconciliazione, approvazione movimenti); diario alimentato solo da sessioni chiuse con rettifiche tracciate; offline in seconda fase con cache circoscritta, scadenza e invalidazione.
+Decisions approved by the owner on 27/11/2026: single identity per physical object with Equipment as authoritative and HSE not duplicating the identity; versioned canonical URN payload with UUID, independent of tag, location and domain; typable code not based on the tag; `qrcode` (soldair) as candidate, with SVG as priority and PNG as alternative, approval subject to verification during implementation; real scanning on Safari/iPhone and Chrome/Android as the first-release criterion with a fallback decoder loaded on request; permissions of the existing modules plus four distinct authorisations for inventory (opening/closing, recordings, reconciliation, approval of movements); diary fed only by closed sessions with traced corrections; offline in a second phase with limited cache, expiry and invalidation.
 
-Dipendenze: 2a e 2b merged (API e scheda asset); modulo Site Materials & Inventory per articoli e formato logistico; estensione degli allegati a Luoghi e Asset come dipendenza dei flussi documentali, **non** dell'identificazione. Le scelte della 057 non precludono la funzionalità: il QR veicola l'UUID e non il tag, e l'inventario propone i movimenti senza applicarli.
+Dependencies: 2a and 2b merged (API and asset record); Site Materials & Inventory module for items and the logistic format; extension of attachments to Places and Assets as a dependency of document flows, **not** of identification. The choices in 057 do not preclude the functionality: the QR carries the UUID and not the tag, and inventory proposes movements without applying them.
 
-Secondo giro di decisioni (27/11/2026, revisione delle specifiche): **codice breve permanente** al posto del codice derivato di 26 caratteri, con carattere di controllo, collisioni gestite e nessuna riassegnazione; **`asset_id` in `hse_assets` approvato** come incremento dedicato; **`tools` autorevole** con riconciliazione esplicita e verifica fisica per i beni HSE non collegati, mai associazioni dedotte; **sessioni consultabili con autorizzazioni circoscritte** al dominio e al cantiere, senza esposizione indiretta tramite conteggi. Integrazioni recepite: continuità dell'identità fisica fra ricevimento e installazione (nessuna ristampa, nessuna doppia identità); posizione **attesa e osservata** in ogni rilevazione, con contesto di scansione e QR dei luoghi che imposta il contesto senza spostare nulla.
+Second round of decisions (27/11/2026, review of the specifications): **permanent short code** in place of the 26-character derived code, with a check character, managed collisions and no reassignment; **`asset_id` in `hse_assets` approved** as a dedicated increment; **authoritative `tools`** with explicit reconciliation and physical verification for unlinked HSE equipment, never inferred associations; **sessions viewable with limited authorisations** to the domain and the site, without indirect exposure through counts. Integrations adopted: continuity of physical identity between goods receipt and installation (no reprint, no double identity); **expected and observed** location in every recording, with scan context and the QR codes of places setting the context without moving anything.
 
 ### 7. Site Materials & Inventory
-Specifica in `docs/site-materials-inventory.md`. Modulo autonomo per la logistica operativa di cantiere: anagrafica articoli con codici e alias, unità di misura e quantità, articoli serializzati e non, lotti dal primo rilascio della movimentazione con obbligatorietà configurabile, colli e pallet, collegamenti a ordini e ricevimenti, ubicazioni come luoghi con granularità flessibile, movimenti append-only con **stati della quantità e custodia**, collegamento agli asset installati, inventario fisico e riconciliazione delle quantità. **Solo specifica**: implementazione non autorizzata.
+Specification in `docs/site-materials-inventory.md`. Autonomous module for on-site logistics operations: item register with codes and aliases, units of measure and quantities, serialised and non-serialised items, lots from the first movement release with configurable mandatory use, parcels and pallets, links to orders and goods receipts, locations as places with flexible granularity, append-only movements with **quantity and custody statuses**, link to installed assets, physical inventory and quantity reconciliation. **Specification only**: implementation not authorised.
 
-Semantica dei movimenti approvata il 27/11/2026: cinque stati distinti (deposito, custodia, assegnato, consumato, reso) invece di una giacenza unica. Il prelievo è neutro sul presente fisico e il consumo sottrae una volta sola: con una giacenza unica, prelievo più consumo sottrarrebbero due volte lo stesso oggetto. Modulo `materials` **strict**, come `logistics`. Anagrafiche separate per cantiere nella prima release.
+Movement semantics approved on 27/11/2026: five distinct statuses (storage, custody, assigned, consumed, returned) instead of a single on-hand quantity. Withdrawal is neutral on the physical present, and consumption subtracts once: with a single on-hand quantity, withdrawal plus consumption would subtract the same object twice. Module `materials` **strict**, like `logistics`. Separate registers per site in the first release.
 
-Confine dichiarato: SiteAssistant non diventa un ERP né un WMS generalista. Fuori scope distinte base, cicli, MRP, valorizzazione, FIFO/LIFO contabile e tracciabilità fiscale. Oggi i materiali esistono solo come `material_no` testuale su righe d'ordine e colli (032–034): non c'è giacenza, non c'è identità di articolo, non c'è legame con l'installato.
+Declared boundary: SiteAssistant does not become a general ERP or WMS. Out of scope: master bases, cycles, MRP, valuation, FIFO/LIFO accounting and tax traceability. Today materials exist only as a text `material_no` on order and parcel lines (032–034): there is no stock, no item identity, no link to what is installed.
 
-### 8. Altri flussi, non ancora specificati
-Qualità e accettazione, registro documenti, attenzione ed escalation, misura e valore, chiusura e handover, pilot Northline, collaudo di comprensione della demo.
+### 8. Other flows, not yet specified
+Quality and acceptance, document register, attention and escalation, measurement and value, closure and handover, Northline pilot, comprehension test of the demo.
 
-## Base tecnica già consolidata
+## Consolidated technical base
 
-- Migrazioni resilienti: manifest con checksum, tracciamento dell'ordine, snapshot di catalogo SQLite e PostgreSQL 16 (`674143e`).
-- `demo_seed_records` nello schema, migrazione 054 (`3979020`).
-- Guardie di sicurezza su seed e reset demo, migrazione 055 (`f262e61`).
-- Fixture Northline deterministiche (`d8dc3cb`).
-- `demo_user` automatico all'approvazione del visitatore (`3313f4e`).
-- Demo riconciliata su database nuovo, percorso A, con vecchio database conservato come `siteassistant_legacy`.
+- Resilient migrations: manifest with checksums, order tracking, catalogue snapshots for SQLite and PostgreSQL 16 (`674143e`).
+- `demo_seed_records` in the schema, migration 054 (`3979020`).
+- Safety guards on demo seed and reset, migration 055 (`f262e61`).
+- Deterministic Northline fixtures (`d8dc3cb`).
+- Automatic `demo_user` on visitor approval (`3313f4e`).
+- Demo reconciled on a new database, path A, with the old database kept as `siteassistant_legacy`.
 
 ## Governance
 
-- **Coordinamento unico**: Cleo, indipendentemente da sessione o canale. Le sessioni non operano come coordinatori indipendenti.
-- **Assegnazione**: ogni card ha un responsabile operativo identificato prima dell'avvio.
-- **Migrazioni**: numerazione riservata centralmente; ultima pubblicata 056. Una nuova migrazione prende il numero successivo solo dopo il merge della precedente.
-- **Branch**: perimetri non sovrapposti; dichiarare i file toccati nella card o nel commento di presa in carico.
-- **Ordine di merge**: dipendenze esplicite nella card; chi mergia verifica che i prerequisiti siano già in `main`.
-- **Decisioni**: ogni decisione presa in una sessione va scritta nella card relativa, così le altre sessioni la vedono.
+- **Single coordination**: Cleo, regardless of session or channel. Sessions do not operate as independent coordinators.
+- **Assignment**: each card has an operational owner identified before it starts.
+- **Migrations**: numbering reserved centrally; last published 056. A new migration takes the next number only after the previous one is merged.
+- **Branches**: non-overlapping scopes; declare the files touched in the card or in the take-over comment.
+- **Merge order**: explicit dependencies in the card; whoever merges verifies that the prerequisites are already in `main`.
+- **Decisions**: every decision taken in a session must be written in the relevant card, so that other sessions see it.
 
-## Decisioni aperte
+## Open decisions
 
-| Tema | Chi decide | Stato |
+| Topic | Who decides | Status |
 | --- | --- | --- |
-| Riattivazione del reset notturno della demo | owner | nessun cron o timer attivo; ultima esecuzione schedulata 26/11 04:00 |
-| Etichetta QR: soggetto autoritativo quando `tools` e `hse_assets` descrivono lo stesso oggetto | owner | chiusa il 27/11: `tools` autorevole, riconciliazione esplicita con verifica fisica; aperto il momento dell'incremento `asset_id` (`docs/qr-identification-inventory.md` §14) |
-| Modulo `materials`: visibilità *strict* come `logistics` | owner | chiusa il 27/11: strict approvato; restano cinque decisioni in `docs/site-materials-inventory.md` §14 |
-| Container mobili e noleggiati: luogo del sito o oggetto tracciato a sé | owner | `docs/site-materials-inventory.md` §14 |
-| Prova D3 di ripristino | owner | card dell'owner, non blocca lo sviluppo |
-| Rilascio del database legacy | owner | conservazione minima 7 giorni, nessuna cancellazione autorizzata |
-| Validità legale della firma nel diario | owner | dichiarata in `docs/evidentiary-diary.md` §10 |
-| Durata e creatori dei link esterni | owner | dichiarata in `docs/people-and-companies.md` §9 |
+| Re-enabling the nightly demo reset | owner | no active cron or timer; last scheduled run 26/11 04:00 |
+| QR label: authoritative subject when `tools` and `hse_assets` describe the same object | owner | closed on 27/11: `tools` authoritative, explicit reconciliation with physical verification; open at the time of the `asset_id` increment (`docs/qr-identification-inventory.md` §14) |
+| `materials` module: *strict* visibility like `logistics` | owner | closed on 27/11: strict approved; five decisions remain in `docs/site-materials-inventory.md` §14 |
+| Mobile and rented containers: site location or tracked object in its own right | owner | `docs/site-materials-inventory.md` §14 |
+| Restore drill D3 | owner | owner's card, does not block development |
+| Release of the legacy database | owner | minimum retention 7 days, no deletion authorised |
+| Legal validity of the signature in the diary | owner | declared in `docs/evidentiary-diary.md` §10 |
+| Duration and creators of external links | owner | declared in `docs/people-and-companies.md` §9 |

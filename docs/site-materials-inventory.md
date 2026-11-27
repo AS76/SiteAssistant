@@ -1,345 +1,345 @@
 # Site Materials & Inventory
 
-Proposta per SiteAssistant, verificata su `origin/main` al commit `0e44e3c`. Modulo autonomo approvato dall'owner il 27/11/2026 e inserito in roadmap. **Solo specifica**: nessuna implementazione autorizzata, nessuna dipendenza installata. Card di riferimento: *Site Materials & Inventory* nel Workboard interno.
+Proposal for SiteAssistant, verified against `origin/main` at commit `0e44e3c`. Standalone module approved by the owner on 27/11/2026 and added to the roadmap. **Specification only**: no implementation authorised, no dependency installed. Reference card: *Site Materials & Inventory* on the internal Workboard.
 
-Perimetro dichiarato dall'owner: **logistica operativa di cantiere**. SiteAssistant non deve diventare un ERP né un WMS generalista. Questo vincolo non è una premessa retorica: è il criterio con cui, in ogni sezione, si accetta o si rifiuta un requisito.
+Scope declared by the owner: **operational site logistics**. SiteAssistant must not become an ERP or a general-purpose WMS. This constraint is not rhetorical: it is the criterion by which, in every section, a requirement is accepted or rejected.
 
-## 1. Perché un modulo separato
+## 1. Why a separate module
 
-Oggi i materiali esistono solo come testo. `purchase_order_items.material_no` e `package_items.material_no` sono stringhe su documenti di fornitura (`032_purchase_orders.sql`, `033_packages.sql`): descrivono ciò che è stato ordinato e imballato, non un articolo con un'identità.
+Today materials exist only as text. `purchase_order_items.material_no` and `package_items.material_no` are strings on supply documents (`032_purchase_orders.sql`, `033_packages.sql`): they describe what was ordered and packed, not an item with an identity.
 
-Le conseguenze pratiche sono tre, e sono quelle che il modulo deve risolvere:
+The practical consequences are three, and they are the ones the module must resolve:
 
-1. **Nessuna giacenza.** Si sa cosa è stato ordinato e cosa è arrivato, non cosa c'è in cantiere adesso.
-2. **Nessuna identità.** Lo stesso articolo compare con codici diversi da fornitori diversi, e nulla dice che sono lo stesso oggetto.
-3. **Nessun collegamento all'installato.** Un articolo consumato per installare un asset non lascia traccia del legame.
+1. **No stock on hand.** It is known what was ordered and what arrived, not what is on site now.
+2. **No identity.** The same item appears with different codes from different suppliers, and nothing says they are the same object.
+3. **No link to the installed.** An item consumed to install an asset leaves no trace of the connection.
 
-Il modulo colma queste tre lacune e si ferma lì. Tutto ciò che appartiene a contabilità di magazzino, valorizzazione, MRP, pianificazione della domanda o tracciabilità fiscale resta fuori.
+The module closes these three gaps and stops there. Everything that belongs to warehouse accounting, valuation, MRP, demand planning or tax traceability stays outside.
 
-## 2. Confine: cosa è dentro e cosa è fuori
+## 2. Boundary: what is inside and what is outside
 
-| Dentro (logistica di cantiere) | Fuori (ERP/WMS generalista) |
+| Inside (site logistics) | Outside (general-purpose ERP/WMS) |
 | --- | --- |
-| Anagrafica articoli di cantiere con codice interno | Distinte base, cicli di lavorazione, MRP |
-| Unità di misura e quantità | Valorizzazione, costi di magazzino, FIFO/LIFO contabile |
-| Lotti, colli, pallet | Tracciabilità fiscale e serializzazione legale |
-| Ubicazioni di cantiere (area, container, scaffale) | Ottimizzazione percorsi, slotting, automazione |
-| Movimenti: entrata, prelievo, consumo, reso, rettifica | Trasferimenti tra stabilimenti, dogana, Intrastat |
-| Assegnazione a WBS o attività | Contratti di fornitura, aste, gestione fornitori completa |
-| Inventario fisico e riconciliazione | Ciclo passivo completo, pagamenti, riconciliazione fatture |
+| Site item master with internal code | Bills of materials, production routings, MRP |
+| Units of measure and quantities | Valuation, warehouse costs, accounting FIFO/LIFO |
+| Lots, parcels, pallets | Tax traceability and legal serialisation |
+| Site locations (area, container, shelf) | Route optimisation, slotting, automation |
+| Movements: receipt, withdrawal, consumption, return, adjustment | Transfers between plants, customs, Intrastat |
+| Assignment to WBS or task | Supply contracts, tenders, full supplier management |
+| Physical inventory and reconciliation | Full purchase-to-pay cycle, payments, invoice reconciliation |
 
-Un requisito che non serve a sapere **dove sono i materiali e a cosa sono stati destinati** non appartiene a questo modulo.
+A requirement that does not serve to know **where the materials are and what they are assigned to** does not belong to this module.
 
-## 3. Item Master e codici articolo
+## 3. Item master and item codes
 
-### 3.1 Entità
+### 3.1 Entities
 
-| Tabella | Contenuto |
+| Table | Content |
 | --- | --- |
-| `stock_items` | `id` UUID, `site_id`, `code` (codice interno), `description`, `category`, `base_unit`, `is_serialized`, `manufacturer`, `manufacturer_code`, stato, date di creazione e modifica, `archived_at` |
+| `stock_items` | UUID `id`, `site_id`, `code` (internal code), `description`, `category`, `base_unit`, `is_serialized`, `manufacturer`, `manufacturer_code`, status, creation and modification dates, `archived_at` |
 
-Regole:
+Rules:
 
-- **`code` è interno e stabile.** È l'identità dell'articolo nel cantiere: non cambia se cambia la descrizione, non si riusa dopo l'archiviazione. Univoco nel sito, anche a fronte di record archiviati.
-- **Il codice del fornitore non è l'identità.** `manufacturer_code` e i codici dei fornitori vivono in una tabella di alias (`stock_item_codes`), con `namespace` della fonte — la stessa impostazione già approvata per gli alias dei luoghi in `places-and-assets.md` §2: `site_id + namespace + codice → stock_item_id`. Lo stesso codice in namespace diversi è ammesso; lo stesso codice canonico nello stesso namespace è respinto con `409`.
-- **Nessuna descrizione come identità.** Due articoli con la stessa descrizione restano due articoli.
-- **Archiviazione logica.** Un articolo con giacenza o movimenti non si cancella: si archivia, e resta consultabile.
+- **`code` is internal and stable.** It is the identity of the item on site: it does not change if the description changes, and it is not reused after archiving. Unique within the site, even against archived records.
+- **The supplier's code is not the identity.** `manufacturer_code` and the codes of suppliers live in an alias table (`stock_item_codes`), with a `namespace` for the source — the same approach already approved for place aliases in `places-and-assets.md` §2: `site_id + namespace + code → stock_item_id`. The same code in different namespaces is admitted; the same canonical code in the same namespace is rejected with `409`.
+- **No description as identity.** Two items with the same description remain two items.
+- **Logical archiving.** An item with stock or movements is not deleted: it is archived, and remains consultable.
 
-### 3.2 Categorie e serializzazione
+### 3.2 Categories and serialisation
 
-`is_serialized` distingue due nature che vanno trattate diversamente in tutto il modulo:
+`is_serialized` distinguishes two natures that must be treated differently throughout the module:
 
-| Tipo | Identità | Giacenza | Esempio |
+| Type | Identity | Stock | Example |
 | --- | --- | --- | --- |
-| Non serializzato | L'articolo, contato in unità | Quantità aggregata | Viti, guaine, cavo a metro |
-| Serializzato | L'**istanza fisica**, con seriale proprio | Una unità per istanza | Quadro, motore, trasponder |
+| Non-serialised | The item, counted in units | Aggregate quantity | Screws, membranes, cable by the metre |
+| Serialised | The **physical instance**, with its own serial number | One unit per instance | Panel, motor, transponder |
 
-Per gli articoli serializzati serve la tabella delle istanze (`stock_instances`) con `id` UUID, `stock_item_id`, `serial_number`, stato, ubicazione corrente e collegamento all'asset installato quando avviene l'installazione. Il seriale non identifica da solo: l'identità è l'UUID dell'istanza.
+For serialised items an instance table (`stock_instances`) is needed with UUID `id`, `stock_item_id`, `serial_number`, status, current location and link to the installed asset when installation takes place. The serial number does not identify by itself: the identity is the UUID of the instance.
 
-Il legame con il modulo QR è diretto: **un'istanza serializzata è un oggetto fisico con un'identità permanente**, quindi riceve un'etichetta propria secondo `docs/qr-identification-inventory.md`.
+The link with the QR module is direct: **a serialised instance is a physical object with a permanent identity**, so it receives its own label according to `docs/qr-identification-inventory.md`.
 
-## 4. Unità di misura e quantità
+## 4. Units of measure and quantities
 
-- Ogni articolo ha un'**unità di base** (`base_unit`) in cui si tiene la giacenza: `pz`, `m`, `m2`, `m3`, `kg`, `lt`, `conf`.
-- Le unità alternative di acquisto e di consumo (confenzione, pallet, bobina) si dichiarano con un fattore di conversione verso l'unità di base, conservato per articolo.
-- **La quantità si conserva sempre nell'unità di base.** Le conversioni avvengono in lettura, non in scrittura: così una conversione sbagliata non corrompe lo storico.
-- Arrotondamenti: si conservano almeno tre decimali, come già fanno `package_items` e `shipment_receipts` (`NUMERIC(12,3)`). Nessun arrotondamento silenzioso in giacenza.
-- Quantità negative non ammesse come stato finale della giacenza; un prelievo che le produrrebbe è respinto con `409` e un messaggio che dice quanto è disponibile.
+- Each item has a **base unit** (`base_unit`) in which stock is held: `pz`, `m`, `m2`, `m3`, `kg`, `lt`, `conf`.
+- Alternative purchase and consumption units (box, pallet, reel) are declared with a conversion factor to the base unit, kept per item.
+- **The quantity is always kept in the base unit.** Conversions take place on reading, not on writing: this way a wrong conversion does not corrupt the history.
+- Rounding: at least three decimals are kept, as `package_items` and `shipment_receipts` already do (`NUMERIC(12,3)`). No silent rounding in stock.
+- Negative quantities are not admitted as a final stock status; a withdrawal that would produce them is rejected with `409` and a message stating how much is available.
 
-## 5. Lotti, colli e pallet
+## 5. Lots, parcels and pallets
 
-Tre livelli distinti, spesso confusi e che vanno tenuti separati:
+Three distinct levels, often confused and which must be kept separate:
 
-| Livello | Cos'è | Identità | Esistente oggi |
+| Level | What it is | Identity | Exists today |
 | --- | --- | --- | --- |
-| **Lotto** | Insieme di materiale con la stessa provenienza o lo stesso numero di produzione | `stock_lots` con `lot_no` per articolo e sito | No |
-| **Collo** | Unità fisica imballata e movimentabile, già modellata | `packages` (033) | **Sì** |
-| **Pallet** | Aggregazione di colli per il trasporto | Relazione tra colli e unità di movimentazione | No |
+| **Lot** | Set of material with the same provenance or the same production number | `stock_lots` with `lot_no` per item and site | No |
+| **Parcel** | Physical packed unit that can be moved, already modelled | `packages` (033) | **Yes** |
+| **Pallet** | Aggregation of parcels for transport | Relation between parcels and handling unit | No |
 
-Decisioni di progetto:
+Project decisions:
 
-- Il **collo non si duplica**: `packages` esiste e resta il riferimento. Il modulo materiali lo estende con il contenuto di articoli reali (`stock_item_id`), invece di introdurre un secondo concetto di collo.
-- **Il lotto entra dal primo rilascio della movimentazione** (decisione dell'owner, 27/11/2026). Non è una funzione differita: i movimenti nascono già con il lotto previsto.
-- **Obbligatorietà configurata, non universale.** Il lotto è obbligatorio per categoria o per singolo articolo, secondo una configurazione esplicita (`lot_required`). Per gli articoli che lo richiedono — cavi, materiali con data di produzione, componenti soggetti a richiami — un movimento senza lotto è respinto con `422`. Per gli altri il lotto resta facoltativo.
-- **Nessun lotto fittizio.** Un articolo non soggetto a lotti non riceve un lotto segnaposto tipo `N/A` o `DEFAULT`: un valore inventato inquina i raggruppamenti e rende impossibile distinguere il tracciato dal non tracciato. Se il lotto manca, il campo è nullo.
-- Il **pallet** è un raggruppamento, non un contenitore: identificato da un'etichetta logistica, contiene colli, non li possiede.
-- Il formato di etichetta **logistico** di `qr-identification-inventory.md` §5.1 stampa articolo, quantità, lotto, collo e destinazione: dipende quindi da queste entità, non solo dall'anagrafica.
+- The **parcel is not duplicated**: `packages` exists and remains the reference. The materials module extends it with the content of real items (`stock_item_id`), instead of introducing a second concept of parcel.
+- **The lot enters from the first release of movement handling** (owner decision, 27/11/2026). It is not a deferred feature: movements are born already with the lot provided.
+- **Configured, not universal, requirement.** The lot is mandatory by category or by individual item, according to an explicit configuration (`lot_required`). For items that require it — cables, materials with production date, components subject to recalls — a movement without a lot is rejected with `422`. For the others the lot remains optional.
+- **No placeholder lot.** An item not subject to lots does not receive a placeholder lot such as `N/A` or `DEFAULT`: an invented value pollutes the groupings and makes it impossible to distinguish the tracked from the untracked. If the lot is missing, the field is null.
+- The **pallet** is a grouping, not a container: identified by a logistic label, it contains parcels, it does not own them.
+- The **logistic** label format of `qr-identification-inventory.md` §5.1 prints item, quantity, lot, parcel and destination: it therefore depends on these entities, not only on the master record.
 
-Una conseguenza da mettere in chiaro: con il lotto obbligatorio per categoria, **attivare quella configurazione su un articolo che ha già movimenti senza lotto** è un cambio che va gestito. La configurazione vale per i movimenti successivi; i movimenti storici restano senza lotto e non si riscrivono. L'interfaccia dichiara quanti movimenti esistenti ne sono privi prima di applicare la modifica.
+One consequence to make clear: with the lot mandatory by category, **activating that configuration on an item that already has movements without a lot** is a change that must be managed. The configuration applies to subsequent movements; historical movements remain without a lot and are not rewritten. The interface declares how many existing movements lack one before applying the change.
 
-## 6. Collegamenti a ordini, spedizioni e ricevimento
+## 6. Links to orders, shipments and receipt
 
-Il modulo **non riscrive** procurement: si innesta su ciò che esiste.
+The module **does not rewrite** procurement: it builds on what exists.
 
-| Collegamento | Da | A | Regola |
+| Link | From | To | Rule |
 | --- | --- | --- | --- |
-| Riga d'ordine → articolo | `purchase_order_items.material_no` | `stock_item_id` | Risoluzione esplicita e approvata, mai dedotta dal testo. Restano visibili codice originale, fonte e stato della risoluzione. |
-| Collo → articoli | `package_items` | `stock_item_id`, `stock_lot_id`, quantità | Aggiunta di riferimenti; il collo resta la stessa entità |
-| Ricezione → movimento | `shipment_receipts` | movimento di entrata | La ricezione registra la quantità ricevuta; il movimento la traduce in giacenza. **Sono due atti, non uno.** |
-| Ordine → assegnazione | `purchase_order_items.wbs_id` | WBS o attività | Già esistente; il modulo la eredita e non la reimplementa |
+| Order line → item | `purchase_order_items.material_no` | `stock_item_id` | Explicit, approved resolution, never inferred from text. The original code, source and resolution status remain visible. |
+| Parcel → items | `package_items` | `stock_item_id`, `stock_lot_id`, quantity | Addition of references; the parcel remains the same entity |
+| Receipt → movement | `shipment_receipts` | receipt movement | The receipt records the quantity received; the movement translates it into stock. **They are two acts, not one.** |
+| Order → assignment | `purchase_order_items.wbs_id` | WBS or task | Already existing; the module inherits it and does not reimplement it |
 
-Il punto delicato è l'ultimo della tabella dei movimenti: **la ricezione non è la giacenza**. Oggi `shipment_receipts` dice quanto è arrivato. Se il materiale arriva in cantiere e viene subito portato al piano, la giacenza cambia ancora. Tenere distinti i due atti evita che una ricezione diventi per magia un giacimento.
+The delicate point is the last row of the movements table: **receipt is not stock**. Today `shipment_receipts` says how much arrived. If the material arrives on site and is immediately taken to the plan, stock still changes. Keeping the two acts distinct prevents a receipt from becoming a stock level by magic.
 
-## 7. Ubicazioni di magazzino
+## 7. Warehouse locations
 
-Qui la tentazione di allargare il perimetro è massima, e va respinta.
+Here the temptation to widen the scope is at its maximum, and it must be rejected.
 
-**Non** si introduce una gerarchia di magazzino separata e completa (corsie, scaffali, contenitori con coordinate). Si usa ciò che esiste: i **luoghi** (`places`, 057) con il tipo che serve.
+**Not** introduced: a separate and complete warehouse hierarchy (aisles, shelves, containers with coordinates). What exists is used: **places** (`places`, 057) with the type that is needed.
 
-Decisioni dell'owner (27/11/2026):
+Decisions of the owner (27/11/2026):
 
-- **`storage_area` e `container` sono estensioni ammesse** dei tipi di luogo, previa verifica di due cose in implementazione: la coerenza con la gerarchia esistente (`building/floor/zone/room`) e il caso dei **container mobili**, che possono cambiare sito o essere noleggiati a breve termine. Un container che si sposta è un luogo che si sposta: ammesso solo con regole esplicite, altrimenti diventa un alias del camion.
-- **Granularità flessibile, non gerarchia rigida.** Zona, container, scaffale ed eventuale posizione sono livelli utilizzabili **senza obbligo di completezza**: un deposito può fermarsi alla zona, un magazzino organizzato può arrivare allo scaffale. Nessun livello è obbligatorio oltre a quello che identifica il posto.
-- La flessibilità non è licenza per un WMS: niente corsie con coordinate, niente mappe di magazzino, niente percorsi ottimizzati. La granularità serve a **ritrovare** la roba, non a pianificarne la movimentazione.
+- **`storage_area` and `container` are admitted extensions** of place types, subject to verification of two things during implementation: consistency with the existing hierarchy (`building/floor/zone/room`) and the case of **mobile containers**, which may change site or be rented for short periods. A container that moves is a place that moves: admitted only with explicit rules, otherwise it becomes an alias of the lorry.
+- **Flexible granularity, not a rigid hierarchy.** Zone, container, shelf and optional position are levels usable **without an obligation of completeness**: a depot may stop at the zone, an organised warehouse may go down to the shelf. No level is mandatory beyond the one that identifies the place.
+- Flexibility is not a licence for a WMS: no aisles with coordinates, no warehouse maps, no optimised routes. The granularity serves to **find** things again, not to plan their handling.
 
-Regole di progetto:
+Design rules:
 
-- Un'ubicazione di materiale è un **luogo** del sito — tipicamente una zona o un locale usato come deposito — oppure un **container** dichiarato come luogo di tipo dedicato.
-- I tipi nuovi si aggiungono estendendo i `kind` di `places` con una migrazione, non creando una seconda gerarchia.
-- La giacenza per ubicazione si ricava dai movimenti, non da un campo "quantità attuale" aggiornato a mano. Un campo del genere è la prima fonte di disallineamento in ogni sistema di magazzino.
-- Lo spostamento tra ubicazioni è un movimento, con autore, istante e motivo, esattamente come per gli asset.
-- Ogni ubicazione è identificabile con un QR, come ogni altro luogo: si veda `qr-identification-inventory.md` §7.6. Inquadrare uno scaffale imposta il contesto delle rilevazioni, non sposta nulla.
+- A material location is a **place** of the site — typically a zone or a room used as a depot — or a **container** declared as a place of a dedicated type.
+- New types are added by extending the `kind` values of `places` through a migration, not by creating a second hierarchy.
+- Stock per location is derived from movements, not from a "current quantity" field updated by hand. Such a field is the first source of inconsistency in any warehouse system.
+- Moving between locations is a movement, with author, timestamp and reason, exactly as for assets.
+- Every location is identifiable with a QR, like every other place: see `qr-identification-inventory.md` §7.6. Framing a shelf sets the context of surveys; it moves nothing.
 
-## 8. Movimenti, stati della quantità e custodia
+## 8. Movements, quantity states and custody
 
-### 8.1 Il problema da evitare
+### 8.1 The problem to avoid
 
-Con un solo tipo di movimento "prelievo" che sottrae, il percorso reale — deposito → squadra → installazione → consumo — produce **due sottrazioni per un solo oggetto**: una al prelievo, una al consumo. La giacenza crolla a metà della realtà e nessuno sa se il materiale è in deposito, in mano alla squadra o già montato.
+With a single "withdrawal" movement type that subtracts, the real path — depot → crew → installation → consumption — produces **two subtractions for one object**: one at withdrawal, one at consumption. Stock collapses to half of reality and nobody knows whether the material is in the depot, in the hands of the crew or already fitted.
 
-Decisione dell'owner (27/11/2026): la semantica va distinta. Il prelievo **non è** un consumo, e il consumo non deve sottrarre una seconda volta.
+Owner decision (27/11/2026): the semantics must be distinguished. Withdrawal **is not** consumption, and consumption must not subtract a second time.
 
-### 8.2 Cinque stati della quantità
+### 8.2 Five quantity states
 
-La quantità di un articolo non è un numero unico, ma una ripartizione fra stati. Per ogni combinazione di articolo, lotto e ubicazione:
+The quantity of an item is not a single number, but a breakdown across states. For each combination of item, lot and location:
 
-| Stato | Significato | È ancora fisicamente in cantiere |
+| State | Meaning | Still physically on site |
 | --- | --- | --- |
-| **`depot`** | Disponibile in deposito, non impegnato | Sì |
-| **`custody`** | Uscito dal deposito, in custodia presso una squadra, un'area o un'attività | Sì |
-| **`consumed`** | Consumato: installato, incorporato o distrutto nell'uso | **No** |
-| **`returned`** | Reso al fornitore o rientrato e chiuso | **No** (se al fornitore) |
-| **`assigned`** | Impegnato per una WBS o un'attività, **non ancora** uscito dal deposito | Sì, ma riservato |
+| **`depot`** | Available in the depot, not committed | Yes |
+| **`custody`** | Left the depot, in custody with a crew, an area or a task | Yes |
+| **`consumed`** | Consumed: installed, incorporated or destroyed in use | **No** |
+| **`returned`** | Returned to the supplier or came back and closed | **No** (if to the supplier) |
+| **`assigned`** | Committed to a WBS or a task, **not yet** left the depot | Yes, but reserved |
 
-Due grandezze derivate, che non sono stati ma letture:
+Two derived quantities, which are not states but readings:
 
-- **Disponibile** = `depot` − `assigned`. È ciò che si può ancora prelevare.
-- **Presente fisico** = `depot` + `custody`. È ciò che esiste in cantiere, comunque collocato.
+- **Available** = `depot` − `assigned`. This is what can still be withdrawn.
+- **Physically present** = `depot` + `custody`. This is what exists on site, however placed.
 
-`assigned` è una **prenotazione**, non un movimento fisico: non sposta nulla e non riduce il presente. Serve a rispondere a "quanto posso ancora prelevare senza rubare materiale a un'altra attività".
+`assigned` is a **reservation**, not a physical movement: it moves nothing and does not reduce what is physically present. It serves to answer "how much can I still withdraw without taking material from another task".
 
-### 8.3 Tipi di movimento e transizioni
+### 8.3 Movement types and transitions
 
-| Tipo | Da | A | Effetto |
+| Type | From | To | Effect |
 | --- | --- | --- | --- |
-| `receipt` | — | `depot` | + presente, + deposito |
-| `issue` | `depot` | `custody` | **neutro sul presente**, − deposito, + custodia |
-| `consume` | `custody` | `consumed` | − presente, − custodia (terminale) |
-| `return_to_depot` | `custody` | `depot` | neutro sul presente, − custodia, + deposito |
-| `return_to_supplier` | `depot` | `returned` | − presente, − deposito (terminale) |
-| `transfer` | ubicazione A | ubicazione B, stesso stato | neutro su tutto tranne la distribuzione |
-| `reserve` | — | `assigned` | neutro sul presente, riduce il disponibile |
-| `release` | `assigned` | — | neutro sul presente, restituisce disponibilità |
-| `adjust` | qualsiasi | qualsiasi | ± con motivazione obbligatoria e autorizzazione dedicata |
+| `receipt` | — | `depot` | + present, + depot |
+| `issue` | `depot` | `custody` | **neutral on present**, − depot, + custody |
+| `consume` | `custody` | `consumed` | − present, − custody (terminal) |
+| `return_to_depot` | `custody` | `depot` | neutral on present, − custody, + depot |
+| `return_to_supplier` | `depot` | `returned` | − present, − depot (terminal) |
+| `transfer` | location A | location B, same state | neutral on everything except distribution |
+| `reserve` | — | `assigned` | neutral on present, reduces available |
+| `release` | `assigned` | — | neutral on present, restores availability |
+| `adjust` | any | any | ± with mandatory justification and dedicated authorisation |
 
-Il punto centrale: **`issue` non sottrae dal presente e `consume` non tocca il deposito**. Un oggetto prelevato e poi consumato passa per due stati e viene sottratto **una volta sola**, alla fine.
+The central point: **`issue` does not subtract from present and `consume` does not touch the depot**. An object withdrawn and then consumed passes through two states and is subtracted **only once**, at the end.
 
-### 8.4 Invarianti di conservazione
+### 8.4 Conservation invariants
 
-Valgono per ogni articolo, lotto e ubicazione, e devono reggere sotto scritture concorrenti:
+These hold for every item, lot and location, and must hold under concurrent writes:
 
-1. **Non negatività.** Nessuno stato scende sotto zero. Un'operazione che lo produrrebbe è respinta, non arrotondata a zero.
-2. **Conservazione del presente.** Per ogni movimento non terminale (`issue`, `return_to_depot`, `transfer`, `reserve`, `release`), la somma algebrica delle variazioni di presente fisico è **zero**.
-3. **Terminalità.** Solo `consume` e `return_to_supplier` riducono il presente, e lo riducono esattamente della quantità mossa. Nessun altro tipo può farlo.
-4. **Somma degli stati.** Per ogni combinazione: `depot + custody + consumed + returned` = totale entrato meno totale uscito dal sistema, e la somma delle variazioni dei quattro stati per ogni movimento è zero, salvo i movimenti che attraversano il confine del sistema (`receipt`, `return_to_supplier`).
-5. **Custodia limitata al detentore.** La custodia è intestata a un detentore (squadra, area, attività). Non si consuma né si restituisce più di quanto quel detentore ha in custodia.
-6. **Disponibile non negativo.** `depot − assigned ≥ 0`. Non si prenota materiale che non c'è.
-7. **Un solo consumo per istanza serializzata.** Un'istanza consumata non torna disponibile: la sua quantità è 1 e la transizione è terminale.
-8. **Tracciabilità del legame.** Ogni `consume` cita la custodia da cui proviene, oppure l'operazione composta che l'ha creata (§8.5). Non esistono consumi orfani.
+1. **Non-negativity.** No state falls below zero. An operation that would produce this is rejected, not rounded to zero.
+2. **Conservation of present.** For every non-terminal movement (`issue`, `return_to_depot`, `transfer`, `reserve`, `release`), the algebraic sum of the variations in physical present is **zero**.
+3. **Terminality.** Only `consume` and `return_to_supplier` reduce present, and they reduce it exactly by the quantity moved. No other type can do so.
+4. **Sum of states.** For every combination: `depot + custody + consumed + returned` = total entered minus total taken out of the system, and the sum of the variations of the four states for each movement is zero, except for movements that cross the system boundary (`receipt`, `return_to_supplier`).
+5. **Custody limited to the holder.** Custody is registered to a holder (crew, area, task). Nothing more is consumed or returned than that holder has in custody.
+6. **Non-negative available.** `depot − assigned ≥ 0`. No material is reserved that does not exist.
+7. **One consumption per serialised instance.** A consumed instance does not become available again: its quantity is 1 and the transition is terminal.
+8. **Traceability of the link.** Every `consume` cites the custody it comes from, or the composite operation that created it (§8.5). No orphan consumptions exist.
 
-Queste invarianti vanno verificate **nello stesso transaction che scrive il movimento**: il controllo di disponibilità e la scrittura non possono essere separati, altrimenti due richieste concorrenti passano entrambe il controllo e una lascia la giacenza negativa.
+These invariants must be verified **within the same transaction that writes the movement**: the availability check and the write cannot be separated, otherwise two concurrent requests both pass the check and one leaves stock negative.
 
-### 8.5 Consumo diretto dal deposito
+### 8.5 Direct consumption from the depot
 
-Un operatore che prende una scatola di viti e la usa subito non deve compiere due passaggi con due schermate. Ma la scorciatoia non deve rompere il modello.
+An operator who takes a box of screws and uses them straight away must not have to perform two steps on two screens. But the shortcut must not break the model.
 
-Regola: il consumo diretto dal deposito è ammesso come **operazione composta atomica**, che scrive in un'unica transazione due movimenti distinti e li lega:
+Rule: direct consumption from the depot is admitted as an **atomic composite operation**, which writes two distinct movements in a single transaction and links them:
 
-1. `issue` da `depot` a `custody` verso un detentore dichiarato (la squadra o l'attività);
-2. `consume` da quella custodia a `consumed`, con riferimento al primo movimento.
+1. `issue` from `depot` to `custody` towards a declared holder (the crew or the task);
+2. `consume` from that custody to `consumed`, referencing the first movement.
 
-La storia risultante è onesta: si vede il passaggio in custodia, chi l'ha avuto e il consumo. La giacenza è sottratta **una volta sola**, perché l'`issue` è neutro sul presente. Se una delle due scritture fallisce, nessuna delle due viene registrata.
+The resulting history is honest: the passage into custody is visible, who had the material and the consumption. Stock is subtracted **only once**, because the `issue` is neutral on present. If either write fails, neither is recorded.
 
-Non è ammesso invece un `consume` che salti la custodia senza traccia: sarebbe indistinguibile da una rettifica e nasconderebbe chi ha avuto il materiale.
+By contrast, a `consume` that skips custody without a trace is not admitted: it would be indistinguishable from an adjustment and would hide who had the material.
 
-### 8.6 Prelievo verso squadra o area di installazione
+### 8.6 Withdrawal towards a crew or installation area
 
-- Il prelievo richiede un **detentore**: una squadra, un'area di installazione o un'attività. Un prelievo "a nessuno" non esiste, perché non sarebbe riconciliabile.
-- Il materiale in custodia resta **presente** in cantiere: chi guarda la disponibilità in deposito vede meno, chi guarda il presente fisico vede lo stesso totale. È la lettura corretta in entrambi i casi.
-- La custodia **non scade da sola**. Un cantiere che finisce con materiale in custodia a una squadra deve chiudere quella custodia con un consumo o un rientro: non esiste un aggiustamento silenzioso a fine progetto.
-- Alla chiusura di un'attività con custodia residua, il sistema **segnala** e chiede una decisione. Non consuma e non restituisce d'ufficio.
+- Withdrawal requires a **holder**: a crew, an installation area or a task. A withdrawal "to nobody" does not exist, because it would not be reconcilable.
+- Material in custody remains **present** on site: whoever looks at availability in the depot sees less, whoever looks at physical presence sees the same total. This is the correct reading in both cases.
+- Custody **does not expire by itself**. A site that ends with material in custody to a crew must close that custody with a consumption or a return: there is no silent adjustment at the end of the project.
+- On closing a task with residual custody, the system **flags** it and asks for a decision. It does not consume or return on its own initiative.
 
-### 8.7 Assegnazione (prenotazione)
+### 8.7 Assignment (reservation)
 
-- Assegnare materiale a una WBS o a un'attività **non è un movimento fisico**: riduce il disponibile e basta.
-- L'assegnazione si riferisce a una quantità di `depot`. Se il materiale è già in custodia, l'assegnazione non ha senso: è già impegnato di fatto, e il sistema lo dice invece di accettare un dato contraddittorio.
-- Rilasciare un'assegnazione restituisce disponibilità, senza mai toccare il presente.
-- Un'assegnazione non impedisce un prelievo da parte di un altro detentore, ma il prelievo consuma disponibilità e quindi può ridurre il materiale riservato. La politica — blocco o avviso — è una decisione aperta (§14).
+- Assigning material to a WBS or a task **is not a physical movement**: it reduces availability and nothing more.
+- The assignment refers to a quantity of `depot`. If the material is already in custody, the assignment makes no sense: it is already committed in fact, and the system says so instead of accepting contradictory data.
+- Releasing an assignment restores availability, never touching what is physically present.
+- An assignment does not prevent a withdrawal by another holder, but the withdrawal consumes availability and can therefore reduce reserved material. The policy — block or warn — is an open decision (§14).
 
-### 8.8 Casi negativi
+### 8.8 Negative cases
 
-| Caso | Esito |
+| Case | Outcome |
 | --- | --- |
-| Prelievo superiore al deposito | `409`, con la quantità disponibile nel messaggio |
-| Consumo superiore alla custodia del detentore | `409`; chi consuma non può usare materiale in custodia di un altro |
-| Prenotazione oltre il disponibile | `409` |
-| Rientro in deposito di più di quanto in custodia | `409` |
-| Secondo consumo della stessa istanza serializzata | `409`, l'istanza è terminale |
-| Consumo senza detentore né operazione composta | `422`, manca la traccia della custodia |
-| Trasferimento fra stati incompatibili (per esempio custodia → `consumed` con tipo `transfer`) | `422`, il tipo di movimento non ammette quella transizione |
-| Rettifica senza motivazione | `422` |
-| Rettifica da utente senza l'autorizzazione dedicata | `403` |
-| Chiusura di attività con custodia residua | Segnalazione bloccante che richiede una decisione; nessun automatismo |
+| Withdrawal above the depot | `409`, with the available quantity in the message |
+| Consumption above the holder's custody | `409`; whoever consumes cannot use material in custody of another |
+| Reservation above what is available | `409` |
+| Return to depot of more than is in custody | `409` |
+| Second consumption of the same serialised instance | `409`, the instance is terminal |
+| Consumption without holder or composite operation | `422`, the custody trace is missing |
+| Transfer between incompatible states (for example custody → `consumed` with type `transfer`) | `422`, the movement type does not admit that transition |
+| Adjustment without justification | `422` |
+| Adjustment by a user without the dedicated authorisation | `403` |
+| Closing a task with residual custody | Blocking flag requiring a decision; no automatism |
 
-### 8.9 Altre regole
+### 8.9 Other rules
 
-- **Append-only.** Un movimento non si modifica e non si cancella. Una correzione è un movimento di segno opposto con motivazione e riferimento all'originale.
-- **Idempotenza.** Ogni movimento accetta una chiave di idempotenza: un doppio invio non duplica una giacenza.
-- **Consumo legato all'installazione.** Quando un articolo serializzato viene installato, il consumo si collega all'asset creato e l'istanza conserva il proprio identificativo fisico: si veda `qr-identification-inventory.md` §4.6. Per gli articoli non serializzati il legame è per quantità, non per singolo pezzo.
-- **Letture sempre derivate.** Disponibilità, presente fisico e ripartizione per stato si calcolano dai movimenti. Nessun campo di quantità aggiornato a mano.
+- **Append-only.** A movement is not modified and not deleted. A correction is a movement of opposite sign with justification and reference to the original.
+- **Idempotency.** Every movement accepts an idempotency key: a double submission does not duplicate a stock level.
+- **Consumption linked to installation.** When a serialised item is installed, the consumption is linked to the asset created and the instance keeps its own physical identifier: see `qr-identification-inventory.md` §4.6. For non-serialised items the link is by quantity, not by individual piece.
+- **Readings always derived.** Availability, physical presence and breakdown by state are calculated from movements. No quantity field is updated by hand.
 
-## 9. Collegamento con gli asset installati
+## 9. Link with installed assets
 
-Il modulo non crea asset: gli asset vivono in `assets` (057) e quel registro resta autorevole per la loro identità.
+The module does not create assets: assets live in `assets` (057) and that register remains authoritative for their identity.
 
-| Situazione | Comportamento |
+| Situation | Behaviour |
 | --- | --- |
-| Istanza serializzata installata | L'istanza diventa un asset: si crea il record in `assets`, si collega `stock_instances.asset_id`, si registra il consumo. Un solo oggetto fisico, una sola identità. |
-| Materiale di consumo per installare | Movimento di consumo collegato all'asset o all'attività, senza creare un asset |
-| Componente sostituito | Nuova istanza collegata al nuovo asset; la vecchia resta nello storico con il suo seriale |
-| Articolo non installato | Resta in giacenza: nessun asset finché non viene installato |
+| Serialised instance installed | The instance becomes an asset: the record is created in `assets`, `stock_instances.asset_id` is linked, the consumption is recorded. One physical object, one identity. |
+| Consumable material for installation | Consumption movement linked to the asset or the task, without creating an asset |
+| Replaced component | New instance linked to the new asset; the old one remains in history with its serial number |
+| Item not installed | Remains in stock: no asset until it is installed |
 
-Il criterio: **un'istanza fisica diventa un asset solo quando viene installata.** Prima è materiale. Dopo è un asset. L'identità dell'istanza non cambia nel passaggio: cambia il registro che la descrive, e il collegamento lo dice.
+The criterion: **a physical instance becomes an asset only when it is installed.** Before, it is material. After, it is an asset. The identity of the instance does not change in the transition: the register that describes it changes, and the link states so.
 
-## 10. Inventari fisici e riconciliazione
+## 10. Physical inventories and reconciliation
 
-L'inventario fisico è il punto di contatto con `qr-identification-inventory.md` §7: le sessioni, le scansioni, i duplicati, gli sconosciuti e le discordanze sono specificati là. Qui si dichiara solo ciò che riguarda le quantità.
+The physical inventory is the point of contact with `qr-identification-inventory.md` §7: sessions, scans, duplicates, unknowns and discrepancies are specified there. Here only what concerns quantities is declared.
 
-- Una sessione di inventario su materiali confronta **atteso** e **rilevato** per articolo, lotto e ubicazione.
-- La differenza genera una **proposta di rettifica**, non una rettifica. L'applicazione è un movimento `adjust`, con motivazione obbligatoria e autorizzazione distinta.
-- Chi conta non rettifica da solo: la separazione delle quattro autorizzazioni di `qr-identification-inventory.md` §8.3 vale anche qui, e l'approvazione dei movimenti è il cancello.
-- La sessione chiusa è immutabile; la rettifica è un atto tracciato separato.
+- An inventory session on materials compares **expected** and **counted** per item, lot and location.
+- The difference generates an **adjustment proposal**, not an adjustment. Application is an `adjust` movement, with mandatory justification and a distinct authorisation.
+- Whoever counts does not adjust on their own: the separation of the four authorisations of `qr-identification-inventory.md` §8.3 applies here too, and approval of movements is the gate.
+- The closed session is immutable; the correction is a separate traced act.
 
-## 11. Permessi
+## 11. Permissions
 
-**Decisione dell'owner (27/11/2026): `materials` è un modulo *strict*, come `logistics`.**
+**Owner decision (27/11/2026): `materials` is a *strict* module, like `logistics`.**
 
-Il modulo entra in `MODULES` (`server/module-access.mjs:4-7`) e va aggiunto all'insieme `strictModules` con la stessa impostazione di `logistics`: nessuno lo vede se non per concessione esplicita. La ragione è che quantità, destinazioni e detentori hanno lo stesso carattere riservato della logistica già strict.
+The module enters `MODULES` (`server/module-access.mjs:4-7`) and is added to the `strictModules` set with the same setting as `logistics`: nobody sees it without explicit grant. The reason is that quantities, destinations and holders have the same reserved character as logistics, which is already strict.
 
-| Autorizzazione | Cosa consente | Ruoli |
+| Authorisation | What it allows | Roles |
 | --- | --- | --- |
-| Consultazione anagrafica e disponibilità | Vedere articoli, ubicazioni, quantità | Accesso al modulo |
-| Movimenti ordinari | Entrata, prelievo, rientro, trasferimento, assegnazione | Owner, editor |
-| Consumo | Dichiarare il consumo su un'installazione o un'attività | Owner, editor |
-| Rettifiche | Movimento `adjust` | Owner; editor solo se delegato |
-| Configurazione articoli e alias | Creare e correggere anagrafiche, approvare risoluzioni da righe d'ordine | Owner, editor |
+| Consultation of master record and availability | Seeing items, locations, quantities | Module access |
+| Ordinary movements | Receipt, withdrawal, return, transfer, assignment | Owner, editor |
+| Consumption | Declaring consumption on an installation or a task | Owner, editor |
+| Adjustments | `adjust` movement | Owner; editor only if delegated |
+| Item and alias configuration | Creating and correcting master records, approving resolutions from order lines | Owner, editor |
 
-**Anagrafiche separate per cantiere nella prima release** (decisione dell'owner). Un articolo identico in due cantieri è due record. Un catalogo aziendale condiviso è un'evoluzione futura, non un'ipotesi da preparare oggi con chiavi globali: la condivisione apre problemi di autorizzazione e di proprietà del dato che vanno affrontati quando esisterà un bisogno reale.
+**Master records separate per site in the first release** (owner decision). An identical item on two sites is two records. A shared company catalogue is a future evolution, not an assumption to prepare today with global keys: sharing opens problems of authorisation and data ownership that must be addressed when a real need exists.
 
-Isolamento: ogni articolo, istanza, lotto, detentore e movimento appartiene a un `site_id`. Un identificativo di un altro sito è `404`, indistinguibile da inesistente. I conteggi aggregati non rivelano l'esistenza di record esclusi: la regola di `qr-identification-inventory.md` §8.2 vale anche qui.
+Isolation: every item, instance, lot, holder and movement belongs to a `site_id`. An identifier from another site is `404`, indistinguishable from non-existent. Aggregate counts do not reveal the existence of excluded records: the rule of `qr-identification-inventory.md` §8.2 applies here too.
 
-## 12. Migrazione e convivenza con l'esistente
+## 12. Migration and coexistence with the existing
 
-1. **Inventario in sola lettura** dei `material_no` distinti per sito, con conteggi e varianti, per capire cosa esiste davvero prima di proporre un'anagrafica.
-2. **Nessun backfill automatico.** Le righe d'ordine restano come sono finché una risoluzione esplicita non le collega a un articolo. Un `material_no` non diventa un articolo per deduzione.
-3. **Coppia di migrazioni** SQLite e PostgreSQL, numero successivo al 057 dopo il merge. Estensione di `packages` e `package_items` con riferimenti facoltativi; nessuna riscrittura delle colonne esistenti.
-4. **Client esistenti intatti**: procurement continua a funzionare senza il modulo materiali. Il modulo aggiunge rotte, non ne cambia.
-5. **Rollback operativo**: disattivare il modulo per sito, lasciando procurement intatto; i record creati restano consultabili.
+1. **Read-only inventory** of distinct `material_no` values per site, with counts and variants, to understand what really exists before proposing a master record.
+2. **No automatic backfill.** Order lines remain as they are until an explicit resolution links them to an item. A `material_no` does not become an item by inference.
+3. **Pair of migrations** for SQLite and PostgreSQL, number following 057 after merge. Extension of `packages` and `package_items` with optional references; no rewriting of existing columns.
+4. **Existing clients intact**: procurement continues to work without the materials module. The module adds routes, it does not change them.
+5. **Operational rollback**: disable the module per site, leaving procurement intact; the records created remain consultable.
 
-## 13. Criteri di accettazione e test negativi
+## 13. Acceptance criteria and negative tests
 
-| Prova | Esito verificabile |
+| Test | Verifiable outcome |
 | --- | --- |
-| Codice articolo | Due articoli con lo stesso codice nel sito sono respinti `409`, anche con richieste concorrenti; lo stesso codice in siti diversi è ammesso. |
-| Riuso del codice | Archiviare un articolo non libera il codice per un nuovo articolo. |
-| Alias | Lo stesso codice fornitore in namespace diversi è ammesso; lo stesso codice canonico nello stesso namespace è respinto `409`. |
-| Unità | Una quantità inserita in unità alternativa è conservata nell'unità di base con il fattore corretto; nessun arrotondamento perde i decimali. |
-| Giacenza negativa | Un prelievo oltre la disponibilità è respinto `409` con la quantità disponibile; nessuno stato scende sotto zero. |
-| **Nessuna doppia sottrazione** | Prenotare, prelevare e poi consumare la stessa quantità lascia il presente fisico diminuito **di una sola volta**, della quantità consumata. Il caso è la prova centrale della semantica di §8. |
-| **Prelievo neutro** | Un `issue` da deposito a custodia non cambia il presente fisico: diminuisce il deposito, aumenta la custodia, il totale resta identico. |
-| **Custodia del detentore** | Il detentore A non può consumare né restituire più di quanto ha in custodia; il tentativo con materiale in custodia di B è respinto `409`. |
-| **Consumo composto** | Il consumo diretto dal deposito registra due movimenti legati nella stessa transazione; se il secondo fallisce, il primo non resta scritto. Un `consume` senza custodia né operazione composta è respinto `422`. |
-| **Prenotazione** | Assegnare non cambia il presente fisico; `disponibile = depot − assigned` non scende sotto zero; rilasciare restituisce disponibilità senza movimenti fisici. |
-| **Custodia residua** | Chiudere un'attività con custodia residua produce una segnalazione bloccante; nessun consumo e nessun rientro vengono registrati d'ufficio. |
-| **Concorrenza** | Due prelievi concorrenti che insieme superano il deposito: uno passa, l'altro è respinto `409`; il controllo e la scrittura avvengono nella stessa transazione. |
-| Movimento immutabile | Modificare o cancellare un movimento è respinto; la correzione è un movimento opposto con riferimento all'originale. |
-| Idempotenza | Lo stesso movimento inviato due volte produce una sola riga e una sola variazione di quantità. |
-| Ricezione ≠ giacenza | Registrare una ricezione non aumenta la disponibilità finché non è registrato il movimento di entrata; i due conteggi restano distinguibili. |
-| Serializzato | Un'istanza serializzata non può esistere due volte con lo stesso seriale nello stesso sito; il secondo consumo della stessa istanza è respinto `409`. |
-| Lotto obbligatorio | Su un articolo con `lot_required`, un movimento senza lotto è respinto `422`; su un articolo senza obbligo il lotto resta nullo, mai un valore segnaposto. |
-| Lotto attivato a posteriori | Attivare l'obbligo su un articolo con movimenti storici non riscrive lo storico e dichiara quanti movimenti ne sono privi. |
-| Inventario | Una sessione produce una proposta di rettifica, non una rettifica; senza autorizzazione alle rettifiche il movimento `adjust` è respinto. |
-| Isolamento | Un articolo o un movimento di un altro sito è `404`; nessun conteggio aggregato lo espone. |
-| Convivenza | Procurement funziona senza il modulo; con il modulo attivo le rotte preesistenti si comportano come prima. |
+| Item code | Two items with the same code in the site are rejected `409`, even with concurrent requests; the same code in different sites is admitted. |
+| Code reuse | Archiving an item does not free the code for a new item. |
+| Alias | The same supplier code in different namespaces is admitted; the same canonical code in the same namespace is rejected `409`. |
+| Units | A quantity entered in an alternative unit is kept in the base unit with the correct factor; no rounding loses decimals. |
+| Negative stock | A withdrawal above availability is rejected `409` with the available quantity; no state falls below zero. |
+| **No double subtraction** | Reserving, withdrawing and then consuming the same quantity leaves physical presence reduced **once**, by the quantity consumed. This case is the central proof of the semantics of §8. |
+| **Neutral withdrawal** | An `issue` from depot to custody does not change physical presence: it reduces the depot, increases custody, the total remains identical. |
+| **Holder custody** | Holder A cannot consume or return more than they have in custody; the attempt with material in custody of B is rejected `409`. |
+| **Composite consumption** | Direct consumption from the depot records two movements linked in the same transaction; if the second fails, the first is not left written. A `consume` without custody or composite operation is rejected `422`. |
+| **Reservation** | Assigning does not change physical presence; `available = depot − assigned` does not fall below zero; releasing restores availability without physical movements. |
+| **Residual custody** | Closing a task with residual custody produces a blocking flag; no consumption and no return are recorded on its own initiative. |
+| **Concurrency** | Two concurrent withdrawals that together exceed the depot: one passes, the other is rejected `409`; the check and the write happen in the same transaction. |
+| Immutable movement | Modifying or deleting a movement is rejected; the correction is an opposite movement with reference to the original. |
+| Idempotency | The same movement sent twice produces one row and one quantity variation. |
+| Receipt ≠ stock | Recording a receipt does not increase availability until the entry movement is recorded; the two counts remain distinguishable. |
+| Serialised | A serialised instance cannot exist twice with the same serial number in the same site; the second consumption of the same instance is rejected `409`. |
+| Mandatory lot | On an item with `lot_required`, a movement without a lot is rejected `422`; on an item without the requirement the lot remains null, never a placeholder value. |
+| Lot activated retrospectively | Activating the requirement on an item with historical movements does not rewrite history and declares how many movements lack one. |
+| Inventory | A session produces an adjustment proposal, not an adjustment; without authorisation for adjustments the `adjust` movement is rejected. |
+| Isolation | An item or a movement from another site is `404`; no aggregate count exposes it. |
+| Coexistence | Procurement works without the module; with the module active, pre-existing routes behave as before. |
 
-## 14. Rischi, fuori scope e decisioni aperte
+## 14. Risks, out of scope and open decisions
 
-| Rischio | Controllo previsto |
+| Risk | Planned control |
 | --- | --- |
-| Il modulo scivola verso l'ERP | Confine dichiarato in §2; un requisito che non riguarda dove sono i materiali e a cosa servono è fuori |
-| Doppia anagrafica con il testo delle righe d'ordine | Risoluzione esplicita, nessun backfill dedotto; testo originale conservato |
-| Giacenza che diverge dalla realtà | Giacenza derivata dai movimenti, mai un campo aggiornato a mano; inventario periodico |
-| Secondo concetto di collo | `packages` resta l'unico; il modulo lo estende |
-| Ubicazioni come gerarchia parallela | Si usano i luoghi; nessuna seconda gerarchia |
-| Anagrafica condivisa tra cantieri | Esclusa nella prima release |
+| The module drifts towards ERP | Boundary declared in §2; a requirement that does not concern where materials are and what they are for is out of scope |
+| Double master record alongside the text of order lines | Explicit resolution, no inferred backfill; original text preserved |
+| Stock diverging from reality | Stock derived from movements, never a field updated by hand; periodic inventory |
+| Second concept of parcel | `packages` remains the only one; the module extends it |
+| Locations as a parallel hierarchy | Places are used; no second hierarchy |
+| Master record shared between sites | Excluded in the first release |
 
-Fuori scope: distinte base, cicli, MRP, valorizzazione e costi, FIFO/LIFO contabile, tracciabilità fiscale, trasferimenti tra stabilimenti, dogana, gestione fornitori completa, pagamenti, integrazione con sistemi esterni, app native.
+Out of scope: bills of materials, routings, MRP, valuation and costs, accounting FIFO/LIFO, tax traceability, transfers between plants, customs, full supplier management, payments, integration with external systems, native apps.
 
-Decisioni **chiuse** dall'owner il 27/11/2026:
+Decisions **closed** by the owner on 27/11/2026:
 
-1. `materials` è un modulo **strict**, come `logistics` (§11).
-2. I **lotti entrano dal primo rilascio della movimentazione**, con obbligatorietà configurata per categoria o articolo e nessun lotto fittizio (§5).
-3. **`storage_area` e `container` sono estensioni ammesse** dei tipi di luogo, previa verifica della coerenza gerarchica e del caso dei container mobili (§7).
-4. Le **anagrafiche restano separate per cantiere** nella prima release; il catalogo aziendale condiviso è evoluzione futura (§11).
-5. **Granularità flessibile** delle ubicazioni — zona, container, scaffale, posizione facoltativa — senza gerarchia rigida e senza WMS (§7).
+1. `materials` is a **strict** module, like `logistics` (§11).
+2. **Lots enter from the first release of movement handling**, with mandatory status configured by category or item and no placeholder lot (§5).
+3. **`storage_area` and `container` are admitted extensions** of place types, subject to verification of hierarchical consistency and the case of mobile containers (§7).
+4. **Master records remain separate per site** in the first release; the shared company catalogue is a future evolution (§11).
+5. **Flexible granularity** of locations — zone, container, shelf, optional position — without rigid hierarchy and without WMS (§7).
 
-Decisioni **ancora aperte**:
+Decisions **still open**:
 
-1. **Container mobili**: se un container noleggiato e spostabile sia un luogo del sito o un oggetto tracciato a sé. Cambia il modello, non solo l'etichetta (§7).
-2. **Politica di prenotazione**: se un prelievo che intacca materiale assegnato a un'altra attività debba essere bloccato o solo segnalato (§8.7).
-3. **Detentore della custodia**: se possa essere una persona oltre a squadra, area o attività. Una persona è più preciso e più fragile (turnover, ferie, contestazioni).
-4. **Chiusura attività con custodia residua**: se la segnalazione debba essere bloccante o solo un avviso persistente (§8.6).
-5. **Granularità minima obbligatoria**: se ogni movimento debba dichiarare l'ubicazione fino allo scaffale, o se la zona basti come default.
+1. **Mobile containers**: whether a rented and movable container is a place of the site or an object tracked in its own right. This changes the model, not just the label (§7).
+2. **Reservation policy**: whether a withdrawal that affects material assigned to another task should be blocked or only flagged (§8.7).
+3. **Custody holder**: whether it may be a person in addition to crew, area or task. A person is more precise and more fragile (turnover, leave, disputes).
+4. **Closing a task with residual custody**: whether the flag should be blocking or only a persistent warning (§8.6).
+5. **Minimum mandatory granularity**: whether every movement must declare the location down to the shelf, or whether the zone is enough as default.
 
-## 15. Sequenza consigliata
+## 15. Recommended sequence
 
-| Fase | Contenuto | Prerequisiti |
+| Phase | Content | Prerequisites |
 | --- | --- | --- |
-| M0 | Decisioni dell'§14; inventario in sola lettura dei `material_no` | — |
-| M1 | Item Master, codici, alias, unità di misura, **lotti con obbligatorietà configurabile** | M0; nessuna dipendenza da altri moduli |
-| M2 | Movimenti con **stati della quantità e custodia** (deposito, custodia, assegnazione, consumo, resi), disponibilità derivate, ubicazioni come luoghi | M1 |
-| M3 | Collegamenti a ordini, colli e ricezioni; risoluzione delle righe d'ordine | M2; procurement (032–034) |
-| M4 | Istanze serializzate e collegamento agli asset installati | M3; 2b per gli asset |
-| M5 | Inventario fisico e riconciliazione delle quantità, con posizione attesa e osservata | M4; sessioni di inventario da QR (Q3) |
-| M6 | Etichetta logistica | M4; Q1 delle etichette |
+| M0 | Decisions of §14; read-only inventory of `material_no` | — |
+| M1 | Item master, codes, aliases, units of measure, **lots with configurable mandatory status** | M0; no dependency on other modules |
+| M2 | Movements with **quantity and custody states** (depot, custody, assignment, consumption, returns), derived availability, locations as places | M1 |
+| M3 | Links to orders, parcels and receipts; resolution of order lines | M2; procurement (032–034) |
+| M4 | Serialised instances and link to installed assets | M3; 2b for assets |
+| M5 | Physical inventory and reconciliation of quantities, with expected and counted location | M4; inventory sessions from QR (Q3) |
+| M6 | Logistic label | M4; Q1 of labels |
 
-Il modulo non ha dipendenze da 2a e 2b per i primi tre passi, ma non va avviato prima che la priorità operativa concordata lo consenta: gli incrementi 2a e 2b restano davanti.
+The module has no dependency on 2a and 2b for the first three steps, but it must not start before the agreed operational priority allows it: increments 2a and 2b stay ahead.

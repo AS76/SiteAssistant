@@ -1,159 +1,159 @@
-# Specifica dei luoghi e degli asset installati
+# Specification of places and installed assets
 
-Proposta per SiteAssistant, verificata su `origin/main` al commit `3313f4e`. Il comportamento futuro descritto nelle sezioni seguenti richiede implementazione e approvazione. Le osservazioni sul comportamento attuale riportano i riferimenti al checkout.
+Proposal for SiteAssistant, verified on `origin/main` at commit `3313f4e`. The future behaviour described in the following sections requires implementation and approval. Observations on current behaviour report references to the checkout.
 
-## 1. Problema e casi d’uso
+## 1. Problem and use cases
 
-Oggi l’attività appartiene a un sito e ha un campo testuale facoltativo `area`. La creazione legge il testo e la lista lo mostra direttamente (`server/migrations/pg/001_init.sql:11–24`, `server/repository.mjs:360–369`, `app/app.mjs:585`). Il testo da solo non identifica un locale né permette di ritrovare in modo affidabile tutte le evidenze sullo stesso componente.
+Today a task belongs to a site and has an optional free-text field `area`. Creation reads the text and the list displays it directly (`server/migrations/pg/001_init.sql:11–24`, `server/repository.mjs:360–369`, `app/app.mjs:585`). The text alone does not identify a room, nor does it allow reliable retrieval of all evidence about the same component.
 
-Gli esempi seguenti descrivono pratiche di cantiere e impiantistiche. Sono scenari illustrativi, senza dati o record di SiteAssistant.
+The scenarios below describe site and plant practices. They are illustrative, without data or records from SiteAssistant.
 
-| Contesto | Operazione e risultato atteso |
+| Context | Operation and expected outcome |
 | --- | --- |
-| Cantiere | Durante il giro delle finiture si rileva che una porta tagliafuoco non chiude. Difetto, foto e attività correttiva sono reperibili dal locale. Se la porta è censita, si naviga anche dalla sua scheda. |
-| Impianto | Durante il collaudo di un’unità di trattamento aria, il tecnico associa verbale e foto della targhetta all’unità. Il percorso mostra il locale tecnico e lo distingue dal locale omonimo di un altro edificio. |
-| Manutenzione | Una pompa di ricircolo viene sostituita. Il manutentore recupera seriale e garanzia della nuova pompa e consulta gli interventi precedenti sotto la vecchia pompa. |
-| Handover | Per la consegna di un piano il responsabile raccoglie elenco asset, manuali, verbali e difetti aperti. A consegna emessa conserva la versione del fascicolo anche se cambiano le denominazioni dei locali. |
+| Site | During the finishing walk-round, a fire door is found not to close. The defect, photo and corrective task can be retrieved from the room. If the door is registered, it can also be reached from its record card. |
+| Plant | During the acceptance test of an air handling unit, the technician links the record and nameplate photo to the unit. The path shows the plant room and distinguishes it from a room with the same name in another building. |
+| Maintenance | A recirculation pump is replaced. The maintainer retrieves the serial number and warranty of the new pump and consults previous interventions under the old pump. |
+| Handover | For the handover of a floor, the manager collects the asset list, manuals, records and open defects. Once the handover is issued, the dossier version is retained even if room names change. |
 
-## 2. Modello dei luoghi
+## 2. Place model
 
-- Il sito esistente è la radice. Ogni luogo ha UUID immutabile, `site_id`, riferimento al padre, tipo, nome, stato e metadati di creazione e modifica. L’UUID del luogo resta stabile anche se cambia il percorso. Un padre nullo indica un figlio diretto del sito.
-- Percorso ordinario `sito → edificio → piano → zona → locale`. Proposta per cantieri senza edificio e piani senza zone: si possono omettere livelli intermedi rispettando l’ordine dei tipi. Si ammettono ad esempio una zona esterna direttamente sotto il sito e un locale direttamente sotto il piano. Un nodo ha un solo padre e appartiene sempre allo stesso sito.
-- Percorso corrente e inclusione nei filtri per sottoalbero derivano dagli antenati. Allegati, dati di garanzia e diritti dei moduli restano associati alle entità che li possiedono. Il nodo padre non assegna automaticamente un luogo ai record dei figli. I record storici conservano anche il percorso registrato al momento pertinente.
-- La rinomina modifica l’etichetta. Lo spostamento cambia il padre dell’intero sottoalbero con controllo dei tipi e degli antenati. Entrambe le operazioni registrano autore, istante e valori precedenti. Asset e record collegati mantengono gli UUID. La posizione fisica di un asset cambia solo con un movimento esplicito. Un aggiornamento fra siti viene respinto.
-- La rimozione ordinaria è archiviazione logica. Si lavora dalle foglie verso la radice: bloccare l’archiviazione con figli attivi o asset previsti o installati la cui posizione corrente è nel nodo. Con soli riferimenti documentali o storici, consentire l’archiviazione e rendere il nodo consultabile con stato visibile. Il selettore per nuovi collegamenti esclude i nodi archiviati. L’API ordinaria non offre eliminazione fisica. Eventuali procedure amministrative di correzione possono eliminare solo record privi di figli, riferimenti e storico.
-- Codici committente ed esportazioni usano alias espliciti `site_id + namespace + codice canonico → place_id`. Il namespace identifica l’autorità o la fonte e, se necessario, il perimetro del catalogo. Conservare codice originale, fonte e validità. Impedire doppia assegnazione del codice canonico nello stesso namespace e sito, anche dopo archiviazione. Un codice corretto lascia traccia dell’alias precedente. Mai ricavare identità da nome o percorso. La politica di maiuscole e minuscole dei codici si concorda per fonte.
+- The existing site is the root. Each place has an immutable UUID, `site_id`, a reference to its parent, a type, a name, a status and creation and modification metadata. The place UUID remains stable even if the path changes. A null parent indicates a direct child of the site.
+- Ordinary path: `site → building → floor → zone → room`. Proposal for sites without a building and floors without zones: intermediate levels may be omitted while respecting the order of types. For example, an external zone directly under the site and a room directly under a floor are admitted. A node has exactly one parent and always belongs to the same site.
+- Current path and inclusion in subtree filters derive from the ancestors. Attachments, warranty data and module permissions remain associated with the entities that own them. A parent node does not automatically assign a place to its children's records. Historical records also retain the path recorded at the relevant time.
+- Renaming changes the label. Moving changes the parent of the entire subtree, with checks on types and ancestors. Both operations record author, timestamp and previous values. Assets and linked records keep their UUIDs. An asset's physical position changes only through an explicit movement. An update across sites is rejected.
+- Ordinary removal is logical archiving. Work from the leaves towards the root: block archiving when there are active children, or planned or installed assets whose current position is in the node. With only documentary or historical references, allow archiving and keep the node viewable with a visible status. The selector for new links excludes archived nodes. The ordinary API offers no physical deletion. Any administrative correction procedures may delete only records with no children, references or history.
+- Client codes and exports use explicit aliases `site_id + namespace + canonical code → place_id`. The namespace identifies the authority or source and, where needed, the scope of the catalogue. Retain the original code, source and validity. Prevent double assignment of the canonical code within the same namespace and site, including after archiving. A corrected code leaves a trace of the previous alias. Never derive identity from name or path. The case-sensitivity policy for codes is agreed per source.
 
-## 3. Registro degli asset installati
+## 3. Installed asset register
 
-| Dato | Regola proposta |
+| Field | Proposed rule |
 | --- | --- |
-| Minimo | UUID immutabile, sito, tag, denominazione, categoria, stato e metadati di creazione/modifica. Tag univoco nel sito fra asset attivi o previsti. Posizione corrente obbligatoria all’installazione, facoltativa in previsione. |
-| Identificazione tecnica | Seriale, produttore, modello, sistema impiantistico, riferimenti esterni. Seriale richiesto solo per categorie approvate dall’owner. Valore assente esplicito. Il seriale da solo non identifica l’asset. |
-| Date operative | Data di installazione, collaudo e messa in servizio distinte. Registrare la data effettiva di passaggio allo stato installato. |
-| Garanzia | Fornitore o garante, riferimento, data iniziale e finale, condizioni e documento. Date facoltative, con fine uguale o successiva all’inizio quando note. Nessuna scadenza implicita in assenza dei dati contrattuali. |
-| Documenti | Riferimenti a versioni di manuali, dichiarazioni, verbali, elaborati as-built e prove di garanzia. Metadati del documento separati dai byte dell’allegato. |
+| Minimum | Immutable UUID, site, tag, name, category, status and creation/modification metadata. Tag unique within the site among active or planned assets. Current position mandatory at installation, optional when planned. |
+| Technical identification | Serial number, manufacturer, model, plant system, external references. Serial number required only for categories approved by the owner. Explicit absent value. The serial number alone does not identify the asset. |
+| Operational dates | Installation, acceptance test and commissioning dates kept distinct. Record the actual date of transition to installed status. |
+| Warranty | Supplier or guarantor, reference, start and end dates, conditions and document. Dates optional, with end equal to or later than start when known. No implied expiry in the absence of contractual data. |
+| Documents | References to versions of manuals, declarations, records, as-built drawings and warranty evidence. Document metadata kept separate from the attachment bytes. |
 
-Transizioni proposte: previsto → installato → sostituito o dismesso. Un previsto annullato può essere dismesso con motivo. Una sostituzione chiude la posizione del vecchio asset e collega il suo UUID a quello del nuovo, che ha identità e garanzia proprie. Se il tag designa la posizione funzionale, il successore può ereditarlo nella stessa transazione dopo la chiusura del predecessore. Il tag precedente resta visibile nello storico. Stati terminali consultabili, con correzioni amministrative tracciate.
+Proposed transitions: planned → installed → replaced or decommissioned. A cancelled planned asset may be decommissioned with a reason. A replacement closes the position of the old asset and links its UUID to that of the new one, which has its own identity and warranty. If the tag designates the functional position, the successor may inherit it in the same transaction after the predecessor is closed. The previous tag remains visible in history. Terminal states remain viewable, with administrative corrections tracked.
 
-Ogni posizione ha `site_id`, `asset_id`, `place_id`, inizio e fine di validità, autore, motivo e percorso registrato. Gli intervalli non si sovrappongono e al massimo uno è aperto. Il trasferimento fisico chiude e apre gli intervalli nella stessa transazione. Un luogo può contenere più asset. Per il primo rilascio ogni asset installato ha un solo luogo corrente.
+Each position has `site_id`, `asset_id`, `place_id`, start and end of validity, author, reason and recorded path. Intervals do not overlap and at most one is open. A physical transfer closes and opens intervals in the same transaction. A place may contain multiple assets. For the first release, each installed asset has only one current place.
 
-Il registro proposto ha un’identità separata da `hse_assets`. Oggi quella tabella gestisce beni HSE dei tipi `tool`, `site_work` e `ppe` con template di controllo. L’ispezione HSE richiede il loro ID. È possibile aggiungere un riferimento esplicito all’asset installato per l’attrezzatura che compare in entrambi i registri (`server/migrations/sqlite/029_hse_assets.sql:1–16`, `server/migrations/sqlite/030_hse_inspections.sql:1–16`).
+The proposed register has an identity separate from `hse_assets`. Today that table manages HSE items of types `tool`, `site_work` and `ppe`, with inspection templates. The HSE inspection requires their ID. An explicit reference to the installed asset may be added for equipment that appears in both registers (`server/migrations/sqlite/029_hse_assets.sql:1–16`, `server/migrations/sqlite/030_hse_inspections.sql:1–16`).
 
-## 4. Collegamenti con i moduli
+## 4. Links with modules
 
-Usare chiavi tipizzate per modulo con `site_id` e UUID del record, del luogo e dell’asset secondo necessità. I riferimenti devono essere verificabili con vincoli che includano il sito. Dove luogo e asset compaiono insieme, il luogo del record descrive l’evidenza al momento del fatto. Si può proporre il luogo dell’asset valido a quella data, con conferma. Un luogo diverso è ammesso se esplicito, ad esempio per una foto scattata in officina prima della posa. Per riferimenti in sola lettura o archiviati, mantenere visibili gli ID risolti con etichetta e stato, oltre al percorso registrato. Le viste aggregate applicano i permessi del modulo originario.
+Use module-typed keys with `site_id` and the UUID of the record, place and asset as needed. References must be verifiable, with constraints that include the site. Where a place and an asset appear together, the record's place describes the evidence at the time of the fact. The asset's place valid on that date may be proposed, subject to confirmation. A different place is admitted if it is explicit, for example for a photo taken in the workshop before installation. For read-only or archived references, keep the resolved IDs visible with label and status, in addition to the recorded path. Aggregate views apply the permissions of the originating module.
 
-| Modulo | Punto di partenza verificato | Chiave proposta | Rimozione e migrazione |
+| Module | Verified starting point | Proposed key | Removal and migration |
 | --- | --- | --- | --- |
-| Attività | `tasks.area` testuale. Il PATCH attuale accetta solo `wbsId` (`server/migrations/sqlite/001_init.sql:11–24`, `server/http.mjs:992–1008`, `server/repository.mjs:276–285`). | Una collocazione primaria e un asset facoltativo per `task_id`. | Mostrare il contesto archiviato, anche a task chiusa. Backfill con mappa approvata di `area`, conservando il testo. Nessuna deduzione di asset dal titolo. |
-| Difetti | Nessun registro difetti dedicato individuato. Le deviazioni sono una proiezione con `plc_area` e propri collegamenti (`server/migrations/sqlite/011_deviations.sql:1–23`, `server/http.mjs:867–904`). | `defect_id` con luogo obbligatorio e asset facoltativo quando esisterà il modulo. Eventuale collegamento separato a `deviation_id`. | Conservare luogo e asset archiviati sulla scheda. Nessuna conversione automatica delle deviazioni in difetti. Se si integrano le deviazioni, risolvere `plc_area` con la mappa della fonte in una relazione locale separata. |
-| Foto e allegati | Immagini e PDF associati a `entity_type/entity_id`. Il sito è ricavato dal proprietario, con verifica del ruolo e del modulo (`server/repository.mjs:680–681`, `server/repository.mjs:693–728`, `server/migrations/pg/038_identity_evidence.sql:15`). | `attachment_id` con collocazione e asset facoltativi, mantenendo il proprietario e i controlli di accesso. | L’archiviazione del contesto non cancella il file. Per gli allegati esistenti si può navigare dal proprietario collocato, indicando la provenienza del contesto. Nessuna copia, analisi EXIF o assegnazione massiva della posizione. |
-| Ispezioni | L’ispezione HSE ha `asset_id` obbligatorio verso `hse_assets`. La creazione verifica sito e stato del bene HSE (`server/migrations/pg/030_hse_inspections.sql:1–16`, `server/hse-inspections.mjs:60–65`, `server/hse-inspections.mjs:105–131`). | `inspection_id` con luogo del controllo e asset installato facoltativi. Resta il riferimento obbligatorio al bene HSE per il flusso esistente. | Conservare il contesto del controllo anche dopo dismissione. Collegare lo storico solo con riscontro esplicito della corrispondenza e della posizione alla data del controllo. |
-| Documenti | Il percorso esistente gestisce PDF come allegati (`server/repository.mjs:712–728`, `server/http.mjs:906–928`). Nessun registro documentale versionato individuato. | `document_version_id` collegabile a più luoghi o asset. La versione identifica l’allegato con i suoi metadati. | La versione e i riferimenti restano consultabili. Classificare i PDF esistenti solo su conferma. Una versione già consegnata richiede tutela dalla cancellazione dell’allegato. |
-| Handover | Il diario ha campi testuali e chiave di giornata/turno. Nessun fascicolo di consegna dedicato individuato (`server/migrations/sqlite/001_init.sql:37–48`, `server/seed-demo.mjs:584–598` per i soli esempi sintetici nelle note). | `handover_revision_id` con perimetro di luoghi, elenco asset, versioni dei documenti e riferimenti alle evidenze. Al rilascio, congelare elenco e percorso di ciascun elemento. | Le revisioni emesse restano leggibili con riferimenti archiviati. Nessun backfill da diario, descrizioni o nomi dei file. La prima revisione nasce da selezione esplicita. |
+| Tasks | Text `tasks.area`. The current PATCH accepts only `wbsId` (`server/migrations/sqlite/001_init.sql:11–24`, `server/http.mjs:992–1008`, `server/repository.mjs:276–285`). | One primary location and an optional asset for `task_id`. | Show the archived context, including for a closed task. Backfill with an approved map of `area`, retaining the text. No asset inference from the title. |
+| Defects | No dedicated defect register found. Deviations are a projection with `plc_area` and their own links (`server/migrations/sqlite/011_deviations.sql:1–23`, `server/http.mjs:867–904`). | `defect_id` with mandatory place and optional asset, once the module exists. Possible separate link to `deviation_id`. | Retain archived place and asset on the record card. No automatic conversion of deviations into defects. If deviations are integrated, resolve `plc_area` with the source map into a separate local relation. |
+| Photos and attachments | Images and PDFs associated with `entity_type/entity_id`. The site is derived from the owner, with role and module checks (`server/repository.mjs:680–681`, `server/repository.mjs:693–728`, `server/migrations/pg/038_identity_evidence.sql:15`). | `attachment_id` with optional place and asset, keeping the owner and access controls. | Archiving the context does not delete the file. For existing attachments, navigation is possible from the placed owner, indicating the provenance of the context. No copying, EXIF analysis or bulk assignment of location. |
+| Inspections | The HSE inspection has a mandatory `asset_id` pointing to `hse_assets`. Creation checks the site and status of the HSE item (`server/migrations/pg/030_hse_inspections.sql:1–16`, `server/hse-inspections.mjs:60–65`, `server/hse-inspections.mjs:105–131`). | `inspection_id` with optional inspection place and installed asset. The mandatory reference to the HSE item remains for the existing flow. | Keep the inspection context after decommissioning. Link history only with explicit confirmation of the match and of the position on the inspection date. |
+| Documents | The existing path handles PDFs as attachments (`server/repository.mjs:712–728`, `server/http.mjs:906–928`). No versioned document register found. | `document_version_id` linkable to multiple places or assets. The version identifies the attachment with its metadata. | The version and its references remain viewable. Classify existing PDFs only on confirmation. A version already delivered requires protection from deletion of the attachment. |
+| Handover | The diary has text fields and a day/shift key. No dedicated handover dossier found (`server/migrations/sqlite/001_init.sql:37–48`, `server/seed-demo.mjs:584–598` for the synthetic examples in the notes only). | `handover_revision_id` with a scope of places, asset list, document versions and evidence references. On release, freeze the list and the path of each item. | Issued revisions remain readable with archived references. No backfill from the diary, descriptions or file names. The first revision arises from explicit selection. |
 
-## 5. Migrazione e rollback
+## 5. Migration and rollback
 
-1. Fare un inventario in sola lettura per sito dei distinti di `tasks.area`, conteggi, null, stringhe vuote e varianti. Dove si approva un’estensione alle deviazioni, inventariare separatamente per sito e fonte: l’import proietta già `plc_area` come `area_code` (`server/planning-import.mjs:84–90`, `server/planning-import.mjs:115–124`). Conservare il valore disponibile a database esattamente com’è, con riferimento al record. Distinguere il dato persistito dal valore originario di un eventuale file sorgente.
-2. Proporre candidati con normalizzazione conservativa per il confronto: Unicode NFC, spazi esterni rimossi, sequenze di spazi ridotte e confronto senza distinzione di maiuscole dove appropriato. Conservare punteggiatura, zeri iniziali e accenti. Applicare ai codici esterni solo la regola concordata per la fonte. La chiave di ricerca serve a raggruppare candidati e non assegna un’identità.
-3. Far approvare al responsabile del sito la gerarchia e la mappa per sito e fonte, con regole versionate e deroghe per record. Una descrizione come «P1», un locale omonimo in più edifici o un valore che indica più zone resta da risolvere. Nessuno split automatico su separatori. Se manca il dettaglio, è lecito mappare al livello confermato. Null e vuoti restano senza luogo. Se un input riutilizzato cambia significato, non riapplicare la regola senza verificarne validità e contesto.
-4. Aggiungere modello e collegamenti compatibili in entrambe le basi dati tramite una futura coppia di migrazioni. Mantenere API e colonna `area` compatibili con i client esistenti. Attivare per sito dopo anteprima di candidati, confermati e irrisolti. Applicare a lotti idempotenti con registro di fonte, valore, regola, decisione, attore e UUID risultanti. Non sovrascrivere collocazioni inserite a mano o valori cambiati dopo l’anteprima. Misurare record e valori preservati, copertura, irrisolti e conflitti.
-5. Rollback operativo: disattivare nuove scritture e letture del modello per il sito, lasciando attive le viste legacy su `area`. Per annullare un lotto, staccare solo i collegamenti da esso creati ancora identici al risultato registrato. Isolare i conflitti e conservare nodi, asset, movimenti e riferimenti prodotti dopo l’attivazione. Verificare i conteggi prima di riattivare. Evitare rollback distruttivo dello schema durante la convivenza dei client.
+1. Carry out a read-only inventory, per site, of the distinct values of `tasks.area`, with counts, nulls, empty strings and variants. Where an extension to deviations is approved, inventory separately per site and source: the import already projects `plc_area` as `area_code` (`server/planning-import.mjs:84–90`, `server/planning-import.mjs:115–124`). Keep the value available in the database exactly as it is, with a reference to the record. Distinguish the persisted data from the original value of any source file.
+2. Propose candidates with conservative normalisation for comparison: Unicode NFC, leading and trailing spaces removed, sequences of spaces reduced, and case-insensitive comparison where appropriate. Keep punctuation, leading zeros and accents. Apply external codes only under the rule agreed for the source. The search key serves to group candidates and does not assign an identity.
+3. Have the site manager approve the hierarchy and the map per site and source, with versioned rules and record-level exceptions. A description such as “P1”, a room with the same name in several buildings, or a value indicating several zones remains to be resolved. No automatic splitting on separators. If detail is missing, it is acceptable to map at the confirmed level. Nulls and blanks remain without a place. If a reused input changes meaning, do not reapply the rule without verifying its validity and context.
+4. Add a compatible model and links to both databases through a future pair of migrations. Keep the API and the `area` column compatible with existing clients. Activate per site after a preview of candidates, confirmed and unresolved items. Apply in idempotent batches, with a log of source, value, rule, decision, actor and resulting UUIDs. Do not overwrite manually entered locations or values changed after the preview. Measure preserved records and values, coverage, unresolved items and conflicts.
+5. Operational rollback: disable new writes and reads of the model for the site, leaving the legacy views on `area` active. To cancel a batch, detach only the links it created that are still identical to the recorded result. Isolate conflicts and retain nodes, assets, movements and references produced after activation. Verify counts before reactivating. Avoid destructive schema rollback while clients coexist.
 
-Il loader registra le versioni eseguite in `schema_migrations` (`server/migrations/index.mjs:69–79`). Il numero della futura migrazione va scelto dal ramo di implementazione. La base qui osservata contiene già migrazioni fino alla 055 in entrambi i dialetti (`server/migrations/sqlite/055_demo_seed_environment.sql:1`, `server/migrations/pg/055_demo_seed_environment.sql:1`). Lo stato di un ambiente PostgreSQL si verifica con il massimo di `app.schema_migrations.version` in quell’ambiente.
+The loader records the executed versions in `schema_migrations` (`server/migrations/index.mjs:69–79`). The number of the future migration is to be chosen by the implementation branch. The base observed here already contains migrations up to 055 in both dialects (`server/migrations/sqlite/055_demo_seed_environment.sql:1`, `server/migrations/pg/055_demo_seed_environment.sql:1`). The state of a PostgreSQL environment is checked with the maximum of `app.schema_migrations.version` in that environment.
 
-## 6. API e interfaccia
+## 6. API and interface
 
-Contratti proposti. Il prefisso è `/api/sites/:siteId` e `:id` è un UUID del sito indicato. Le operazioni con effetto sullo storico sono transazionali. Usare una revisione per rifiutare scritture su dati superati e chiavi di idempotenza per creazioni o eventi ritentabili.
+Proposed contracts. The prefix is `/api/sites/:siteId`, and `:id` is a UUID of the indicated site. Operations with an effect on history are transactional. Use a revision to reject writes on superseded data, and idempotency keys for creations or retryable events.
 
-| Metodo | Percorso relativo | Scopo |
+| Method | Relative path | Purpose |
 | --- | --- | --- |
-| GET, POST | `/places` | Leggere albero, cercare per nome/codice, filtrare per padre e stato. Creare un nodo. |
-| GET, PATCH | `/places/:id` | Leggere scheda e percorso. Rinominare e gestire alias. |
-| POST | `/places/:id/moves`, `/places/:id/archive` | Spostare sottoalbero o archiviare con motivo e controlli. |
-| GET, POST | `/assets` | Cercare per tag, seriale, stato e sottoalbero. Registrare un asset. |
-| GET, PATCH | `/assets/:id` | Leggere la scheda e modificare i metadati, inclusa la garanzia. |
-| GET, POST | `/assets/:id/positions` | Leggere lo storico o registrare un trasferimento. |
-| POST | `/assets/:id/transitions` | Installare, sostituire con successore o dismettere, con data e motivo. |
-| GET | `/places/:id/history`, `/assets/:id/history` | Consultare le modifiche tracciate a luogo o asset. |
-| GET, PUT, DELETE | `/tasks/:id/location`, `/attachments/:id/location`, `/hse-inspections/:id/location` | Leggere, impostare e scollegare luogo e asset nel perimetro del record. Tracciare lo scollegamento. Per le attività, estendere anche la creazione esistente con riferimenti opzionali. |
-| GET, POST | `/place-mappings` | Consultare candidati e irrisolti. Approvare una versione della mappa. |
-| POST | `/place-backfills`, `/place-backfills/:id/rollback` | Anteprima o applicazione di un lotto approvato. Annullamento controllato del lotto. |
-| GET, POST, PATCH | `/defects` per elenco/creazione, `/defects/:id` per dettaglio/modifica | Contratto futuro del modulo difetti, con luogo e asset nella scheda. |
-| GET, POST | `/documents`, `/documents/:id/versions` | Contratto futuro per registro e versioni. |
-| GET, PUT | `/documents/:id/versions/:versionId/links` | Leggere o aggiornare il set di legami di una versione, con nuova versione quando già consegnata. |
-| GET, POST | `/handovers`, `/handovers/:id/revisions` | Contratto futuro per fascicoli e revisioni. |
-| POST | `/handovers/:id/revisions/:revisionId/issue` | Emettere e congelare una revisione. |
+| GET, POST | `/places` | Read the tree, search by name or code, filter by parent and status. Create a node. |
+| GET, PATCH | `/places/:id` | Read the record card and path. Rename and manage aliases. |
+| POST | `/places/:id/moves`, `/places/:id/archive` | Move a subtree or archive, with reason and checks. |
+| GET, POST | `/assets` | Search by tag, serial number, status and subtree. Register an asset. |
+| GET, PATCH | `/assets/:id` | Read the record card and edit metadata, including warranty. |
+| GET, POST | `/assets/:id/positions` | Read history or record a transfer. |
+| POST | `/assets/:id/transitions` | Install, replace with a successor or decommission, with date and reason. |
+| GET | `/places/:id/history`, `/assets/:id/history` | View tracked changes to a place or asset. |
+| GET, PUT, DELETE | `/tasks/:id/location`, `/attachments/:id/location`, `/hse-inspections/:id/location` | Read, set and unlink place and asset within the scope of the record. Track the unlinking. For tasks, also extend the existing creation with optional references. |
+| GET, POST | `/place-mappings` | View candidates and unresolved items. Approve a version of the map. |
+| POST | `/place-backfills`, `/place-backfills/:id/rollback` | Preview or apply an approved batch. Controlled cancellation of the batch. |
+| GET, POST, PATCH | `/defects` for list and creation, `/defects/:id` for detail and edit | Future contract for the defects module, with place and asset on the record card. |
+| GET, POST | `/documents`, `/documents/:id/versions` | Future contract for the register and its versions. |
+| GET, PUT | `/documents/:id/versions/:versionId/links` | Read or update the set of links of a version, with a new version when already delivered. |
+| GET, POST | `/handovers`, `/handovers/:id/revisions` | Future contract for dossiers and revisions. |
+| POST | `/handovers/:id/revisions/:revisionId/issue` | Issue and freeze a revision. |
 
-Schermate minime:
+Minimal screens:
 
-- **Selettore luogo** con ricerca per nome e codice, percorso completo per gli omonimi, scelta dell’asset facoltativa e valore legacy visibile quando manca la mappa. Usabile da tastiera e da mobile.
-- **Albero luoghi** con espansione, breadcrumb, filtri per tipo e stato, azioni secondo ruolo e riepilogo delle dipendenze prima di spostamento o archiviazione. Includere una vista di riconciliazione con anteprima del lotto.
-- **Scheda asset** con tag, seriale, posizione, stato, garanzia, documenti e storico delle posizioni. Mostrare riferimenti ai record dei moduli accessibili.
-- Etichette e messaggi in italiano e inglese. Nel primo rilascio gestire online anagrafiche e riconciliazione. La coda delle attività esiste già (`app/app.mjs:378–384`, `app/offline.mjs:166–194`). Il replay legacy con il solo `area` resta valido. Per eventuali ID accodati, rivalidare sito e stato al replay e mostrare il conflitto senza perdere il contenuto della richiesta.
+- **Place selector** with search by name and code, full path for same-named items, optional choice of asset, and the legacy value visible when the map is missing. Usable by keyboard and on mobile.
+- **Place tree** with expansion, breadcrumbs, filters by type and status, actions according to role, and a summary of dependencies before a move or archive. Include a reconciliation view with batch preview.
+- **Asset record card** with tag, serial number, position, status, warranty, documents and position history. Show references to records of the accessible modules.
+- Labels and messages in Italian and English. In the first release, manage master records and reconciliation online. The task queue already exists (`app/app.mjs:378–384`, `app/offline.mjs:166–194`). The legacy replay with only `area` remains valid. For any queued IDs, revalidate site and status on replay, and show the conflict without losing the content of the request.
 
-## 7. Permessi e ambienti demo
+## 7. Permissions and demo environments
 
-Oggi i ruoli di sito passano da `accessible_site_members`. I ruoli di modifica generali includono `owner`, `editor` e `demo_user`, mentre quelli di verifica includono `owner`, `verifier` e `demo_user` (`server/repository.mjs:90–101`). La vista esclude `demo_user` dagli account ordinari e limita gli account sandbox a siti sandbox con ruolo diverso da owner (`server/migrations/sqlite/051_demo_user.sql:44–48`). L’approvazione signup in modalità sandbox assegna `demo_user` sui siti marcati sandbox (`server/signup.mjs:62–70`).
+Today site roles pass through `accessible_site_members`. The general editing roles include `owner`, `editor` and `demo_user`, while verification roles include `owner`, `verifier` and `demo_user` (`server/repository.mjs:90–101`). The view excludes `demo_user` from ordinary accounts and limits sandbox accounts to sandbox sites with a role other than owner (`server/migrations/sqlite/051_demo_user.sql:44–48`). Sandbox-mode signup approval assigns `demo_user` on sites marked as sandbox (`server/signup.mjs:62–70`).
 
-| Ruolo | Regola proposta |
+| Role | Proposed rule |
 | --- | --- |
-| Owner | Crea, rinomina, sposta e archivia luoghi, gestisce alias, approva e annulla backfill. Esegue tutte le operazioni sugli asset del sito. |
-| Editor | Crea asset, aggiorna dati, installa, registra trasferimenti, sostituzioni e dismissioni. Collega record nei moduli per cui dispone del diritto di scrittura. |
-| Verifier e viewer | Consultano le anagrafiche del sito e i riferimenti visibili. Le operazioni di verifica continuano a seguire le regole del rispettivo modulo. |
-| Demo user | Simula operazioni di luogo e asset su dati sintetici, solo con account e sito sandbox consentiti. Niente interventi amministrativi sul backfill condiviso. |
+| Owner | Creates, renames, moves and archives places, manages aliases, approves and cancels backfills. Performs all operations on the site's assets. |
+| Editor | Creates assets, updates data, installs, records transfers, replacements and decommissionings. Links records in modules for which it has write rights. |
+| Verifier and viewer | View the site's master records and the visible references. Verification operations continue to follow the rules of the respective module. |
+| Demo user | Simulates place and asset operations on synthetic data, only with permitted sandbox accounts and sites. No administrative actions on the shared backfill. |
 
-Controllare ruolo, appartenenza al sito e permessi del modulo dal server a ogni richiesta. La scheda trasversale filtra anche risultati di ricerca, conteggi e download. Conservare audit di mutazioni, collegamenti e azioni del backfill. Valutare con l’owner su quali siti sandbox condivisi attivare le operazioni di spostamento e archiviazione. La demo usa cataloghi e file sintetici in conformità alle indicazioni esistenti (`README.md:66–68`).
+Check role, site membership and module permissions on the server at every request. The cross-cutting record card also filters search results, counts and downloads. Retain the audit of mutations, links and backfill actions. Agree with the owner which shared sandbox sites should enable move and archive operations. The demo uses synthetic catalogues and files, in line with existing guidance (`README.md:66–68`).
 
-## 8. Criteri di accettazione e test negativi
+## 8. Acceptance criteria and negative tests
 
-| Prova | Esito verificabile |
+| Test | Verifiable outcome |
 | --- | --- |
-| Rinomina e spostamento | Gli UUID e i collegamenti restano invariati. I filtri usano il nuovo percorso. Il fascicolo già emesso e le evidenze storiche mostrano il percorso registrato. |
-| Ciclo | Spostare un luogo sotto sé stesso o un proprio discendente restituisce `409`. Anche due spostamenti concorrenti incompatibili non possono lasciare un ciclo. |
-| Padri o asset cross-site | Un padre, un luogo o un asset di un altro sito produce `422` per un conflitto tra riferimenti visibili, oppure `404` quando il riferimento non è accessibile. Nessuna mutazione parziale. |
-| Cancellazione con riferimenti | La rimozione fisica di un luogo o asset referenziato viene respinta. Archiviare un luogo occupato da un asset attivo o con figli attivi restituisce `409`. Con soli riferimenti storici l’archiviazione conserva la consultazione e il nodo sparisce dai selettori. |
-| Codice duplicato | Due alias canonici identici nello stesso sito e namespace producono `409`, anche con richieste concorrenti. Lo stesso valore in namespace diversi è ammesso. Due asset attivi con stesso tag nel sito producono `409`. |
-| Ciclo di vita asset | Installazione priva di luogo e intervallo, garanzia con date invertite o transizione invalida vengono respinti. Un trasferimento lascia un solo intervallo aperto. La sostituzione preserva documenti e seriale del predecessore. |
-| Migrazione e rollback | Null, vuoti e varianti restano recuperabili. Gli omonimi ambigui restano irrisolti. Ripetere il lotto genera zero duplicati. L’annullamento preserva le modifiche manuali posteriori e i record creati durante l’adozione. |
-| Compatibilità | Un client preesistente crea e mostra l’attività con `area`. Un replay ripetuto con la stessa chiave non duplica l’attività. I controlli HSE e l’accesso agli allegati continuano a funzionare con i riferimenti originari. |
-| Permessi | Un viewer non può effettuare mutazioni. Un demo user non può scrivere su siti ordinari. Un utente privo di accesso al modulo d’origine non ottiene file, risultati o conteggi per vie indirette. |
+| Rename and move | UUIDs and links remain unchanged. Filters use the new path. The dossier already issued and the historical evidence show the recorded path. |
+| Cycle | Moving a place under itself or under one of its descendants returns `409`. Even two concurrent, incompatible moves cannot leave a cycle. |
+| Cross-site parents or assets | A parent, place or asset from another site produces `422` for a conflict between visible references, or `404` when the reference is not accessible. No partial mutation. |
+| Deletion with references | Physical removal of a referenced place or asset is rejected. Archiving a place occupied by an active asset, or with active children, returns `409`. With only historical references, archiving keeps the place viewable and the node disappears from selectors. |
+| Duplicate code | Two identical canonical aliases in the same site and namespace produce `409`, even with concurrent requests. The same value in different namespaces is admitted. Two active assets with the same tag in the site produce `409`. |
+| Asset lifecycle | Installation without place and interval, warranty with inverted dates, or an invalid transition is rejected. A transfer leaves only one open interval. Replacement preserves the predecessor's documents and serial number. |
+| Migration and rollback | Nulls, blanks and variants remain recoverable. Ambiguous same-named items remain unresolved. Repeating the batch generates zero duplicates. Cancellation preserves later manual changes and the records created during adoption. |
+| Compatibility | A pre-existing client creates and displays the task with `area`. A repeated replay with the same key does not duplicate the task. HSE checks and attachment access continue to work with the original references. |
+| Permissions | A viewer cannot make mutations. A demo user cannot write on ordinary sites. A user without access to the originating module gets no files, results or counts by indirect routes. |
 
-Eseguire i casi di vincolo e concorrenza sia su SQLite sia su PostgreSQL. Serializzare per sito le mutazioni dell’albero nella stessa transazione che verifica eventuali cicli. Proteggere anche movimenti, archiviazioni e revisioni emesse dalle scritture concorrenti. SQLite attiva già il controllo delle chiavi esterne (`server/db.mjs:16`).
+Run the constraint and concurrency cases on both SQLite and PostgreSQL. Serialise tree mutations per site within the same transaction that checks for cycles. Also protect movements, archiving and issued revisions from concurrent writes. SQLite already enables foreign key checking (`server/db.mjs:16`).
 
-## 9. Rischi, fuori scope e decisioni dell’owner
+## 9. Risks, out of scope and owner decisions
 
-| Rischio | Controllo previsto |
+| Risk | Planned control |
 | --- | --- |
-| Mappa errata o codici riutilizzati | Anteprima, conferma e provenienza per ogni collegamento. Conservazione del valore originale. |
-| Confusione fra posizione attuale e posizione del fatto | Intervalli espliciti, percorso storico e perimetro congelato alla consegna. |
-| Esposizione di dati da viste trasversali | Controlli per sito e modulo anche su conteggi, documenti e allegati. |
-| Crescita dell’albero e ambiguità fra dialetti | Indici per sito, padre e riferimenti, controlli nell’API e vincoli equivalenti nei due database. |
-| Confusione fra bene HSE, posizione funzionale e asset installato | Identificatori distinti e corrispondenze esplicite con storico. |
+| Wrong map or reused codes | Preview, confirmation and provenance for every link. Retention of the original value. |
+| Confusion between current position and position at the time of the fact | Explicit intervals, historical path and perimeter frozen at handover. |
+| Data exposure from cross-cutting views | Site and module controls also applied to counts, documents and attachments. |
+| Growth of the tree and differences between dialects | Indexes per site, parent and references; checks in the API and equivalent constraints in the two databases. |
+| Confusion between HSE item, functional position and installed asset | Distinct identifiers and explicit correspondences with history. |
 
-Fuori scope per il primo rilascio: BIM/GIS e geometrie, sincronizzazione o modifica dei sistemi sorgente, pianificazione manutentiva e ricambi, firma digitale, automazione delle scadenze di garanzia, trasferimenti fra siti e classificazione automatica delle foto.
+Out of scope for the first release: BIM/GIS and geometries, synchronisation or modification of source systems, maintenance planning and spare parts, digital signature, automation of warranty deadlines, transfers between sites, and automatic classification of photos.
 
-Decisioni da approvare con l’owner:
+Decisions to approve with the owner:
 
-1. Confermare livelli omissibili, un’unica posizione primaria e copertura di aree esterne, opere lineari e lavorazioni su più zone.
-2. Stabilire autorità dei codici, regole per namespace e maiuscole, politica di riciclo tag e categorie con seriale obbligatorio.
-3. Nominare chi approva la mappa per sito e definire la soglia operativa degli irrisolti per l’attivazione.
-4. Stabilire se rilasciare per primi albero, registro, attività e allegati, e quando finanziare difetti, documenti e handover. Decidere il perimetro delle integrazioni con deviazioni e HSE.
-5. Approvare permessi di editor e demo user, profondità dell’audit, conservazione dei fascicoli e vincoli contrattuali sulla garanzia.
+1. Confirm omissible levels, a single primary position, and coverage of external areas, linear works and works spanning several zones.
+2. Establish code authority, rules for namespaces and case, the tag recycling policy, and the categories with mandatory serial number.
+3. Name who approves the map per site, and define the operational threshold for unresolved items before activation.
+4. Decide whether to release the tree, register, tasks and attachments first, and when to fund defects, documents and handover. Decide the scope of the integrations with deviations and HSE.
+5. Approve editor and demo user permissions, audit depth, dossier retention and the contractual constraints on warranty.
 
-## 10. Stato di implementazione (27 novembre 2026)
+## 10. Implementation status (27 November 2026)
 
-Questa sezione distingue ciò che è in produzione da ciò che resta una proposta. Le sezioni precedenti descrivono il modello completo e vanno lette come specifica, non come resoconto.
+This section distinguishes what is in production from what remains a proposal. The previous sections describe the complete model and should be read as a specification, not as a report.
 
-**Consegnato**
+**Delivered**
 
-- Incremento 2a (`4b99bf2`): albero dei luoghi con breadcrumb e filtri, selettore luogo riutilizzabile, rotte `GET`/`PATCH` `/api/places/:id`, `POST /api/places/:id/moves`, `/archive`, `GET /api/places/:id/history`, spostamento transazionale con rifiuto dei cicli e archivio con controllo delle dipendenze.
-- Incremento 2b (`0264c98`): `GET /api/assets/:id` con posizione corrente, garanzia e conteggio storico; `GET /api/assets/:id/positions`; filtri `tag`, `serial`, `status` e `placeId` come sottoalbero su `GET /api/assets`; vista operativa con ricerca, scheda, storico e azioni per ruolo.
+- Increment 2a (`4b99bf2`): place tree with breadcrumbs and filters, reusable place selector, routes `GET`/`PATCH` `/api/places/:id`, `POST /api/places/:id/moves`, `/archive`, `GET /api/places/:id/history`, transactional move with cycle rejection, and archive with dependency check.
+- Increment 2b (`0264c98`): `GET /api/assets/:id` with current position, warranty and history count; `GET /api/assets/:id/positions`; filters `tag`, `serial`, `status` and `placeId` as subtree on `GET /api/assets`; operational view with search, record card, history and role-based actions.
 
-**Non ancora implementato**
+**Not yet implemented**
 
-- Collegamento predecessore→successore nella sostituzione: oggi `replaced` è solo uno stato terminale. Richiede una migrazione additiva.
-- Rotta `POST /api/assets/:id/transitions`: le transizioni usano le rotte esistenti `PATCH /api/assets/:id`, `POST /api/assets/:id/move` e `POST /api/assets/:id/archive`.
-- `GET /api/assets/:id/history` come elenco dedicato delle modifiche tracciate: l'audit esiste, la rotta no.
-- Collegamenti con attività, allegati e ispezioni HSE (`/tasks/:id/location` e simili), alias tipizzati dei luoghi, mappe e backfill.
+- Predecessor→successor link in replacement: today `replaced` is only a terminal state. It requires an additive migration.
+- Route `POST /api/assets/:id/transitions`: transitions use the existing routes `PATCH /api/assets/:id`, `POST /api/assets/:id/move` and `POST /api/assets/:id/archive`.
+- `GET /api/assets/:id/history` as a dedicated list of tracked changes: the audit exists, the route does not.
+- Links with tasks, attachments and HSE inspections (`/tasks/:id/location` and similar), typed place aliases, maps and backfills.

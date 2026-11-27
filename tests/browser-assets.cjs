@@ -1,6 +1,6 @@
-// Verifica browser della schermata Asset (incremento 2b).
-// Stesso bootstrap di tests/browser-places.cjs: server in memoria, fixtures demo,
-// guscio dell'app servito dal disco con allowlist esplicita.
+// Browser check of the Assets screen (increment 2b).
+// Same bootstrap as tests/browser-places.cjs: in-memory server, demo fixtures,
+// app shell served from disk with an explicit allowlist.
 // Uso: NODE_PATH=<deps> node tests/browser-assets.cjs
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
@@ -69,7 +69,7 @@ async function signIn(page, role, site) {
   await page.waitForFunction(() => !document.querySelector('#site-select').disabled);
 }
 
-// Crea luoghi e asset con la sessione reale della pagina, se non ci sono gia'.
+// Creates places and assets with the page's real session, if they are not there yet.
 async function seedAssets(page, siteId) {
   return page.evaluate(async siteId => {
     const get = (url) => fetch(url).then(r => r.json());
@@ -114,30 +114,30 @@ async function main() {
       try {
         await signIn(page, 'owner', env.site);
         const seeded = await seedAssets(page, env.site.id);
-        assert.ok(seeded.assets >= 2, `Asset non creati: ${JSON.stringify(seeded)}`);
+        assert.ok(seeded.assets >= 2, `Assets not created: ${JSON.stringify(seeded)}`);
 
         await page.evaluate(() => { location.hash = '#assets'; });
         await page.waitForFunction(() => location.hash === '#assets');
         await page.locator('.assets-view').waitFor({ state: 'attached' });
         await page.locator('[data-asset-open]').first().waitFor({ state: 'attached' });
 
-        // 1. Elenco completo.
+        // 1. Full list.
         const listed = await page.locator('[data-asset-open]').count();
-        assert.ok(listed >= 2, `Elenco asset incompleto a ${viewport.width}px: ${listed}`);
+        assert.ok(listed >= 2, `Asset list incomplete at ${viewport.width}px: ${listed}`);
 
-        // 2. Ricerca: filtro per tag restringe i risultati.
+        // 2. Search: the tag filter narrows the results.
         await page.locator('[name=assetSearch]').fill('PUMP-02');
         const narrowed = await page.locator('[data-asset-open]').count();
-        assert.equal(narrowed, 1, `Ricerca non filtra a ${viewport.width}px: ${narrowed}`);
+        assert.equal(narrowed, 1, `Search does not filter at ${viewport.width}px: ${narrowed}`);
         await page.locator('[name=assetSearch]').fill('');
 
-        // 3. Filtro per stato.
+        // 3. Status filter.
         await page.selectOption('[name=assetStatus]', 'planned');
         const planned = await page.locator('[data-asset-open]').count();
-        assert.equal(planned, 1, `Filtro stato non applicato: ${planned}`);
+        assert.equal(planned, 1, `Status filter not applied: ${planned}`);
         await page.selectOption('[name=assetStatus]', '');
 
-        // 4. Scheda con storico posizioni: apri il primo asset installato.
+        // 4. Record with location history: open the first installed asset.
         const installedRow = page.locator('[data-asset-open]', { hasText: 'PUMP-01' }).first();
         await installedRow.click();
         const detail = page.locator('[data-asset-detail]');
@@ -145,42 +145,42 @@ async function main() {
         const detailText = await detail.innerText();
         if (process.env.SA_DEBUG) console.log('DETAIL>>>', detailText.replace(/\n/g, ' | ').slice(0, 800));
         for (const expected of ['SN-1001', 'Acme', 'X200', 'Edificio A', seeded.roomName]) {
-          assert.ok(detailText.includes(expected), `Scheda priva di «${expected}» a ${viewport.width}px`);
+          assert.ok(detailText.includes(expected), `Record missing «${expected}» at ${viewport.width}px`);
         }
         const historyItems = await detail.locator('.places-history li').count();
-        assert.ok(historyItems >= 1, `Storico posizioni vuoto a ${viewport.width}px`);
+        assert.ok(historyItems >= 1, `Location history empty at ${viewport.width}px`);
 
-        // 5. Azioni per ruolo: un owner vede i pulsanti, un viewer no.
+        // 5. Actions per role: an owner sees the buttons, a viewer does not.
         const ownerActions = await detail.locator('[data-asset-action]').count();
-        assert.ok(ownerActions >= 1, `Owner senza azioni a ${viewport.width}px`);
+        assert.ok(ownerActions >= 1, `Owner without actions at ${viewport.width}px`);
 
-        // 6. Dialogo di dismissione con motivo obbligatorio (senza inviare).
+        // 6. Decommission dialog with a mandatory reason (without submitting).
         await page.locator('[data-asset-action=decommission]').click();
         const dialog = page.locator('dialog.assets-dialog[open]');
         await dialog.waitFor({ state: 'attached' });
         const submit = dialog.locator('button[type=submit]');
         await submit.click();
-        // Il motivo e' obbligatorio: la validazione nativa blocca l'invio, il dialogo resta aperto
-        // e l'asset non cambia stato.
-        assert.ok(await dialog.isVisible(), `Dismissione senza motivo ha chiuso il dialogo a ${viewport.width}px`);
+        // The reason is mandatory: native validation blocks the submit, the dialog stays open
+        // and the asset does not change status.
+        assert.ok(await dialog.isVisible(), `Decommission without a reason closed the dialog at ${viewport.width}px`);
         const statusAfter = await page.evaluate(async siteId => {
           const list = await fetch(`/api/assets?siteId=${siteId}`).then(r => r.json());
           return (list.find(a => a.tag === 'PUMP-01') || {}).status;
         }, env.site.id);
-        assert.equal(statusAfter, 'installed', `Stato cambiato senza motivo: ${statusAfter}`);
+        assert.equal(statusAfter, 'installed', `Status changed without a reason: ${statusAfter}`);
         await dialog.locator('[data-asset-cancel]').click();
         await dialog.waitFor({ state: 'detached' }).catch(() => {});
         await page.locator('dialog.assets-dialog:not([open])').waitFor({ state: 'attached' }).catch(() => {});
 
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-        assert.ok(overflow <= 0, `Overflow orizzontale ${overflow}px a ${viewport.width}px`);
-        assert.deepEqual(errors, [], `Errori di pagina: ${errors.join(' | ')}`);
+        assert.ok(overflow <= 0, `Horizontal overflow ${overflow}px at ${viewport.width}px`);
+        assert.deepEqual(errors, [], `Page errors: ${errors.join(' | ')}`);
         await page.screenshot({ path: `/tmp/assets-${viewport.width}.png`, fullPage: false });
-        report.push(`PASS ${viewport.width}px: ${listed} asset, 1 dopo ricerca, scheda con ${historyItems} posizioni, ${ownerActions} azioni, nessun overflow, nessun errore JS`);
+        report.push(`PASS ${viewport.width}px: ${listed} assets, 1 after search, record with ${historyItems} locations, ${ownerActions} actions, no overflow, no JS errors`);
       } finally { await context.close(); }
     }
 
-    // 7. Un viewer non deve vedere azioni di mutazione.
+    // 7. A viewer must not see mutation actions.
     {
       const { page, context, errors } = await openSession(env, { width: 1440, height: 900 });
       try {
