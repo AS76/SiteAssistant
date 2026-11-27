@@ -1,533 +1,533 @@
-# Identificazione QR, stampa etichette e inventario fisico
+# QR identification, label printing and physical inventory
 
-Proposta per SiteAssistant, verificata su `origin/main` al commit `0e44e3c`. Il comportamento futuro descritto qui richiede implementazione e approvazione. Le osservazioni sullo stato attuale riportano i riferimenti al checkout. Card di riferimento: *QR Identification & Inventory* nel Workboard interno.
+Proposal for SiteAssistant, verified against `origin/main` at commit `0e44e3c`. The future behaviour described here requires implementation and approval. Observations about the current state refer to the checkout. Reference card: *QR Identification & Inventory* on the internal Workboard.
 
-Questa specifica nasce da un'esigenza operativa maturata con InsiteLMS: in cantiere e in magazzino l'etichetta fisica è il modo con cui un oggetto viene ritrovato, non un accessorio grafico. La specifica **non** autorizza implementazione e **non** anticipa gli incrementi Luoghi e Asset 2a e 2b, che restano prioritari e invariati.
+This specification arises from an operational need that emerged with InsiteLMS: on site and in the warehouse, the physical label is how an object is found again, not a graphic accessory. The specification does **not** authorise implementation and does **not** anticipate the Places and Assets 2a and 2b increments, which remain priority and unchanged.
 
-Le decisioni di prodotto sono state approvate dall'owner il 27/11/2026 e sono recepite integralmente nel testo; quanto resta aperto è elencato in §14.
+The product decisions were approved by the owner on 27/11/2026 and are incorporated in full in the text; what remains open is listed in §14.
 
-## 1. Problema e casi d'uso
+## 1. Problem and use cases
 
-Oggi un asset installato si ritrova cercando per tag, un'attrezzatura per nome o codice, un articolo di una fornitura scorrendo righe d'ordine. Funziona finché si è davanti a uno schermo. Sul posto l'oggetto è davanti e lo schermo no: la ricerca manuale introduce errori di battitura, omonimie e, nelle verifiche, contestazioni difficili da chiudere.
+Today an installed asset is found by searching by tag, an item of equipment by name or code, a supply item by scrolling through order lines. This works as long as you are in front of a screen. On site the object is in front of you and the screen is not: manual search introduces typing errors, homonyms and, during checks, disputes that are hard to close.
 
-Gli esempi seguenti sono scenari illustrativi, senza dati o record di SiteAssistant.
+The scenarios below are illustrative, with no data or records from SiteAssistant.
 
-| Contesto | Operazione e risultato atteso |
+| Context | Operation and expected result |
 | --- | --- |
-| Collaudo | Il tecnico inquadra l'etichetta del quadro elettrico e arriva alla scheda dell'asset, con posizione, garanzia e storico. Non digita nulla. |
-| Consegna materiali | All'arrivo del bancale il caposquadra inquadra l'etichetta del collo e vede a quale ordine appartiene e cosa è già stato ricevuto. |
-| Attrezzatura | Il preposto prende in carico un trapano a percussione: la scansione apre l'attrezzatura e propone la registrazione d'uso, non un modulo generico. |
-| Verifica HSE | L'ispettore inquadra l'asset e arriva alla scheda, dove la storia delle verifiche HSE è un capitolo dell'asset, non un registro parallelo. |
-| Inventario | A fine cantiere si percorrono le aree inquadando etichette in sequenza. Il sistema segnala ciò che non è stato visto, ciò che è stato visto due volte e ciò che si trova in un'area diversa da quella attesa. |
-| Handover | Il fascicolo di consegna cita gli asset per identificativo stabile, non per nome: rinominare un locale o un articolo non rompe i riferimenti. |
+| Acceptance test | The technician scans the label on the electrical panel and reaches the asset record, with location, warranty and history. Nothing is typed. |
+| Material delivery | On arrival of the pallet, the crew leader scans the parcel label and sees which order it belongs to and what has already been received. |
+| Equipment | The supervisor takes charge of a hammer drill: the scan opens the equipment and proposes a usage record, not a generic form. |
+| HSE check | The inspector scans the asset and reaches the record, where the history of HSE checks is a chapter of the asset, not a parallel register. |
+| Inventory | At the end of the site work, areas are walked through scanning labels in sequence. The system reports what has not been seen, what has been seen twice and what is in an area other than the expected one. |
+| Handover | The handover dossier cites assets by stable identifier, not by name: renaming a room or an item does not break the references. |
 
-## 2. Stato verificato del prodotto
+## 2. Verified product state
 
-Nessuna parte di questa funzionalità esiste oggi. Le fondamenta utili però sono in `main`.
+None of this functionality exists today. The useful foundations, however, are in `main`.
 
-| Elemento | Stato verificato | Riferimento |
+| Element | Verified state | Reference |
 | --- | --- | --- |
-| Asset installati | Tabella `assets` con `id` UUID, `site_id`, `tag`, stato `planned/installed/replaced/decommissioned`, seriale, garanzia. Tag univoco nel sito **solo fra i record non archiviati**. | `server/migrations/sqlite/057_places_assets.sql` |
-| Posizioni | `asset_positions` con intervalli semiaperti, un solo intervallo aperto per asset, `recorded_path` congelato. | `057_places_assets.sql` |
-| Luoghi | `places` con UUID, `site_id`, padre, tipo `building/floor/zone/room`, archiviazione logica. **Nessun alias**: né tabella né colonna. | `057_places_assets.sql`; `server/places.mjs:84-102` |
-| Attrezzature | Tabella `tools` con `id` UUID, `name`, `code`, `company`, stato, **`location` come testo libero**. | `server/migrations/sqlite/018_tools.sql` |
-| Beni HSE | `hse_assets` con `kind` `tool/site_work/ppe`, `code`, e `tool_id` facoltativo verso `tools`. | `server/migrations/sqlite/029_hse_assets.sql` |
-| Materiali | **Nessuna anagrafica.** Solo `material_no` come testo su `purchase_order_items` e `package_items`. | `032_purchase_orders.sql`, `033_packages.sql` |
-| Spedizioni | `shipments`, `shipment_packages`, `shipment_receipts` con quantità ricevute per riga d'ordine. | `034_shipments.sql` |
-| API esposte | `GET/POST /api/places` e `GET/POST /api/assets`. Le rotte di dettaglio, `moves`, `positions` e `transitions` mancano: sono oggetto di 2a e 2b. | `server/http.mjs:541-550` |
-| Allegati | `attachmentTables` copre `task`, `diary`, `site`, `hse_event`, `hse_inspection`, `deviation`. **Non** copre `asset` né `place`. | `server/repository.mjs:680-681` |
-| Moduli di accesso | `MODULES` in `server/module-access.mjs:4-7`. Non esiste un modulo per identificazione, luoghi o asset: oggi l'accesso passa dal solo ruolo di sito. | `server/module-access.mjs` |
-| Dipendenze runtime | Solo `pg` e `@simplewebauthn/server`. Nessuna libreria QR, barcode, PDF o stampa. | `package.json` |
-| Coda offline | Tipi `create_task`, `transition_task`, `create_diary`, `create_attachment`. Nessuna operazione di inventario. | `app/offline.mjs:6` |
-| Idempotenza | Header `Idempotency-Key` già ammesso dal gateway HTTP. | `server/http.mjs:238` |
+| Installed assets | Table `assets` with UUID `id`, `site_id`, `tag`, status `planned/installed/replaced/decommissioned`, serial number, warranty. Tag unique within the site **only among non-archived records**. | `server/migrations/sqlite/057_places_assets.sql` |
+| Positions | `asset_positions` with half-open intervals, one open interval per asset, `recorded_path` frozen. | `057_places_assets.sql` |
+| Places | `places` with UUID, `site_id`, parent, type `building/floor/zone/room`, logical archiving. **No aliases**: neither table nor column. | `057_places_assets.sql`; `server/places.mjs:84-102` |
+| Equipment | Table `tools` with UUID `id`, `name`, `code`, `company`, status, **`location` as free text**. | `server/migrations/sqlite/018_tools.sql` |
+| HSE assets | `hse_assets` with `kind` `tool/site_work/ppe`, `code`, and optional `tool_id` referring to `tools`. | `server/migrations/sqlite/029_hse_assets.sql` |
+| Materials | **No master record.** Only `material_no` as text on `purchase_order_items` and `package_items`. | `032_purchase_orders.sql`, `033_packages.sql` |
+| Shipments | `shipments`, `shipment_packages`, `shipment_receipts` with quantities received per order line. | `034_shipments.sql` |
+| Exposed APIs | `GET/POST /api/places` and `GET/POST /api/assets`. The detail, `moves`, `positions` and `transitions` routes are missing: they are the subject of 2a and 2b. | `server/http.mjs:541-550` |
+| Attachments | `attachmentTables` covers `task`, `diary`, `site`, `hse_event`, `hse_inspection`, `deviation`. It does **not** cover `asset` or `place`. | `server/repository.mjs:680-681` |
+| Access modules | `MODULES` in `server/module-access.mjs:4-7`. There is no module for identification, places or assets: today access depends only on the site role. | `server/module-access.mjs` |
+| Runtime dependencies | Only `pg` and `@simplewebauthn/server`. No QR, barcode, PDF or printing library. | `package.json` |
+| Offline queue | Types `create_task`, `transition_task`, `create_diary`, `create_attachment`. No inventory operation. | `app/offline.mjs:6` |
+| Idempotency | `Idempotency-Key` header already accepted by the HTTP gateway. | `server/http.mjs:238` |
 
-Conseguenza diretta: la funzionalità QR si può progettare e, per asset e attrezzature, implementare appena 2a e 2b sono in `main`. L'identificazione dei **materiali** dipende invece dal modulo Site Materials & Inventory, specificato separatamente in `docs/site-materials-inventory.md`.
+Direct consequence: the QR functionality can be designed and, for assets and equipment, implemented as soon as 2a and 2b are in `main`. Identification of **materials**, on the other hand, depends on the Site Materials & Inventory module, specified separately in `docs/site-materials-inventory.md`.
 
-## 3. Identità degli oggetti
+## 3. Object identity
 
-### 3.1 Regola dell'identità unica
+### 3.1 Single identity rule
 
-Un singolo oggetto fisico ha **una** identità permanente e **un solo** identificativo QR canonico. Due registri possono descrivere lo stesso oggetto, ma non possono possederne due identità.
+A single physical object has **one** permanent identity and **only one** canonical QR identifier. Two registers may describe the same object, but they cannot each own an identity.
 
-| Dominio | Registro autorevole | Ruolo degli altri registri | Identità QR |
+| Domain | Authoritative register | Role of the other registers | QR identity |
 | --- | --- | --- | --- |
-| Attrezzature e utensili | **`tools` (018)** | `hse_assets` gestisce verifiche, idoneità e informazioni di sicurezza, senza duplicare l'identità; il collegamento esiste già come `hse_assets.tool_id` | Sull'UUID di `tools` |
-| Asset installati | **`assets` (057)** | Se un asset è soggetto a verifiche HSE, il bene HSE referenzia l'asset e ne gestisce i controlli, senza nuova identità | Sull'UUID di `assets` |
-| Articoli e materiali | **`stock_items` / istanze** del modulo Site Materials & Inventory (non ancora esistente) | `purchase_order_items` e `package_items` restano righe documentali, non anagrafiche | Sull'UUID dell'articolo o dell'istanza |
-| Beni HSE senza controparte | **`hse_assets`** | — | Sull'UUID di `hse_assets` |
+| Equipment and tools | **`tools` (018)** | `hse_assets` manages checks, fitness and safety information, without duplicating the identity; the link already exists as `hse_assets.tool_id` | On the UUID of `tools` |
+| Installed assets | **`assets` (057)** | If an asset is subject to HSE checks, the HSE asset refers to the asset and manages its controls, without a new identity | On the UUID of `assets` |
+| Items and materials | **`stock_items` / instances** of the Site Materials & Inventory module (not yet existing) | `purchase_order_items` and `package_items` remain document lines, not master records | On the UUID of the item or instance |
+| HSE assets with no counterpart | **`hse_assets`** | — | On the UUID of `hse_assets` |
 
-Conseguenze operative:
+Operational consequences:
 
-- L'etichetta si applica al registro autorevole. Se lo stesso trapano compare in `tools` e in `hse_assets`, l'unica etichetta porta l'UUID di `tools`; la scheda HSE si raggiunge dalla scheda dell'attrezzatura, non da una seconda etichetta.
-- L'estensione del principio agli asset installati richiede che `hse_assets` possa riferire un `asset_id`, simmetricamente a quanto già avviene con `tool_id`. È una modifica di schema, quindi un **incremento dedicato approvato dall'owner il 27/11/2026**, non un effetto collaterale di questa specifica.
-- Finché quella modifica non esiste, un asset con verifiche HSE non può che essere registrato come bene HSE separato: il rischio di doppia etichetta è reale e va gestito con una regola operativa esplicita (l'owner indica quale dei due è autoritativo per il cantiere in corso), non ignorato.
+- The label is applied to the authoritative register. If the same drill appears in `tools` and in `hse_assets`, the single label carries the UUID of `tools`; the HSE record is reached from the equipment record, not from a second label.
+- Extending the principle to installed assets requires that `hse_assets` can refer to an `asset_id`, symmetrically to what already happens with `tool_id`. This is a schema change, hence a **dedicated increment approved by the owner on 27/11/2026**, not a side effect of this specification.
+- Until that change exists, an asset with HSE checks can only be registered as a separate HSE asset: the risk of a double label is real and must be managed with an explicit operational rule (the owner indicates which of the two is authoritative for the site in progress), not ignored.
 
-### 3.2 Meccanismo condiviso, nessuna anagrafica universale
+### 3.2 Shared mechanism, no universal master record
 
-Ciò che si condivide è **solo il livello di identificazione**: un payload, una risoluzione, un comportamento di scansione. Non si introduce un registro centrale delle etichette né una tabella universale di oggetti.
+What is shared is **only the identification layer**: a payload, a resolution, a scanning behaviour. No central register of labels and no universal object table is introduced.
 
-- Il livello di identificazione non crea record in nessuna anagrafica e non duplica nome, descrizione o ubicazione: il QR punta a un record che vive nel modulo proprietario.
-- Il tipo di entità è tipizzato (`asset`, `tool`, `hse_asset`, in futuro `stock_item`, `material_instance`). Chiavi e controlli seguono l'impostazione già proposta per i collegamenti di modulo in `docs/places-and-assets.md` §4: `site_id` più UUID, con vincoli che includono il sito.
-- Aggiungere un tipo di entità è un'estensione dell'elenco, non la creazione di un'anagrafica.
+- The identification layer creates no record in any master record and does not duplicate name, description or location: the QR points to a record that lives in the owning module.
+- The entity type is typed (`asset`, `tool`, `hse_asset`, in future `stock_item`, `material_instance`). Keys and controls follow the approach already proposed for module links in `docs/places-and-assets.md` §4: `site_id` plus UUID, with constraints that include the site.
+- Adding an entity type is an extension of the list, not the creation of a master record.
 
-### 3.3 Riconciliazione dei beni HSE non collegati
+### 3.3 Reconciliation of unlinked HSE assets
 
-`tools` resta il registro autorevole delle attrezzature. Restano però record in `hse_assets` con `tool_id` nullo, creati prima che il collegamento esistesse o da flussi diversi. **Decisione dell'owner (27/11/2026): riconciliazione esplicita con verifica dell'identità fisica, nessuna associazione dedotta da nome o descrizione.**
+`tools` remains the authoritative register of equipment. However, there are still records in `hse_assets` with a null `tool_id`, created before the link existed or from different flows. **Owner decision (27/11/2026): explicit reconciliation with verification of physical identity, no association inferred from name or description.**
 
-| Passo | Regola |
+| Step | Rule |
 | --- | --- |
-| 1. Candidati | Il sistema propone possibili corrispondenze per somiglianza di nome, codice o categoria, **come suggerimento da verificare**, mai come decisione |
-| 2. Verifica fisica | Chi riconcilia conferma l'identità dell'oggetto: targhetta, seriale, posizione, riscontro visivo. La somiglianza del nome non è una prova |
-| 3. Collegamento | Si valorizza `hse_assets.tool_id` verso l'attrezzatura, con autore, istante e motivazione |
-| 4. Nessuna fusione | Non si fondono i due record né si cancellano: il bene HSE conserva la sua storia di verifiche, l'attrezzatura la sua identità |
-| 5. Etichetta | Prima della riconciliazione un bene HSE non collegato può avere una propria etichetta; dopo la riconciliazione resta **una sola etichetta autoritativa** e la seconda viene ritirata, non riassegnata |
-| 6. Rifiuto esplicito | Se la verifica fisica non conferma la corrispondenza, la proposta si chiude come respinta e resta tracciata |
+| 1. Candidates | The system proposes possible matches by similarity of name, code or category, **as a suggestion to be verified**, never as a decision |
+| 2. Physical verification | Whoever reconciles confirms the identity of the object: nameplate, serial number, location, visual check. Name similarity is not proof |
+| 3. Link | `hse_assets.tool_id` is set to the equipment, with author, timestamp and rationale |
+| 4. No merge | The two records are neither merged nor deleted: the HSE asset keeps its history of checks, the equipment keeps its identity |
+| 5. Label | Before reconciliation an unlinked HSE asset may have its own label; after reconciliation there remains **one authoritative label** and the second is withdrawn, not reassigned |
+| 6. Explicit rejection | If the physical check does not confirm the match, the proposal is closed as rejected and remains traced |
 
-Un'associazione automatica basata su nomi o descrizioni è esclusa: due trapani identici dello stesso modello sono due oggetti, e solo la targa o il seriale lo dicono.
+An automatic association based on names or descriptions is excluded: two identical drills of the same model are two objects, and only the plate or the serial number says so.
 
-## 4. Identificatore permanente
+## 4. Permanent identifier
 
-### 4.1 Payload canonico
+### 4.1 Canonical payload
 
-Il payload è un URN versionato, leggibile e autosufficiente:
+The payload is a versioned, readable and self-contained URN:
 
 ```
 urn:siteassistant:entity:1:<uuid>
 ```
 
-| Requisito dell'owner | Come è soddisfatto |
+| Owner requirement | How it is met |
 | --- | --- |
-| Identificativo permanente e versionato | Il numero di versione sta nel payload: una futura versione 2 resta distinguibile senza registro centrale né migrazione delle etichette già stampate. |
-| Indipendente dal tag | Il payload non contiene il tag, che è univoco solo fra i record attivi e quindi riciclabile dopo la dismissione. |
-| Indipendente dalla posizione | Nessun percorso, nessun `place_id`, nessun testo di ubicazione. Lo spostamento non invalida l'etichetta. |
-| Indipendente dal dominio di hosting | Nessun URL. La stessa etichetta funziona sulla demo Railway, su un'istanza self-hosted e in locale. |
-| Nessun dato sensibile | Solo un identificatore opaco: nessun nome, seriale, dato personale, token, firma o URL firmata con scadenza. |
+| Permanent and versioned identifier | The version number sits in the payload: a future version 2 remains distinguishable without a central register or migration of labels already printed. |
+| Independent of the tag | The payload does not contain the tag, which is unique only among active records and is therefore reusable after decommissioning. |
+| Independent of location | No path, no `place_id`, no location text. Moving does not invalidate the label. |
+| Independent of hosting domain | No URL. The same label works on the Railway demo, on a self-hosted instance and locally. |
+| No sensitive data | Only an opaque identifier: no name, serial number, personal data, token, signature or signed URL with expiry. |
 
-L'UUID identifica l'**oggetto fisico**, non il registro che lo descrive in quel momento. Un'istanza di materiale e il bene installato in cui si trasforma condividono lo stesso identificativo fisico: si veda §4.6. È questa scelta, e non un dettaglio implementativo, a permettere che un'etichetta stampata al ricevimento resti valida dopo l'installazione.
+The UUID identifies the **physical object**, not the register that describes it at a given moment. A material instance and the installed asset it turns into share the same physical identifier: see §4.6. It is this choice, and not an implementation detail, that allows a label printed on receipt to remain valid after installation.
 
-### 4.2 L'etichetta non è una chiave
+### 4.2 The label is not a key
 
-Un identificativo è enumerabile: chi fotografa un'etichetta conosce l'UUID. Non è un segreto e non deve essere trattato come autorizzazione. La risoluzione verifica a ogni richiesta: autenticazione, appartenenza al sito, ruolo e permesso del modulo proprietario. Un QR letto da chi non ha accesso produce `404`, non un messaggio che rivela l'esistenza del record.
+An identifier is enumerable: whoever photographs a label knows the UUID. It is not a secret and must not be treated as authorisation. Resolution checks on every request: authentication, site membership, role and permission of the owning module. A QR read by someone without access produces `404`, not a message that reveals the existence of the record.
 
-### 4.3 Codice breve digitabile
+### 4.3 Typable short code
 
-Il QR può essere illeggibile: graffiato, sbiadito, stampato male. Serve un fallback digitabile che **non** soffra del riciclo dei tag.
+The QR may be unreadable: scratched, faded, badly printed. A typable fallback is needed that **does not** suffer from tag recycling.
 
-**Decisione dell'owner (27/11/2026):** un codice di 26 caratteri derivato dall'UUID non è sufficientemente ergonomico. L'UUID resta l'identificatore canonico **dentro** il QR; sotto il QR si stampa un **codice breve permanente**, con carattere di controllo e nessuna riassegnazione. La lunghezza definitiva è da validare in implementazione.
+**Owner decision (27/11/2026):** a 26-character code derived from the UUID is not ergonomic enough. The UUID remains the canonical identifier **inside** the QR; under the QR a **permanent short code** is printed, with a check character and no reassignment. The final length is to be validated during implementation.
 
-| Opzione | Come funziona | Giudizio |
+| Option | How it works | Assessment |
 | --- | --- | --- |
-| **Codice breve per entità (approvato)** | Colonna dedicata sull'entità, generata alla creazione, alfabeto ristretto, carattere di controllo, univoca nel sito, mai riassegnata | Ergonomico in cantiere, richiede una migrazione per ogni anagrafica e una politica di esaurimento |
-| Codice derivato dall'UUID (scartato) | base32 Crockford, 26 caratteri | **Scartato dall'owner**: troppo lungo da digitare |
-| Codice = tag (escluso) | Il tag esistente | **Escluso**: il tag si ricicla e l'etichetta diventerebbe falsa |
+| **Short code per entity (approved)** | Dedicated column on the entity, generated at creation, restricted alphabet, check character, unique within the site, never reassigned | Ergonomic on site, requires a migration for each master record and an exhaustion policy |
+| Code derived from the UUID (rejected) | Crockford base32, 26 characters | **Rejected by the owner**: too long to type |
+| Code = tag (excluded) | The existing tag | **Excluded**: the tag is recycled and the label would become false |
 
-Regole del codice breve:
+Rules for the short code:
 
-- **Alfabeto ristretto** senza caratteri ambigui: base32 Crockford esclusi `I`, `L`, `O`, `U`. Il codice si legge e si detta senza confusione fra `0`/`O` e `1`/`I`/`L`.
-- **Carattere di controllo** obbligatorio (algoritmo da scegliere in implementazione: Damm o modulo primo). Serve a respingere un refuso **prima** di interrogare il server, e a distinguere "ho sbagliato a digitare" da "non esiste".
-- **Lunghezza provvisoria 6 caratteri di dati più 1 di controllo** (7 in totale), stampati in due gruppi (`A7K2-9F` + controllo). Valori superiori solo se la prova sul campo lo richiede. Il numero definitivo è una decisione di implementazione, validata su tastiera mobile reale.
-- **Univocità e collisioni**: vincolo univoco `(site_id, entity_type, short_code)`. La generazione tenta un codice casuale e, in caso di collisione, riprova con un limite di tentativi; al superamento il criterio cambia (lunghezza maggiore), mai la riassegnazione. Una collisione è un evento atteso, non un errore da ignorare.
-- **Nessuna riassegnazione**: un codice appartiene all'entità per sempre, anche dopo archiviazione o dismissione. Un codice vecchio può diventare inerte, non può diventare falso.
-- **Esaurimento**: con 6 caratteri su alfabeto ristretto lo spazio per sito è ampio ma non infinito. Si monitora l'occupazione e si allunga il codice per le entità nuove; le etichette già stampate restano valide perché la lunghezza è riconoscibile dal codice stesso.
-- **Risoluzione nel perimetro del sito**: il codice è risolto dentro il sito selezionato, mai globalmente, e non è mai un'autorizzazione.
+- **Restricted alphabet** without ambiguous characters: Crockford base32 excluding `I`, `L`, `O`, `U`. The code can be read and dictated without confusing `0`/`O` or `1`/`I`/`L`.
+- **Check character** mandatory (algorithm to be chosen during implementation: Damm or prime modulus). It serves to reject a typo **before** querying the server, and to distinguish "I mistyped" from "it does not exist".
+- **Provisional length 6 data characters plus 1 check character** (7 in total), printed in two groups (`A7K2-9F` + check). Higher values only if field testing requires it. The definitive number is an implementation decision, validated on a real mobile keyboard.
+- **Uniqueness and collisions**: unique constraint `(site_id, entity_type, short_code)`. Generation tries a random code and, on collision, retries up to a limit of attempts; when that limit is exceeded the criterion changes (greater length), never reassignment. A collision is an expected event, not an error to be ignored.
+- **No reassignment**: a code belongs to the entity forever, even after archiving or decommissioning. An old code may become inert, it may not become false.
+- **Exhaustion**: with 6 characters on a restricted alphabet the space per site is large but not infinite. Occupancy is monitored and the code is lengthened for new entities; labels already printed remain valid because the length is recognisable from the code itself.
+- **Resolution within the site scope**: the code is resolved within the selected site, never globally, and it is never an authorisation.
 
-Il codice breve è un'aggiunta all'identificativo, non un suo sostituto: il QR continua a contenere l'URN con l'UUID dell'§4.1.
+The short code is an addition to the identifier, not a substitute for it: the QR continues to contain the URN with the UUID from §4.1.
 
-### 4.4 Etichette con URL diretto — opzione futura
+### 4.4 Labels with direct URL — future option
 
-Approvata come opzione futura, **non** nel primo rilascio. Un'etichetta con URL (`https://<dominio>/e/<uuid>`) è più comoda da inquadrare con la fotocamera di sistema, ma lega l'oggetto fisico a un dominio: cambiando hosting o passando dalla demo alla produzione, le etichette stampate smettono di funzionare. È ammissibile solo per deployment con dominio stabile e dichiarato, e va emessa come variante esplicita, mai come formato predefinito. Il payload canonico resta quello dell'§4.1.
+Approved as a future option, **not** in the first release. A label with a URL (`https://<domain>/e/<uuid>`) is more convenient to scan with the system camera, but it ties the physical object to a domain: if hosting changes or one moves from demo to production, the printed labels stop working. It is admissible only for deployments with a stable, declared domain, and it must be issued as an explicit variant, never as the default format. The canonical payload remains the one in §4.1.
 
-### 4.5 Risoluzione e casi limite
+### 4.5 Resolution and edge cases
 
-- **Non trovato**: payload valido ma record inesistente, archiviato o cancellato. L'interfaccia mostra "identificativo non riconosciuto" e non riassegna mai l'UUID.
-- **Sito diverso**: risposta `404`, come per un record inaccessibile. Nessuna rivelazione di esistenza o di nome.
-- **Payload malformato**: versione sconosciuta o UUID non valido. `422` con messaggio neutro, nessuna interpretazione creativa.
-- **Mai riuso**: un UUID non viene riassegnato a un nuovo oggetto. Un'etichetta vecchia può diventare inerte, non può diventare falsa.
-- **Senza registro**: un registro delle etichette inteso come seconda anagrafica sarebbe un doppione. Si registra invece l'**evento di stampa** (§5.6), che serve davvero, più il codice breve che è un attributo dell'entità e non un registro separato.
+- **Not found**: valid payload but the record does not exist, is archived or was deleted. The interface shows "identifier not recognised" and never reassigns the UUID.
+- **Different site**: `404` response, as for an inaccessible record. No disclosure of existence or name.
+- **Malformed payload**: unknown version or invalid UUID. `422` with a neutral message, no creative interpretation.
+- **Never reused**: a UUID is never reassigned to a new object. An old label may become inert, it may not become false.
+- **No register**: a label register understood as a second master record would be a duplicate. Instead the **print event** (§5.6) is recorded, which is genuinely needed, plus the short code which is an attribute of the entity and not a separate register.
 
-### 4.6 Continuità dell'identità fisica fra ricevimento e installazione
+### 4.6 Continuity of physical identity between receipt and installation
 
-Un'istanza serializzata ricevuta in cantiere riceve un'etichetta. Mesi dopo la stessa istanza viene installata e diventa un asset. **L'etichetta non si ristampa e non nascono due identità.**
+A serialised instance received on site receives a label. Months later the same instance is installed and becomes an asset. **The label is not reprinted and two identities are not created.**
 
-Come si ottiene:
+How this is achieved:
 
-1. **Un solo identificativo per oggetto fisico, dalla nascita.** L'istanza di materiale (`stock_instances`, si veda `docs/site-materials-inventory.md` §3.2) nasce con un UUID proprio e con il suo codice breve. L'etichetta stampata al ricevimento porta quell'UUID.
-2. **L'installazione non crea una nuova identità: collega.** Il passaggio a bene installato produce il record in `assets` con il proprio UUID di asset, e `stock_instances.asset_id` registra il legame. La risoluzione dell'etichetta segue il legame e apre la scheda che è oggi pertinente.
-3. **La risoluzione sceglie il registro, non l'identità.** Lo stesso payload può puntare a un'istanza in giacenza o a un asset installato a seconda dello stato: la risposta dichiara il tipo corrente e, quando esiste un legame, anche l'altro registro raggiungibile. Il payload non cambia e non serve alcuna ristampa.
-4. **Il codice breve resta quello dell'istanza.** Se l'asset ha un proprio codice breve, entrambi restano validi e sono collegati fra loro; l'interfaccia mostra l'altro identificativo nella scheda, così chi ha in mano l'etichetta vecchia trova comunque la scheda giusta.
-5. **Divieto esplicito.** Nessuna risoluzione può dedurre l'identità dal seriale, dal nome o dalla descrizione: il legame istanza→asset è un atto esplicito, tracciato e reversibile solo con un altro atto tracciato.
+1. **One identifier per physical object, from birth.** The material instance (`stock_instances`, see `docs/site-materials-inventory.md` §3.2) is born with its own UUID and its own short code. The label printed on receipt carries that UUID.
+2. **Installation does not create a new identity: it links.** The transition to installed asset produces the record in `assets` with its own asset UUID, and `stock_instances.asset_id` records the link. Resolution of the label follows the link and opens the record that is currently relevant.
+3. **Resolution chooses the register, not the identity.** The same payload may point to an instance in stock or to an installed asset depending on status: the response declares the current type and, when a link exists, also the other reachable register. The payload does not change and no reprint is needed.
+4. **The short code remains that of the instance.** If the asset has its own short code, both remain valid and are linked; the interface shows the other identifier on the record, so whoever holds the old label still finds the right record.
+5. **Explicit prohibition.** No resolution may infer identity from serial number, name or description: the instance→asset link is an explicit act, traced and reversible only by another traced act.
 
-Conseguenza sulla stampa: chi stampa al ricevimento non deve sapere se l'oggetto sarà installato. L'etichetta è corretta in entrambi i casi, che è esattamente il motivo per cui il payload non contiene un tipo di entità immutabile ma un identificativo risolto dal server.
+Consequence for printing: whoever prints on receipt does not need to know whether the object will be installed. The label is correct in both cases, which is exactly why the payload does not contain an immutable entity type but a server-resolved identifier.
 
-## 5. Etichette e stampa
+## 5. Labels and printing
 
-### 5.1 Tre formati
+### 5.1 Three formats
 
-| Formato | Contenuto | Uso | Dipendenza |
+| Format | Content | Use | Dependency |
 | --- | --- | --- | --- |
-| **Compatto** | QR e identificativo leggibile | Oggetti piccoli, etichette durevoli, inventario | Nessuna |
-| **Descrittivo** | QR, tag, denominazione, modello, seriale e altri dati configurabili | Quadri, attrezzature, colli, fascicoli | Nessuna |
-| **Logistico** | Articolo, quantità, lotto, collo, destinazione | Ricevimento, movimentazione, inventario di magazzino | **Subordinato** al modulo Site Materials & Inventory |
+| **Compact** | QR and readable identifier | Small objects, durable labels, inventory | None |
+| **Descriptive** | QR, tag, designation, model, serial number and other configurable data | Panels, equipment, parcels, dossiers | None |
+| **Logistic** | Item, quantity, lot, parcel, destination | Receipt, handling, warehouse inventory | **Subordinate** to the Site Materials & Inventory module |
 
-Regole comuni:
+Common rules:
 
-- I campi del formato descrittivo sono configurabili per sito e per tipo di entità; il set predefinito è QR, tag, denominazione, modello, seriale.
-- Le informazioni variabili — posizione, fornitore, ubicazione corrente — sono **facoltative** e, quando incluse, accompagnate dalla **data di stampa** e dalla dicitura che i dati sono quelli di quella data.
-- Il formato compatto non contiene nulla che possa diventare falso: solo l'identificativo, che per costruzione non cambia.
-- Il formato logistico non può esistere prima dell'anagrafica articoli: senza articolo e lotto non ci sarebbe nulla da stampare che non sia già sulla riga d'ordine, e stamparla sarebbe fuorviante.
+- The fields of the descriptive format are configurable per site and per entity type; the default set is QR, tag, designation, model, serial number.
+- Variable information — location, supplier, current location — is **optional** and, when included, accompanied by the **print date** and the wording that the data are those of that date.
+- The compact format contains nothing that can become false: only the identifier, which by construction does not change.
+- The logistic format cannot exist before the item master: without item and lot there would be nothing to print that is not already on the order line, and printing it would be misleading.
 
-### 5.2 Stampa: singola, massiva, ristampa, anteprima
+### 5.2 Printing: single, bulk, reprint, preview
 
-- **Singola**: dalla scheda dell'entità.
-- **Massiva**: da una selezione esplicita (risultati di ricerca, sottoalbero di luoghi, righe di un ordine). Mai "tutto il sito" senza conferma con conteggio.
-- **Anteprima** obbligatoria per la stampa massiva: quante etichette, quali formati, quali entità prive di un codice digitabile.
-- **Ristampa**: rieseguibile dalla cronologia delle stampe, con motivo facoltativo. Ripetere una stampa non duplica record.
-- **Dimensioni personalizzabili**: larghezza, altezza, margini, passo della griglia e modulo del QR, con profili salvati per sito.
+- **Single**: from the entity record.
+- **Bulk**: from an explicit selection (search results, subtree of places, order lines). Never "the whole site" without confirmation with a count.
+- **Preview** mandatory for bulk printing: how many labels, which formats, which entities lack a typable code.
+- **Reprint**: repeatable from the print history, with an optional reason. Repeating a print does not duplicate records.
+- **Customisable dimensions**: width, height, margins, grid pitch and QR module, with profiles saved per site.
 
-### 5.3 Fogli A4
+### 5.3 A4 sheets
 
-Impaginazione a griglia su A4 con margini e passo configurabili, per adattarsi a fogli di etichette adesive commerciali. Composizione lato server (SVG embeddato in HTML) e stampa dal browser con CSS `@page`: nessuna libreria PDF.
+Grid layout on A4 with configurable margins and pitch, to fit commercial adhesive label sheets. Server-side composition (SVG embedded in HTML) and printing from the browser with CSS `@page`: no PDF library.
 
-Accorgimenti obbligatori: disattivare l'adattamento automatico della stampante, offrire un foglio di calibrazione con righelli per allineare il passo, non fidarsi delle dimensioni nominali del foglio adesivo.
+Mandatory precautions: disable the printer's automatic fit-to-page, offer a calibration sheet with rulers to align the pitch, do not trust the nominal dimensions of the adhesive sheet.
 
-### 5.4 Stampanti termiche
+### 5.4 Thermal printers
 
-Approvato l'uso iniziale dei **driver di stampa di sistema**: il browser stampa su una pagina di dimensioni fisiche fisse dichiarate con `@page size` (per esempio 50×25 mm). Nessun invio di comandi raw.
+The initial use of **system print drivers** is approved: the browser prints on a page of fixed physical dimensions declared with `@page size` (for example 50×25 mm). No sending of raw commands.
 
-Il **comando diretto ESC/POS resta fuori scope**: richiederebbe un percorso di rete o un agente locale, con implicazioni di sicurezza e supporto non giustificate oggi.
+Direct **ESC/POS commands remain out of scope**: they would require a network path or a local agent, with security and support implications not justified today.
 
-La compatibilità va verificata su almeno due modelli reali: il modulo minimo del QR leggibile in stampa termica a bassa risoluzione è un limite fisico, non software. Sotto una certa dimensione l'etichetta si stampa ma non si legge.
+Compatibility must be verified on at least two real models: the minimum module of the QR that is readable when printed on low-resolution thermal media is a physical limit, not a software one. Below a certain size the label prints but cannot be read.
 
-### 5.5 Generazione: `qrcode` (soldair), SVG prioritario
+### 5.5 Generation: `qrcode` (soldair), SVG first
 
-| Voce | Stato |
+| Item | Status |
 | --- | --- |
-| Candidato | **`qrcode`**, repository `soldair/node-qrcode` |
-| Versione dichiarata dal repository | 1.5.4 |
-| Licenza | MIT |
-| Dipendenze dirette dichiarate | `dijkstrajs`, `pngjs`, `yargs` |
-| Pacchetto omonimo da escludere | **`node-qrcode`** (npm): ultima pubblicazione 2015, versione `0.0.4`, dipendenze `debug ^2.2.0`, `get-port ^2.1.0`, `decompress ~3.0.0`, `node-browser`. Non è la libreria intesa e non va usato. |
-| Formato di generazione | **SVG prioritario**, PNG come alternativo |
-| Approvazione definitiva | **Subordinata** alla verifica in fase di implementazione di sicurezza, manutenzione, licenze transitive e compatibilità |
+| Candidate | **`qrcode`**, repository `soldair/node-qrcode` |
+| Version declared by the repository | 1.5.4 |
+| Licence | MIT |
+| Declared direct dependencies | `dijkstrajs`, `pngjs`, `yargs` |
+| Namesake package to exclude | **`node-qrcode`** (npm): last published 2015, version `0.0.4`, dependencies `debug ^2.2.0`, `get-port ^2.1.0`, `decompress ~3.0.0`, `node-browser`. It is not the intended library and must not be used. |
+| Generation format | **SVG first**, PNG as alternative |
+| Final approval | **Subject to** verification during implementation of security, maintenance, transitive licences and compatibility |
 
-L'adozione avviene **solo lato server**: il client riceve SVG già pronto, nessun codice di codifica nel browser, un solo punto da verificare. Il PNG resta disponibile per usi dove l'SVG non è gestito.
+Adoption happens **server-side only**: the client receives ready-made SVG, no encoding code in the browser, a single point to verify. PNG remains available for uses where SVG is not supported.
 
-La verifica di implementazione deve produrre, prima del merge: versione fissata, hash di integrità, albero delle dipendenze transitive con licenze, data dell'ultima pubblicazione, numero di manutentori, vulnerabilità note. Se una di queste voci è insoddisfacente, si cambia candidato invece di accettare il rischio in silenzio.
+The implementation verification must produce, before merge: fixed version, integrity hash, dependency tree of transitive dependencies with licences, date of last publication, number of maintainers, known vulnerabilities. If any of these items is unsatisfactory, the candidate is changed rather than accepting the risk silently.
 
-### 5.6 Tracciamento delle stampe
+### 5.6 Print tracking
 
-Tabella di eventi di stampa con `site_id`, tipo e id dell'entità, versione del payload, formato, dimensioni, quantità, autore, istante e identificativo del lotto. Serve per ristampe e per ricostruire la provenienza di un'etichetta trovata in cantiere.
+Print event table with `site_id`, type and id of the entity, payload version, format, dimensions, quantity, author, timestamp and batch identifier. It serves reprints and reconstructing the provenance of a label found on site.
 
-Durabilità fisica (materiale, laminazione, resistenza agli agenti) è una scelta di approvvigionamento: va documentata come raccomandazione, non implementata.
+Physical durability (material, lamination, resistance to agents) is a procurement choice: it must be documented as a recommendation, not implemented.
 
-## 6. Scansione mobile e azioni contestuali
+## 6. Mobile scanning and contextual actions
 
-### 6.1 Acquisizione: nativa più decoder di riserva
+### 6.1 Acquisition: native plus fallback decoder
 
-| Percorso | Ruolo | Vincolo |
+| Path | Role | Constraint |
 | --- | --- | --- |
-| `BarcodeDetector` nativo | Prima scelta, nessun byte aggiunto al progetto | Richiede contesto sicuro (HTTPS); supporto variabile per browser e piattaforma |
-| Decoder alternativo caricato **su richiesta** | Garanzia di compatibilità dove l'API nativa non c'è | Dipendenza separata, scaricata solo quando serve e solo se l'utente accetta |
-| Digitazione del codice | Fallback universale | Il codice dell'§4.3 |
+| Native `BarcodeDetector` | First choice, no bytes added to the project | Requires a secure context (HTTPS); variable support across browsers and platforms |
+| Alternative decoder loaded **on demand** | Compatibility guarantee where the native API is absent | Separate dependency, downloaded only when needed and only if the user accepts |
+| Typing the code | Universal fallback | The code from §4.3 |
 
-Regola esplicita: la **Barcode Detection API nativa non è l'unico sistema di scansione**. Non è accettabile che la funzionalità dipenda da un'API la cui disponibilità non controlliamo.
+Explicit rule: the **native Barcode Detection API is not the only scanning system**. It is not acceptable for the functionality to depend on an API whose availability we do not control.
 
-Criterio di accettazione della **prima release**, non rinviabile: scansione reale verificata su **Safari/iPhone** e **Chrome/Android**, su dispositivo fisico, con etichetta stampata e non con un'immagine sintetica a schermo. Se il percorso nativo non copre una delle due piattaforme, il decoder di riserva deve essere già integrato.
+Acceptance criterion of the **first release**, not deferrable: real scanning verified on **Safari/iPhone** and **Chrome/Android**, on a physical device, with a printed label and not with a synthetic image on screen. If the native path does not cover one of the two platforms, the fallback decoder must already be integrated.
 
-Altri vincoli: la fotocamera si apre solo su azione esplicita, con messaggio chiaro su cosa viene inquadrato; il codice letto è risolto dal server e il client non interpreta il payload per dedurre l'entità.
+Other constraints: the camera opens only on explicit action, with a clear message about what is being framed; the code read is resolved by the server and the client does not interpret the payload to deduce the entity.
 
-### 6.2 Apertura diretta della scheda
+### 6.2 Direct opening of the record
 
-La scansione porta alla scheda dell'entità nel modulo proprietario, con breadcrumb di provenienza ("aperto da scansione") e ritorno alla sessione di inventario se esiste. Un payload che punta a un'entità di un modulo non concesso produce un rifiuto esplicito, non una schermata vuota.
+The scan leads to the entity record in the owning module, with a provenance breadcrumb ("opened by scan") and a return to the inventory session if one exists. A payload that points to an entity of a module not granted produces an explicit refusal, not an empty screen.
 
-### 6.3 Azioni contestuali
+### 6.3 Contextual actions
 
-Le azioni dipendono dal tipo di entità e dai permessi, e sono sempre eseguite dal modulo proprietario: l'identificazione non introduce scritture proprie sulle anagrafiche.
+Actions depend on the entity type and on permissions, and are always executed by the owning module: identification introduces no writes of its own to master records.
 
-| Entità | Azioni contestuali | Chi |
+| Entity | Contextual actions | Who |
 | --- | --- | --- |
-| Asset installato | Apri scheda, registra trasferimento, transizione di stato, allega documento, aggiungi a sessione di inventario | Ruoli del modulo secondo `places-and-assets.md` §7 |
-| Attrezzatura | Apri scheda, registra uso o manutenzione, **apri la scheda HSE collegata** | Ruoli del modulo `tools` |
-| Bene HSE | Apri scheda, avvia ispezione dal template | Ruoli HSE |
-| Riga d'ordine o collo | Apri ordine o spedizione, registra ricezione | Ruoli `logistics` |
-| Entità sconosciuta | Segnala come sconosciuta nella sessione, richiedi associazione | Ruoli della sessione di inventario |
+| Installed asset | Open record, record transfer, status transition, attach document, add to inventory session | Module roles according to `places-and-assets.md` §7 |
+| Equipment | Open record, record use or maintenance, **open the linked HSE record** | Roles of the `tools` module |
+| HSE asset | Open record, start inspection from template | HSE roles |
+| Order line or parcel | Open order or shipment, record receipt | `logistics` roles |
+| Unknown entity | Report as unknown in the session, request association | Inventory session roles |
 
-Nessuna azione distruttiva dalla scansione. La dismissione resta un'operazione con motivo e conferma nella scheda.
+No destructive action from scanning. Decommissioning remains an operation with a reason and confirmation on the record.
 
-## 7. Sessioni di inventario
+## 7. Inventory sessions
 
-### 7.1 Modello
+### 7.1 Model
 
-Una sessione è un lavoro delimitato nel tempo e nello spazio, con perimetro dichiarato: un sottoalbero di luoghi, un magazzino, o l'intero sito. Ha un responsabile, uno stato (aperta, chiusa) e un risultato conservato.
+A session is a piece of work bounded in time and space, with a declared scope: a subtree of places, a warehouse, or the whole site. It has a person in charge, a status (open, closed) and a stored result.
 
-| Tabella | Contenuto |
+| Table | Content |
 | --- | --- |
-| `inventory_sessions` | `id`, `site_id`, perimetro, stato, apertura e chiusura, autore, note |
-| `inventory_scans` | `id`, `session_id`, `site_id`, tipo e id dell'entità (nullo se sconosciuta), payload grezzo, `scanned_at`, autore, **luogo atteso come fotografia**, **luogo osservato dichiarato**, **contesto di scansione**, esito, `client_scan_id` per idempotenza, nota |
-| `inventory_resolutions` | decisioni di riconciliazione: scansione o insieme di scansioni, esito applicato, autore, istante, motivazione |
+| `inventory_sessions` | `id`, `site_id`, scope, status, opening and closing, author, notes |
+| `inventory_scans` | `id`, `session_id`, `site_id`, type and id of the entity (null if unknown), raw payload, `scanned_at`, author, **expected location as a snapshot**, **declared observed location**, **scan context**, outcome, `client_scan_id` for idempotency, note |
+| `inventory_resolutions` | reconciliation decisions: scan or set of scans, applied outcome, author, timestamp, rationale |
 
-L'esito di ogni scansione è uno fra: **corrispondente**, **duplicato**, **ubicazione discordante**, **sconosciuto**, **non atteso**. Posizione attesa e osservata sono descritte in §7.5; il contesto di scansione in §7.6.
+The outcome of each scan is one of: **matching**, **duplicate**, **discordant location**, **unknown**, **unexpected**. Expected and observed positions are described in §7.5; the scan context in §7.6.
 
-### 7.2 Scansioni consecutive
+### 7.2 Consecutive scans
 
-La schermata resta aperta e acquisisce in sequenza, senza conferma per ogni lettura: un tocco, un oggetto, un esito immediato visivo e sonoro breve. Il conteggio è sempre visibile.
+The screen stays open and acquires in sequence, without confirmation for each reading: one tap, one object, a brief visual and audio outcome. The count is always visible.
 
-Ogni scansione porta un `client_scan_id` generato dal dispositivo. Il server è idempotente su quella chiave: un doppio invio di rete non produce due righe.
+Each scan carries a `client_scan_id` generated by the device. The server is idempotent on that key: a double network submission does not produce two rows.
 
-### 7.3 Duplicati
+### 7.3 Duplicates
 
-Comportamento distinto per dominio, perché "due volte lo stesso oggetto" significa cose diverse:
+Behaviour distinct per domain, because "the same object twice" means different things:
 
-- Asset e attrezzature: la seconda lettura è un **duplicato** da segnalare, non un incremento di quantità. Serve a scoprire etichette doppie o oggetti spostati.
-- Materiali e articoli: la lettura ripetuta può essere legittima e incrementare una quantità, se il dominio lo prevede.
+- Assets and equipment: the second reading is a **duplicate** to be reported, not an increase in quantity. It serves to discover double labels or moved objects.
+- Materials and items: repeated reading may be legitimate and increase a quantity, if the domain allows it.
 
-La regola è per tipo di entità, esplicita e verificabile, non configurabile a runtime nella prima release.
+The rule is per entity type, explicit and verifiable, not configurable at runtime in the first release.
 
-### 7.4 Articoli sconosciuti
+### 7.4 Unknown items
 
-Un payload non risolto non crea automaticamente nulla. Diventa una riga "sconosciuta" con il payload grezzo, e resta tale finché un utente autorizzato non decide: associarla a un'entità esistente, oppure avviare la creazione nel modulo proprietario con il flusso normale. La sessione chiusa conserva le righe irrisolte come parte del risultato.
+An unresolved payload automatically creates nothing. It becomes an "unknown" row with the raw payload, and remains so until an authorised user decides: to associate it with an existing entity, or to start creation in the owning module through the normal flow. The closed session keeps the unresolved rows as part of the result.
 
-### 7.5 Posizione attesa e posizione osservata
+### 7.5 Expected location and observed location
 
-Una rilevazione registra **due** posizioni, non una:
+A survey records **two** positions, not one:
 
-| Campo | Significato | Fonte |
+| Field | Meaning | Source |
 | --- | --- | --- |
-| **Posizione attesa** | Dove l'oggetto dovrebbe essere secondo il sistema | Fotografia al momento della scansione, calcolata dal modello (posizione dell'asset, ubicazione della giacenza) e conservata come tale |
-| **Posizione osservata** | Dove l'oggetto è stato effettivamente visto | Il contesto di scansione scelto dall'operatore al momento della lettura |
+| **Expected location** | Where the object should be according to the system | Snapshot at the moment of scanning, calculated by the model (asset position, stock location) and stored as such |
+| **Observed location** | Where the object was actually seen | The scan context chosen by the operator at the moment of reading |
 
-Regole:
+Rules:
 
-- La posizione attesa è una **fotografia**: se in seguito l'asset si sposta, la rilevazione continua a dire dove il sistema lo collocava quel giorno. Senza questo, ogni rilettura storica sarebbe ambigua.
-- La posizione osservata è **dichiarata dall'operatore**, non dedotta. Se manca, la rilevazione esiste ma la discordanza non è valutabile, e l'esito lo dice invece di inventare un luogo.
-- La discordanza nasce dal **confronto** fra le due. Se l'oggetto risulta in un luogo diverso dal perimetro o dall'atteso, la sessione la registra e non corregge nulla: la posizione ufficiale cambia solo con un movimento esplicito, con motivo e intervallo, come stabilito in `places-and-assets.md` §3.
-- Una scansione registra una rilevazione. Non modifica automaticamente né una quantità contabile né una posizione ufficiale. La riconciliazione propone il movimento come azione separata, autorizzata e tracciata, soggetta all'**approvazione dei movimenti** (§8).
+- The expected location is a **snapshot**: if the asset later moves, the survey continues to say where the system placed it on that day. Without this, every historical re-reading would be ambiguous.
+- The observed location is **declared by the operator**, not inferred. If it is missing, the survey exists but the discrepancy cannot be assessed, and the outcome says so instead of inventing a place.
+- The discrepancy arises from the **comparison** between the two. If the object is found in a place different from the scope or from the expected one, the session records it and corrects nothing: the official location changes only with an explicit movement, with reason and interval, as established in `places-and-assets.md` §3.
+- A scan records a survey. It does not automatically modify either an accounting quantity or an official location. Reconciliation proposes the movement as a separate action, authorised and traced, subject to **movement approval** (§8).
 
-### 7.6 Contesto di scansione e identificazione QR dei luoghi
+### 7.6 Scan context and QR identification of places
 
-Chi inventaria non inquadra solo oggetti: inquadra **spazi**. Depositi, container e scaffali devono poter essere identificati come un asset o un'attrezzatura.
+Whoever inventories scans not only objects but **spaces**. Warehouses, containers and shelves must be identifiable like an asset or an item of equipment.
 
-| Elemento | Comportamento |
+| Element | Behaviour |
 | --- | --- |
-| Contesto di scansione | L'operatore dichiara dove si trova: un luogo, un container, uno scaffale. Il contesto vale per le rilevazioni **successive** finché non cambia |
-| Codice del luogo | Stesso schema di §4: URN con UUID del luogo e codice breve stampabile e appiccabile |
-| Scansione di un luogo | **Imposta il contesto** delle rilevazioni successive; non modifica le ubicazioni ufficiali e non crea movimenti |
-| Cambio di contesto | Esplicito e visibile: l'interfaccia mostra sempre il contesto corrente, così una rilevazione non finisce nel posto sbagliato per distrazione |
-| Fine sessione | Il contesto non sopravvive alla sessione: nessun contesto implicito ereditato da un lavoro precedente |
+| Scan context | The operator declares where they are: a place, a container, a shelf. The context applies to **subsequent** surveys until it changes |
+| Place code | Same scheme as §4: URN with the UUID of the place and a printable, attachable short code |
+| Scanning a place | **Sets the context** of subsequent surveys; does not modify official locations and creates no movements |
+| Context change | Explicit and visible: the interface always shows the current context, so that a survey does not end up in the wrong place through distraction |
+| End of session | The context does not survive the session: no implicit context inherited from a previous job |
 
-L'identificazione QR dei luoghi è quindi un'estensione naturale dello stesso meccanismo, non una funzionalità separata: cambia il tipo di entità risolto, non il payload né il comportamento di scansione.
+The QR identification of places is therefore a natural extension of the same mechanism, not a separate feature: what changes is the entity type resolved, not the payload or the scanning behaviour.
 
-La scansione di un luogo **non** è un trasferimento. Se l'operatore inquadra uno scaffale e poi un asset che non dovrebbe essere lì, il sistema registra una discordanza e propone un movimento: non sposta nulla da solo.
+Scanning a place is **not** a transfer. If the operator scans a shelf and then an asset that should not be there, the system records a discrepancy and proposes a movement: it moves nothing by itself.
 
-### 7.7 Riconciliazione, chiusura e immutabilità
+### 7.7 Reconciliation, closure and immutability
 
-La riconciliazione produce: visti, non visti, duplicati, discordanti, sconosciuti, con i rispettivi conteggi. La chiusura congela il risultato e richiede una decisione esplicita sugli irrisolti (accettati come tali, o rinviati).
+Reconciliation produces: seen, not seen, duplicates, discrepant, unknown, with their respective counts. Closure freezes the result and requires an explicit decision on the unresolved items (accepted as such, or deferred).
 
-La sessione chiusa è **immutabile**: non si modifica né si cancella. Una rettifica è un atto tracciato separato, che cita la sessione originale e ne conserva il contenuto. Il risultato originale resta sempre leggibile.
+A closed session is **immutable**: it is neither modified nor deleted. A correction is a separate traced act, citing the original session and preserving its content. The original result always remains readable.
 
-### 7.8 Diario probatorio
+### 7.8 Evidentiary diary
 
-Una sessione **conclusa** può alimentare il diario con un **riepilogo tracciabile**: perimetro, conteggi, esito, irrisolti, autore, riferimento alla sessione. Il diario riceve un evento, non un flusso.
+A **concluded** session may feed the diary with a **traceable summary**: scope, counts, outcome, unresolved items, author, reference to the session. The diary receives an event, not a stream.
 
-- **Nessuna voce di diario per singola scansione.** Il diario è un registro di fatti significativi, non un log tecnico.
-- Il riepilogo cita la sessione per identificativo, così che il fatto resti verificabile anche a distanza di tempo.
-- Un riepilogo già inserito non si riscrive: una rettifica è una nuova voce che cita la precedente.
+- **No diary entry for an individual scan.** The diary is a register of significant facts, not a technical log.
+- The summary cites the session by identifier, so that the fact remains verifiable even after a long time.
+- An already inserted summary is not rewritten: a correction is a new entry that cites the previous one.
 
-## 8. Permessi, autorizzazioni distinte e isolamento
+## 8. Permissions, distinct authorisations and isolation
 
-### 8.1 Consultazione e stampa
+### 8.1 Consultation and printing
 
-Si usano i **permessi dei moduli esistenti**, senza introdurre un modulo nuovo per l'identificazione:
+The **permissions of the existing modules** are used, without introducing a new module for identification:
 
-| Operazione | Autorizzazione |
+| Operation | Authorisation |
 | --- | --- |
-| Risolvere un identificativo, aprire la scheda | Accesso al modulo proprietario, secondo le regole già in vigore |
-| Stampare etichette | Stesso diritto della consultazione: chi può vedere l'entità può stamparne l'etichetta |
-| Stampare in massa | Consultazione del modulo **più** ruolo di modifica o owner, per evitare ristampe massive involontarie |
+| Resolving an identifier, opening the record | Access to the owning module, according to the rules already in force |
+| Printing labels | Same right as consultation: whoever can see the entity can print its label |
+| Printing in bulk | Consultation of the module **plus** edit or owner role, to avoid unintended mass reprints |
 
-Dove un modulo non esiste — oggi per luoghi e asset l'accesso passa dal solo ruolo di sito — vale la regola vigente, e la lacuna è annotata come tale, non mascherata da un permesso che non c'è.
+Where a module does not exist — today for places and assets access depends only on the site role — the rule in force applies, and the gap is noted as such, not masked by a permission that does not exist.
 
-**La scansione non conferisce autorizzazioni aggiuntive.** Leggere un'etichetta non aggiunge diritti: apre ciò che l'utente poteva già aprire e nulla di più.
+**Scanning confers no additional authorisations.** Reading a label adds no rights: it opens what the user could already open and nothing more.
 
-### 8.2 Consultazione delle sessioni senza accesso al modulo intero
+### 8.2 Consultation of sessions without access to the whole module
 
-**Decisione dell'owner (27/11/2026):** consultare una sessione di inventario non deve richiedere l'accesso all'intero modulo Logistics o al modulo proprietario nella sua interezza.
+**Owner decision (27/11/2026):** consulting an inventory session must not require access to the entire Logistics module or to the owning module in its entirety.
 
-| Situazione | Comportamento |
+| Situation | Behaviour |
 | --- | --- |
-| Un responsabile di area deve vedere la sessione del suo perimetro | Autorizzazione **circoscritta** al dominio e al cantiere interessati, non al modulo intero |
-| L'utente non ha accesso al modulo d'origine di un'entità | Vede la riga della sessione come riferimento, **non** la scheda dell'entità né i suoi dati |
-| Riepiloghi e conteggi | Calcolati **solo** su ciò che il chiamante può vedere; nessun totale che riveli l'esistenza di record esclusi |
-| Perimetri sovrapposti | Ogni sessione dichiara il proprio perimetro; l'autorizzazione segue il perimetro, non la gerarchia dei moduli |
+| An area manager must see the session of their scope | **Limited** authorisation to the domain and site concerned, not to the whole module |
+| The user has no access to the originating module of an entity | Sees the session row as a reference, **not** the entity record nor its data |
+| Summaries and counts | Calculated **only** on what the caller can see; no total that reveals the existence of excluded records |
+| Overlapping scopes | Each session declares its own scope; authorisation follows the scope, not the module hierarchy |
 
-Il rischio da evitare è l'esposizione indiretta: un conteggio che dice "47 articoli non visti" rivela l'esistenza di materiale che l'utente non può consultare. La regola è quindi che **il riepilogo non è un canale laterale**: se il dettaglio è negato, anche il numero aggregato che lo rivela è negato o viene mostrato in forma non riconducibile.
+The risk to avoid is indirect exposure: a count that says "47 items not seen" reveals the existence of material the user cannot consult. The rule is therefore that **the summary is not a side channel**: if the detail is denied, the aggregate number that reveals it is also denied or shown in a form that cannot be traced back.
 
-### 8.3 Quattro autorizzazioni distinte per l'inventario
+### 8.3 Four distinct inventory authorisations
 
-| Autorizzazione | Cosa consente | Ruoli |
+| Authorisation | What it allows | Roles |
 | --- | --- | --- |
-| Apertura e chiusura sessione | Dichiarare perimetro, aprire, chiudere, decidere sugli irrisolti | Owner; editor se assegnato responsabile |
-| Registrazione rilevazioni | Scansionare e registrare, anche offline | Owner, editor, verifier abilitato |
-| Riconciliazione delle discrepanze | Proporre associazioni e classificare gli esiti | Owner, editor |
-| Approvazione dei movimenti | Applicare il movimento di posizione proposto | Owner; editor solo se esplicitamente delegato |
+| Opening and closing a session | Declare scope, open, close, decide on unresolved items | Owner; editor if assigned as person in charge |
+| Recording surveys | Scan and record, including offline | Owner, editor, enabled verifier |
+| Reconciliation of discrepancies | Propose associations and classify outcomes | Owner, editor |
+| Approval of movements | Apply the proposed location movement | Owner; editor only if explicitly delegated |
 
-Separare queste quattro cose è deliberato: chi conta gli oggetti in magazzino non è necessariamente chi decide che un asset si è spostato, e chi riconcilia non deve poter riscrivere una posizione ufficiale da solo.
+Separating these four things is deliberate: whoever counts objects in the warehouse is not necessarily whoever decides that an asset has moved, and whoever reconciles must not be able to rewrite an official location on their own.
 
-### 8.4 Isolamento tra cantieri
+### 8.4 Isolation between sites
 
-Ogni risoluzione, etichetta e sessione è legata a un `site_id`. Un identificativo di un altro sito è indistinguibile da uno inesistente. Nessun conteggio aggregato cross-site espone l'esistenza di record altrui. Un'etichetta stampata per un sito sandbox non è valida su un sito ordinario anche se l'UUID fosse noto.
+Every resolution, label and session is bound to a `site_id`. An identifier from another site is indistinguishable from a non-existent one. No cross-site aggregate count exposes the existence of other people's records. A label printed for a sandbox site is not valid on an ordinary site even if the UUID were known.
 
-| Ruolo | Identificare e stampare | Sessione | Riconciliare | Approvare movimenti |
+| Role | Identify and print | Session | Reconcile | Approve movements |
 | --- | --- | --- | --- | --- |
-| Owner | Sì, su tutto il sito | Apre, conduce, chiude | Sì, incluse associazioni di sconosciuti | Sì |
-| Editor | Sì, per i moduli in cui scrive | Conduce una sessione assegnata | Sì | Solo se delegato |
-| Verifier | Sì in lettura secondo i moduli | Registra rilevazioni se abilitato | No | No |
-| Viewer | Solo apertura scheda | No | No | No |
-| Demo user | Solo su siti sandbox, dati sintetici | Su dati sintetici | No | No |
+| Owner | Yes, across the whole site | Opens, conducts, closes | Yes, including associations of unknowns | Yes |
+| Editor | Yes, for the modules in which they write | Conducts an assigned session | Yes | Only if delegated |
+| Verifier | Yes, read-only according to modules | Records surveys if enabled | No | No |
+| Viewer | Only opening the record | No | No | No |
+| Demo user | Only on sandbox sites, synthetic data | On synthetic data | No | No |
 
-## 9. Offline — seconda fase approvata
+## 9. Offline — approved second phase
 
-Prima release **online**. La seconda fase è approvata nella progettazione, con questi vincoli non negoziabili.
+First release **online**. The second phase is approved in design, with these non-negotiable constraints.
 
-| Capacità | Fase | Regola |
+| Capability | Phase | Rule |
 | --- | --- | --- |
-| Elenco atteso in sessione | Fase 2 | Cache circoscritta ai **cantieri autorizzati** dell'utente, non all'archivio |
-| Registrazione rilevazioni offline | Fase 2 | Coda dedicata con `client_scan_id`, deduplica deterministica, riordino al ritorno in rete |
-| Cache dell'indice identificativi | Fase 2, con decisione esplicita | **Minimizzazione**: solo codice e tipo, nessun dato personale, nessun documento; **scadenza** breve e rinnovabile; **invalidazione** immediata al cambio di permessi, alla rimozione dal sito e al logout |
-| Riconciliazione offline | **Mai** | Richiede la vista completa e una decisione di responsabilità: resta server-side |
-| Creazione di anagrafiche offline | **Mai** | Le anagrafiche si validano sul server; un oggetto nuovo nasce online |
+| Expected list in session | Phase 2 | Cache limited to the user's **authorised sites**, not to the archive |
+| Recording surveys offline | Phase 2 | Dedicated queue with `client_scan_id`, deterministic deduplication, reordering on return to network |
+| Cache of the identifier index | Phase 2, with explicit decision | **Minimisation**: only code and type, no personal data, no documents; short, renewable **expiry**; **immediate invalidation** on change of permissions, removal from the site and logout |
+| Offline reconciliation | **Never** | Requires the complete view and a decision of responsibility: remains server-side |
+| Offline creation of master records | **Never** | Master records are validated on the server; a new object is born online |
 
-Le rilevazioni raccolte offline sono **sottoposte a verifica dei permessi e a riconciliazione al momento della sincronizzazione**. Una coda non è una scorciatoia: se al ritorno in rete l'utente non ha più il permesso, la rilevazione viene respinta e conservata come rifiutata, non applicata.
+Surveys collected offline are **subject to permission verification and reconciliation at the moment of synchronisation**. A queue is not a shortcut: if on return to the network the user no longer has the permission, the survey is refused and kept as rejected, not applied.
 
-## 10. Dipendenze dai moduli esistenti
+## 10. Dependencies on existing modules
 
-| Modulo | Cosa fornisce | Dipendenza | Rischio se cambia |
+| Module | What it provides | Dependency | Risk if it changes |
 | --- | --- | --- | --- |
-| Luoghi e Asset 2a | Rotte di luogo, spostamento, archivio, storico | **Bloccante** per il perimetro della sessione e il luogo atteso | Basso sull'identificativo: nessuna etichetta dipende dal percorso |
-| Luoghi e Asset 2b | Ricerca per tag, scheda asset, posizioni, transizioni | **Bloccante** per la destinazione della scansione e per i movimenti | Basso sull'identificativo, alto sull'esperienza |
-| Attrezzature (`tools`) | Anagrafica autorevole, stato, `location` testuale | Necessaria | `location` testuale non è un luogo: non usarla come ubicazione attendibile |
-| Beni HSE (`hse_assets`) | Verifiche, idoneità, sicurezza; `tool_id` verso `tools` | Necessaria; serve un `asset_id` simmetrico per gli asset installati | Doppia etichetta sullo stesso oggetto fisico |
-| Ordini, colli, spedizioni (032–034) | Riga d'ordine, collo, ricezione | Parziale: identifica la riga, non l'oggetto fisico | Presentare una riga d'ordine come "materiale" sarebbe fuorviante |
-| **Site Materials & Inventory** | Anagrafica articoli, lotti, ubicazioni, movimenti | **Bloccante** per articoli di magazzino e formato logistico | Senza di esso, nessuna etichetta di articolo |
-| Allegati | Documenti per entità | **Dipendenza dei flussi documentali**, non dell'identificazione | Oggi `asset` e `place` non sono coperti; la scheda può identificare ma non allegare |
-| Audit (`audit_events`) | Traccia delle mutazioni, con `place`, `asset`, `tool` già ammessi | Necessaria per stampa e riconciliazione | — |
-| Accesso per modulo | `MODULES`, moduli strict | Si ereditano i permessi esistenti | Un modulo nuovo non serve; le lacune vanno dichiarate |
+| Places and Assets 2a | Place routes, movement, archiving, history | **Blocking** for session scope and expected location | Low on the identifier: no label depends on the path |
+| Places and Assets 2b | Search by tag, asset record, positions, transitions | **Blocking** for scan destination and for movements | Low on the identifier, high on the experience |
+| Equipment (`tools`) | Authoritative master record, status, free-text `location` | Required | Free-text `location` is not a place: do not use it as a reliable location |
+| HSE assets (`hse_assets`) | Checks, fitness, safety; `tool_id` to `tools` | Required; a symmetric `asset_id` is needed for installed assets | Double label on the same physical object |
+| Orders, parcels, shipments (032–034) | Order line, parcel, receipt | Partial: identifies the line, not the physical object | Presenting an order line as "material" would be misleading |
+| **Site Materials & Inventory** | Item master, lots, locations, movements | **Blocking** for warehouse items and the logistic format | Without it, no item label |
+| Attachments | Documents per entity | **Dependency of the document flows**, not of identification | Today `asset` and `place` are not covered; the record can identify but cannot attach |
+| Audit (`audit_events`) | Trace of mutations, with `place`, `asset`, `tool` already admitted | Required for printing and reconciliation | — |
+| Access per module | `MODULES`, strict modules | Existing permissions are inherited | A new module is not needed; gaps must be declared |
 
-Sugli allegati la decisione è esplicita: l'estensione a Luoghi e Asset è **dipendenza dei rispettivi sviluppi documentali**, non prerequisito della semplice identificazione QR. Un'etichetta che apre una scheda senza allegati è utile; una scheda con allegati è più utile, ma non è la stessa cosa e non va confusa.
+On attachments the decision is explicit: the extension to Places and Assets is a **dependency of their respective document developments**, not a prerequisite of simple QR identification. A label that opens a record without attachments is useful; a record with attachments is more useful, but it is not the same thing and must not be confused with it.
 
-## 11. Verifica di non preclusione architetturale
+## 11. Verification of architectural non-prejudice
 
-| Scelta attuale | Effetto sull'identificazione | Giudizio |
+| Current choice | Effect on identification | Assessment |
 | --- | --- | --- |
-| UUID immutabili per asset e luoghi (057) | È esattamente il supporto richiesto: indipendenza da posizione e nome | **Già conforme** |
-| Tag univoco solo fra record non archiviati | Impedisce di usare il tag come identità | **Già conforme**, a condizione di scegliere l'UUID |
-| Posizioni a intervalli semiaperti, un solo intervallo aperto | Distingue "dove dovrebbe essere" da "dove è stato visto" senza ambiguità | **Già conforme** |
-| `recorded_path` congelato | L'etichetta descrittiva mostra il percorso storico corretto | **Già conforme** |
-| `hse_assets.tool_id` | Il principio dell'identità unica è già realizzato per le attrezzature | **Già conforme** |
-| Nessun `asset_id` in `hse_assets` | Il principio non è ancora esteso agli asset installati | **Lacuna nota**, incremento dedicato **approvato** il 27/11/2026 |
-| `material_no` testuale su righe d'ordine | Nessuna identità di articolo | **Lacuna**, richiede Site Materials & Inventory |
-| Allegati non estesi ad asset e luogo | La scheda non può allegare manuali e verbali | **Da colmare nei flussi documentali**, non bloccante |
-| Nessuna dipendenza oltre `pg` e WebAuthn | L'encoder QR è la prima dipendenza non infrastrutturale | **Decisione approvata**, verifica in implementazione |
-| Coda offline limitata a quattro tipi | L'inventario offline richiede un tipo nuovo | **Estendibile**, meccanismo già parametrico |
+| Immutable UUIDs for assets and places (057) | Exactly the required support: independence from position and name | **Already compliant** |
+| Tag unique only among non-archived records | Prevents using the tag as identity | **Already compliant**, provided the UUID is chosen |
+| Half-open position intervals, one open interval | Distinguishes "where it should be" from "where it was seen" without ambiguity | **Already compliant** |
+| Frozen `recorded_path` | The descriptive label shows the correct historical path | **Already compliant** |
+| `hse_assets.tool_id` | The single identity principle is already realised for equipment | **Already compliant** |
+| No `asset_id` in `hse_assets` | The principle is not yet extended to installed assets | **Known gap**, dedicated increment **approved** on 27/11/2026 |
+| `material_no` as text on order lines | No item identity | **Gap**, requires Site Materials & Inventory |
+| Attachments not extended to assets and places | The record cannot attach manuals and reports | **To be closed in the document flows**, not blocking |
+| No dependencies beyond `pg` and WebAuthn | The QR encoder is the first non-infrastructural dependency | **Approved decision**, verification in implementation |
+| Offline queue limited to four types | Offline inventory requires a new type | **Extensible**, mechanism already parametric |
 
-Conclusione: **nessuna scelta attuale preclude la funzionalità**, e non serve modificare 2a o 2b per prepararla. Le due cose che sarebbe costoso correggere dopo sono evitate per costruzione: il QR contiene l'UUID e non il tag; l'inventario non scrive mai la posizione di un asset.
+Conclusion: **no current choice prevents the functionality**, and there is no need to modify 2a or 2b to prepare for it. The two things that would be costly to correct later are avoided by construction: the QR contains the UUID and not the tag; inventory never writes the position of an asset.
 
-## 12. API proposte
+## 12. Proposed APIs
 
-Prefisso `/api/sites/:siteId`. Operazioni con effetto storico transazionali; creazioni ritentabili con `Idempotency-Key`.
+Prefix `/api/sites/:siteId`. Operations with historical effect are transactional; creations are retryable with `Idempotency-Key`.
 
-| Metodo | Percorso | Scopo |
+| Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/identifiers/:payload` | Risolvere un payload in tipo e id di entità, con i permessi del chiamante. `404` se non accessibile o inesistente. |
-| GET | `/identifiers/code/:code` | Risolvere il codice digitabile dell'§4.3 nel perimetro del sito |
-| GET | `/labels?entityType=&ids=&format=&width=&height=` | Restituire le etichette in SVG (PNG su richiesta) |
-| POST | `/label-batches` | Registrare un lotto di stampa e restituire il documento (singolo, A4 multiplo) |
-| GET | `/label-batches` | Cronologia delle stampe, per la ristampa |
-| GET | `/label-profiles` `POST` `PATCH` | Profili di formato e dimensioni per sito |
-| GET | `/inventory-sessions` | Elenco con stato e conteggi |
-| POST | `/inventory-sessions` | Aprire una sessione con perimetro dichiarato |
-| GET | `/inventory-sessions/:id` | Dettaglio con attesi, visti, discordanze, irrisolti |
-| POST | `/inventory-sessions/:id/scans` | Registrare una scansione con **posizione attesa fotografata**, **posizione osservata** e **contesto di scansione**; idempotente su `client_scan_id` |
-| PUT | `/inventory-sessions/:id/context` | Impostare il contesto di scansione corrente (luogo, container, scaffale). Non crea movimenti |
-| POST | `/inventory-sessions/:id/resolutions` | Registrare una decisione di riconciliazione |
-| POST | `/inventory-sessions/:id/close` | Chiudere congelando il risultato |
-| POST | `/inventory-sessions/:id/amendments` | Rettifica tracciata di una sessione chiusa |
+| GET | `/identifiers/:payload` | Resolve a payload into entity type and id, with the caller's permissions. `404` if inaccessible or non-existent. |
+| GET | `/identifiers/code/:code` | Resolve the typable code from §4.3 within the site scope |
+| GET | `/labels?entityType=&ids=&format=&width=&height=` | Return labels in SVG (PNG on request) |
+| POST | `/label-batches` | Register a print batch and return the document (single, A4 multiple) |
+| GET | `/label-batches` | Print history, for reprinting |
+| GET | `/label-profiles` `POST` `PATCH` | Format and dimension profiles per site |
+| GET | `/inventory-sessions` | List with status and counts |
+| POST | `/inventory-sessions` | Open a session with declared scope |
+| GET | `/inventory-sessions/:id` | Detail with expected, seen, discrepancies, unresolved |
+| POST | `/inventory-sessions/:id/scans` | Record a scan with **snapshot expected location**, **observed location** and **scan context**; idempotent on `client_scan_id` |
+| PUT | `/inventory-sessions/:id/context` | Set the current scan context (place, container, shelf). Creates no movements |
+| POST | `/inventory-sessions/:id/resolutions` | Record a reconciliation decision |
+| POST | `/inventory-sessions/:id/close` | Close, freezing the result |
+| POST | `/inventory-sessions/:id/amendments` | Traced correction of a closed session |
 
-Nessuna rotta di scrittura sulle anagrafiche: le azioni contestuali usano le rotte dei moduli proprietari.
+No write route on master records: contextual actions use the routes of the owning modules.
 
-## 13. Criteri di accettazione e test negativi
+## 13. Acceptance criteria and negative tests
 
-| Prova | Esito verificabile |
+| Test | Verifiable outcome |
 | --- | --- |
-| Indipendenza dalla posizione | Spostare un asset non cambia il payload risolto dall'etichetta già stampata. |
-| Indipendenza dal nome | Rinominare non cambia la risoluzione; l'etichetta descrittiva vecchia resta leggibile come dato alla data di stampa. |
-| Indipendenza dal dominio | Lo stesso payload si risolve su due ambienti distinti. Nessun URL nel payload canonico. |
-| Nessun dato sensibile | Il payload contiene solo schema URN e UUID: nessun nome, seriale, token, data o URL firmata. Un payload manomesso che finge dati aggiuntivi è respinto. |
-| Non riciclo | Dismettere un asset e riusarne il tag non rende l'etichetta vecchia risolvibile al nuovo asset. |
-| Codice breve | Il codice dell'§4.3 risolve l'entità corretta ed è stabile dopo rinomina, trasferimento e riuso del tag. Un codice con un carattere sbagliato è respinto dal carattere di controllo **prima** dell'interrogazione. |
-| Collisione | Due entità non ottengono mai lo stesso codice breve nello stesso sito, anche sotto creazione concorrente; al superamento dei tentativi il codice si allunga, non si riassegna. |
-| Codice non riassegnato | Archiviare o dismettere un'entità non libera il suo codice per una nuova entità. |
-| Cross-site | Un identificativo di un altro sito restituisce `404` senza rivelare nome o esistenza; nessun conteggio lo espone. |
-| Identità unica | Un bene presente in `tools` e `hse_assets` produce una sola etichetta autoritativa; un tentativo di stamparne due è segnalato. |
-| Riconciliazione HSE | Un bene HSE con `tool_id` nullo non viene collegato automaticamente: la proposta richiede conferma dell'identità fisica, resta tracciata e, se respinta, non cambia nulla. Dopo il collegamento esiste una sola etichetta autoritativa. |
-| Continuità dell'identità fisica | L'etichetta stampata su un'istanza al ricevimento continua a risolvere lo stesso oggetto dopo l'installazione: nessuna ristampa, nessuna seconda identità, e il legame istanza→asset è esplicito e tracciato. |
-| Stampa | Selezionare cento entità produce cento etichette e nessun record in più; la ristampa non duplica; l'anteprima riporta i conteggi corretti. |
-| Dimensioni | Un profilo 50×25 mm produce un SVG con quelle dimensioni fisiche e un QR sopra il modulo minimo leggibile. |
-| Permessi di stampa | Un viewer non può avviare una stampa massiva; un utente senza accesso al modulo non ottiene etichette e, se invoca la rotta, è respinto. |
-| Scansione reale | **Safari/iPhone e Chrome/Android su dispositivo fisico** leggono un'etichetta stampata e aprono la scheda corretta. Con l'API nativa assente, il decoder di riserva funziona. |
-| Duplicati in sessione | Due scansioni dello stesso asset producono un duplicato segnalato, non una quantità 2. |
-| Sconosciuto | Un payload non risolto non crea entità; resta irrisolto e la sessione può chiudersi conservandolo. |
-| Ubicazione discordante | Una scansione fuori perimetro non modifica `asset_positions`; senza approvazione del movimento la posizione resta invariata. |
-| Posizione attesa e osservata | La rilevazione conserva entrambe; se l'asset si sposta dopo, la posizione attesa registrata non cambia. Una rilevazione senza posizione osservata non produce una discordanza inventata. |
-| Contesto di scansione | Inquadrare un luogo imposta il contesto delle rilevazioni successive senza creare movimenti né modificare ubicazioni ufficiali; il contesto non sopravvive alla sessione. |
-| Visibilità circoscritta | Un utente senza accesso al modulo d'origine vede la riga della sessione ma non la scheda né i dati dell'entità; i riepiloghi contano solo ciò che può vedere e non rivelano record esclusi. |
-| Quattro permessi | Chi registra rilevazioni ma non ha l'approvazione dei movimenti non riesce ad applicare un movimento, né direttamente né tramite la riconciliazione. |
-| Idempotenza | Lo stesso `client_scan_id` inviato due volte produce una sola riga. |
-| Sessione chiusa | Modificare una sessione chiusa è respinto; la rettifica produce un atto separato e l'originale resta leggibile. |
-| Diario | Una sessione chiusa genera **una** voce di riepilogo, non una per scansione; la voce cita la sessione. |
-| Offline (fase 2) | Con rete assente l'interfaccia non finge di aver registrato una scansione non in coda; al ritorno in rete un utente senza permesso vede la rilevazione respinta, non applicata; la cache scade e si invalida al logout. |
+| Independence from location | Moving an asset does not change the payload resolved by an already printed label. |
+| Independence from name | Renaming does not change resolution; the old descriptive label remains readable as data at the print date. |
+| Independence from domain | The same payload resolves on two distinct environments. No URL in the canonical payload. |
+| No sensitive data | The payload contains only URN schema and UUID: no name, serial number, token, date or signed URL. A tampered payload pretending to carry additional data is rejected. |
+| No recycling | Decommissioning an asset and reusing its tag does not make the old label resolvable to the new asset. |
+| Short code | The code from §4.3 resolves the correct entity and is stable after renaming, transfer and tag reuse. A code with a wrong character is rejected by the check character **before** the query. |
+| Collision | Two entities never obtain the same short code within the same site, even under concurrent creation; when the attempts are exceeded the code is lengthened, not reassigned. |
+| No reassignment of code | Archiving or decommissioning an entity does not free its code for a new entity. |
+| Cross-site | An identifier from another site returns `404` without revealing name or existence; no count exposes it. |
+| Single identity | An item present in `tools` and in `hse_assets` produces one authoritative label; an attempt to print two is flagged. |
+| HSE reconciliation | An HSE asset with null `tool_id` is not linked automatically: the proposal requires confirmation of physical identity, remains traced and, if rejected, changes nothing. After linking there is one authoritative label. |
+| Continuity of physical identity | The label printed on an instance at receipt continues to resolve the same object after installation: no reprint, no second identity, and the instance→asset link is explicit and traced. |
+| Printing | Selecting one hundred entities produces one hundred labels and no extra records; reprinting does not duplicate; the preview reports the correct counts. |
+| Dimensions | A 50×25 mm profile produces an SVG with those physical dimensions and a QR above the minimum readable module. |
+| Print permissions | A viewer cannot start a bulk print; a user without access to the module obtains no labels and, if they invoke the route, is rejected. |
+| Real scanning | **Safari/iPhone and Chrome/Android on physical devices** read a printed label and open the correct record. With the native API absent, the fallback decoder works. |
+| Duplicates in session | Two scans of the same asset produce a reported duplicate, not a quantity of 2. |
+| Unknown | An unresolved payload creates no entity; it remains unresolved and the session can close keeping it. |
+| Discrepant location | A scan outside scope does not modify `asset_positions`; without approval of the movement the position remains unchanged. |
+| Expected and observed location | The survey keeps both; if the asset moves afterwards, the recorded expected location does not change. A survey without observed location does not produce an invented discrepancy. |
+| Scan context | Framing a place sets the context of subsequent surveys without creating movements or modifying official locations; the context does not survive the session. |
+| Limited visibility | A user without access to the originating module sees the session row but not the entity record nor its data; summaries count only what they can see and do not reveal excluded records. |
+| Four permissions | Whoever records surveys but lacks movement approval cannot apply a movement, either directly or through reconciliation. |
+| Idempotency | The same `client_scan_id` sent twice produces a single row. |
+| Closed session | Modifying a closed session is rejected; the correction produces a separate act and the original remains readable. |
+| Diary | A closed session generates **one** summary entry, not one per scan; the entry cites the session. |
+| Offline (phase 2) | With no network the interface does not pretend to have recorded a scan that is not queued; on return to the network a user without permission sees the survey rejected, not applied; the cache expires and is invalidated on logout. |
 
-I casi di vincolo e concorrenza vanno eseguiti su SQLite e PostgreSQL.
+Constraint and concurrency cases must be run on SQLite and PostgreSQL.
 
-## 14. Rischi, fuori scope e decisioni ancora aperte
+## 14. Risks, out of scope and open decisions
 
-| Rischio | Controllo previsto |
+| Risk | Planned control |
 | --- | --- |
-| Etichetta illeggibile dopo mesi | QR sopra il modulo minimo verificato su stampa reale; prova su supporto invecchiato |
-| Etichetta obsoleta ma non inerte | Risoluzione che distingue inesistente, archiviato e cancellato; nessun riuso di UUID |
-| Doppia identità sullo stesso oggetto | Registro autorevole per dominio; `asset_id` in `hse_assets` come incremento dedicato |
-| Inventario percepito come correzione automatica | La riconciliazione propone; il movimento richiede approvazione |
-| Dipendenza QR non presidiata | Versione fissata, hash, licenze transitive verificate, debito dichiarato |
-| Dati di sito copiati sul dispositivo | Cache minimizzata, con scadenza e invalidazione, solo cantieri autorizzati |
+| Label illegible after months | QR above the minimum module verified on real printing; test on aged media |
+| Label obsolete but not inert | Resolution that distinguishes non-existent, archived and deleted; no UUID reuse |
+| Double identity on the same object | Authoritative register per domain; `asset_id` in `hse_assets` as a dedicated increment |
+| Inventory perceived as automatic correction | Reconciliation proposes; the movement requires approval |
+| QR dependency not under control | Fixed version, hash, transitive licences verified, declared debt |
+| Site data copied to the device | Minimised cache, with expiry and invalidation, only for authorised sites |
 
-Fuori scope: barcode lineari oltre al QR, RFID, stampa ESC/POS diretta, etichette con URL nel primo rilascio, gestione giacenze e valorizzazione (che appartiene a Site Materials & Inventory), app native, firma digitale delle etichette.
+Out of scope: linear barcodes beyond the QR, RFID, direct ESC/POS printing, labels with URL in the first release, stock management and valuation (which belongs to Site Materials & Inventory), native apps, digital signature of labels.
 
-Decisioni **chiuse** dall'owner il 27/11/2026: identità unica con Attrezzature autorevole; tre formati di etichetta; stampa con driver di sistema; permessi dei moduli esistenti con quattro autorizzazioni distinte per l'inventario; `qrcode` (soldair) come candidato con verifica in implementazione; SVG prioritario; URL come opzione futura; scansione reale su entrambe le piattaforme come criterio di prima release; offline in seconda fase con cache circoscritta; diario alimentato solo da sessioni chiuse; allegati come dipendenza documentale e non dell'identificazione.
+Decisions **closed** by the owner on 27/11/2026: single identity with authoritative Equipment; three label formats; printing with system drivers; permissions of existing modules with four distinct inventory authorisations; `qrcode` (soldair) as candidate subject to verification in implementation; SVG first; URL as a future option; real scanning on both platforms as first-release criterion; offline in second phase with limited cache; diary fed only by closed sessions; attachments as a document dependency and not of identification.
 
-Decisioni **chiuse nella revisione del 27/11/2026** (secondo giro):
+Decisions **closed in the review of 27/11/2026** (second round):
 
-1. **`asset_id` in `hse_assets` è approvato** come incremento dedicato, per evitare identità duplicate degli asset sottoposti a verifiche HSE (§3.1).
-2. **Il codice breve permanente è la scelta**, al posto del codice derivato di 26 caratteri: carattere di controllo, collisioni gestite, nessuna riassegnazione, lunghezza validata in implementazione (§4.3).
-3. **`tools` resta il registro autorevole** delle attrezzature; per i beni HSE non collegati serve riconciliazione esplicita con verifica dell'identità fisica, mai associazione dedotta da nome o descrizione (§3.3).
-4. **La consultazione delle sessioni non dipende dall'accesso al modulo intero**: autorizzazioni circoscritte al dominio e al cantiere, senza esposizione indiretta tramite riepiloghi e conteggi (§8.2).
+1. **`asset_id` in `hse_assets` is approved** as a dedicated increment, to avoid duplicate identities of assets subject to HSE checks (§3.1).
+2. **The permanent short code is the chosen option**, in place of the 26-character derived code: check character, managed collisions, no reassignment, length validated in implementation (§4.3).
+3. **`tools` remains the authoritative register** of equipment; for unlinked HSE assets explicit reconciliation with verification of physical identity is required, never association inferred from name or description (§3.3).
+4. **Consultation of sessions does not depend on access to the whole module**: authorisations limited to domain and site, without indirect exposure through summaries and counts (§8.2).
 
-Decisioni **ancora aperte**:
+Decisions **still open**:
 
-1. **Momento dell'incremento `asset_id`**: se prima o dopo la prima release QR, e se richieda un backfill dei beni HSE già registrati.
-2. **Lunghezza definitiva del codice breve**: 7 caratteri (6+1) come ipotesi di lavoro, da validare su tastiera mobile reale.
-3. **Custodia della verifica fisica**: chi è abilitato a confermare l'identità di un bene HSE non collegato, e con quale prova minima accettabile.
-4. **Perimetro delle sessioni visibili**: se un responsabile di area debba vedere tutte le sessioni del proprio cantiere o solo quelle del proprio sottoalbero di luoghi.
+1. **Timing of the `asset_id` increment**: whether before or after the first QR release, and whether it requires a backfill of HSE assets already registered.
+2. **Definitive length of the short code**: 7 characters (6+1) as a working hypothesis, to be validated on a real mobile keyboard.
+3. **Custody of physical verification**: who is enabled to confirm the identity of an unlinked HSE asset, and with what minimum acceptable evidence.
+4. **Scope of visible sessions**: whether an area manager must see all sessions of their site or only those of their subtree of places.
 
-## 15. Sequenza consigliata
+## 15. Recommended sequence
 
-| Fase | Contenuto | Prerequisiti |
+| Phase | Content | Prerequisites |
 | --- | --- | --- |
-| Q0 | Prerequisiti: 2a e 2b merged; verifica della dipendenza QR. L'incremento `asset_id` in `hse_assets` è approvato ma non blocca Q1: entra quando l'owner ne fissa la precedenza | 2a, 2b |
-| Q1 | Identificatore, codice digitabile, risoluzione, etichette compatta e descrittiva, stampa singola, massiva, ristampa, anteprima, profili di dimensione, A4 | Q0; migrazione per gli eventi di stampa |
-| Q2 | Scansione mobile con decoder di riserva, apertura scheda, azioni contestuali, prova su iPhone e Android | Q1 |
-| Q3 | Sessioni di inventario, duplicati, sconosciuti, discordanze, riconciliazione, quattro autorizzazioni, riepilogo nel diario | Q2; coppia di migrazioni |
-| Q4 | Acquisizione offline con cache circoscritta, scadenza, invalidazione, verifica permessi alla sincronizzazione | Q3 |
-| Q5 | Etichetta logistica e articoli | **Site Materials & Inventory** implementato |
-| Q6 | Etichette con URL per domini stabili | Q1; decisione sull'elenco dei domini ammessi |
+| Q0 | Prerequisites: 2a and 2b merged; verification of the QR dependency. The `asset_id` increment in `hse_assets` is approved but does not block Q1: it enters when the owner fixes its priority | 2a, 2b |
+| Q1 | Identifier, typable code, resolution, compact and descriptive labels, single, bulk, reprint, preview, size profiles, A4 | Q0; migration for print events |
+| Q2 | Mobile scanning with fallback decoder, opening of record, contextual actions, test on iPhone and Android | Q1 |
+| Q3 | Inventory sessions, duplicates, unknowns, discrepancies, reconciliation, four authorisations, summary in the diary | Q2; pair of migrations |
+| Q4 | Offline acquisition with limited cache, expiry, invalidation, permission verification at synchronisation | Q3 |
+| Q5 | Logistic label and items | **Site Materials & Inventory** implemented |
+| Q6 | Labels with URL for stable domains | Q1; decision on the list of admitted domains |
 
-Nessuna fase richiede modifiche agli incrementi 2a e 2b.
+No phase requires changes to increments 2a and 2b.

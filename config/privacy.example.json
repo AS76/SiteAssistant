@@ -1,45 +1,68 @@
 {
+  "notice": {
+    "state": "example",
+    "version": "0.1-example",
+    "approvedBy": "",
+    "approvedAt": "",
+    "reviewRef": ""
+  },
   "updatedAt": "",
   "operator": {
     "name": "",
     "address": "",
+    "contact": "",
     "privacyEmail": "",
     "dpo": ""
   },
+  "purposes": [
+    { "purpose": "Manage a fictional account", "legalBasis": "Synthetic contract example" }
+  ],
   "legalBases": [],
+  "rights": "Synthetic rights section for the example installation.",
+  "complaintAuthority": "Fictional supervisory authority",
   "services": [
     {
       "name": "Railway",
       "purpose": "Hosting dell'applicazione e database PostgreSQL della demo",
-      "location": "ams (Europa)"
+      "role": "Example processor",
+      "location": "ams (Europa)",
+      "transfer": "None declared (synthetic example)"
     },
     {
       "name": "Hostinger / relay SMTP",
       "purpose": "Invio delle email transazionali di accesso e reset",
-      "location": "da confermare"
+      "role": "Example processor",
+      "location": "da confermare",
+      "transfer": "None declared (synthetic example)"
     },
     {
       "name": "OpenRouter / provider di inferenza",
       "purpose": "Assistente AI, se configurato",
-      "location": "da confermare in base al provider e all'endpoint"
+      "role": "Example processor",
+      "location": "da confermare in base al provider e all'endpoint",
+      "transfer": "None declared (synthetic example)"
     },
     {
       "name": "Nominatim / OpenStreetMap; Google Maps se configurato",
       "purpose": "Ricerca indirizzi, quando usata",
-      "location": "da confermare"
+      "role": "Example recipient",
+      "location": "da confermare",
+      "transfer": "None declared (synthetic example)"
     },
     {
       "name": "GitHub Pages",
       "purpose": "Pubblicazione della manualistica",
-      "location": "globale"
+      "role": "Example recipient",
+      "location": "globale",
+      "transfer": "None declared (synthetic example)"
     }
   ],
   "retention": {
-    "activeSessions": "7 giorni",
-    "expiredSessions": "30 giorni dalla scadenza o revoca",
-    "authEvents": "90 giorni",
-    "signupRequests": "30 giorni dalla conclusione",
-    "applicationLogs": "30 giorni, se gestiti dall'hosting",
-    "backups": "secondo la configurazione dell'hosting; retention da confermare"
+    "activeSessions": { "period": "7 giorni", "basis": "Synthetic session lifetime" },
+    "expiredSessions": { "period": "30 giorni dalla scadenza o revoca", "basis": "Synthetic security window" },
+    "authEvents": { "period": "90 giorni", "basis": "Synthetic audit window" },
+    "signupRequests": { "period": "30 giorni dalla conclusione", "basis": "Synthetic account review window" },
+    "applicationLogs": { "period": "30 giorni, se gestiti dall'hosting", "basis": "Synthetic diagnostics window" },
+    "backups": { "period": "secondo la configurazione dell'hosting; retention da confermare", "basis": "Synthetic recovery window" }
   }
 }

@@ -113,6 +113,7 @@ import './seed-northline.test.mjs';
 
 import './demo-notice-ui.test.mjs';
 import './privacy.test.mjs';
+import './privacy-notice.test.mjs';
 import './retention-auth-events.test.mjs';
 import './demo-identity-hygiene.test.mjs';
 import './ux-76-dates.test.mjs';
