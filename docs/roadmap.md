@@ -2,6 +2,14 @@
 
 Documento **derivato**. Le fonti autorevoli sono le card del board `siteassistant`; questo file ne è la rappresentazione leggibile e va aggiornato al merge di ogni incremento. In caso di divergenza vale la card.
 
+## Visione di prodotto
+
+Direzione confermata dall'owner il 27/11/2026, card `d57ae22c`; documento `docs/product-vision.md`.
+
+Tre pilastri — **Site Execution** (WBS, attività, avanzamento, risorse, impegni, deviazioni), **Site Logistics** (procurement, spedizioni, materiali, inventario, asset, attrezzature) e **Site Assurance** (HSE, qualità, ispezioni, evidenze, verifiche, handover, Permit to Work) — su fondamenta condivise: luoghi, persone, imprese, identità, permessi, diario probatorio, giurisdizioni, documenti, audit trail.
+
+Serve a stabilire dove vive un requisito e a prevenire duplicazioni tra moduli. Non è un mandato di refactoring né un cambio di priorità: Luoghi e Asset 2a e 2b restano davanti.
+
 ## Sequenza HSE concordata
 
 | Ordine | Fase | Stato | Riferimenti |
