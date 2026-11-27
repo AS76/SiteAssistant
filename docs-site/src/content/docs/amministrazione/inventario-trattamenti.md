@@ -64,7 +64,7 @@ Il report contiene il totale degli accessi riusciti, gli utenti distinti, gli ac
 - `server/auth-events.mjs`: registrazione degli eventi e troncamento dell'indirizzo IP.
 - `server/stats.mjs`: report aggregato in sola lettura.
 - Commit `5b2727d` (PR #49), che ha introdotto il registro.
-- Card di lavoro: `165ca0b9` (questa voce dell'inventario) e `83653dc9` (registro accessi e report CLI).
+- Card di lavoro: questa voce dell'inventario e il registro accessi con report CLI.
 
 Il percorso con cui una persona entra nella demo è descritto in [Accesso e account](../../guida/accesso/).
 

@@ -35,9 +35,9 @@ Riferimento: commit `0e44e3c`, migrazioni fino alla 057.
 | Pilastro | Tabelle e moduli esistenti | In roadmap |
 | --- | --- | --- |
 | Execution | `project_structure`, `tasks` / `task_events`, `site_progress_items`, `time_bookings`, `employees` / `work_days`, `workforce_names` / `workforce_presence`, `deviations` / `deviation_links`, `cost_impacts` | ciclo dell'impegno settimanale (realizzato), misura e valore |
-| Logistics | `purchase_orders` / `purchase_order_items`, `packages` / `package_items`, `shipments` / `shipment_receipts`, `assets` / `asset_positions`, `tools` | Site Materials & Inventory (`853a0078`), identificazione QR (`d46007b1`) |
-| Assurance | `hse_events`, `hse_assets`, `hse_inspections`, `certifications` | qualità e accettazione (`b27d6ec0`), handover (`7ea1b288`), Permit to Work (`aad85095`) |
-| Trasversali | `sites`, `places`, `users` / `sessions`, `site_members`, `member_module_access`, `attachments`, `audit_events`, `diary` / `diary_versions`, `signup_requests`, `invitations` | registro documenti versionato (`daf4fd9d`), moduli paese (`f50678aa`) |
+| Logistics | `purchase_orders` / `purchase_order_items`, `packages` / `package_items`, `shipments` / `shipment_receipts`, `assets` / `asset_positions`, `tools` | Site Materials & Inventory, identificazione QR |
+| Assurance | `hse_events`, `hse_assets`, `hse_inspections`, `certifications` | qualità e accettazione, handover, Permit to Work |
+| Trasversali | `sites`, `places`, `users` / `sessions`, `site_members`, `member_module_access`, `attachments`, `audit_events`, `diary` / `diary_versions`, `signup_requests`, `invitations` | registro documenti versionato, moduli paese |
 
 La mappatura mostra che i tre pilastri esistono già di fatto. La visione li rende espliciti, così che le scelte future siano coerenti invece di casuali.
 
@@ -49,7 +49,7 @@ Non sono ipotesi: sono incroci già visibili nel codice o nelle specifiche appro
 2. **Ispezione HSE vs ispezione qualità.** Esiste `hse_inspections` con template ed esiti. Qualità e accettazione (ITP, WIR, NCR) userà lo stesso meccanismo di evidenza. Due concetti di ispezione, un solo motore: se non si decide ora, nascono due registri paralleli che nessuno riconcilierà.
 3. **Diario probatorio.** È una fondazione condivisa, e sta ricevendo input da più parti: sessioni di inventario, handover, ispezioni. Il rischio non è l'uso, è l'abuso: diventare il contenitore di tutto e perdere il carattere probatorio che lo rende utile.
 4. **Luoghi come ubicazioni di magazzino.** Logistics userà `places` per depositi, container e scaffali. Se `places` cresce per esigenze di magazzino, cambia il modello per tutti e tre i pilastri, non solo per uno.
-5. **Allegati e registro documenti.** `attachments` copre oggi sei tipi di entità e non asset e luoghi; il registro documenti versionato (`daf4fd9d`) non deve diventare un secondo sistema di allegati accanto al primo.
+5. **Allegati e registro documenti.** `attachments` copre oggi sei tipi di entità e non asset e luoghi; il registro documenti versionato non deve diventare un secondo sistema di allegati accanto al primo.
 6. **Permessi per modulo o per pilastro.** `logistics` e `materials` sono strict, gli altri moduli no. La visione a pilastri suggerisce di ragionare per pilastro; il modello attuale è per modulo. È una decisione aperta, non un cambiamento da fare adesso.
 
 ## 6. Come usare questa visione

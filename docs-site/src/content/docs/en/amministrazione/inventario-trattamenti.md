@@ -64,7 +64,7 @@ The report contains the total number of successful accesses, distinct users, acc
 - `server/auth-events.mjs`: event recording and IP truncation.
 - `server/stats.mjs`: read-only aggregate report.
 - Commit `5b2727d` (PR #49), which introduced the log.
-- Work cards: `165ca0b9` (this inventory entry) and `83653dc9` (access log and CLI report).
+- Work cards: this inventory entry, and the access log with its CLI report.
 
 How a person signs in to the demo is described in [Sign in and account](../../guida/accesso/).
 
