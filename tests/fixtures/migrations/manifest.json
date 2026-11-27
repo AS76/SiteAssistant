@@ -304,5 +304,11 @@
     "file": "057_places_assets.sql",
     "sqlite": "25f2c446b16fdaf5281e3781fa5b0e6c9bd3a59bffbf46017dc3e540ca6f1a9f",
     "pg": "dbf1f71ea4d6563eda3067c3f366e06bc57deadf4cfdf8d3ae3a8554214936d4"
+  },
+  {
+    "version": "058",
+    "file": "058_place_aliases.sql",
+    "sqlite": "496e43bccd363b6a74356d009c14822d0c3df19d8178084efcaeb94b5d627e72",
+    "pg": "3d5e40a1d6ddf3952164187db64f78a4398f3d46aa426275f79d8fb7b7f7cbe9"
   }
 ]

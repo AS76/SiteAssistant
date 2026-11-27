@@ -381,7 +381,8 @@ test('mobile navigation starts with Today and desktop keeps every group plus Tod
       assert.match(html, /href="#overview"/);
       assert.match(html, /^<a href="#today"/);
       assert.equal((html.match(/<details class="nav-group"/g) || []).length, 3);
-      assert.equal((html.match(/<a href=/g) || []).length, 13);
+      // 14 = the 13 previous destinations plus places, added as a core site destination in 2a.
+      assert.equal((html.match(/<a href=/g) || []).length, 14);
     }
   }
 });

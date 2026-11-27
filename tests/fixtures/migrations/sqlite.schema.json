@@ -695,6 +695,30 @@
       }
     ]
   },
+  "index place_aliases_site_place": {
+    "relation": "place_aliases",
+    "sql": "CREATE INDEX place_aliases_site_place ON place_aliases(site_id, place_id)",
+    "columns": [
+      {
+        "name": "site_id",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": "place_id",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": null,
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 0
+      }
+    ]
+  },
   "index places_site_parent": {
     "relation": "places",
     "sql": "CREATE INDEX places_site_parent ON places(site_id, parent_id)",
@@ -5480,6 +5504,154 @@
         "columns": [
           {
             "name": "token_hash",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": null,
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 0
+          }
+        ]
+      }
+    ]
+  },
+  "table place_aliases": {
+    "relation": "place_aliases",
+    "sql": "CREATE TABLE place_aliases (\n  id TEXT PRIMARY KEY NOT NULL,\n  site_id TEXT NOT NULL,\n  place_id TEXT NOT NULL,\n  namespace TEXT COLLATE BINARY NOT NULL CHECK (length(trim(namespace)) > 0),\n  canonical_code TEXT COLLATE BINARY NOT NULL CHECK (length(trim(canonical_code)) > 0),\n  original_code TEXT NOT NULL CHECK (length(trim(original_code)) > 0),\n  source TEXT NOT NULL CHECK (length(trim(source)) > 0),\n  created_at TEXT NOT NULL,\n  valid_to TEXT CHECK (valid_to >= created_at),\n  UNIQUE (site_id, namespace, canonical_code),\n  FOREIGN KEY (site_id, place_id) REFERENCES places(site_id, id)\n)",
+    "columns": [
+      {
+        "name": "id",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "name": "site_id",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "place_id",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "namespace",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "canonical_code",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "original_code",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "source",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "created_at",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "valid_to",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [
+      {
+        "id": 0,
+        "seq": 0,
+        "table": "places",
+        "from": "site_id",
+        "to": "site_id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 0,
+        "seq": 1,
+        "table": "places",
+        "from": "place_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      }
+    ],
+    "implicitIndexes": [
+      {
+        "origin": "pk",
+        "columns": [
+          {
+            "name": "id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": null,
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 0
+          }
+        ]
+      },
+      {
+        "origin": "u",
+        "columns": [
+          {
+            "name": "site_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "namespace",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "canonical_code",
             "descending": 0,
             "coll": "BINARY",
             "is_key": 1

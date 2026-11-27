@@ -65,7 +65,8 @@ test('desktop renders three native collapsible sections in order with their modu
       assert.match(sections[index][1], new RegExp(`^<summary class="nav-section">${messages.it[group.label]}</summary>`));
       assert.deepEqual([...sections[index][1].matchAll(/href="#([^"]+)"/g)].map(match => match[1]), group.items);
     });
-    assert.equal((html.match(/<a href=/g) || []).length, 14);
+    // 15 = today + the 14 destinations now listed across the three sections (places added in 2a).
+    assert.equal((html.match(/<a href=/g) || []).length, 15);
     assert.deepEqual(openState(ui), { operations: true, site: true, management: true });
   }
 });
@@ -136,7 +137,12 @@ test('initial and detached toggle notifications cannot overwrite current prefere
 test('disabled modules are omitted without empty sections or lost preferences', () => {
   const modules = Object.fromEntries(['progress', 'bookings', 'wbs', 'impacts', 'tasks', 'tools'].map(key => [key, false]));
   const ui = navigation({ modules, saved: '{"site":false}' }), html = ui.render();
-  assert.deepEqual(ui.details.map(item => item.dataset.group), ['operations', 'management']);
+  // Places is a core site destination (always visible like sites/overview), so the
+  // site section no longer disappears when every optional module is disabled.
+  assert.deepEqual(ui.details.map(item => item.dataset.group), ['operations', 'site', 'management']);
+  const siteGroup = ui.details.find(item => item.dataset.group === 'site');
+  assert.equal(siteGroup.dataset.group, 'site');
+  assert.ok(html.includes('href="#places"'));
   for (const key of Object.keys(modules)) assert.ok(!html.includes(`href="#${key}"`));
   ui.toggle('management', false);
   assert.equal(JSON.parse(ui.values.get('sa-nav-open')).site, false);

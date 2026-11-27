@@ -255,6 +255,16 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     setStepProgress: async (id, steps) => progressFromApi(await request(
       `/api/site-progress/${encodeURIComponent(id)}/steps`, { steps }, { method: 'PUT' })),
     listWbs: (siteId, flat = false) => request(`/api/wbs${query({ site_id: siteId, flat: flat ? 1 : undefined })}`),
+    listPlaces: (siteId, { includeArchived = false, includeAliases = false } = {}) => request(`/api/places${query({
+      siteId, includeArchived: includeArchived ? 1 : undefined, includeAliases: includeAliases ? 1 : undefined,
+    })}`),
+    getPlace: id => request(`/api/places/${encodeURIComponent(id)}`),
+    placeHistory: id => request(`/api/places/${encodeURIComponent(id)}/history`),
+    createPlace: input => request('/api/places', input),
+    updatePlace: (id, input) => request(`/api/places/${encodeURIComponent(id)}`, input, { method: 'PATCH' }),
+    archivePlace: (id, input) => request(`/api/places/${encodeURIComponent(id)}/archive`, input),
+    addPlaceAlias: (id, input, idempotencyKey) => request(`/api/places/${encodeURIComponent(id)}/aliases`, input, { idempotencyKey }),
+    removePlaceAlias: (id, aliasId) => request(`/api/places/${encodeURIComponent(id)}/aliases/${encodeURIComponent(aliasId)}`, undefined, { method: 'DELETE' }),
     getWbs: id => request(`/api/wbs/${encodeURIComponent(id)}`),
     createWbs: input => request('/api/wbs', input),
     updateWbs: (id, input) => request(`/api/wbs/${encodeURIComponent(id)}`, input, { method: 'PATCH' }),

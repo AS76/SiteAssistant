@@ -108,3 +108,6 @@ import './seed-northline.test.mjs';
 import './demo-notice-ui.test.mjs';
 import './demo-identity-hygiene.test.mjs';
 import './ux-76-dates.test.mjs';
+import './places-ui.test.mjs';
+import './places-alias.test.mjs';
+import './places-read.test.mjs';

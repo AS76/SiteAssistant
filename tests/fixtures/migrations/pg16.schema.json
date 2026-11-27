@@ -527,6 +527,38 @@
     "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
     "validated": true
   },
+  "constraint place_aliases.place_aliases_canonical_code_check": {
+    "definition": "CHECK ((length(TRIM(BOTH FROM canonical_code)) > 0))",
+    "validated": true
+  },
+  "constraint place_aliases.place_aliases_check": {
+    "definition": "CHECK ((valid_to >= created_at))",
+    "validated": true
+  },
+  "constraint place_aliases.place_aliases_namespace_check": {
+    "definition": "CHECK ((length(TRIM(BOTH FROM namespace)) > 0))",
+    "validated": true
+  },
+  "constraint place_aliases.place_aliases_original_code_check": {
+    "definition": "CHECK ((length(TRIM(BOTH FROM original_code)) > 0))",
+    "validated": true
+  },
+  "constraint place_aliases.place_aliases_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint place_aliases.place_aliases_site_id_namespace_canonical_code_key": {
+    "definition": "UNIQUE (site_id, namespace, canonical_code)",
+    "validated": true
+  },
+  "constraint place_aliases.place_aliases_site_id_place_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, place_id) REFERENCES places(site_id, id)",
+    "validated": true
+  },
+  "constraint place_aliases.place_aliases_source_check": {
+    "definition": "CHECK ((length(TRIM(BOTH FROM source)) > 0))",
+    "validated": true
+  },
   "constraint places.places_check": {
     "definition": "CHECK ((parent_id <> id))",
     "validated": true
@@ -1434,6 +1466,18 @@
   },
   "index password_resets_token_hash_key": {
     "definition": "CREATE UNIQUE INDEX password_resets_token_hash_key ON password_resets USING btree (token_hash)",
+    "valid": true
+  },
+  "index place_aliases_pkey": {
+    "definition": "CREATE UNIQUE INDEX place_aliases_pkey ON place_aliases USING btree (id)",
+    "valid": true
+  },
+  "index place_aliases_site_id_namespace_canonical_code_key": {
+    "definition": "CREATE UNIQUE INDEX place_aliases_site_id_namespace_canonical_code_key ON place_aliases USING btree (site_id, namespace, canonical_code)",
+    "valid": true
+  },
+  "index place_aliases_site_place": {
+    "definition": "CREATE INDEX place_aliases_site_place ON place_aliases USING btree (site_id, place_id)",
     "valid": true
   },
   "index places_pkey": {
@@ -4367,6 +4411,83 @@
         "name": "expires_at",
         "type": "timestamp with time zone",
         "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table place_aliases": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "place_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "namespace",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "canonical_code",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "original_code",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_to",
+        "type": "timestamp with time zone",
+        "required": false,
         "default_value": null,
         "identity": "",
         "generated": ""

@@ -50,7 +50,7 @@ import { listTools, createTool, updateTool, deleteTool } from './tools.mjs';
 import { listCertifications, createCertification, updateCertification, deleteCertification, certificationSummary } from './certifications.mjs';
 import { listHseEvents, createHseEvent, updateHseEvent, deleteHseEvent, hseSummary } from './hse.mjs';
 import { templatesForJurisdiction } from './checklists.mjs';
-import { archivePlace, createPlace, listPlaces, updatePlace } from './places.mjs';
+import { addPlaceAlias, archivePlace, createPlace, getPlace, listPlaces, placeHistory, removePlaceAlias, updatePlace } from './places.mjs';
 import { archiveAsset, createAsset, listAssets, moveAsset, updateAsset } from './assets.mjs';
 import { listHseAssets, createHseAsset, updateHseAsset, deleteHseAsset } from './hse-assets.mjs';
 import { createInspection, listInspections, getInspection } from './hse-inspections.mjs';
@@ -541,7 +541,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if ((path === '/api/places' || path === '/api/assets') && method === 'GET') {
         const options = { siteId: url.searchParams.get('siteId'),
           includeArchived: url.searchParams.get('includeArchived') === '1' };
-        if (path === '/api/places') return json(response, 200, await listPlaces(db, options, user));
+        if (path === '/api/places') return json(response, 200, await listPlaces(db, {
+          ...options, includeAliases: url.searchParams.get('includeAliases') === '1',
+        }, user));
         return json(response, 200, await listAssets(db, { ...options, asOf: url.searchParams.get('asOf') }, user));
       }
       if (path === '/api/places' && method === 'POST') {
@@ -551,8 +553,26 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         return json(response, 201, await createAsset(db, await readJson(request), user));
       }
       const place = /^\/api\/places\/([^/]+)$/.exec(path);
+      if (place && method === 'GET') {
+        return json(response, 200, await getPlace(db, place[1], user));
+      }
       if (place && method === 'PATCH') {
         return json(response, 200, await updatePlace(db, place[1], await readJson(request), user));
+      }
+      const placeEvents = /^\/api\/places\/([^/]+)\/history$/.exec(path);
+      if (placeEvents && method === 'GET') {
+        return json(response, 200, await placeHistory(db, placeEvents[1], user));
+      }
+      const placeAliases = /^\/api\/places\/([^/]+)\/aliases$/.exec(path);
+      if (placeAliases && method === 'POST') {
+        const { alias, status } = await addPlaceAlias(db, placeAliases[1], await readJson(request), user, {
+          key: request.headers['idempotency-key'],
+        });
+        return json(response, status, alias);
+      }
+      const placeAlias = /^\/api\/places\/([^/]+)\/aliases\/([^/]+)$/.exec(path);
+      if (placeAlias && method === 'DELETE') {
+        return json(response, 200, await removePlaceAlias(db, placeAlias[1], placeAlias[2], user));
       }
       const placeArchive = /^\/api\/places\/([^/]+)\/archive$/.exec(path);
       if (placeArchive && method === 'POST') {
