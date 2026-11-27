@@ -53,6 +53,18 @@ The application uses **SQLite by default** or optional PostgreSQL. The reviewed 
 
 The deploying organisation must identify the suppliers it actually uses, their locations, contractual protections, access arrangements and possible international transfers. The public demo's infrastructure is **not** a required configuration for other installations.
 
+## Notice status
+
+The text of the notice pages is not written in the code: it comes from a configuration the organisation supplies to the installation, in the file named by `PRIVACY_CONFIG_FILE` and kept outside the repository.
+
+The configuration declares a status, and the status decides what the site may show.
+
+- **Example** (`example`): the configuration is missing or incomplete. The notice pages are not published: the response is `503` and the page lists the names of the missing fields, never their values.
+- **Pending legal review** (`pending-legal-review`): the configuration is complete, but nobody has approved it yet. The notice is readable, carries a permanent banner stating it is not final, and is excluded from search engines.
+- **Approved** (`approved`): requires who approved it, when, and the review reference. Only in this status is the notice presented as final, with version and update date.
+
+A configuration that declares itself approved without those three references is treated as pending review: the software cannot claim an approval nobody gave. The status cannot be changed from the interface or with a request parameter.
+
 ## Product capabilities are not legal compliance
 
 Per-site roles and per-module access are useful technical controls. They do **not** replace the organisation's determination of who may lawfully view each category of information. An `owner` can access **every module on their site** regardless of module-access switches; those switches do not restrict an owner. The reviewed version has no field-level permissions and no complete workflow for handling individuals' data protection requests.
