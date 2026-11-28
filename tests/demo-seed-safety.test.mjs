@@ -5,9 +5,10 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
 import { openDb } from '../server/db.mjs';
-import { apply, reset } from '../server/seed-demo.mjs';
-import { compositeKeys } from '../server/demo-seed-registry.mjs';
+import { apply, reset, resetAndApply } from '../server/seed-demo.mjs';
+import { fixtureRecordId } from '../server/demo-seed-registry.mjs';
 import { demoDatabaseIsSqlite } from '../server/demo-seed-environment.mjs';
 import { isPg, openTestDb } from './helpers/db.mjs';
 import { provisionDemoFixture, withDemoEnvironment } from './helpers/demo-seed.mjs';
@@ -20,6 +21,75 @@ async function snapshot(db) {
   return Object.fromEntries(await Promise.all(tables.map(async ({ name }) => [
     name, (await db.all(`SELECT * FROM "${name}"`)).map(row => JSON.stringify(row)).sort(),
   ])));
+}
+
+function assertFixtureLedger(before, after) {
+  const registered = after.demo_seed_records.map(json => {
+    const { table_name, record_id } = JSON.parse(json);
+    return JSON.stringify([table_name, record_id]);
+  });
+  const expected = [];
+  for (const [table, rows] of Object.entries(after)) {
+    if (table === 'demo_seed_records') continue;
+    const existing = new Set(before[table]);
+    for (const json of rows.filter(row => !existing.has(row))) {
+      expected.push(JSON.stringify([table, fixtureRecordId(table, JSON.parse(json))]));
+    }
+  }
+  assert.deepEqual(registered.sort(), expected.sort());
+}
+
+const tableCounts = snapshot => Object.fromEntries(Object.entries(snapshot).map(([table, rows]) => [table, rows.length]));
+
+async function addNonDemoSite(db) {
+  const id = randomUUID();
+  await db.run(`INSERT INTO sites (id, code, name, created_at, demo_sandbox)
+    VALUES (?, 'NON-DEMO', 'Synthetic non-demo site', '2026-11-01T08:00:00.000Z', FALSE)`, id);
+  return db.get('SELECT * FROM sites WHERE id = ?', id);
+}
+
+async function runConcurrentResets(db) {
+  const firstLocked = Promise.withResolvers();
+  const resumeFirst = Promise.withResolvers();
+  const secondStarted = Promise.withResolvers();
+  const first = resetAndApply({
+    transaction: fn => db.transaction(tx => fn({
+      ...tx,
+      async get(sql, ...values) {
+        const result = await tx.get(sql, ...values);
+        if (sql.startsWith('SELECT pg_advisory_xact_lock(')) {
+          firstLocked.resolve((await tx.get('SELECT pg_backend_pid() AS pid')).pid);
+          await resumeFirst.promise;
+        }
+        return result;
+      },
+    })),
+  });
+  let second;
+  try {
+    const holder = await Promise.race([firstLocked.promise, first.then(() => assert.fail('First reset did not take the advisory lock'))]);
+    second = resetAndApply({
+      transaction: fn => db.transaction(async tx => {
+        secondStarted.resolve((await tx.get('SELECT pg_backend_pid() AS pid')).pid);
+        return fn(tx);
+      }),
+    });
+    const waiter = await Promise.race([secondStarted.promise, second.then(() => assert.fail('Second reset did not start a transaction'))]);
+    assert.notEqual(waiter, holder);
+    const deadline = Date.now() + 5000;
+    let waiting;
+    do {
+      ({ waiting } = await db.get(`SELECT EXISTS (SELECT 1 FROM pg_locks
+        WHERE pid = ? AND locktype = 'advisory' AND NOT granted
+        AND CAST(? AS INTEGER) = ANY(pg_blocking_pids(pid))) AS waiting`, waiter, holder));
+      if (!waiting) await delay(20);
+    } while (!waiting && Date.now() < deadline);
+    assert.ok(waiting, 'Second reset must wait on the first reset’s advisory lock');
+  } finally {
+    resumeFirst.resolve();
+    await Promise.allSettled([first, second]);
+  }
+  return Promise.all([first, second]);
 }
 
 function failAfterWrites(db, predicate) {
@@ -46,12 +116,13 @@ for (const driver of ['sqlite', 'pg']) {
     if (fixture) t.after(fixture.close);
     const db = fixture?.db ?? await wbsDatabase(t, driver);
 
-    await t.test('missing or invalid marker refuses apply and reset without writes', async () => {
+    await t.test('missing or invalid marker refuses demo mutations without writes', async () => {
       const check = async () => {
         const before = await snapshot(db);
         await withDemoEnvironment(async () => {
-          await assert.rejects(apply(db), /Demo database marker is missing or invalid/);
-          await assert.rejects(reset(db), /Demo database marker is missing or invalid/);
+          for (const execute of [apply, reset, resetAndApply]) {
+            await assert.rejects(execute(db), /Demo database marker is missing or invalid/);
+          }
         });
         assert.deepEqual(await snapshot(db), before);
       };
@@ -70,44 +141,74 @@ for (const driver of ['sqlite', 'pg']) {
         else process.env.APP_ENV = previous;
       });
       const before = await snapshot(db);
-      await assert.rejects(apply(db), /requires APP_ENV=demo/);
-      await assert.rejects(reset(db), /requires APP_ENV=demo/);
+      for (const execute of [apply, reset, resetAndApply]) {
+        await assert.rejects(execute(db), /requires APP_ENV=demo/);
+      }
       assert.deepEqual(await snapshot(db), before);
     });
 
     await withDemoEnvironment(async () => {
+      const nonDemoSite = await addNonDemoSite(db);
+      const unseeded = await snapshot(db);
+
       await t.test('interrupted apply rolls back fixture data and the registry', async () => {
-        const before = await snapshot(db);
         await assert.rejects(apply(failAfterWrites(db, sql => sql.startsWith('INSERT INTO demo_seed_records'))), /five successful writes/);
-        assert.deepEqual(await snapshot(db), before);
+        assert.deepEqual(await snapshot(db), unseeded);
       });
 
       await t.test('fresh apply registers every fixture row with its actual primary key', async () => {
-        const before = await snapshot(db);
         await apply(db);
-        const after = await snapshot(db);
-        const ledger = new Set(after.demo_seed_records.map(json => {
-          const { table_name, record_id } = JSON.parse(json);
-          return JSON.stringify([table_name, record_id]);
-        }));
-        const missing = {};
-        for (const [table, rows] of Object.entries(after)) {
-          if (table === 'demo_seed_records') continue;
-          const existing = new Set(before[table]);
-          for (const json of rows.filter(row => !existing.has(row))) {
-            const row = JSON.parse(json);
-            const columns = compositeKeys[table];
-            const key = columns ? JSON.stringify(columns.map(column => String(row[column]))) : String(row.id);
-            if (!ledger.has(JSON.stringify([table, key]))) missing[table] = (missing[table] ?? 0) + 1;
-          }
-        }
-        assert.deepEqual(missing, {});
+        assertFixtureLedger(unseeded, await snapshot(db));
       });
 
       await t.test('double apply leaves every application table and the registry identical', async () => {
         await apply(db);
         const before = await snapshot(db);
         await apply(db);
+        assert.deepEqual(await snapshot(db), before);
+      });
+
+      if (driver === 'pg') {
+        await t.test(isPg ? 'two atomic resets serialize on the PostgreSQL advisory lock'
+          : 'two atomic resets leave a consistent fixture registry', async () => {
+          const seeded = await snapshot(db);
+          let results;
+          if (isPg) {
+            results = await runConcurrentResets(db);
+          } else {
+            results = [await resetAndApply(db), await resetAndApply(db)];
+          }
+          assert.ok(results[0].reset.removed > 0);
+          assert.deepEqual(results[1], results[0]);
+          const after = await snapshot(db);
+          assert.deepEqual(tableCounts(after), tableCounts(seeded));
+          assertFixtureLedger(unseeded, after);
+          assert.deepEqual(await db.get('SELECT * FROM sites WHERE id = ?', nonDemoSite.id), nonDemoSite);
+        });
+      }
+
+      await t.test('a shipment collision during atomic apply also rolls back fixture deletions', async () => {
+        const before = await snapshot(db);
+        let removedTasks = 0;
+        let injected = false;
+        const collision = {
+          transaction: fn => db.transaction(tx => fn({
+            ...tx,
+            async run(sql, ...values) {
+              if (!injected && sql.startsWith('INSERT INTO shipment_packages')) {
+                assert.ok(removedTasks > 0, 'The reset must have deleted existing fixtures');
+                const insert = await tx.run('INSERT INTO shipment_packages (shipment_id, package_id) VALUES (?, ?)', ...values);
+                assert.equal(insert.rowCount, 1);
+                injected = true;
+              }
+              const result = await tx.run(sql, ...values);
+              if (sql.startsWith('DELETE FROM tasks ')) removedTasks += result.rowCount;
+              return result;
+            },
+          })),
+        };
+        await assert.rejects(resetAndApply(collision), /Unregistered demo fixture collision: shipment_packages \(1 row,/);
+        assert.ok(injected);
         assert.deepEqual(await snapshot(db), before);
       });
 
@@ -144,14 +245,28 @@ for (const driver of ['sqlite', 'pg']) {
         await db.run('INSERT INTO deviation_export_rows (export_id, deviation_id) VALUES (?, ?)', batch.id, unrelated);
       });
 
-      await t.test('a skipped composite insert cannot claim an existing relationship', async () => {
-        const table = 'cost_impact_deviations';
-        const { record_id: key } = await db.get('SELECT record_id FROM demo_seed_records WHERE table_name = ? ORDER BY record_id LIMIT 1', table);
-        await db.run('DELETE FROM demo_seed_records WHERE table_name = ? AND record_id = ?', table, key);
+      await t.test('legacy shipment links report all collisions by table with three example keys', async () => {
+        const tables = ['shipment_packages', 'cost_impact_deviations'];
+        const keys = new Map();
+        for (const table of tables) {
+          const limit = table === 'shipment_packages' ? 4 : 1;
+          const rows = await db.all('SELECT record_id FROM demo_seed_records WHERE table_name = ? ORDER BY record_id LIMIT ?', table, limit);
+          assert.equal(rows.length, limit);
+          keys.set(table, rows.map(row => row.record_id).sort());
+          for (const { record_id } of rows) {
+            await db.run('DELETE FROM demo_seed_records WHERE table_name = ? AND record_id = ?', table, record_id);
+          }
+        }
         const before = await snapshot(db);
-        await assert.rejects(apply(db), /Unregistered demo fixture collision: cost_impact_deviations/);
+        await assert.rejects(apply(db), {
+          message: `Unregistered demo fixture collision: shipment_packages (4 rows, examples: ${keys.get('shipment_packages').slice(0, 3).join(', ')}) | cost_impact_deviations (1 row, examples: ${keys.get('cost_impact_deviations')[0]}).`,
+        });
         assert.deepEqual(await snapshot(db), before);
-        await db.run('INSERT INTO demo_seed_records (table_name, record_id) VALUES (?, ?)', table, key);
+        for (const [table, records] of keys) {
+          for (const record of records) {
+            await db.run('INSERT INTO demo_seed_records (table_name, record_id) VALUES (?, ?)', table, record);
+          }
+        }
       });
 
       await t.test('an unregistered link to a fixture target blocks deletion', async () => {
@@ -218,7 +333,7 @@ for (const driver of ['sqlite', 'pg']) {
   });
 }
 
-test('the CLI marker requires deliberate provisioning and refuses the legacy ledger', async t => {
+test('the SQLite CLI requires explicit provisioning and can reset and apply twice', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'siteassistant-demo-marker-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const path = join(directory, 'demo.db');
@@ -232,6 +347,7 @@ test('the CLI marker requires deliberate provisioning and refuses the legacy led
     return result;
   };
   assert.match(run('--reset').stderr, /Demo database marker is missing or invalid/);
+  assert.match(run('--reset-apply').stderr, /Demo database marker is missing or invalid/);
   await db.run("INSERT INTO demo_seed_records (table_name, record_id) VALUES ('sites', 'legacy-id')");
   assert.match(run('--mark-demo-database').stderr, /Legacy demo seed registry requires manual reconciliation/);
   assert.deepEqual(await db.all('SELECT * FROM demo_seed_environment'), []);
@@ -246,4 +362,26 @@ test('the CLI marker requires deliberate provisioning and refuses the legacy led
   const resetInDemo = run('--reset');
   assert.equal(resetInDemo.status, 0, resetInDemo.stderr);
   assert.deepEqual(JSON.parse(resetInDemo.stdout), { reset: true, removed: 0, cascaded: {} });
+  const nonDemoSite = await addNonDemoSite(db);
+  const before = await snapshot(db);
+  const seed = run('--apply');
+  assert.equal(seed.status, 0, seed.stderr);
+  const initial = JSON.parse(seed.stdout);
+  assert.equal(initial.applied, true);
+  const seeded = await snapshot(db);
+  let removed;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = run('--reset-apply');
+    assert.equal(result.status, 0, result.stderr);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.applied, true);
+    assert.deepEqual(output.counts, initial.counts);
+    assert.ok(output.reset.removed > 0);
+    removed ??= output.reset.removed;
+    assert.deepEqual(output.reset, { removed, cascaded: {} });
+    const after = await snapshot(db);
+    assert.deepEqual(tableCounts(after), tableCounts(seeded));
+    assertFixtureLedger(before, after);
+    assert.deepEqual(await db.get('SELECT * FROM sites WHERE id = ?', nonDemoSite.id), nonDemoSite);
+  }
 });
