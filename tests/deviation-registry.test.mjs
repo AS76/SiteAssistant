@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { storeDeviationExport } from '../server/deviations.mjs';
 import { createServer } from '../server/http.mjs';
 import { saveModuleAccess } from '../server/module-access.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
 import { openSqliteTestDb } from './helpers/db.mjs';
+import { deviationsDatabase, deviationsSource } from './helpers/deviations.mjs';
 import { decisionItem, link, occurrence, request, siteFixture } from './helpers/task-reconciliation.mjs';
 
 const attribution = (causingCompany, resolvingCompany, attributionState = 'agreed') =>
@@ -18,9 +19,12 @@ function checked(response, status, code) {
   return response.body;
 }
 
-async function setup(t) {
-  const { db, close } = await openSqliteTestDb();
-  t.after(close);
+async function setup(t, db) {
+  if (!db) {
+    const fixture = await openSqliteTestDb();
+    db = fixture.db;
+    t.after(fixture.close);
+  }
   const { users, cookies } = await authFixture(db);
   const f = await siteFixture(db, users);
   const api = requestListener(createServer(db));
@@ -71,6 +75,7 @@ test('Deviations apply approved typed links once, preserving source text, attrib
   const source = items.find(item => item.field === 'author').source;
   assert.equal(source.original, row.author);
   assert.equal(source.provenance.kind, 'import');
+  assert.equal(source.provenance.identityState, 'resolved');
   assert.deepEqual([source.provenance.sourceSystem, source.provenance.exportDate], ['other', '2026-01-01']);
   assert.equal(items.find(item => item.field === 'causing_company').source.provenance.attributionState, 'not_determined');
 
@@ -88,6 +93,10 @@ test('Deviations apply approved typed links once, preserving source text, attrib
   assert.deepEqual(await db.get('SELECT * FROM deviations WHERE id = ?', id), existing);
   assert.deepEqual(await countPermissions(), permissions);
 
+  // Simulate the receipt written by 679404b for a tracked export without a planning key.
+  const legacySnapshot = JSON.stringify({ ...source, provenance: { ...source.provenance, identityState: null } });
+  await db.run('UPDATE reconciliation_items SET source_snapshot = ?, source_revision = ? WHERE batch_id = ? AND field = ?',
+    legacySnapshot, createHash('sha256').update(legacySnapshot).digest('hex'), batch.batchId, 'author');
   const retry = await r.approve((await r.preview(id, ['author'])).items, decisions);
   assert.equal((await r.apply(retry)).items[0].status, 'matched');
   const snapshot = checked(await r.detail(id), 200).registry_history;
@@ -122,6 +131,42 @@ test('Deviations apply approved typed links once, preserving source text, attrib
   assert.equal(checked(await r.detail(id), 200).registry_history, undefined);
   checked(await r.send('/candidates?field=author&q=Synthetic', undefined, 'viewer'), 403, 'MODULE_FORBIDDEN');
   checked(await r.send(`/batches/${batch.batchId}`, undefined, 'viewer'), 403, 'MODULE_FORBIDDEN');
+});
+
+test('Legacy ingestion without export metadata can link only a resolved author identity on SQLite', async t => {
+  const db = await deviationsDatabase(t, 'sqlite');
+  const r = await setup(t, db);
+  const author = await r.f.person('Synthetic author');
+  await deviationsSource(db, r.f.site, ['manual', 'unresolved'].map(identity_state => ({
+    title: 'Synthetic legacy deviation', author: author.name, source_status: 'open', identity_state,
+  })));
+  const imported = checked(await r.api('/api/deviations/import', {
+    method: 'POST', body: { site_id: r.site }, cookie: r.cookies.owner,
+  }), 200);
+  assert.equal(imported.imported, 2);
+  const [unresolvedRow, resolvedRow] = await db.all(`SELECT id, source_system, source_id, source_export_date, source_entity_key_id
+    FROM deviations WHERE site_id = ? ORDER BY source_entity_key_id IS NOT NULL`, r.site);
+  assert.deepEqual([unresolvedRow.source_system, unresolvedRow.source_id, unresolvedRow.source_export_date,
+    unresolvedRow.source_entity_key_id], [null, null, null, null]);
+  assert.ok(resolvedRow.source_entity_key_id);
+  assert.deepEqual(await db.all('SELECT target_id FROM planning_import_keys WHERE site_id = ?', r.site), []);
+
+  await r.activate();
+  const [blocked] = (await r.preview(unresolvedRow.id, ['author'])).items;
+  assert.equal(blocked.source.original, author.name);
+  assert.equal(blocked.source.provenance.identityState, 'unresolved');
+  assert.equal(blocked.source.linkable, false);
+  const rejected = request(decisionItem(blocked, link('person', author)));
+  checked(await r.send('/batches', rejected), 409, 'DEVIATION_REGISTRY_UNRESOLVED');
+  assert.deepEqual(await db.all('SELECT id FROM reconciliation_batches WHERE id = ?', rejected.batchId), []);
+
+  const [eligible] = (await r.preview(resolvedRow.id, ['author'])).items;
+  assert.equal(eligible.source.provenance.identityState, 'resolved');
+  assert.equal(eligible.source.linkable, true);
+  const applied = await r.apply(await r.approve([eligible], { author: link('person', author) }));
+  assert.equal(applied.items[0].status, 'applied');
+  const links = await db.all('SELECT deviation_id FROM deviation_registry_links WHERE site_id = ?', r.site);
+  assert.deepEqual(links.map(row => row.deviation_id), [resolvedRow.id]);
 });
 
 test('Ambiguous labels, wrong roles and cross-site choices cannot create deviation links', async t => {

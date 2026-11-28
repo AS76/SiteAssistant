@@ -39,14 +39,19 @@ const sourceProjection = `d.author, d.assigned_to, d.causing_company, d.resolvin
   (SELECT CAST(MAX(e.id) AS TEXT) FROM deviation_events e WHERE e.deviation_id = d.id AND e.action = 'attribution') AS attribution_revision`;
 
 function provenance(row, field) {
-  return kinds(field).includes('company')
-    ? { kind: 'attribution', attributionState: row.attribution_state, attributionRevision: row.attribution_revision }
-    : { kind: 'import', sourceSystem: row.source_system, exportDate: row.source_export_date, sourceId: row.source_id,
-      entityKey: row.source_entity_key_id, identityState: row.import_identity_state, revision: row[`${field}_revision`] ?? 0 };
+  if (kinds(field).includes('company')) {
+    return { kind: 'attribution', attributionState: row.attribution_state, attributionRevision: row.attribution_revision };
+  }
+  // Tracked exports and trusted legacy ingestion keys can exist without a planning key.
+  const identityState = row.import_identity_state
+    ?? (row.source_id || row.source_entity_key_id ? 'resolved' : 'unresolved');
+  return { kind: 'import', sourceSystem: row.source_system, exportDate: row.source_export_date, sourceId: row.source_id,
+    entityKey: row.source_entity_key_id, identityState, revision: row[`${field}_revision`] ?? 0 };
 }
 
 const canLink = (original, evidence) => Boolean(original?.trim()
-  && evidence.attributionState !== 'disputed' && evidence.identityState !== 'unresolved');
+  && evidence.attributionState !== 'disputed'
+  && (evidence.kind !== 'import' || (evidence.identityState != null && evidence.identityState !== 'unresolved')));
 
 const fromLinks = `FROM deviation_registry_links l JOIN reconciliation_items i
     ON i.site_id = l.site_id AND i.module = l.module AND i.batch_id = l.batch_id
@@ -57,7 +62,14 @@ const fromLinks = `FROM deviation_registry_links l JOIN reconciliation_items i
 const archivedAt = 'COALESCE(p.archived_at, t.archived_at, c.archived_at)';
 
 function sameEvidence(row, field, link) {
-  return row[field] === link.original_label && same(provenance(row, field), JSON.parse(link.source_snapshot).provenance);
+  if (row[field] !== link.original_label) return false;
+  const current = provenance(row, field);
+  const saved = JSON.parse(link.source_snapshot).provenance;
+  // Older receipts stored a null state even when their source ID or ingestion key was trusted.
+  if (saved.identityState === null && row.import_identity_state === null && current.identityState === 'resolved') {
+    saved.identityState = current.identityState;
+  }
+  return same(current, saved);
 }
 
 async function latestLink({ tx, site }, { recordId, field }) {
