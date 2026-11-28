@@ -260,7 +260,9 @@ for (const driver of ['sqlite', 'pg']) {
         await tx.run('INSERT INTO schema_migrations VALUES (?, ?)', file.slice(0, 3), stamp);
       });
     }
-    const site = await createSite(db, { code: 'TEST-MIGRATION', name: 'Synthetic upgrade site' });
+    const site = { id: randomUUID(), code: 'TEST-MIGRATION' };
+    await db.run('INSERT INTO sites (id, code, name, created_at) VALUES (?, ?, ?, ?)',
+      site.id, site.code, 'Synthetic upgrade site', stamp);
     const shared = await createUser(db, { email: 'shared@example.invalid', name: 'Synthetic shared account', password, siteCode: site.code, role: 'owner' });
     const admin = await createUser(db, { email: 'admin@example.invalid', name: 'Synthetic administrator', password, siteCode: site.code, role: 'owner' });
     await db.run('UPDATE users SET shared_demo = TRUE WHERE id = ?', shared.id);

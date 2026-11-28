@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { createServer } from '../server/http.mjs';
 import { applyMigration } from '../server/migrations/index.mjs';
-import { createSite } from '../server/repository.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
 import { wbsDatabase } from './helpers/wbs.mjs';
 
@@ -23,10 +22,14 @@ for (const [driver, engine] of [['sqlite', 'SQLite'], ['pg', 'PGlite']]) {
       '040_site_time_zone.sql', '045_diary_versions.sql']) {
       await db.transaction(tx => applyMigration(tx, file, { driver }));
     }
-    const siteA = await createSite(db, { code: 'SYN-A', name: 'Synthetic site A' });
+    const siteA = { id: randomUUID() };
+    await db.run('INSERT INTO sites (id, code, name, created_at) VALUES (?, ?, ?, ?)',
+      siteA.id, 'SYN-A', 'Synthetic site A', new Date().toISOString());
     const { users, cookies } = await authFixture(db, siteA);
     for (const file of ['047_site_assistant.sql', '048_password_resets.sql', '049_interface_language.sql',
-      '050_invitations.sql', '051_demo_user.sql', '052_auth_activity.sql', '053_assistant_usage.sql']) {
+      '050_invitations.sql', '051_demo_user.sql', '052_auth_activity.sql', '053_assistant_usage.sql',
+      '054_demo_seed_records.sql', '055_demo_seed_environment.sql', '056_hse_inspection_outcomes.sql',
+      '057_places_assets.sql', '058_site_jurisdictions.sql']) {
       await db.transaction(tx => applyMigration(tx, file, { driver }));
     }
 

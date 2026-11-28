@@ -135,7 +135,7 @@ const dateLabel = value => value && validDate(value) ? new Intl.DateTimeFormat(l
 const coreDate = value => value == null || value === '' ? t('coreUnknown') : esc(dateLabel(String(value).slice(0, 10)));
 const timeLabel = value => new Intl.DateTimeFormat(language === 'it' ? 'it-IT' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 function timeZoneForSite(site) {
-  return site?.time_zone ?? (site?.jurisdiction === 'UK' ? 'Europe/London' : 'Europe/Rome');
+  return site?.time_zone ?? 'UTC';
 }
 function operationalDay(instant = new Date(), site = currentSite()) {
   const parts = new Intl.DateTimeFormat('en-GB', {
@@ -155,7 +155,7 @@ function notebookTime(value, timeZone = timeZoneForSite(currentSite())) {
     hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone,
   }).format(new Date(value));
   let clock;
-  try { clock = format(timeZone || 'Europe/Rome'); } catch (error) {
+  try { clock = format(timeZone || 'UTC'); } catch (error) {
     if (!(error instanceof RangeError)) throw error;
     clock = format('UTC');
   }
@@ -363,11 +363,13 @@ async function loadData({ signedIn = false } = {}) {
       }
       if (!offline) {
         try {
-          const [sites, tasks, diary] = await Promise.all([freshApi.listSites(), freshApi.listTasks(), freshApi.listDiary()]);
+          const [sites, tasks, diary, jurisdictions] = await Promise.all([
+            freshApi.listSites(), freshApi.listTasks(), freshApi.listDiary(), freshApi.listJurisdictions(),
+          ]);
           const accessRows = await Promise.all(sites.map(async site => [site.id, await freshApi.listModuleAccess(site.id)]));
           const memberAccess = Object.fromEntries(accessRows);
           const saved = storageReady ? await getMirror(`state:${offlineScope}`) : null;
-          state = { sites, tasks, diary, memberAccess, attachments: saved?.attachments || [], todayResources: saved?.todayResources || {} };
+          state = { sites, tasks, diary, jurisdictions, memberAccess, attachments: saved?.attachments || [], todayResources: saved?.todayResources || {} };
           if (sites.length) {
             const selected = sites.some(site => site.id === siteId) ? siteId : sites[0].id;
             try {
@@ -1192,7 +1194,7 @@ async function submitDashboardLayout(form, reset = false) {
 function renderSites() {
   $('#main').innerHTML = heading('sitesTitle', 'sitesSub', canCreateSite() ? button('newSite', 'new-site', '', 'primary') : '') + `<div class="site-grid">${state.sites.map(site => {
     const tasks = state.tasks.filter(task => task.siteId === site.id), count = counts(tasks);
-    return `<article class="site-card ${site.id === siteId ? 'selected' : ''}"><span class="site-code">${esc(site.code)}</span><h2>${esc(site.name)}</h2><p>${esc(site.location || '—')}</p><div class="site-counts"><span><strong>${tasks.length}</strong>${t('tasks')}</span><span><strong>${tasks.length - count.closed}</strong>${t('nonClosed')}</span></div>
+    return `<article class="site-card ${site.id === siteId ? 'selected' : ''}"><span class="site-code">${esc(site.code)}</span><h2>${esc(site.name)}</h2><p>${esc(site.location || '—')}</p>${site.jurisdiction ? `<p class="note">${esc(t('siteJurisdiction'))} · ${esc(siteJurisdictionLabel(site))}</p>` : ''}<div class="site-counts"><span><strong>${tasks.length}</strong>${t('tasks')}</span><span><strong>${tasks.length - count.closed}</strong>${t('nonClosed')}</span></div>
       <div class="progress-track" aria-hidden="true"><span style="width:${tasks.length ? count.closed / tasks.length * 100 : 0}%"></span></div><p>${site.start ? dateLabel(site.start) : '—'} → ${site.end ? dateLabel(site.end) : '—'}</p>${button(site.id === siteId ? 'selected' : 'openSite', 'select-site', `data-id="${esc(site.id)}"`, site.id === siteId ? 'small' : 'primary small')}</article>`;
   }).join('')}</div>`;
   if (siteId && !offline && moduleVisible('tasks') && moduleVisible('deviations')) {
@@ -2783,7 +2785,8 @@ function renderHseAssetDetail() {
     ${family?.status === 'draft' || family?.draft ? `<p class="note">${t('hseAssetChecklistReview')}</p>` : ''}${hseReadBlock(templates)}
     <dl class="detail-grid"><div><dt>${t('status')}</dt><dd>${hseInspectionStatus(asset.status)}</dd></div><div><dt>${t('hseAssetLastInspection')}</dt><dd>${date(asset.lastInspectionOn)}</dd></div><div><dt>${t('hseAssetNextDue')}</dt><dd>${hseDueDate(asset.nextDueOn, asset.frequencyVerified ?? family?.frequency_verified)}</dd></div></dl>
     ${family ? `<p class="note">${family.items.length} ${t(family.items.length === 1 ? 'hseAssetCheck' : 'hseAssetChecks')}</p>` : ''}
-    ${permissions().hseWrite ? button('hseInspectionNew', 'hse-inspection-new', '', 'primary') : ''}</div></section>
+    ${permissions().hseWrite && family ? button('hseInspectionNew', 'hse-inspection-new', '', 'primary') : ''}
+    ${templates.data && !family ? `<p class="note">${t('hseInspectionTemplateMissing')}</p>` : ''}</div></section>
     <section class="panel section-gap hse-history" aria-labelledby="hse-history-title"><div class="panel-header"><h2 id="hse-history-title">${t('hseInspectionHistory')}</h2></div><div class="panel-body">`;
   html += hseReadBlock(history);
   if (history.data && !history.data.length) html += `<p>${t('hseInspectionEmpty')}</p>`;
@@ -2834,7 +2837,7 @@ function renderHseAssets() {
 }
 function hseInspectionMessage(error) {
   const key = { INSPECTION_ITEMS_INCOMPLETE: 'hseInspectionIncomplete', INSPECTION_NA_NOTE_REQUIRED: 'hseInspectionNaNoteRequired',
-    OUTCOME_CONTRADICTS_ITEMS: 'hseInspectionOutcomeMismatch' }[error.code];
+    OUTCOME_CONTRADICTS_ITEMS: 'hseInspectionOutcomeMismatch', TEMPLATE_JURISDICTION_MISMATCH: 'hseInspectionTemplateMissing' }[error.code];
   return t(key ?? error.message);
 }
 async function showHseInspectionForm() {
@@ -2964,7 +2967,15 @@ async function showHseAssetForm(id = '') {
   try {
     const { templates } = await freshApi.listInspectionTemplates(selected);
     if (selected !== siteId || session?.user.id !== user || version !== modalVersion) return;
-    const families = `<option value="">${t('coreChoose')}</option>` + templates.map(template => `<option value="${esc(template.code)}" ${editing?.templateCode === template.code ? 'selected' : ''}>${esc(template.title)}</option>`).join('');
+    if (!templates.length && !editing) {
+      showModal(t('hseAssetAdd'), `<p role="status">${t('hseNoJurisdictionTemplates')}</p>`);
+      return;
+    }
+    const historical = editing && !templates.some(template => template.code === editing.templateCode);
+    const retained = historical
+      ? `<option value="${esc(editing.templateCode)}" selected>${esc(editing.templateTitle ?? editing.templateCode)}</option>` : '';
+    const families = `<option value="">${t('coreChoose')}</option>` + retained
+      + templates.map(template => `<option value="${esc(template.code)}" ${editing?.templateCode === template.code ? 'selected' : ''}>${esc(template.title)}</option>`).join('');
     showModal(t(editing ? 'hseAssetEdit' : 'hseAssetAdd'), `<form id="hse-asset-form" data-id="${esc(id)}" data-site="${esc(selected)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid"><div>${field('name', 'name', editing?.name || '', { required: true, max: 200 })}<p id="hse-asset-name-error" class="form-error" role="alert" hidden></p></div>${field('hseAssetCode', 'code', editing?.code || '', { max: 60 })}${field('hseAssetFamily', 'templateCode', editing?.templateCode || '', { required: true, options: families })}${field('hseAssetNotes', 'notes', editing?.notes || '', { type: 'textarea', full: true, max: 2000 })}${editing ? `<label><input type="checkbox" name="active" ${editing.active ? 'checked' : ''}> ${t('hseAssetActive')}</label>` : ''}</div>${formActions()}</form>`);
     const form = $('#hse-asset-form');
     form.elements.name.setAttribute('aria-describedby', 'hse-asset-name-error');
@@ -3280,6 +3291,27 @@ async function submitPasskeyForm(event) {
 }
 
 
+function siteJurisdictionLabel(site) {
+  const entry = state.jurisdictions?.find(row => row.code === site.jurisdiction);
+  const label = entry?.[`label_${language}`] ?? site.jurisdiction;
+  return site.jurisdiction_declared === false
+    ? t('siteJurisdictionHistorical').replace('{jurisdiction}', () => label) : label;
+}
+function siteConfigurationFields(site) {
+  const disabled = offline ? 'disabled' : '';
+  const jurisdictionOptions = (state.jurisdictions ?? []).map(row =>
+    `<option value="${esc(row.code)}" ${site?.jurisdiction_declared && site.jurisdiction === row.code ? 'selected' : ''}>${esc(row[`label_${language}`])}</option>`).join('');
+  const keep = site?.jurisdiction && !site.jurisdiction_declared ? siteJurisdictionLabel(site) : t('coreChoose');
+  return `
+    <label class="field">${t('siteJurisdiction')}<select name="jurisdiction" ${site ? '' : 'required'} ${disabled}><option value="">${esc(keep)}</option>${jurisdictionOptions}</select></label>
+    <label class="field">${t('siteContentLanguage')}<select name="content_language" ${disabled}>
+      <option value="">${t('siteLanguageUndeclared')}</option>
+      <option value="it" ${site?.content_language === 'it' ? 'selected' : ''}>Italiano</option>
+      <option value="en" ${site?.content_language === 'en' ? 'selected' : ''}>English</option>
+    </select></label>
+    <label class="field">${t('siteTimeZone')}<input name="time_zone" list="site-time-zones" value="${esc(site?.time_zone ?? '')}" required ${disabled}></label>
+    <datalist id="site-time-zones"><option value="Europe/Rome">${t('siteZoneRome')}</option><option value="Europe/London">${t('siteZoneLondon')}</option><option value="UTC"></option></datalist>`;
+}
 function showSettingsForm() {
   let account = '';
   if (session) {
@@ -3299,8 +3331,7 @@ function showSettingsForm() {
     <h3>${t('siteSettings')} · ${esc(site.name)}</h3>
     <div class="form-error" role="alert" tabindex="-1" hidden></div>
     <div class="form-grid">
-      <label class="field">${t('siteTimeZone')}<input name="time_zone" list="site-time-zones" value="${esc(timeZoneForSite(site))}" required ${offline ? 'disabled' : ''}></label>
-      <datalist id="site-time-zones"><option value="Europe/Rome">${t('siteZoneRome')}</option><option value="Europe/London">${t('siteZoneLondon')}</option><option value="UTC"></option></datalist>
+      ${siteConfigurationFields(site)}
       <label class="field">${t('siteDayCutoff')}<input type="time" name="day_cutoff_time" value="${esc(site.day_cutoff_time ?? '06:00')}" required ${offline ? 'disabled' : ''}></label>
     </div><div class="form-actions"><button type="submit" class="primary" ${offline ? 'disabled' : ''}>${t('siteSettingsSave')}</button></div></form>` : '';
   const assistantSettings = site && role() ? `<section aria-labelledby="ai-settings-heading">
@@ -3826,7 +3857,8 @@ function wireLocationLookup() {
   input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => { void fillLocationSuggestions(input); }, 400); });
 }
 function showSiteForm() {
-  showModal(t('newSite'), `<form id="site-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('code', 'code', '', { required: true, max: 30, hint: 'codeHint' })}${field('name', 'name', '', { required: true, max: 120 })}<label class="field full" for="field-location"><span>${t('location')} <small>(${t('optional')})</small></span><input name="location" id="field-location" list="location-options" autocomplete="off" maxlength="160" placeholder="${t('locationHint')}"><datalist id="location-options"></datalist><small id="location-hint" class="note"></small></label>${field('startDate', 'start', today(), { type: 'date' })}${field('endDate', 'end', '', { type: 'date' })}</div>${formActions()}</form>`);
+  if (offline) return toast(t('coreOnlineOnly'));
+  showModal(t('newSite'), `<form id="site-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('code', 'code', '', { required: true, max: 30, hint: 'codeHint' })}${field('name', 'name', '', { required: true, max: 120 })}<label class="field full" for="field-location"><span>${t('location')} <small>(${t('optional')})</small></span><input name="location" id="field-location" list="location-options" autocomplete="off" maxlength="160" placeholder="${t('locationHint')}"><datalist id="location-options"></datalist><small id="location-hint" class="note"></small></label>${siteConfigurationFields()}${field('startDate', 'start', today(), { type: 'date' })}${field('endDate', 'end', '', { type: 'date' })}</div>${formActions()}</form>`);
   wireLocationLookup();
 }
 function taskResponsibleFields() {
@@ -4448,13 +4480,13 @@ document.addEventListener('submit', async event => {
       if (role() !== 'owner' || offline || form.dataset.site !== selectedSite) throw new Error('forbidden');
       const user = session.user.id;
       const site = await api.updateSite(selectedSite, {
+        ...(data.jurisdiction ? { jurisdiction: data.jurisdiction } : {}),
+        content_language: data.content_language || null,
         time_zone: data.time_zone, day_cutoff_time: data.day_cutoff_time,
       });
       if (session?.user.id !== user) return;
       const wasCurrentDay = siteId === selectedSite && reportDate === operationalDay().date;
-      state.sites = state.sites.map(item => item.id === site.id ? {
-        ...item, time_zone: site.time_zone, day_cutoff_time: site.day_cutoff_time,
-      } : item);
+      state.sites = state.sites.map(item => item.id === site.id ? site : item);
       if (wasCurrentDay) reportDate = operationalDay().date;
       coreCache.delete(site.id); overviewCache.delete(site.id);
       try { await accountLock(persistState); } catch { storageError = true; }

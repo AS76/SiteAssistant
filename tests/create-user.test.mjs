@@ -180,6 +180,9 @@ test('CLI applies pending migrations normally and retains earlier ledger rows an
     randomUUID(), 'SYNTH', 'Synthetic site', new Date().toISOString());
   const before = await db.all('SELECT * FROM schema_migrations ORDER BY version');
   const sites = await db.all('SELECT * FROM sites');
+  if (last === '058') {
+    for (const site of sites) Object.assign(site, { jurisdiction_code: null, content_language: null });
+  }
   await db.close();
   const result = run([...args, '--password-stdin', '--site', 'SYNTH', '--role', 'owner']);
   t.assert.strictEqual(result.status, 0);

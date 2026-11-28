@@ -19,20 +19,26 @@ const settingsSource = [
   section('const role =', 'const currentModules ='),
   section('function timeZoneForSite(', 'function operationalDay('),
   section('const formActions =', 'function formError('),
-  section('function showSettingsForm()', 'async function showImportForm()'),
+  section('function siteJurisdictionLabel(', 'async function showImportForm()'),
   'showSettingsForm();',
 ].join('\n');
 
 const user = { name: 'Synthetic <Owner> & "Crew"', email: 'synthetic&owner@example.invalid' };
 const roles = [{ site_id: 'other-site', role: 'editor' }, { site_id: 'owner-site', role: 'owner' }];
 
-function renderSettings(language, session, siteId = 'owner-site') {
+function renderSettings(language, session, siteId = 'owner-site', jurisdiction = 'IT') {
   const labels = messages[language];
   const misses = [];
   let html;
   const context = createContext({
-    session, siteId, offline: false, prefs: { currency: 'CHF', separators: 'auto' },
-    currentSite: () => ({ id: siteId, name: 'Synthetic site', time_zone: 'Europe/London', day_cutoff_time: '06:30',
+    session, siteId, language, offline: false, prefs: { currency: 'CHF', separators: 'auto' },
+    state: { jurisdictions: [
+      { code: 'IT', label_it: 'Italia', label_en: 'Italy' },
+      { code: 'UK-GB', label_it: 'Gran Bretagna', label_en: 'Great Britain' },
+      { code: 'UK-NI', label_it: 'Irlanda del Nord', label_en: 'Northern Ireland' },
+    ] },
+    currentSite: () => ({ id: siteId, name: 'Synthetic site', jurisdiction, jurisdiction_declared: true,
+      content_language: jurisdiction === 'IT' ? 'it' : 'en', time_zone: 'Europe/London', day_cutoff_time: '06:30',
       assistant_enabled: siteId === 'owner-site', assistant_timeout_ms: 15000 }),
     t(key) {
       if (Object.hasOwn(labels, key)) return labels[key];
@@ -104,6 +110,21 @@ for (const language of ['it', 'en']) {
     assertPreferences(html);
   });
 }
+
+test('English site settings retain Italian jurisdiction and content language', () => {
+  const html = renderSettings('en', { user, roles });
+  assert.match(html, /<option value="IT" selected>Italy<\/option>/);
+  assert.match(html, /<option value="it" selected>Italiano<\/option>/);
+  assert.match(html, /name="time_zone"[^>]*value="Europe\/London"/);
+});
+
+test('Italian site settings retain each distinct UK jurisdiction and English content language', () => {
+  for (const [code, label] of [['UK-GB', 'Gran Bretagna'], ['UK-NI', 'Irlanda del Nord']]) {
+    const html = renderSettings('it', { user, roles }, 'owner-site', code);
+    assert.ok(html.includes(`<option value="${code}" selected>${label}</option>`));
+    assert.match(html, /<option value="en" selected>English<\/option>/);
+  }
+});
 
 test('service worker activates the settings update without waiting for old tabs', async () => {
   const worker = await readFile(new URL('../app/sw.js', import.meta.url), 'utf8');

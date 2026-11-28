@@ -67,6 +67,7 @@ for (const driver of ['sqlite', 'pg']) {
     });
     for (const row of before[tables.indexOf('sites')]) Object.assign(row, {
       jurisdiction: 'IT', time_zone: 'Europe/Rome', day_cutoff_time: '06:00',
+      jurisdiction_code: null, content_language: null,
       assistant_enabled: driver === 'pg' ? false : 0, assistant_timeout_ms: 20000, demo_sandbox: driver === 'pg' ? false : 0,
     });
     for (const row of before[tables.indexOf('diary')]) Object.assign(row, {

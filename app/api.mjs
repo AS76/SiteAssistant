@@ -139,6 +139,7 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     forgotPassword: input => request('/api/auth/forgot', input),
     listModuleAccess: siteId => request(`/api/member-access${query({ site_id: siteId })}`),
     saveModuleAccess: input => request('/api/member-access', input, { method: 'PUT' }),
+    listJurisdictions: () => request('/api/jurisdictions'),
     listSites: async () => (await request('/api/sites')).map(siteFromApi),
     listAssignable: (siteId, purpose) => request(`/api/sites/${encodeURIComponent(siteId)}/assignable${query({ purpose })}`),
     createSite: async input => siteFromApi(await request('/api/sites', sitePayload(input))),

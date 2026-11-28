@@ -464,7 +464,7 @@ test('money preferences migrate old separators once while preserving currency an
     const app = ui({ language });
     app.context.showModal = (_title, html) => { app.context.settings = html; };
     app.context.formActions = () => '';
-    app.run(section('function showSettingsForm()', 'async function showImportForm()'));
+    app.run(section('function siteJurisdictionLabel(', 'async function showImportForm()'));
     app.context.prefs.separators = 'auto'; app.run('showSettingsForm()');
     assert.ok(app.context.settings.includes(messages[language].settingsSeparatorsAuto));
     assert.match(app.context.settings, /option value="auto" selected/);
