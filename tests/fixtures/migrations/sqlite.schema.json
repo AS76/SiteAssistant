@@ -12153,9 +12153,86 @@
       }
     ]
   },
+  "table tool_reconciliation_revisions": {
+    "relation": "tool_reconciliation_revisions",
+    "sql": "CREATE TABLE tool_reconciliation_revisions (\n  site_id UUID NOT NULL,\n  tool_id UUID NOT NULL,\n  revision INTEGER NOT NULL,\n  PRIMARY KEY (site_id, tool_id),\n  FOREIGN KEY (site_id, tool_id) REFERENCES tools(site_id, id) ON DELETE CASCADE\n)",
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "name": "tool_id",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 2,
+        "hidden": 0
+      },
+      {
+        "name": "revision",
+        "type": "INTEGER",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [
+      {
+        "id": 0,
+        "seq": 0,
+        "table": "tools",
+        "from": "site_id",
+        "to": "site_id",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE",
+        "match": "NONE"
+      },
+      {
+        "id": 0,
+        "seq": 1,
+        "table": "tools",
+        "from": "tool_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE",
+        "match": "NONE"
+      }
+    ],
+    "implicitIndexes": [
+      {
+        "origin": "pk",
+        "columns": [
+          {
+            "name": "site_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "tool_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": null,
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 0
+          }
+        ]
+      }
+    ]
+  },
   "table tools": {
     "relation": "tools",
-    "sql": "CREATE TABLE tools (\n  id UUID PRIMARY KEY NOT NULL,\n  site_id UUID NOT NULL REFERENCES sites(id),\n  name TEXT NOT NULL,\n  code TEXT,\n  company TEXT,\n  status TEXT NOT NULL CHECK (status IN ('available', 'in_use', 'maintenance', 'retired')),\n  location TEXT,\n  notes TEXT,\n  created_at TIMESTAMPTZ NOT NULL,\n  updated_at TIMESTAMPTZ NOT NULL\n, deleted_at TEXT, reconciliation_revision INTEGER NOT NULL DEFAULT 0)",
+    "sql": "CREATE TABLE tools (\n  id UUID PRIMARY KEY NOT NULL,\n  site_id UUID NOT NULL REFERENCES sites(id),\n  name TEXT NOT NULL,\n  code TEXT,\n  company TEXT,\n  status TEXT NOT NULL CHECK (status IN ('available', 'in_use', 'maintenance', 'retired')),\n  location TEXT,\n  notes TEXT,\n  created_at TIMESTAMPTZ NOT NULL,\n  updated_at TIMESTAMPTZ NOT NULL\n, deleted_at TEXT)",
     "columns": [
       {
         "name": "id",
@@ -12242,14 +12319,6 @@
         "type": "TEXT",
         "required": 0,
         "default_value": null,
-        "pk": 0,
-        "hidden": 0
-      },
-      {
-        "name": "reconciliation_revision",
-        "type": "INTEGER",
-        "required": 1,
-        "default_value": "0",
         "pk": 0,
         "hidden": 0
       }

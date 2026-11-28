@@ -1,13 +1,14 @@
 import { moduleAllowed, requireModule } from './module-access.mjs';
 import { appendAuditEvent } from './audit.mjs';
 import { randomUUID } from 'node:crypto';
-import { DEMO_ROLE, EDIT_ROLES, RepositoryError, requireRole } from './repository.mjs';
+import { DEMO_ROLE, EDIT_ROLES, RepositoryError, requireRole, WRITE_ROLES } from './repository.mjs';
 import { createReconciliation, reconciliationTransaction } from './reconciliation.mjs';
 import { createReconciledCompany } from './site-registry.mjs';
 import { text, validateInput } from './place-asset-scope.mjs';
 
 const statuses = new Set(['available', 'in_use', 'maintenance', 'retired']);
 const COLUMNS = 'id, site_id, name, code, company, status, location, notes, created_at, updated_at';
+const SCOPED_COLUMNS = COLUMNS.split(', ').map(column => 't.' + column).join(', ');
 const relationships = ['owner', 'custodian', 'supplier'];
 const companyKey = value => value.normalize('NFKC').toLowerCase();
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -74,17 +75,17 @@ export async function listTools(db, { siteId, company } = {}, user) {
   const canReadRegistry = role !== DEMO_ROLE && await moduleAllowed(db, site, user, 'registry');
   const scope = `${clauses.join(' AND ')} ORDER BY t.company IS NULL, t.company, t.name, t.id`;
   if (!canReadRegistry) return await db.all(`SELECT ${COLUMNS} FROM tools t WHERE ${scope}`, ...values);
-  return await db.all(`SELECT ${COLUMNS.split(', ').map(column => 't.' + column).join(', ')},
+  return await db.all(`SELECT ${SCOPED_COLUMNS},
       l.company_id, l.company_label, l.relationship AS company_relationship, c.archived_at AS company_archived_at
     FROM tools t LEFT JOIN reconciliation_adoptions a ON a.site_id = t.site_id AND a.module = 'tools' AND a.enabled
     LEFT JOIN tool_company_links l ON l.site_id = a.site_id AND l.tool_id = t.id
     LEFT JOIN registry_companies c ON c.site_id = l.site_id AND c.id = l.company_id WHERE ${scope}`, ...values);
 }
 
-async function lockToolSite(tx, site, user) {
-  await toolRole(tx, site, user, EDIT_ROLES);
+async function lockToolSite(tx, site, user, roles) {
+  await toolRole(tx, site, user, roles);
   await tx.run('UPDATE sites SET id = id WHERE id = ?', site);
-  await toolRole(tx, site, user, EDIT_ROLES);
+  await toolRole(tx, site, user, roles);
 }
 
 function rejectLinkFields(input) {
@@ -105,7 +106,7 @@ export async function createTool(db, input, user) {
   const location = optionalText(input.location, 'location');
   const notes = optionalText(input.notes, 'notes');
   return await reconciliationTransaction(db, async tx => {
-    await lockToolSite(tx, site, user);
+    await lockToolSite(tx, site, user, EDIT_ROLES);
     const now = new Date().toISOString();
     const row = await tx.get(`INSERT INTO tools
       (id, site_id, name, code, company, status, location, notes, created_at, updated_at)
@@ -116,13 +117,18 @@ export async function createTool(db, input, user) {
   });
 }
 
-async function lockTool(tx, id, user) {
+async function lockTool(tx, id, user, roles) {
   const scope = await tx.get('SELECT site_id FROM tools WHERE id = ? AND deleted_at IS NULL', id);
   if (!scope) fail(404, 'Tool not found.', 'TOOL_NOT_FOUND');
-  await lockToolSite(tx, scope.site_id, user);
+  await lockToolSite(tx, scope.site_id, user, roles);
   const row = await tx.get(`SELECT ${COLUMNS} FROM tools WHERE id = ? AND deleted_at IS NULL`, id);
   if (!row) fail(404, 'Tool not found.', 'TOOL_NOT_FOUND');
   return row;
+}
+
+async function bumpToolRevision(tx, site, id) {
+  await tx.run(`INSERT INTO tool_reconciliation_revisions (site_id, tool_id, revision) VALUES (?, ?, 1)
+    ON CONFLICT (site_id, tool_id) DO UPDATE SET revision = tool_reconciliation_revisions.revision + 1`, site, id);
 }
 
 export async function updateTool(db, id, input, user) {
@@ -130,6 +136,9 @@ export async function updateTool(db, id, input, user) {
   const toolId = validId(id, 'id');
   object(input);
   rejectLinkFields(input);
+  const keys = Object.getOwnPropertyNames(input);
+  // Verifiers can record inspection notes on an existing tool.
+  const roles = keys.length === 1 && keys[0] === 'notes' ? WRITE_ROLES : EDIT_ROLES;
   const fields = new Map([
     ['name', value => validName(value)],
     ['code', value => optionalText(value, 'code')],
@@ -139,20 +148,21 @@ export async function updateTool(db, id, input, user) {
     ['notes', value => optionalText(value, 'notes')],
   ]);
   return await reconciliationTransaction(db, async tx => {
-    const row = await lockTool(tx, toolId, user);
+    const row = await lockTool(tx, toolId, user, roles);
     const changes = [], values = [];
     for (const [field, validate] of fields) {
-      if (!Object.hasOwn(input, field)) continue;
+      if (!keys.includes(field)) continue;
       changes.push(`${field} = ?`); values.push(validate(input[field]));
     }
     if (!changes.length) {
       await appendAuditEvent(tx, { entityType: 'tool', action: 'update', before: row, after: row, actor: user.id });
       return row;
     }
-    changes.push('updated_at = ?', 'reconciliation_revision = reconciliation_revision + 1');
+    changes.push('updated_at = ?');
     values.push(new Date().toISOString(), toolId);
     const updated = await tx.get(`UPDATE tools SET ${changes.join(', ')} WHERE id = ? RETURNING ${COLUMNS}`, ...values);
     if (!updated) fail(404, 'Tool not found.', 'TOOL_NOT_FOUND');
+    await bumpToolRevision(tx, row.site_id, toolId);
     let note;
     if (row.company !== updated.company) {
       const prior = await tx.get('DELETE FROM tool_company_links WHERE site_id = ? AND tool_id = ? RETURNING batch_id', row.site_id, toolId);
@@ -167,10 +177,9 @@ export async function deleteTool(db, id, user) {
   requireUser(user);
   const toolId = validId(id, 'id');
   return await reconciliationTransaction(db, async tx => {
-    const row = await lockTool(tx, toolId, user);
+    const row = await lockTool(tx, toolId, user, EDIT_ROLES);
     const at = new Date().toISOString();
-    const result = await tx.run(`UPDATE tools SET deleted_at = ?, reconciliation_revision = reconciliation_revision + 1
-      WHERE id = ?`, at, toolId);
+    const result = await tx.run('UPDATE tools SET deleted_at = ? WHERE id = ?', at, toolId);
     if (!result.rowCount) fail(404, 'Tool not found.', 'TOOL_NOT_FOUND');
     await appendAuditEvent(tx, { entityType: 'tool', action: 'delete', before: row, actor: user.id, at });
     return { deleted: true, id: toolId };
@@ -184,8 +193,9 @@ async function findCompany({ tx, site }, id) {
 
 async function toolCompanySource({ tx, site }, { recordId, field }) {
   if (field !== 'company') invalid('Unknown tool reconciliation field.');
-  const row = await tx.get(`SELECT ${COLUMNS}, reconciliation_revision FROM tools
-    WHERE site_id = ? AND id = ? AND deleted_at IS NULL`, site, recordId);
+  const row = await tx.get(`SELECT ${SCOPED_COLUMNS}, COALESCE(r.revision, 0) AS reconciliation_revision
+    FROM tools t LEFT JOIN tool_reconciliation_revisions r ON r.site_id = t.site_id AND r.tool_id = t.id
+    WHERE t.site_id = ? AND t.id = ? AND t.deleted_at IS NULL`, site, recordId);
   if (!row) return null;
   const link = await tx.get(`SELECT company_id, company_label, relationship, linked_at, batch_id
     FROM tool_company_links WHERE site_id = ? AND tool_id = ?`, site, recordId);
@@ -256,7 +266,7 @@ async function applyCompany(ctx, { recordId }, batchId, source, decision, target
       company_id = excluded.company_id, company_label = excluded.company_label,
       relationship = excluded.relationship, linked_at = excluded.linked_at, batch_id = excluded.batch_id`,
   site, recordId, company.id, company.name, target.relationship, at, batchId);
-  await tx.run('UPDATE tools SET reconciliation_revision = reconciliation_revision + 1 WHERE site_id = ? AND id = ?', site, recordId);
+  await bumpToolRevision(tx, site, recordId);
   const before = { id: recordId, site_id: site, company_id: source.link?.company_id ?? null,
     company_relationship: source.link?.relationship ?? null, company_label: source.link?.company_label ?? null };
   const after = { ...before, company_id: company.id, company_relationship: target.relationship, company_label: company.name };
@@ -277,7 +287,7 @@ async function compensateCompany({ tx, site, at, user }, item, batchId, reason, 
   }
   const { recordId } = item;
   await tx.run('DELETE FROM tool_company_links WHERE site_id = ? AND tool_id = ? AND batch_id = ?', site, recordId, batchId);
-  await tx.run('UPDATE tools SET reconciliation_revision = reconciliation_revision + 1 WHERE site_id = ? AND id = ?', site, recordId);
+  await bumpToolRevision(tx, site, recordId);
   const before = { id: recordId, site_id: site, company_id: link.company_id, company_label: link.company_label,
     company_relationship: link.relationship };
   const after = { ...before, company_id: null, company_label: null, company_relationship: null };

@@ -201,7 +201,6 @@ function toast(message) {
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
 const errorKeys = {
-  ...toolReconciliationErrorKeys,
   MOTIVATION_REQUIRED: 'diaryMotivationHint',
   TASK_CLOSURE_EVIDENCE_REQUIRED: 'taskEvidenceRequired', TASK_ACCEPTANCE_EVIDENCE_REQUIRED: 'evidenceAcceptanceMissing',
   DEVIATION_OWNER_INVALID: 'evidenceOwnerError', DEVIATION_IDENTITY_UNRESOLVED: 'evidenceIdentityError',
@@ -4985,4 +4984,5 @@ async function start() {
   } catch { /* The session works without browser storage. */ }
   if (pendingOps.length) { await registerSync(swRegistration); await syncQueue(); }
 }
+Object.assign(errorKeys, toolReconciliationErrorKeys);
 void start();

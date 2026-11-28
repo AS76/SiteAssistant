@@ -1347,6 +1347,14 @@
     "definition": "FOREIGN KEY (site_id, tool_id) REFERENCES tools(site_id, id)",
     "validated": true
   },
+  "constraint tool_reconciliation_revisions.tool_reconciliation_revisions_pkey": {
+    "definition": "PRIMARY KEY (site_id, tool_id)",
+    "validated": true
+  },
+  "constraint tool_reconciliation_revisions.tool_reconciliation_revisions_site_id_tool_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, tool_id) REFERENCES tools(site_id, id) ON DELETE CASCADE",
+    "validated": true
+  },
   "constraint tools.tools_pkey": {
     "definition": "PRIMARY KEY (id)",
     "validated": true
@@ -2202,6 +2210,10 @@
   },
   "index tool_company_links_pkey": {
     "definition": "CREATE UNIQUE INDEX tool_company_links_pkey ON tool_company_links USING btree (site_id, tool_id)",
+    "valid": true
+  },
+  "index tool_reconciliation_revisions_pkey": {
+    "definition": "CREATE UNIQUE INDEX tool_reconciliation_revisions_pkey ON tool_reconciliation_revisions USING btree (site_id, tool_id)",
     "valid": true
   },
   "index tools_pkey": {
@@ -8164,6 +8176,35 @@
       }
     ]
   },
+  "table tool_reconciliation_revisions": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "tool_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
   "table tools": {
     "definition": null,
     "columns": [
@@ -8252,14 +8293,6 @@
         "type": "timestamp with time zone",
         "required": false,
         "default_value": null,
-        "identity": "",
-        "generated": ""
-      },
-      {
-        "name": "reconciliation_revision",
-        "type": "integer",
-        "required": true,
-        "default_value": "0",
         "identity": "",
         "generated": ""
       }

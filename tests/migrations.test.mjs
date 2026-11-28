@@ -155,9 +155,9 @@ for (const [driver, open] of [['sqlite', temporarySqlite], ['pg', temporaryPGlit
     const index = committed.indexOf('059');
     t.assert.ok(index >= 0);
     t.assert.strictEqual(committed[index + 1], '060');
-    const { reconciliation_revision, ...preserved } = await db.get('SELECT * FROM tools WHERE id = ?', tool);
-    t.assert.strictEqual(reconciliation_revision, 0);
-    t.assert.deepStrictEqual(preserved, { ...before });
+    const after = await db.get('SELECT * FROM tools WHERE id = ?', tool);
+    t.assert.deepStrictEqual({ ...after }, { ...before });
+    t.assert.deepStrictEqual(await db.all('SELECT * FROM tool_reconciliation_revisions'), []);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM tool_company_links'), []);
     t.assert.strictEqual(await migrate(db, { driver, demoSandbox: false }), 0);
   });

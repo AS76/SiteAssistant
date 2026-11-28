@@ -1,6 +1,13 @@
 -- Reconciliation preserves legacy values and tracks the revision of each source occurrence.
-ALTER TABLE tools ADD COLUMN reconciliation_revision INTEGER NOT NULL DEFAULT 0;
 CREATE UNIQUE INDEX tools_site_identity ON tools(site_id, id);
+
+CREATE TABLE tool_reconciliation_revisions (
+  site_id UUID NOT NULL,
+  tool_id UUID NOT NULL,
+  revision INTEGER NOT NULL,
+  PRIMARY KEY (site_id, tool_id),
+  FOREIGN KEY (site_id, tool_id) REFERENCES tools(site_id, id) ON DELETE CASCADE
+);
 
 CREATE TABLE reconciliation_adoptions (
   site_id UUID NOT NULL REFERENCES sites(id),
