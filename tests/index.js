@@ -85,6 +85,8 @@ import './increment-40-ui.test.mjs';
 import './increment-41-ui.test.mjs';
 
 import './site-jurisdiction.test.mjs';
+import './site-registry.test.mjs';
+import './site-registry-pg.test.mjs';
 import './site-timezone.test.mjs';
 import './checklists.test.mjs';
 import './hse-assets.test.mjs';

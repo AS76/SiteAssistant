@@ -106,6 +106,8 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => value != null && value !== ''));
     return params.size ? `?${params}` : '';
   };
+  const registryPath = (siteId, collection, id, action) =>
+    '/api/sites/' + [siteId, collection, id, action].filter(value => value != null).map(encodeURIComponent).join('/');
   async function listAll(path, filters, fromApi, label) {
     const { limit: requestedLimit, offset: startOffset, ...criteria } = filters ?? {};
     const limit = requestedLimit == null || requestedLimit === '' ? 200 : requestedLimit;
@@ -140,6 +142,11 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     listModuleAccess: siteId => request(`/api/member-access${query({ site_id: siteId })}`),
     saveModuleAccess: input => request('/api/member-access', input, { method: 'PUT' }),
     listJurisdictions: () => request('/api/jurisdictions'),
+    listRegistry: (siteId, collection, filters) => request(registryPath(siteId, collection) + query(filters)),
+    getRegistry: (siteId, collection, id) => request(registryPath(siteId, collection, id)),
+    registryHistory: (siteId, collection, id, filters) => request(registryPath(siteId, collection, id, 'history') + query(filters)),
+    saveRegistry: (siteId, collection, input, { id, action, idempotencyKey } = {}) =>
+      request(registryPath(siteId, collection, id, action), input, { method: id && !action ? 'PATCH' : 'POST', idempotencyKey }),
     listSites: async () => (await request('/api/sites')).map(siteFromApi),
     listAssignable: (siteId, purpose) => request(`/api/sites/${encodeURIComponent(siteId)}/assignable${query({ purpose })}`),
     createSite: async input => siteFromApi(await request('/api/sites', sitePayload(input))),

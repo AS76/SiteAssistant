@@ -731,6 +731,274 @@
     "definition": "CHECK ((status = ANY (ARRAY['open'::text, 'template_generated'::text, 'in_execution'::text, 'completed'::text, 'not_relevant'::text])))",
     "validated": true
   },
+  "constraint registry_account_links.registry_account_links_account_id_fkey": {
+    "definition": "FOREIGN KEY (account_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint registry_account_links.registry_account_links_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint registry_account_links.registry_account_links_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint registry_account_links.registry_account_links_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint registry_account_links.registry_account_links_site_id_id_key": {
+    "definition": "UNIQUE (site_id, id)",
+    "validated": true
+  },
+  "constraint registry_account_links.registry_account_links_site_id_person_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, person_id) REFERENCES registry_people(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_affiliations.registry_affiliations_check": {
+    "definition": "CHECK ((valid_to > valid_from))",
+    "validated": true
+  },
+  "constraint registry_affiliations.registry_affiliations_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint registry_affiliations.registry_affiliations_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint registry_affiliations.registry_affiliations_site_id_company_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, company_id) REFERENCES registry_companies(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_affiliations.registry_affiliations_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint registry_affiliations.registry_affiliations_site_id_id_key": {
+    "definition": "UNIQUE (site_id, id)",
+    "validated": true
+  },
+  "constraint registry_affiliations.registry_affiliations_site_id_person_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, person_id) REFERENCES registry_people(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_authority_delegations.registry_authority_delegations_check": {
+    "definition": "CHECK ((grantor_link_id <> recipient_link_id))",
+    "validated": true
+  },
+  "constraint registry_authority_delegations.registry_authority_delegations_check1": {
+    "definition": "CHECK ((valid_to > valid_from))",
+    "validated": true
+  },
+  "constraint registry_authority_delegations.registry_authority_delegations_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint registry_authority_delegations.registry_authority_delegations_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint registry_authority_delegations.registry_authority_delegations_site_id_authority_role_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, authority_role_id) REFERENCES registry_authority_roles(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_authority_delegations.registry_authority_delegations_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint registry_authority_delegations.registry_authority_delegations_site_id_grantor_link_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, grantor_link_id) REFERENCES registry_account_links(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_authority_delegations.registry_authority_delegations_site_id_id_key": {
+    "definition": "UNIQUE (site_id, id)",
+    "validated": true
+  },
+  "constraint registry_authority_delegations.registry_authority_delegations_site_id_recipient_link_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, recipient_link_id) REFERENCES registry_account_links(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_authority_roles.registry_authority_roles_check": {
+    "definition": "CHECK ((valid_to > valid_from))",
+    "validated": true
+  },
+  "constraint registry_authority_roles.registry_authority_roles_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint registry_authority_roles.registry_authority_roles_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint registry_authority_roles.registry_authority_roles_role_check": {
+    "definition": "CHECK ((role = ANY (ARRAY['executor'::text, 'verifier'::text, 'inspector'::text])))",
+    "validated": true
+  },
+  "constraint registry_authority_roles.registry_authority_roles_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint registry_authority_roles.registry_authority_roles_site_id_id_key": {
+    "definition": "UNIQUE (site_id, id)",
+    "validated": true
+  },
+  "constraint registry_authority_roles.registry_authority_roles_site_id_person_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, person_id) REFERENCES registry_people(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_authority_snapshots.registry_authority_snapshots_actor_id_fkey": {
+    "definition": "FOREIGN KEY (actor_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint registry_authority_snapshots.registry_authority_snapshots_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint registry_authority_snapshots.registry_authority_snapshots_site_id_account_link_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, account_link_id) REFERENCES registry_account_links(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_authority_snapshots.registry_authority_snapshots_site_id_authority_role_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, authority_role_id) REFERENCES registry_authority_roles(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_authority_snapshots.registry_authority_snapshots_site_id_delegation_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, delegation_id) REFERENCES registry_authority_delegations(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_authority_snapshots.registry_authority_snapshots_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint registry_companies.registry_companies_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint registry_companies.registry_companies_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint registry_companies.registry_companies_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint registry_companies.registry_companies_site_id_id_key": {
+    "definition": "UNIQUE (site_id, id)",
+    "validated": true
+  },
+  "constraint registry_company_roles.registry_company_roles_check": {
+    "definition": "CHECK ((valid_to > valid_from))",
+    "validated": true
+  },
+  "constraint registry_company_roles.registry_company_roles_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint registry_company_roles.registry_company_roles_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint registry_company_roles.registry_company_roles_role_check": {
+    "definition": "CHECK ((role = ANY (ARRAY['contractor'::text, 'subcontractor'::text, 'inspection_body'::text, 'supplier'::text])))",
+    "validated": true
+  },
+  "constraint registry_company_roles.registry_company_roles_site_id_company_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, company_id) REFERENCES registry_companies(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_company_roles.registry_company_roles_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint registry_company_roles.registry_company_roles_site_id_id_key": {
+    "definition": "UNIQUE (site_id, id)",
+    "validated": true
+  },
+  "constraint registry_history.registry_history_actor_id_fkey": {
+    "definition": "FOREIGN KEY (actor_id) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint registry_history.registry_history_pkey": {
+    "definition": "PRIMARY KEY (site_id, collection, record_id, revision)",
+    "validated": true
+  },
+  "constraint registry_history.registry_history_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint registry_people.registry_people_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint registry_people.registry_people_language_check": {
+    "definition": "CHECK ((language = ANY (ARRAY['it'::text, 'en'::text])))",
+    "validated": true
+  },
+  "constraint registry_people.registry_people_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint registry_people.registry_people_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint registry_people.registry_people_site_id_id_key": {
+    "definition": "UNIQUE (site_id, id)",
+    "validated": true
+  },
+  "constraint registry_team_memberships.registry_team_memberships_check": {
+    "definition": "CHECK ((valid_to > valid_from))",
+    "validated": true
+  },
+  "constraint registry_team_memberships.registry_team_memberships_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint registry_team_memberships.registry_team_memberships_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint registry_team_memberships.registry_team_memberships_role_check": {
+    "definition": "CHECK ((role = ANY (ARRAY['member'::text, 'lead'::text])))",
+    "validated": true
+  },
+  "constraint registry_team_memberships.registry_team_memberships_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint registry_team_memberships.registry_team_memberships_site_id_id_key": {
+    "definition": "UNIQUE (site_id, id)",
+    "validated": true
+  },
+  "constraint registry_team_memberships.registry_team_memberships_site_id_person_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, person_id) REFERENCES registry_people(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_team_memberships.registry_team_memberships_site_id_team_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, team_id) REFERENCES registry_teams(site_id, id)",
+    "validated": true
+  },
+  "constraint registry_teams.registry_teams_created_by_fkey": {
+    "definition": "FOREIGN KEY (created_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint registry_teams.registry_teams_pkey": {
+    "definition": "PRIMARY KEY (id)",
+    "validated": true
+  },
+  "constraint registry_teams.registry_teams_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint registry_teams.registry_teams_site_id_id_key": {
+    "definition": "UNIQUE (site_id, id)",
+    "validated": true
+  },
+  "constraint registry_teams.registry_teams_site_id_lead_company_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, lead_company_id) REFERENCES registry_companies(site_id, id)",
+    "validated": true
+  },
   "constraint schema_migrations.schema_migrations_pkey": {
     "definition": "PRIMARY KEY (version)",
     "validated": true
@@ -1566,6 +1834,142 @@
   },
   "index purchase_orders_site_status": {
     "definition": "CREATE INDEX purchase_orders_site_status ON purchase_orders USING btree (site_id, status)",
+    "valid": true
+  },
+  "index registry_account_links_open_account": {
+    "definition": "CREATE UNIQUE INDEX registry_account_links_open_account ON registry_account_links USING btree (site_id, account_id) WHERE (revoked_at IS NULL)",
+    "valid": true
+  },
+  "index registry_account_links_open_person": {
+    "definition": "CREATE UNIQUE INDEX registry_account_links_open_person ON registry_account_links USING btree (site_id, person_id) WHERE (revoked_at IS NULL)",
+    "valid": true
+  },
+  "index registry_account_links_pkey": {
+    "definition": "CREATE UNIQUE INDEX registry_account_links_pkey ON registry_account_links USING btree (id)",
+    "valid": true
+  },
+  "index registry_account_links_site_id_id_key": {
+    "definition": "CREATE UNIQUE INDEX registry_account_links_site_id_id_key ON registry_account_links USING btree (site_id, id)",
+    "valid": true
+  },
+  "index registry_affiliations_company": {
+    "definition": "CREATE INDEX registry_affiliations_company ON registry_affiliations USING btree (site_id, company_id)",
+    "valid": true
+  },
+  "index registry_affiliations_person": {
+    "definition": "CREATE INDEX registry_affiliations_person ON registry_affiliations USING btree (site_id, person_id, company_id, relationship, valid_from)",
+    "valid": true
+  },
+  "index registry_affiliations_pkey": {
+    "definition": "CREATE UNIQUE INDEX registry_affiliations_pkey ON registry_affiliations USING btree (id)",
+    "valid": true
+  },
+  "index registry_affiliations_site_id_id_key": {
+    "definition": "CREATE UNIQUE INDEX registry_affiliations_site_id_id_key ON registry_affiliations USING btree (site_id, id)",
+    "valid": true
+  },
+  "index registry_authority_delegations_pkey": {
+    "definition": "CREATE UNIQUE INDEX registry_authority_delegations_pkey ON registry_authority_delegations USING btree (id)",
+    "valid": true
+  },
+  "index registry_authority_delegations_role_recipient": {
+    "definition": "CREATE INDEX registry_authority_delegations_role_recipient ON registry_authority_delegations USING btree (site_id, authority_role_id, recipient_link_id, valid_from)",
+    "valid": true
+  },
+  "index registry_authority_delegations_site_id_id_key": {
+    "definition": "CREATE UNIQUE INDEX registry_authority_delegations_site_id_id_key ON registry_authority_delegations USING btree (site_id, id)",
+    "valid": true
+  },
+  "index registry_authority_roles_person": {
+    "definition": "CREATE INDEX registry_authority_roles_person ON registry_authority_roles USING btree (site_id, person_id, role, valid_from)",
+    "valid": true
+  },
+  "index registry_authority_roles_pkey": {
+    "definition": "CREATE UNIQUE INDEX registry_authority_roles_pkey ON registry_authority_roles USING btree (id)",
+    "valid": true
+  },
+  "index registry_authority_roles_site_id_id_key": {
+    "definition": "CREATE UNIQUE INDEX registry_authority_roles_site_id_id_key ON registry_authority_roles USING btree (site_id, id)",
+    "valid": true
+  },
+  "index registry_authority_snapshots_pkey": {
+    "definition": "CREATE UNIQUE INDEX registry_authority_snapshots_pkey ON registry_authority_snapshots USING btree (id)",
+    "valid": true
+  },
+  "index registry_authority_snapshots_recorded": {
+    "definition": "CREATE INDEX registry_authority_snapshots_recorded ON registry_authority_snapshots USING btree (site_id, recorded_at, id)",
+    "valid": true
+  },
+  "index registry_companies_label": {
+    "definition": "CREATE INDEX registry_companies_label ON registry_companies USING btree (site_id, search_name, id)",
+    "valid": true
+  },
+  "index registry_companies_pkey": {
+    "definition": "CREATE UNIQUE INDEX registry_companies_pkey ON registry_companies USING btree (id)",
+    "valid": true
+  },
+  "index registry_companies_site_id_id_key": {
+    "definition": "CREATE UNIQUE INDEX registry_companies_site_id_id_key ON registry_companies USING btree (site_id, id)",
+    "valid": true
+  },
+  "index registry_company_roles_company": {
+    "definition": "CREATE INDEX registry_company_roles_company ON registry_company_roles USING btree (site_id, company_id, role, valid_from)",
+    "valid": true
+  },
+  "index registry_company_roles_pkey": {
+    "definition": "CREATE UNIQUE INDEX registry_company_roles_pkey ON registry_company_roles USING btree (id)",
+    "valid": true
+  },
+  "index registry_company_roles_site_id_id_key": {
+    "definition": "CREATE UNIQUE INDEX registry_company_roles_site_id_id_key ON registry_company_roles USING btree (site_id, id)",
+    "valid": true
+  },
+  "index registry_history_pkey": {
+    "definition": "CREATE UNIQUE INDEX registry_history_pkey ON registry_history USING btree (site_id, collection, record_id, revision)",
+    "valid": true
+  },
+  "index registry_people_label": {
+    "definition": "CREATE INDEX registry_people_label ON registry_people USING btree (site_id, search_name, id)",
+    "valid": true
+  },
+  "index registry_people_pkey": {
+    "definition": "CREATE UNIQUE INDEX registry_people_pkey ON registry_people USING btree (id)",
+    "valid": true
+  },
+  "index registry_people_site_id_id_key": {
+    "definition": "CREATE UNIQUE INDEX registry_people_site_id_id_key ON registry_people USING btree (site_id, id)",
+    "valid": true
+  },
+  "index registry_team_memberships_person": {
+    "definition": "CREATE INDEX registry_team_memberships_person ON registry_team_memberships USING btree (site_id, person_id)",
+    "valid": true
+  },
+  "index registry_team_memberships_pkey": {
+    "definition": "CREATE UNIQUE INDEX registry_team_memberships_pkey ON registry_team_memberships USING btree (id)",
+    "valid": true
+  },
+  "index registry_team_memberships_site_id_id_key": {
+    "definition": "CREATE UNIQUE INDEX registry_team_memberships_site_id_id_key ON registry_team_memberships USING btree (site_id, id)",
+    "valid": true
+  },
+  "index registry_team_memberships_team_role": {
+    "definition": "CREATE INDEX registry_team_memberships_team_role ON registry_team_memberships USING btree (site_id, team_id, role, valid_from)",
+    "valid": true
+  },
+  "index registry_teams_company": {
+    "definition": "CREATE INDEX registry_teams_company ON registry_teams USING btree (site_id, lead_company_id)",
+    "valid": true
+  },
+  "index registry_teams_label": {
+    "definition": "CREATE INDEX registry_teams_label ON registry_teams USING btree (site_id, search_name, id)",
+    "valid": true
+  },
+  "index registry_teams_pkey": {
+    "definition": "CREATE UNIQUE INDEX registry_teams_pkey ON registry_teams USING btree (id)",
+    "valid": true
+  },
+  "index registry_teams_site_id_id_key": {
+    "definition": "CREATE UNIQUE INDEX registry_teams_site_id_id_key ON registry_teams USING btree (site_id, id)",
     "valid": true
   },
   "index schema_migrations_pkey": {
@@ -5256,6 +5660,933 @@
       {
         "name": "updated_at",
         "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table registry_account_links": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "account_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_from",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "default_value": "1",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table registry_affiliations": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "company_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "relationship",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_from",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_to",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "default_value": "1",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table registry_authority_delegations": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "authority_role_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "grantor_link_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "recipient_link_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_from",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_to",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "default_value": "1",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table registry_authority_roles": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "role",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_from",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_to",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "default_value": "1",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table registry_authority_snapshots": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "authority_role_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "delegation_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "account_link_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "recorded_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "evidence",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table registry_companies": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "search_name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "archived_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "default_value": "1",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table registry_company_roles": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "company_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "role",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_from",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_to",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "default_value": "1",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table registry_history": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "collection",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "record_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "action",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "recorded_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "reason",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "before_state",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "after_state",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table registry_people": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "search_name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "given_name",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "family_name",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "language",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "archived_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "default_value": "1",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table registry_team_memberships": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "team_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "role",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_from",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_to",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "default_value": "1",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table registry_teams": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "search_name",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "lead_company_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "archived_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "default_value": "1",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
         "required": true,
         "default_value": null,
         "identity": "",

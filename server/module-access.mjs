@@ -3,7 +3,7 @@ import { DEMO_ROLE, RepositoryError, requireRole } from './repository.mjs';
 
 export const MODULES = Object.freeze([
   'overview', 'tasks', 'deviations', 'diary', 'progress', 'bookings', 'wbs', 'impacts',
-  'tools', 'certifications', 'hse', 'sites', 'logistics', 'reporting', 'workforce_names', 'workforce_presence',
+  'tools', 'certifications', 'hse', 'sites', 'logistics', 'reporting', 'workforce_names', 'workforce_presence', 'registry',
 ]);
 const alwaysAllowed = new Set(['sites', 'overview']);
 const strictModules = new Set(['logistics', 'workforce_names', 'workforce_presence']);

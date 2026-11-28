@@ -3,6 +3,7 @@ import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
 import { messages } from './i18n.mjs';
 import { mountPlaces } from './places-ui.mjs';
+import { mountRegistry } from './registry-ui.mjs';
 import { resolveSessionLanguage } from './language.mjs';
 import { hseAttachmentNeedsReview } from './domain.mjs';
 import { hasOpenProgressSteps } from './domain.mjs';
@@ -168,6 +169,7 @@ const paths = {
   workforce_presence: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m1-13a3 3 0 0 1 0 6m1 3a4 4 0 0 1 4 4"/>',
   places: '<path d="M19 10c0 5-7 11-7 11s-7-6-7-11a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/>',
   assets: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm0 9 8-4.5M12 12 4 7.5M12 12v9"/>',
+  registry: '<circle cx="9" cy="7" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M17 4a3 3 0 0 1 0 6m1 3a5 5 0 0 1 3 5v2"/>',
   wbs: '<path d="M12 8v4M5 16v-4h14v4"/><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="2" y="16" width="6" height="5" rx="1"/><rect x="16" y="16" width="6" height="5" rx="1"/>',
   impacts: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/>',
   certifications: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 12h6m-3-3v6"/>',
@@ -1206,7 +1208,8 @@ function renderSites() {
     const members = state.memberAccess?.[siteId]?.members || [];
     $('#main').insertAdjacentHTML('beforeend', `<section class="panel module-access"><div class="panel-body"><h2>${t('moduleAccess')}</h2><p>${t('moduleAccessHint')}</p><div class="table-scroll"><table><thead><tr><th scope="col">${t('accessMember')}</th>${modules.map(module => `<th scope="col">${t(module)}</th>`).join('')}</tr></thead><tbody>${members.map(member => `<tr><th scope="row">${esc(member.name)}<br><small>${esc(member.email)} · ${esc(member.role === 'owner' ? t('accessOwner') : member.role === 'demo_user' ? t('responsibleRole_demo_user') : member.role)}</small></th>${modules.map(module => {
       const locked = ['owner', 'demo_user'].includes(member.role) || ['sites', 'overview'].includes(module);
-      return `<td><input type="checkbox" data-member-access data-site="${esc(siteId)}" data-member="${esc(member.user_id)}" data-module="${module}" aria-label="${esc(member.name)} · ${t(module)}" ${locked || visibleModules([module], member.modules).length ? 'checked' : ''} ${locked || offline ? 'disabled' : ''}></td>`;
+      const registryExcluded = module === 'registry' && member.role === 'demo_user';
+      return `<td><input type="checkbox" data-member-access data-site="${esc(siteId)}" data-member="${esc(member.user_id)}" data-module="${module}" aria-label="${esc(member.name)} · ${t(module)}" ${!registryExcluded && (locked || visibleModules([module], member.modules).length) ? 'checked' : ''} ${locked || offline ? 'disabled' : ''}></td>`;
     }).join('')}</tr>`).join('')}</tbody></table></div></div></section>`);
   }
 }
@@ -1681,14 +1684,20 @@ function renderWbs() {
 }
 // Core modules are online-only and never write to the offline operation queue.
 const role = () => session?.roles?.find(member => member.site_id === siteId)?.role;
-const ownerModules = { logistics: true, workforce_names: true, workforce_presence: true };
-const currentModules = () => ['owner', 'demo_user'].includes(role()) ? ownerModules : state.memberAccess?.[siteId]?.members?.find(member => member.user_id === session?.user.id)?.modules || {};
+const ownerModules = { logistics: true, workforce_names: true, workforce_presence: true, registry: true };
+const currentModules = () => {
+  const siteRole = role();
+  if (siteRole === 'owner') return ownerModules;
+  if (siteRole === 'demo_user') return { ...ownerModules, registry: false };
+  const grants = state.memberAccess?.[siteId]?.members?.find(member => member.user_id === session?.user.id)?.modules;
+  return { ...grants, registry: ['editor', 'verifier', 'viewer'].includes(siteRole) && grants?.registry !== false };
+};
 const moduleVisible = module => visibleModules([module], currentModules()).length > 0;
 
 const permissions = () => corePermissions(role());
 const moduleResources = { deviations: ['deviations', 'reconciliation'], progress: ['progress', 'wbs', 'progressTypes'], bookings: ['bookings', 'workDays', 'employees', 'progress', 'workforceSummary'], workforce_presence: ['workforcePresence'], impacts: ['impacts'], tools: ['tools'], certifications: ['certifications', 'employees'], hse: ['hse', 'hseAssets'], logistics: ['purchaseOrders', 'packages', 'shipments'] };
 // Mobile keeps four destinations reachable with the thumb; the rest lives behind «Altro».
-const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'places', 'assets', 'deviations', 'progress', 'bookings', 'workforce_presence', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'reporting'];
+const NAV_ITEMS = ['overview', 'sites', 'tasks', 'wbs', 'places', 'assets', 'registry', 'deviations', 'progress', 'bookings', 'workforce_presence', 'impacts', 'diary', 'tools', 'certifications', 'hse', 'logistics', 'reporting'];
 const MOBILE_PRIMARY = ['today', 'tasks', 'diary', 'deviations', 'progress'];
 const TABLET_PRIMARY = [...MOBILE_PRIMARY, 'bookings'];
 const headerNavItems = () => window.matchMedia('(width < 640px)').matches ? MOBILE_PRIMARY : TABLET_PRIMARY;
@@ -3738,6 +3747,10 @@ function render() {
     return;
   }
   if (!moduleVisible(view)) { $('#main').innerHTML = empty('moduleUnavailable', 'moduleUnavailableHint'); return; }
+  if (view === 'registry') {
+    mountRegistry($('#main'), { api: freshApi, siteId, role: role(), language, offline, t, errorMessage });
+    return;
+  }
   if (view === 'places') {
     mountPlaces($('#main'), { api, site: currentSite(), role: role(), userId: session.user.id, language, offline, t });
     return;
@@ -4756,13 +4769,13 @@ $('#language').addEventListener('click', () => {
 window.addEventListener('resize', updateDeviationBoardScroll);
 window.matchMedia('(max-width: 520px)').addEventListener('change', () => { if (view === 'deviations') render(); });
 window.addEventListener('hashchange', () => { const next = location.hash.slice(1); view = initialView({ width: window.innerWidth, hash: next ? `#${next}` : '#overview' }); if (view !== 'report') reportPrintIntent = null; closeModal(); render(); $('#main').focus(); });
-window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view] || view === 'today' || view === 'assets') { closeModal(); render(); } void loadAssistantUsage(); });
+window.addEventListener('offline', () => { offline = true; renderOffline(); if (moduleResources[view] || ['today', 'assets', 'registry'].includes(view)) { closeModal(); render(); } void loadAssistantUsage(); });
 for (const breakpoint of ['(width < 640px)', '(min-width: 1180px)']) {
   window.matchMedia(breakpoint).addEventListener('change', renderChrome);
 }
 window.addEventListener('online', () => {
   offline = false; coreCache.clear(); renderOffline();
-  if (moduleResources[view] || ['today', 'tasks', 'assets'].includes(view)) render();
+  if (moduleResources[view] || ['today', 'tasks', 'assets', 'registry'].includes(view)) render();
   void loadAssistantUsage();
   if (session) void syncQueue();
   else void accountLock(flushLogout).catch(error => toast(errorMessage(error)));
