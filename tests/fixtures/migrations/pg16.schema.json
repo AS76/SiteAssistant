@@ -1227,6 +1227,50 @@
     "definition": "CHECK ((time_zone ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'::text))",
     "validated": true
   },
+  "constraint task_assignment_links.task_assignment_authority_fk": {
+    "definition": "FOREIGN KEY (site_id, authority_role_id) REFERENCES registry_authority_roles(site_id, id)",
+    "validated": true
+  },
+  "constraint task_assignment_links.task_assignment_batch_fk": {
+    "definition": "FOREIGN KEY (site_id, module, batch_id) REFERENCES reconciliation_batches(site_id, module, id)",
+    "validated": true
+  },
+  "constraint task_assignment_links.task_assignment_company_fk": {
+    "definition": "FOREIGN KEY (site_id, company_id) REFERENCES registry_companies(site_id, id)",
+    "validated": true
+  },
+  "constraint task_assignment_links.task_assignment_end_check": {
+    "definition": "CHECK ((((valid_to IS NULL) AND (end_action IS NULL)) OR ((valid_to IS NOT NULL) AND (valid_to >= valid_from) AND (end_action IS NOT NULL) AND (end_action = ANY (ARRAY['superseded'::text, 'compensated'::text])))))",
+    "validated": true
+  },
+  "constraint task_assignment_links.task_assignment_links_pkey": {
+    "definition": "PRIMARY KEY (site_id, task_id, field, version)",
+    "validated": true
+  },
+  "constraint task_assignment_links.task_assignment_module_check": {
+    "definition": "CHECK ((module = 'tasks'::text))",
+    "validated": true
+  },
+  "constraint task_assignment_links.task_assignment_person_fk": {
+    "definition": "FOREIGN KEY (site_id, person_id) REFERENCES registry_people(site_id, id)",
+    "validated": true
+  },
+  "constraint task_assignment_links.task_assignment_target_check": {
+    "definition": "CHECK ((((field = ANY (ARRAY['executor'::text, 'verifier'::text])) AND (person_id IS NOT NULL) AND (authority_role_id IS NOT NULL) AND (team_id IS NULL) AND (company_id IS NULL)) OR ((field = 'executor'::text) AND (team_id IS NOT NULL) AND (person_id IS NULL) AND (company_id IS NULL) AND (authority_role_id IS NULL)) OR ((field = 'company'::text) AND (company_id IS NOT NULL) AND (person_id IS NULL) AND (team_id IS NULL) AND (authority_role_id IS NULL))))",
+    "validated": true
+  },
+  "constraint task_assignment_links.task_assignment_task_fk": {
+    "definition": "FOREIGN KEY (site_id, task_id) REFERENCES tasks(site_id, id)",
+    "validated": true
+  },
+  "constraint task_assignment_links.task_assignment_team_fk": {
+    "definition": "FOREIGN KEY (site_id, team_id) REFERENCES registry_teams(site_id, id)",
+    "validated": true
+  },
+  "constraint task_assignment_links.task_assignment_version_check": {
+    "definition": "CHECK ((version > 0))",
+    "validated": true
+  },
   "constraint task_events.task_events_action_check": {
     "definition": "CHECK ((action = ANY (ARRAY['create'::text, 'start'::text, 'submit'::text, 'verify'::text, 'reject'::text, 'block'::text, 'resume'::text, 'reopen'::text, 'close'::text])))",
     "validated": true
@@ -2168,6 +2212,26 @@
     "definition": "CREATE UNIQUE INDEX sites_pkey ON sites USING btree (id)",
     "valid": true
   },
+  "index task_assignment_company": {
+    "definition": "CREATE INDEX task_assignment_company ON task_assignment_links USING btree (site_id, company_id) WHERE (valid_to IS NULL)",
+    "valid": true
+  },
+  "index task_assignment_current": {
+    "definition": "CREATE UNIQUE INDEX task_assignment_current ON task_assignment_links USING btree (site_id, task_id, field) WHERE (valid_to IS NULL)",
+    "valid": true
+  },
+  "index task_assignment_links_pkey": {
+    "definition": "CREATE UNIQUE INDEX task_assignment_links_pkey ON task_assignment_links USING btree (site_id, task_id, field, version)",
+    "valid": true
+  },
+  "index task_assignment_person": {
+    "definition": "CREATE INDEX task_assignment_person ON task_assignment_links USING btree (site_id, person_id) WHERE (valid_to IS NULL)",
+    "valid": true
+  },
+  "index task_assignment_team": {
+    "definition": "CREATE INDEX task_assignment_team ON task_assignment_links USING btree (site_id, team_id) WHERE (valid_to IS NULL)",
+    "valid": true
+  },
   "index task_events_current_closure": {
     "definition": "CREATE INDEX task_events_current_closure ON task_events USING btree (task_id, to_status, from_status, id)",
     "valid": true
@@ -2182,6 +2246,10 @@
   },
   "index tasks_pkey": {
     "definition": "CREATE UNIQUE INDEX tasks_pkey ON tasks USING btree (id)",
+    "valid": true
+  },
+  "index tasks_site_identity": {
+    "definition": "CREATE UNIQUE INDEX tasks_site_identity ON tasks USING btree (site_id, id)",
     "valid": true
   },
   "index tasks_site_wbs": {
@@ -7759,6 +7827,131 @@
         "type": "text",
         "required": false,
         "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table task_assignment_links": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "task_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "field",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "team_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "company_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "authority_role_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "original_label",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "snapshot",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_from",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_to",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "end_action",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "batch_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "module",
+        "type": "text",
+        "required": true,
+        "default_value": "'tasks'::text",
         "identity": "",
         "generated": ""
       }

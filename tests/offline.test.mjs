@@ -348,7 +348,7 @@ test('worker GET cache is stale-while-revalidate, scoped, and explicit refresh b
   await assert.rejects(f.dispatch('fetch', { request }));
 });
 
-test('worker excludes auth, POST, binary and unrelated origins and evicts authorization errors', async () => {
+test('worker excludes auth, POST, registry assignment history, binary and unrelated origins and evicts authorization errors', async () => {
   const f = await workerFixture();
   const request = new Request(`${baseUrl}/api/tasks`);
   await f.dispatch('fetch', { request });
@@ -356,10 +356,12 @@ test('worker excludes auth, POST, binary and unrelated origins and evicts author
   assert.equal((await f.dispatch('fetch', { request: new Request(request, { cache: 'reload' }) })).status, 403);
   assert.equal(f.notices[0].type, 'offline-access-denied');
   assert.equal(f.notices[0].code, 'MODULE_FORBIDDEN');
-  for (const url of [`${baseUrl}/api/auth/me`, `${baseUrl}/api/attachments/file`, 'https://other.invalid/api/tasks']) await f.dispatch('fetch', { request: new Request(url) });
+  const networkOnly = [`${baseUrl}/api/auth/me`, `${baseUrl}/api/attachments/file`,
+    `${baseUrl}/api/tasks/task-id?include=assignment_history`, 'https://other.invalid/api/tasks'];
+  for (const url of networkOnly) await f.dispatch('fetch', { request: new Request(url) });
   assert.equal(await f.dispatch('fetch', { request: new Request(request, { method: 'POST' }) }), undefined);
   f.state.network = async () => { throw networkError(); };
-  for (const url of [request.url, `${baseUrl}/api/auth/me`, `${baseUrl}/api/attachments/file`, 'https://other.invalid/api/tasks']) await assert.rejects(f.dispatch('fetch', { request: new Request(url) }));
+  for (const url of [request.url, ...networkOnly]) await assert.rejects(f.dispatch('fetch', { request: new Request(url) }));
 });
 
 test('worker Background Sync replays without a page and rejects transient work for browser retry', async () => {

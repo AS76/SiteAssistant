@@ -61,7 +61,8 @@ function reviewUi(language, { tasks = [task], role = 'verifier', userId = task.v
     fragment('const errorKeys =', 'function clearSession('), fragment('const siteTasks =', 'const dateLabel ='),
     fragment('function currentTodayActions(', 'function openTodayAction('),
     fragment('const canWriteTask =', 'const canCreateSite ='), fragment('function field(', 'function dateInput('),
-    fragment('const formActions =', 'function showPasswordForm('), fragment('async function showDetail(', 'function showEntryForm('),
+    fragment('const formActions =', 'function showPasswordForm('),
+    fragment('const taskAssignmentFields =', 'function taskEvidence('), fragment('async function showDetail(', 'function showEntryForm('),
     fragment("document.addEventListener('click',", "$('#modal').addEventListener('cancel'"),
   ].join('\n'), context);
   const click = target => handlers.click({ target: { closest: () => target } });

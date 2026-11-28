@@ -76,6 +76,7 @@ const publicBatch = row => ({
 // The module owns occurrence snapshots, candidate rules and typed writes. Adapter writes
 // run under the site lock in the same transaction as the decision receipts.
 export function createReconciliation(module, adapter) {
+  const batchReaders = adapter.batchReaders ?? reviewers;
   const withContext = (db, siteId, user, roles, operation, write = true) => {
     requireUser(user);
     const site = uuid(siteId, 'siteId');
@@ -129,26 +130,30 @@ export function createReconciliation(module, adapter) {
       }
       const active = await adoption(ctx);
       if (!active.enabled) conflict('RECONCILIATION_DISABLED', 'The site owner must activate reconciliation.');
+      await adapter.lockSources?.(ctx, decisions);
       const { tx, site: siteId, at } = ctx;
       await tx.run(`INSERT INTO reconciliation_batches
         (site_id, module, id, adoption_revision, decision_hash, decided_at, decided_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       siteId, module, id, active.revision, hash, at, user.id);
 
+      const prepared = [];
       for (const item of decisions) {
         const source = await adapter.source(ctx, item);
         if (!source || digest(source) !== item.revision) {
           conflict('RECONCILIATION_STALE', 'The source changed. Create a new preview.');
         }
         const target = await adapter.prepare(ctx, item.decision, source);
+        prepared.push({ ...item, source, target });
         await tx.run(`INSERT INTO reconciliation_items
           (site_id, module, batch_id, record_id, field, source_revision, source_snapshot, decision, target_snapshot)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, siteId, module, id, item.recordId, item.field,
         item.revision, encode(source), encode(item.decision), target && encode(target));
       }
+      await adapter.validatePrepared?.(ctx, prepared);
       return publicBatch(await readBatch(ctx, id));
     }),
 
-    list: (db, site, recordId, user) => withContext(db, site, user, reviewers, async ctx => {
+    list: (db, site, recordId, user) => withContext(db, site, user, batchReaders, async ctx => {
       const rows = await ctx.tx.all(`SELECT b.* FROM reconciliation_batches b WHERE b.site_id = ? AND b.module = ?
         AND EXISTS (SELECT 1 FROM reconciliation_items i WHERE i.site_id = b.site_id AND i.module = b.module
           AND i.batch_id = b.id AND i.record_id = ?) ORDER BY b.decided_at DESC, b.id LIMIT 20`,
@@ -156,7 +161,7 @@ export function createReconciliation(module, adapter) {
       return rows.map(publicBatch);
     }, false),
 
-    read: (db, site, batchId, user) => withContext(db, site, user, reviewers, async ctx => {
+    read: (db, site, batchId, user) => withContext(db, site, user, batchReaders, async ctx => {
       const row = await readBatch(ctx, uuid(batchId, 'batchId'));
       const items = (await readItems(ctx, row.id)).map(item => ({
         recordId: item.record_id, field: item.field, revision: item.source_revision, source: JSON.parse(item.source_snapshot),
@@ -172,10 +177,13 @@ export function createReconciliation(module, adapter) {
       if (!active.enabled || active.revision !== batch.adoption_revision) {
         conflict('RECONCILIATION_DISABLED', 'The batch requires a decision in the current activation.');
       }
-      const { tx, site: siteId, at } = ctx;
+      const { tx, site: siteId } = ctx;
       await adapter.authorize(tx, siteId, { id: batch.decided_by }, reviewers);
-      const results = [];
-      for (const row of await readItems(ctx, batch.id)) {
+      const rows = await readItems(ctx, batch.id);
+      await adapter.lockSources?.(ctx, rows.map(row => ({ recordId: row.record_id })));
+      const { at } = ctx;
+      const items = [];
+      for (const row of rows) {
         const item = { recordId: row.record_id, field: row.field };
         const source = await adapter.source(ctx, item);
         const decision = JSON.parse(row.decision);
@@ -184,9 +192,15 @@ export function createReconciliation(module, adapter) {
           outcome = { status: 'stale' };
         } else if (decision.action === 'unresolved') {
           outcome = { status: 'unresolved' };
-        } else {
-          outcome = await adapter.apply(ctx, item, batch.id, source, decision, JSON.parse(row.target_snapshot));
         }
+        items.push({ ...item, source, decision, target: outcome ? null : JSON.parse(row.target_snapshot), outcome });
+      }
+
+      await adapter.validateApply?.(ctx, items);
+      const results = [];
+      for (const { recordId, field, source, decision, target, outcome: rejected } of items) {
+        const item = { recordId, field };
+        const outcome = rejected ?? await adapter.apply(ctx, item, batch.id, source, decision, target);
         if (outcome.status === 'applied') {
           await tx.run(`UPDATE reconciliation_items SET applied_at = ? WHERE site_id = ? AND module = ?
             AND batch_id = ? AND record_id = ? AND field = ?`, at, siteId, module, batch.id, item.recordId, item.field);

@@ -10,6 +10,11 @@ const assignments = [['executor', 'executor_id', WRITE_ROLES], ['verifier', 'ver
 export async function recogniseResponsibles(db, siteId, { apply = false } = {}) {
   return await db.transaction(async tx => {
     await getSite(tx, siteId);
+    if (apply) await tx.run('UPDATE sites SET id = id WHERE id = ?', siteId);
+    // Names alone must never change an account assignment alongside a registry assignment.
+    const assignmentsMigrated = await tx.get("SELECT version FROM schema_migrations WHERE version = '061'");
+    const withoutRegistry = assignmentsMigrated ? `AND NOT EXISTS (SELECT 1 FROM reconciliation_items i
+      WHERE i.site_id = tasks.site_id AND i.module = 'tasks' AND i.record_id = tasks.id)` : '';
     const members = await tx.all(`SELECT u.id AS user_id, u.name, m.role FROM accessible_site_members m
       JOIN users u ON u.id = m.user_id WHERE m.site_id = ? AND u.disabled_at IS NULL
       ORDER BY u.id`, siteId);
@@ -20,7 +25,7 @@ export async function recogniseResponsibles(db, siteId, { apply = false } = {}) 
       names.get(key).push(member);
     }
     const tasks = await tx.all(`SELECT id, executor, verifier, executor_id, verifier_id FROM tasks
-      WHERE site_id = ? AND (executor_id IS NULL OR verifier_id IS NULL) ORDER BY id`, siteId);
+      WHERE site_id = ? AND (executor_id IS NULL OR verifier_id IS NULL) ${withoutRegistry} ORDER BY id`, siteId);
     const result = { matched: 0, unmatched: 0, ambiguous: 0, linked: 0, ambiguities: [] };
     for (const task of tasks) {
       const pending = [];

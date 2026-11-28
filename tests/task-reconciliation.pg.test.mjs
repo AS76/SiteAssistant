@@ -1,0 +1,22 @@
+import test from 'node:test';
+
+const enabled = process.env.DB_DRIVER === 'pg' && Boolean(process.env.DATABASE_URL_TEST);
+const skip = !enabled && 'Requires DB_DRIVER=pg and DATABASE_URL_TEST for a dedicated test database.';
+
+test('Tasks serialize concurrent decisions from independent PostgreSQL connections', {
+  skip,
+  timeout: 30000,
+}, async t => {
+  // The shared fixture verifies the test database name before opening a schema.
+  const { openTestDb } = await import('./helpers/db.mjs');
+  const { assertConcurrentTaskAssignments } = await import('./helpers/task-reconciliation.mjs');
+  await assertConcurrentTaskAssignments(t, await openTestDb());
+});
+
+test('Tasks swap executor and verifier atomically (PostgreSQL)', { skip }, async t => {
+  const { openTestDb } = await import('./helpers/db.mjs');
+  const { assertAtomicTaskAssignmentSwap } = await import('./helpers/task-reconciliation.mjs');
+  const { db, close } = await openTestDb();
+  t.after(close);
+  await assertAtomicTaskAssignmentSwap(db);
+});

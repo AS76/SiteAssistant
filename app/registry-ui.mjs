@@ -1,6 +1,6 @@
 const labels = {
   it: {
-    people: 'Persone', companies: 'Imprese', teams: 'Squadre', affiliations: 'Affiliazioni',
+    people: 'Persone', companies: 'Imprese', teams: 'Squadre', affiliations: 'Affiliazioni', tasks: 'Attività aperte',
     'company-roles': 'Ruoli delle imprese', 'team-memberships': 'Membri delle squadre',
     'authority-roles': 'Ruoli operativi', 'account-links': 'Account collegati',
     search: 'Cerca per nome', submitSearch: 'Cerca', archived: 'Archiviato', includeArchived: 'Includi archiviati',
@@ -13,7 +13,7 @@ const labels = {
     actions: { create: 'Creazione', update: 'Modifica', archive: 'Archiviazione' },
   },
   en: {
-    people: 'People', companies: 'Companies', teams: 'Crews', affiliations: 'Affiliations',
+    people: 'People', companies: 'Companies', teams: 'Crews', affiliations: 'Affiliations', tasks: 'Open tasks',
     'company-roles': 'Company roles', 'team-memberships': 'Crew memberships',
     'authority-roles': 'Operational roles', 'account-links': 'Linked accounts',
     search: 'Search by name', submitSearch: 'Search', archived: 'Archived', includeArchived: 'Include archived records',

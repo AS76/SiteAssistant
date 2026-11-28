@@ -1,7 +1,7 @@
 import { createApi } from './api.mjs';
 import { getMirror, replayOps, SYNC_TAG } from './offline.mjs';
 
-const VERSION = 'siteassistant-v15-65';
+const VERSION = 'siteassistant-v15-66';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data-`;
 const shellUrls = [
@@ -32,6 +32,7 @@ async function runtime(request, event) {
   const url = new URL(request.url), base = new URL(active.baseUrl, self.registration.scope);
   const prefix = base.pathname.replace(/\/$/, '');
   if (url.origin !== base.origin || !new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/api/(sites|tasks|diary|wbs|attachments)(/[^/]+)?$`).test(url.pathname)) return fetch(request);
+  if (url.searchParams.get('include') === 'assignment_history') return fetch(request);
   // Binary downloads and all auth endpoints are deliberately outside the data cache.
   if (/\/attachments\//.test(url.pathname)) return fetch(request);
   const cache = await caches.open(`${DATA}${encodeURIComponent(active.scope)}`);

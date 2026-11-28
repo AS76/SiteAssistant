@@ -44,6 +44,20 @@ What it is for: putting work on site with someone who executes it and someone wh
 - **Task created but not visible:** check the board filters and the selected site.
 :::
 
+## Link assignments to the registry
+
+Open the detail of a saved, synced task while online and go to **Registry assignments**. The site owner activates the workflow. Owners and editors can approve and apply decisions. Reviewers and viewers with access to both **Tasks** and the **Registry** can read the snapshots.
+
+1. Choose **Executor**, **Reviewer** or **Executing company**. The preview shows the original value and matching records from the site.
+2. Select the specific record and enter a reason. Choose a person with a current operational role, a crew for the executor only, or a company for the company field. If the identity is uncertain, including when people share a name, choose **Leave unresolved**.
+3. Choose **Approve decision**, check the record and role, then choose **Apply batch**. The history retains the recorded name, role, original value and link date.
+
+Later registry edits leave the snapshot readable. Archived records stay in history and are excluded from selection. The registry blocks archiving while the record has a current link to an open task.
+
+This link records an operational attribution. The snapshot can include a person without an account. Site access requires a separately managed account and site role. Review and acceptance permissions still depend on the designated account and its site role. Queued task creates and status changes sync as usual.
+
+The site owner can open **Decision history** and roll back an applied batch. This disables registry links for the site and closes the intervals still attributed to that batch. The history also shows any later links that were preserved.
+
 ## Ordinary and corrective tasks
 
 The **type** tells planned work apart from work that fixes something:
@@ -51,7 +65,7 @@ The **type** tells planned work apart from work that fixes something:
 - **Ordinary**: the planned work. It is the default and it is not stored as a type, so tasks created before this classification stay ordinary.
 - **Corrective**: work that fixes a defect or a non-conformity. The board cards show a **Corrective** badge.
 
-The type is chosen at creation and cannot be changed afterwards: tasks are not editable. The **Type** filter in the filter bar applies to the board, to the list, to the **Light tasks** view and to the CSV export, which has a **Type** column with the translated label.
+The type is set at creation. The **Type** filter in the filter bar applies to the board, to the list, to the **Light tasks** view and to the CSV export, which has a **Type** column with the translated label.
 
 ## The statuses
 
