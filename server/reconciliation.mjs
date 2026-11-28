@@ -182,7 +182,7 @@ export function createReconciliation(module, adapter) {
       const rows = await readItems(ctx, batch.id);
       await adapter.lockSources?.(ctx, rows.map(row => ({ recordId: row.record_id })));
       const { at } = ctx;
-      const results = [];
+      const items = [];
       for (const row of rows) {
         const item = { recordId: row.record_id, field: row.field };
         const source = await adapter.source(ctx, item);
@@ -192,9 +192,15 @@ export function createReconciliation(module, adapter) {
           outcome = { status: 'stale' };
         } else if (decision.action === 'unresolved') {
           outcome = { status: 'unresolved' };
-        } else {
-          outcome = await adapter.apply(ctx, item, batch.id, source, decision, JSON.parse(row.target_snapshot));
         }
+        items.push({ ...item, source, decision, target: outcome ? null : JSON.parse(row.target_snapshot), outcome });
+      }
+
+      await adapter.validateApply?.(ctx, items);
+      const results = [];
+      for (const { recordId, field, source, decision, target, outcome: rejected } of items) {
+        const item = { recordId, field };
+        const outcome = rejected ?? await adapter.apply(ctx, item, batch.id, source, decision, target);
         if (outcome.status === 'applied') {
           await tx.run(`UPDATE reconciliation_items SET applied_at = ? WHERE site_id = ? AND module = ?
             AND batch_id = ? AND record_id = ? AND field = ?`, at, siteId, module, batch.id, item.recordId, item.field);

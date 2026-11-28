@@ -14,7 +14,8 @@ import { setMember } from '../server/repository.mjs';
 import { translatePlaceholders } from '../server/storage/pg.mjs';
 import { authFixture, requestListener } from './helpers/auth.mjs';
 import { openSqliteTestDb } from './helpers/db.mjs';
-import { assertConcurrentTaskAssignments, day, decisionItem, link, occurrence, request, siteFixture, stamp } from './helpers/task-reconciliation.mjs';
+import { assertAtomicTaskAssignmentSwap, assertConcurrentTaskAssignments, day, decisionItem, link, occurrence, request,
+  siteFixture, stamp } from './helpers/task-reconciliation.mjs';
 import { mockIndexedDB, mockLocks } from './helpers/indexeddb.mjs';
 
 const unresolvedDecision = { action: 'unresolved', reason: 'Two eligible homonyms in the source' };
@@ -220,6 +221,12 @@ testBoth('Tasks keep homonyms unresolved and reject stale authority, equivalence
   const staged = await approve(executor, link('team', team), 200);
   await setMember(db, f.site.id, { user_id: users.editor.id, role: 'viewer' }, users.owner);
   checked(await r.send(`/batches/${staged.id}/apply`, {}, 'owner'), 403, 'FORBIDDEN');
+});
+
+test('Tasks swap executor and verifier atomically (SQLite)', async t => {
+  const { db, close } = await openSqliteTestDb();
+  t.after(close);
+  await assertAtomicTaskAssignmentSwap(db);
 });
 
 testBoth('Tasks compensate only the batch version and preserve later manual work', async (t, db) => {

@@ -200,17 +200,38 @@ async function equivalent(ctx, source, proposed) {
     || executor.some(id => verifier.includes(id));
 }
 
-async function validatePrepared(ctx, items) {
+async function separationConflicts(ctx, items) {
   const tasks = new Map();
-  for (const { recordId, field, source, target } of items) {
+  for (const item of items) {
+    const { recordId, field, target } = item;
     if (field === 'company' || !target) continue;
-    if (!tasks.has(recordId)) tasks.set(recordId, { source, proposed: new Map() });
-    tasks.get(recordId).proposed.set(field, target);
+    if (!tasks.has(recordId)) tasks.set(recordId, []);
+    tasks.get(recordId).push(item);
   }
-  for (const { source, proposed } of tasks.values()) {
-    if (await equivalent(ctx, source, proposed)) {
-      fail(409, 'SEPARATE_PEOPLE_REQUIRED', 'Executor and verifier must identify different people.');
+  const conflicting = [];
+  for (const assignments of tasks.values()) {
+    const proposed = new Map(assignments.map(({ field, target }) => [field, target]));
+    if (await equivalent(ctx, assignments[0].source, proposed)) conflicting.push(...assignments);
+  }
+  return conflicting;
+}
+
+async function validatePrepared(ctx, items) {
+  if ((await separationConflicts(ctx, items)).length) {
+    fail(409, 'SEPARATE_PEOPLE_REQUIRED', 'Executor and verifier must identify different people.');
+  }
+}
+
+async function validateApply(ctx, items) {
+  for (const item of items) {
+    if (item.outcome) continue;
+    if (!same(await findTarget(ctx, item.field, item.decision), item.target)) {
+      item.outcome = { status: 'conflicting', code: 'TASK_ASSIGNMENT_TARGET_CHANGED' };
     }
+  }
+  // A rejected decision leaves the current assignment in place.
+  for (const item of await separationConflicts(ctx, items.filter(item => !item.outcome))) {
+    item.outcome = { status: 'conflicting', code: 'SEPARATE_PEOPLE_REQUIRED' };
   }
 }
 
@@ -223,15 +244,9 @@ async function closeAssignment({ tx, site, at }, { recordId, field }, version, a
 const references = target => ['person', 'team', 'company'].map(kind => target.kind === kind ? target.id : null)
   .concat(target.authority?.id ?? null);
 
-async function apply(ctx, item, batchId, source, decision, target) {
+async function apply(ctx, item, batchId, source, _decision, target) {
   const { tx, site, at } = ctx;
   const { recordId, field } = item;
-  if (!same(await findTarget(ctx, field, decision), target)) {
-    return { status: 'conflicting', code: 'TASK_ASSIGNMENT_TARGET_CHANGED' };
-  }
-  if (field !== 'company' && await equivalent(ctx, source, new Map([[field, target]]))) {
-    return { status: 'conflicting', code: 'SEPARATE_PEOPLE_REQUIRED' };
-  }
   if (source.link && source.link.originalLabel === source.original && same(source.link.snapshot, target)
       && same(source.link.references, references(target))) return { status: 'matched' };
   if (source.link) await closeAssignment(ctx, item, source.version, 'superseded');
@@ -257,7 +272,7 @@ async function compensate(ctx, item, batchId, _reason, applied) {
 export const taskAssignmentReconciliation = createReconciliation('tasks', {
   authorize, lockSources, source, batchReaders: readers,
   candidates: (ctx, item) => candidates(ctx, item.field, item.original),
-  validateDecision, prepare, validatePrepared, apply, compensate,
+  validateDecision, prepare, validatePrepared, validateApply, apply, compensate,
 });
 
 export async function withTaskAssignmentHistory(db, task, user, role) {

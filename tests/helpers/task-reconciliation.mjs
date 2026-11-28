@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createSite, createTask } from '../../server/repository.mjs';
 import { writeRegistry } from '../../server/site-registry.mjs';
-import { taskAssignmentReconciliation as batches } from '../../server/task-reconciliation.mjs';
+import { taskAssignmentReconciliation as batches, withTaskAssignmentHistory } from '../../server/task-reconciliation.mjs';
 import { authFixture } from './auth.mjs';
 
 export const day = 86_400_000;
@@ -33,6 +33,90 @@ export async function siteFixture(db, users) {
     task: (input = {}) => createTask(db, { siteId: site.id, title: 'Synthetic task',
       executor: 'Recorded  executor', verifier: 'Recorded reviewer', company: 'Recorded  company', ...input }),
   };
+}
+
+export async function assertAtomicTaskAssignmentSwap(db) {
+  const { users } = await authFixture(db);
+  const f = await siteFixture(db, users);
+  const site = f.site.id;
+  const editor = users.editor;
+  const task = await f.task();
+  const a = await f.person('Synthetic person A');
+  const b = await f.person('Synthetic person B');
+  const aExecutor = await f.grant(a, 'executor');
+  const aVerifier = await f.grant(a, 'verifier');
+  const bExecutor = await f.grant(b, 'executor');
+  const bVerifier = await f.grant(b, 'verifier');
+  const occurrences = [occurrence(task.id), occurrence(task.id, 'verifier')];
+  const plan = async (executor, verifier) => {
+    const { items } = await batches.preview(db, site, { occurrences }, editor);
+    const [executorItem, verifierItem] = items;
+    return request(decisionItem(executorItem, executor), decisionItem(verifierItem, verifier));
+  };
+  const initialPair = [link('person', a, aExecutor), link('person', b, bVerifier)];
+  const swappedPair = [link('person', b, bExecutor), link('person', a, aVerifier)];
+
+  await batches.activate(db, site, users.owner);
+  const initial = await plan(...initialPair);
+  await batches.decide(db, site, initial, editor);
+  const first = await batches.apply(db, site, initial.batchId, editor);
+  assert.deepEqual(first.items.map(item => [item.status, item.version, item.target.id]), [
+    ['applied', 1, a.id], ['applied', 1, b.id],
+  ]);
+
+  const swap = await plan(...swappedPair);
+  const decision = await batches.decide(db, site, swap, editor);
+  assert.equal(decision.status, 'decided');
+  const applied = await batches.apply(db, site, swap.batchId, editor);
+  assert.deepEqual(applied.counts, { total: 2, matched: 2, applied: 2, unresolved: 0, stale: 0, conflicting: 0 });
+  assert.deepEqual(applied.items.map(item => [item.field, item.status, item.version, item.target.id]), [
+    ['executor', 'applied', 2, b.id], ['verifier', 'applied', 2, a.id],
+  ]);
+  assert.deepEqual(await batches.apply(db, site, swap.batchId, editor), applied);
+
+  const audit = await batches.read(db, site, swap.batchId, editor);
+  assert.equal(audit.status, 'applied');
+  assert.equal(audit.decidedBy, editor.id);
+  assert.equal(audit.appliedBy, editor.id);
+  assert.deepEqual(audit.apply, applied);
+  const appliedAt = new Date(audit.appliedAt).toISOString();
+  const readHistory = async () => (await withTaskAssignmentHistory(db, task, editor, 'editor')).assignment_history;
+  const history = await readHistory();
+  assert.equal(history.length, 4);
+  for (const [index, item] of applied.items.entries()) {
+    const { field } = item;
+    const [current, prior] = history.filter(row => row.field === field);
+    assert.deepEqual(audit.items[index].decision, swappedPair[index]);
+    assert.deepEqual(audit.items[index].source.link.snapshot, first.items[index].target);
+    assert.deepEqual(audit.items[index].target, item.target);
+    assert.deepEqual([current.batch_id, current.version, current.current, current.valid_to, current.end_action],
+      [swap.batchId, 2, true, null, null]);
+    assert.deepEqual([prior.batch_id, prior.version, prior.current, prior.end_action],
+      [initial.batchId, 1, false, 'superseded']);
+    assert.deepEqual(current.snapshot, item.target);
+    assert.deepEqual(prior.snapshot, first.items[index].target);
+    assert.equal(current.original_label, task[field]);
+    assert.equal(prior.original_label, task[field]);
+    assert.equal(item.validFrom, appliedAt);
+    assert.equal(new Date(current.valid_from).toISOString(), appliedAt);
+    assert.equal(new Date(prior.valid_to).toISOString(), appliedAt);
+  }
+  const accounts = await db.get('SELECT executor_id, verifier_id FROM tasks WHERE id = ?', task.id);
+  assert.equal(accounts.executor_id, null);
+  assert.equal(accounts.verifier_id, null);
+
+  const ambiguous = await plan(initialPair[0], swappedPair[1]);
+  await assert.rejects(batches.decide(db, site, ambiguous, editor), { code: 'SEPARATE_PEOPLE_REQUIRED' });
+
+  const swapBack = await plan(...initialPair);
+  await batches.decide(db, site, swapBack, editor);
+  await f.registry('authority-roles', { revision: bVerifier.revision }, 'revoke', bVerifier.id);
+  const invalidated = await batches.apply(db, site, swapBack.batchId, editor);
+  assert.deepEqual(invalidated.items.map(item => [item.field, item.status, item.code]), [
+    ['executor', 'conflicting', 'SEPARATE_PEOPLE_REQUIRED'],
+    ['verifier', 'conflicting', 'TASK_ASSIGNMENT_TARGET_CHANGED'],
+  ]);
+  assert.deepEqual(await readHistory(), history);
 }
 
 export async function assertConcurrentTaskAssignments(t, { db, reopen, close }) {
