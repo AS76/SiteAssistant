@@ -272,16 +272,33 @@ Le **ricezioni** registrano quanto è arrivato di una riga ordinata: `purchaseOr
 
 ## Attrezzature
 
-Il registro delle attrezzature è lo stesso che si gestisce dalla vista **Attrezzature**. La lettura è aperta a tutti i membri del cantiere; la scrittura a owner, editor e verificatori.
+Il registro delle attrezzature è lo stesso che si gestisce dalla vista **Attrezzature**. La lettura è aperta a tutti i membri del cantiere; la scrittura a owner ed editor.
 
 | Metodo | Percorso | Accesso | Note |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/tools?site_id=&company=` | membro | Registro del cantiere; filtro opzionale ed esatto per appaltatore |
-| POST | `/api/tools` | owner/editor/verifier | `{ site_id, name, code?, company?, status?, location?, notes? }` |
-| PATCH | `/api/tools/{id}` | owner/editor/verifier | Aggiorna solo i campi inviati |
-| DELETE | `/api/tools/{id}` | owner/editor/verifier | Elimina la riga |
+| POST | `/api/tools` | owner/editor | `{ site_id, name, code?, company?, status?, location?, notes? }` |
+| PATCH | `/api/tools/{id}` | owner/editor | Aggiorna solo i campi inviati |
+| DELETE | `/api/tools/{id}` | owner/editor | Elimina la riga |
 
 `name` è obbligatorio, da 1 a 120 caratteri. `code`, `company`, `location` e `notes` sono testo libero, fino a 10000 caratteri, e possono essere `null`. Lo stato vale `available`, `in_use`, `maintenance` o `retired`; se manca in creazione vale `available`. L'elenco è ordinato per appaltatore, con le righe senza appaltatore in fondo, poi per nome. L'eliminazione è **logica**: `DELETE` toglie la riga dall'elenco, dai filtri e dalle letture successive, ma la conserva nel [registro di audit](#registro-di-audit).
+
+### Collegamento al registro imprese
+
+Prefisso delle rotte `/api/sites/{siteId}/people-reconciliation/tools`. L’accesso richiede entrambi i moduli, Attrezzature e Registro. Il ruolo simulato mantiene il CRUD testuale nel proprio ambiente demo.
+
+| Metodo e percorso | Accesso | Dati |
+| :-- | :-- | :-- |
+| `POST /previews` | owner/editor/verifier/viewer | `{ occurrences: [{ recordId, field: "company" }] }` |
+| `POST /adoption` | owner | Attiva i collegamenti per il cantiere |
+| `POST /batches` | owner/editor | `{ batchId, decisions: [{ recordId, field: "company", revision, decision }] }` |
+| `GET /batches?recordId=…`, `GET /batches/{batchId}` | owner/editor | Storico recente e dettaglio con snapshot |
+| `POST /batches/{batchId}/apply` | owner/editor | Applica le decisioni registrate e restituisce gli esiti |
+| `POST /batches/{batchId}/rollback` | owner | `{ reason }`, compensazione e disattivazione per cantiere |
+
+L’anteprima è di sola lettura e restituisce il digest `revision` e i suggerimenti per un massimo di 50 occorrenze. Ogni decisione include `action` e `reason`. Per `link` inviare `companyId`, `companyRevision` e `relationship`. Per `create` inviare `name` e `relationship`. `unresolved` registra la motivazione. I valori di `relationship` sono `owner`, `custodian` e `supplier`.
+
+Riutilizzare lo stesso UUID `batchId` e lo stesso contenuto per ripetere un’approvazione. L’applicazione ripetuta restituisce la ricevuta precedente. Le occorrenze cambiate o in conflitto sono riportate nell’esito e richiedono una nuova revisione. Con l’adozione attiva e l’accesso al Registro, `GET /api/tools` include `company_id`, `company_label`, `company_relationship` e `company_archived_at`. `company` e il filtro esatto per appaltatore conservano il significato originario.
 
 ## Idoneità
 

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { cp, mkdir, mkdtemp, rm, writeFile, appendFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -52,6 +53,9 @@ async function assertMigrations(t, db, driver) {
   for (const entity of ['people', 'companies', 'teams', 'affiliations', 'company_roles', 'team_memberships',
     'account_links', 'authority_roles', 'authority_delegations', 'authority_snapshots', 'history']) {
     t.assert.deepStrictEqual(await db.all(`SELECT * FROM registry_${entity}`), []);
+  }
+  for (const table of ['reconciliation_adoptions', 'reconciliation_batches', 'reconciliation_items', 'tool_company_links']) {
+    t.assert.deepStrictEqual(await db.all(`SELECT * FROM ${table}`), []);
   }
   const committed = [];
   t.assert.strictEqual(await migrate(observeMigrations(db, committed), { driver, demoSandbox: false }), 0);
@@ -134,6 +138,30 @@ test('PostgreSQL migrations initialize an empty PGlite schema and repeat without
 });
 
 for (const [driver, open] of [['sqlite', temporarySqlite], ['pg', temporaryPGlite]]) {
+  test(`${driver} 060 appends one migration and keeps existing tool text and nulls`, async t => {
+    const { db } = await open(t);
+    const site = randomUUID(), tool = randomUUID();
+    const at = '2026-01-01T00:00:00.000Z';
+    let before;
+    const committed = [];
+    const observed = observeMigrations(db, committed, async version => {
+      if (version !== '059') return;
+      await db.run('INSERT INTO sites (id, code, name, created_at) VALUES (?, ?, ?, ?)', site, 'EXAMPLE', 'Example site', at);
+      await db.run(`INSERT INTO tools (id, site_id, name, company, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`, tool, site, 'Synthetic drill', 'Original  label', 'maintenance', at, at);
+      before = await db.get('SELECT * FROM tools WHERE id = ?', tool);
+    });
+    t.assert.strictEqual(await migrate(observed, { driver, demoSandbox: false }), versions.length);
+    const index = committed.indexOf('059');
+    t.assert.ok(index >= 0);
+    t.assert.strictEqual(committed[index + 1], '060');
+    const after = await db.get('SELECT * FROM tools WHERE id = ?', tool);
+    t.assert.deepStrictEqual({ ...after }, { ...before });
+    t.assert.deepStrictEqual(await db.all('SELECT * FROM tool_reconciliation_revisions'), []);
+    t.assert.deepStrictEqual(await db.all('SELECT * FROM tool_company_links'), []);
+    t.assert.strictEqual(await migrate(db, { driver, demoSandbox: false }), 0);
+  });
+
   test(`${driver} 054 adopts the legacy demo seed table and direct replay preserves its rows`, async t => {
     const { db } = await open(t);
     const committed = [];

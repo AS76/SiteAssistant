@@ -1,5 +1,6 @@
 import { isDemoSandbox } from './demo-sandbox.mjs';
 import { HSE_READ_ROLES } from '../app/hse-permissions.mjs';
+import { messages, toolReconciliationErrorKeys } from '../app/i18n.mjs';
 import { requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
 import { createServer as createHttpServer } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -12,7 +13,7 @@ import { recordLoginFailure } from './auth-events.mjs';
 import { createWebAuthn } from './webauthn.mjs';
 import { sendMail, MailNotConfiguredError, MailDeliveryError } from './auth-mail.mjs';
 import { createStaticHandler } from './static-dev.mjs';
-import { loadPrivacyConfig, privacyResponse } from './privacy.mjs';
+import { languageFromRequest, loadPrivacyConfig, privacyResponse } from './privacy.mjs';
 import { normalizeEmail, requestSignup, readSignupRequest, decideSignup, changePassword, forgotPassword, decisionPage, RESET_PATH, readPasswordReset, confirmPasswordReset, resetPage } from './signup.mjs';
 import { ACTIVATION_PATH, activationPage, activationScriptHash, activateInvitation, createInvitation, invitationMessage, readInvitation, revokeInvitation } from './invitations.mjs';
 import { canManageInvitations } from './admin.mjs';
@@ -47,7 +48,7 @@ import { reportingOverview, reportingScopeIds } from './reporting.mjs';
 import { listProgressTypes, createProgressType, assignProgressType, setStepProgress, deleteProgressType } from './progress-types.mjs';
 import { progressCurve } from './progress-curve.mjs';
 import { listViews, createView, updateView, deleteView } from './view-settings.mjs';
-import { listTools, createTool, updateTool, deleteTool } from './tools.mjs';
+import { listTools, createTool, updateTool, deleteTool, toolCompanyReconciliation } from './tools.mjs';
 import { listCertifications, createCertification, updateCertification, deleteCertification, certificationSummary } from './certifications.mjs';
 import { listHseEvents, createHseEvent, updateHseEvent, deleteHseEvent, hseSummary } from './hse.mjs';
 import { templatesForJurisdiction } from './checklists.mjs';
@@ -82,6 +83,14 @@ async function paginatedJson(response, url, db, list, count, filters, user) {
 const activatePath = '/api/auth/activate';
 const invitationsPath = '/api/admin/invitations';
 const registryPath = /^\/api\/sites\/([^/]+)\/(people|companies|teams|affiliations|company-roles|team-memberships|account-links|authority-roles|authority-delegations|authority-snapshots)(?:\/([^/]+)(?:\/(history|archive|close|revoke|replace-lead))?)?$/;
+const toolReconciliationPath = /^\/api\/sites\/([^/]+)\/people-reconciliation\/tools\/(previews|adoption|batches)(?:\/([^/]+)(?:\/(apply|rollback))?)?$/;
+const reconciliationHttpErrorKeys = {
+  ...toolReconciliationErrorKeys,
+  AUTH_REQUIRED: 'authRequired', UNAUTHENTICATED: 'authRequired', PASSWORD_CHANGE_REQUIRED: 'passwordChangeNotice',
+  FORBIDDEN: 'forbidden', TOOL_FORBIDDEN: 'forbidden', MODULE_FORBIDDEN: 'moduleUnavailable',
+  TOOL_NOT_FOUND: 'toolNotFound', TOOL_INVALID: 'toolInvalid',
+  INVALID_JSON: 'invalidData', VALIDATION_ERROR: 'invalidData', RATE_LIMITED: 'rateLimited',
+};
 const rateLimitExempt = new Set(['/api/auth/login', '/api/auth/forgot', '/api/auth/password', '/api/auth/request', activatePath, invitationsPath]);
 const authBypassExcluded = new Set([
   '/api/auth/login', '/api/auth/logout', '/api/auth/forgot', '/api/auth/request',
@@ -247,9 +256,14 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       response.end();
       return;
     }
-    let path, isDecision = false;
+    let url, path, toolReconciliation, user = null, isDecision = false;
+    const errorBody = (error, code) => {
+      if (!toolReconciliation) return { error, code };
+      const language = ['it', 'en'].includes(user?.language) ? user.language : languageFromRequest(request, url);
+      const key = reconciliationHttpErrorKeys[code] ?? 'apiError';
+      return { error, code, message: messages[language][key] };
+    };
     try {
-      let url;
       try {
         url = new URL(request.url, 'http://127.0.0.1');
       } catch {
@@ -257,6 +271,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       path = url.pathname;
       const registryRoute = registryPath.exec(path);
+      toolReconciliation = toolReconciliationPath.exec(path);
       const method = request.method;
       const ip = clientIp(request);
       if (!path.startsWith('/api/') && privacyResponse(request, response, url, privacyConfig)) return;
@@ -284,12 +299,12 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         json(response, 404, { error: 'Not found.', code: 'NOT_FOUND' });
         return;
       }
-      let user = null, authError;
+      let authError;
       if (path.startsWith('/api/')) {
         try { user = await authenticate(db, request.headers.cookie, authContext); }
         catch (error) {
           if (!(error instanceof RepositoryError) || error.status !== 401) throw error;
-          if (authBypassEmail && !registryRoute && !authBypassExcluded.has(path) && path !== invitationsPath && !revoke) {
+          if (authBypassEmail && !registryRoute && !toolReconciliation && !authBypassExcluded.has(path) && path !== invitationsPath && !revoke) {
             user = await db.get(`SELECT id, email, name, password_change_required FROM users
               WHERE lower(email) = ? AND disabled_at IS NULL`, authBypassEmail);
             if (user) {
@@ -313,7 +328,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
           if (!result.allowed) {
             response.setHeader('X-RateLimit-Remaining', '0');
             response.setHeader('Retry-After', String(Math.max(1, Math.ceil(result.retryAfter))));
-            return json(response, 429, { error: 'Too many requests.', code: 'RATE_LIMITED' });
+            return json(response, 429, errorBody('Too many requests.', 'RATE_LIMITED'));
           }
         }
       }
@@ -510,6 +525,28 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (tool && method === 'DELETE') {
         return json(response, 200, await deleteTool(db, tool[1], user));
+      }
+      if (toolReconciliation) {
+        const [, siteId, resource, batchId, action] = toolReconciliation;
+        const batch = toolCompanyReconciliation;
+        if (resource === 'batches' && method === 'GET' && !action) {
+          const result = batchId ? await batch.read(db, siteId, batchId, user)
+            : await batch.list(db, siteId, url.searchParams.get('recordId'), user);
+          return json(response, 200, result);
+        }
+        if (method === 'POST') {
+          if (resource === 'previews' && !batchId) {
+            return json(response, 200, await batch.preview(db, siteId, await readJson(request), user));
+          }
+          if (resource === 'adoption' && !batchId) {
+            return json(response, 200, await batch.activate(db, siteId, user));
+          }
+          if (resource === 'batches') {
+            if (!batchId) return json(response, 200, await batch.decide(db, siteId, await readJson(request), user));
+            if (action === 'apply') return json(response, 200, await batch.apply(db, siteId, batchId, user));
+            if (action === 'rollback') return json(response, 200, await batch.rollback(db, siteId, batchId, await readJson(request), user));
+          }
+        }
       }
       if (path === '/api/certifications' && method === 'GET') {
         const siteId = url.searchParams.get('site_id') ?? url.searchParams.get('siteId');
@@ -1113,7 +1150,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (diaryVersions && method === 'GET') {
         return json(response, 200, await listDiaryVersions(db, diaryVersions[1], user));
       }
-      json(response, 404, { error: 'Route not found.', code: 'NOT_FOUND' });
+      json(response, 404, errorBody('Route not found.', 'NOT_FOUND'));
     } catch (error) {
       // A failed/aborted download must not append JSON to a binary response.
       if (response.headersSent || response.destroyed) { response.destroy(); return; }
@@ -1126,13 +1163,13 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (isDecision && error instanceof RepositoryError && error.code !== 'INVALID_FORM') return html(response, error.status, error.message);
       if (error instanceof RepositoryError) {
         if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
-        json(response, error.status, { error: error.message, code: error.code,
+        json(response, error.status, { ...errorBody(error.message, error.code),
           ...(error instanceof UnsupportedJurisdictionError ? { message: error.message } : {}),
           ...(path === '/api/auth/login' && error.retryAfter ? { retry_after: error.retryAfter } : {}),
         });
       } else {
         console.error('Backend request failed.');
-        json(response, 500, { error: 'Internal server error.', code: 'INTERNAL_ERROR' });
+        json(response, 500, errorBody('Internal server error.', 'INTERNAL_ERROR'));
       }
     }
   });

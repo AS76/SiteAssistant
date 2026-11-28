@@ -24,7 +24,9 @@ I permessi di cantiere dipendono dall'appartenenza. La stessa persona può esser
 | Registrare il completamento degli step | Sì | Sì | No | No |
 | Creare o eliminare tipi di avanzamento — solo API | Sì | No | No | No |
 | Prenotare ore su presenze e avanzamento | Sì | Con accesso a Prenotazioni ore e Nominativi e ore individuali | No | No |
-| Gestire il registro delle attrezzature | Sì | Sì | Sì | No |
+| Gestire il registro delle attrezzature | Sì | Sì | No | No |
+| Approvare e applicare collegamenti alle imprese | Sì | Sì | No | No |
+| Attivare i collegamenti o annullare un batch | Sì | No | No | No |
 | Consultare il registro HSE | Sì | Sì | Sì | No |
 | Inserire, modificare o eliminare eventi HSE | Sì | Sì | No | No |
 | Censire le attrezzature HSE o registrare un'ispezione | Sì | Sì | No | No |

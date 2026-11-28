@@ -731,6 +731,46 @@
     "definition": "CHECK ((status = ANY (ARRAY['open'::text, 'template_generated'::text, 'in_execution'::text, 'completed'::text, 'not_relevant'::text])))",
     "validated": true
   },
+  "constraint reconciliation_adoptions.reconciliation_adoptions_changed_by_fkey": {
+    "definition": "FOREIGN KEY (changed_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint reconciliation_adoptions.reconciliation_adoptions_pkey": {
+    "definition": "PRIMARY KEY (site_id, module)",
+    "validated": true
+  },
+  "constraint reconciliation_adoptions.reconciliation_adoptions_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint reconciliation_batches.reconciliation_batches_applied_by_fkey": {
+    "definition": "FOREIGN KEY (applied_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint reconciliation_batches.reconciliation_batches_decided_by_fkey": {
+    "definition": "FOREIGN KEY (decided_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint reconciliation_batches.reconciliation_batches_pkey": {
+    "definition": "PRIMARY KEY (site_id, module, id)",
+    "validated": true
+  },
+  "constraint reconciliation_batches.reconciliation_batches_rolled_back_by_fkey": {
+    "definition": "FOREIGN KEY (rolled_back_by) REFERENCES users(id)",
+    "validated": true
+  },
+  "constraint reconciliation_batches.reconciliation_batches_site_id_fkey": {
+    "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)",
+    "validated": true
+  },
+  "constraint reconciliation_items.reconciliation_items_pkey": {
+    "definition": "PRIMARY KEY (site_id, module, batch_id, record_id, field)",
+    "validated": true
+  },
+  "constraint reconciliation_items.reconciliation_items_site_id_module_batch_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, module, batch_id) REFERENCES reconciliation_batches(site_id, module, id)",
+    "validated": true
+  },
   "constraint registry_account_links.registry_account_links_account_id_fkey": {
     "definition": "FOREIGN KEY (account_id) REFERENCES users(id)",
     "validated": true
@@ -1281,6 +1321,38 @@
   },
   "constraint time_bookings.time_bookings_work_day_id_site_progress_item_id_key": {
     "definition": "UNIQUE (work_day_id, site_progress_item_id)",
+    "validated": true
+  },
+  "constraint tool_company_links.tool_company_links_module_check": {
+    "definition": "CHECK ((module = 'tools'::text))",
+    "validated": true
+  },
+  "constraint tool_company_links.tool_company_links_pkey": {
+    "definition": "PRIMARY KEY (site_id, tool_id)",
+    "validated": true
+  },
+  "constraint tool_company_links.tool_company_links_relationship_check": {
+    "definition": "CHECK ((relationship = ANY (ARRAY['owner'::text, 'custodian'::text, 'supplier'::text])))",
+    "validated": true
+  },
+  "constraint tool_company_links.tool_company_links_site_id_company_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, company_id) REFERENCES registry_companies(site_id, id)",
+    "validated": true
+  },
+  "constraint tool_company_links.tool_company_links_site_id_module_batch_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, module, batch_id) REFERENCES reconciliation_batches(site_id, module, id)",
+    "validated": true
+  },
+  "constraint tool_company_links.tool_company_links_site_id_tool_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, tool_id) REFERENCES tools(site_id, id)",
+    "validated": true
+  },
+  "constraint tool_reconciliation_revisions.tool_reconciliation_revisions_pkey": {
+    "definition": "PRIMARY KEY (site_id, tool_id)",
+    "validated": true
+  },
+  "constraint tool_reconciliation_revisions.tool_reconciliation_revisions_site_id_tool_id_fkey": {
+    "definition": "FOREIGN KEY (site_id, tool_id) REFERENCES tools(site_id, id) ON DELETE CASCADE",
     "validated": true
   },
   "constraint tools.tools_pkey": {
@@ -1836,6 +1908,26 @@
     "definition": "CREATE INDEX purchase_orders_site_status ON purchase_orders USING btree (site_id, status)",
     "valid": true
   },
+  "index reconciliation_adoptions_pkey": {
+    "definition": "CREATE UNIQUE INDEX reconciliation_adoptions_pkey ON reconciliation_adoptions USING btree (site_id, module)",
+    "valid": true
+  },
+  "index reconciliation_applied_occurrence": {
+    "definition": "CREATE UNIQUE INDEX reconciliation_applied_occurrence ON reconciliation_items USING btree (site_id, module, record_id, field, source_revision) WHERE (applied_at IS NOT NULL)",
+    "valid": true
+  },
+  "index reconciliation_batches_pkey": {
+    "definition": "CREATE UNIQUE INDEX reconciliation_batches_pkey ON reconciliation_batches USING btree (site_id, module, id)",
+    "valid": true
+  },
+  "index reconciliation_items_pkey": {
+    "definition": "CREATE UNIQUE INDEX reconciliation_items_pkey ON reconciliation_items USING btree (site_id, module, batch_id, record_id, field)",
+    "valid": true
+  },
+  "index reconciliation_record_history": {
+    "definition": "CREATE INDEX reconciliation_record_history ON reconciliation_items USING btree (site_id, module, record_id)",
+    "valid": true
+  },
   "index registry_account_links_open_account": {
     "definition": "CREATE UNIQUE INDEX registry_account_links_open_account ON registry_account_links USING btree (site_id, account_id) WHERE (revoked_at IS NULL)",
     "valid": true
@@ -2112,12 +2204,28 @@
     "definition": "CREATE UNIQUE INDEX time_bookings_work_day_id_site_progress_item_id_key ON time_bookings USING btree (work_day_id, site_progress_item_id)",
     "valid": true
   },
+  "index tool_company_links_company": {
+    "definition": "CREATE INDEX tool_company_links_company ON tool_company_links USING btree (site_id, company_id)",
+    "valid": true
+  },
+  "index tool_company_links_pkey": {
+    "definition": "CREATE UNIQUE INDEX tool_company_links_pkey ON tool_company_links USING btree (site_id, tool_id)",
+    "valid": true
+  },
+  "index tool_reconciliation_revisions_pkey": {
+    "definition": "CREATE UNIQUE INDEX tool_reconciliation_revisions_pkey ON tool_reconciliation_revisions USING btree (site_id, tool_id)",
+    "valid": true
+  },
   "index tools_pkey": {
     "definition": "CREATE UNIQUE INDEX tools_pkey ON tools USING btree (id)",
     "valid": true
   },
   "index tools_site_company": {
     "definition": "CREATE INDEX tools_site_company ON tools USING btree (site_id, company)",
+    "valid": true
+  },
+  "index tools_site_identity": {
+    "definition": "CREATE UNIQUE INDEX tools_site_identity ON tools USING btree (site_id, id)",
     "valid": true
   },
   "index user_permissions_active": {
@@ -5667,6 +5775,253 @@
       }
     ]
   },
+  "table reconciliation_adoptions": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "module",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "changed_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "changed_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table reconciliation_batches": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "module",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "adoption_revision",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "decision_hash",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "decided_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "decided_by",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "applied_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "applied_by",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "apply_result",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "rolled_back_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "rolled_back_by",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "rollback_result",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table reconciliation_items": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "module",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "batch_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "record_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "field",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_revision",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "source_snapshot",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "decision",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "target_snapshot",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "applied_at",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
   "table registry_account_links": {
     "definition": null,
     "columns": [
@@ -7745,6 +8100,104 @@
       {
         "name": "created_at",
         "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table tool_company_links": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "tool_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "company_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "company_label",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "relationship",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "linked_at",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "batch_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "module",
+        "type": "text",
+        "required": true,
+        "default_value": "'tools'::text",
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table tool_reconciliation_revisions": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "tool_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
         "required": true,
         "default_value": null,
         "identity": "",

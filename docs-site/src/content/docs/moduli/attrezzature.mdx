@@ -23,7 +23,7 @@ Gli stati sono **Disponibile**, **In uso**, **Manutenzione** e **Dismessa**. Un'
 
 ## Aggiungere o modificare un'attrezzatura
 
-Owner, editor e verificatori vedono il pulsante **Aggiungi attrezzatura**.
+Owner ed editor vedono il pulsante **Aggiungi attrezzatura**.
 
 1. Premi **Aggiungi attrezzatura**.
 2. Compila **Nome**, obbligatorio, fino a 120 caratteri.
@@ -32,6 +32,16 @@ Owner, editor e verificatori vedono il pulsante **Aggiungi attrezzatura**.
 5. Premi **Salva attrezzatura**. La finestra si chiude, l'elenco si aggiorna e compare il messaggio «Attrezzatura salvata».
 
 Per correggere una riga, premi **Modifica** sulla riga stessa: si apre la stessa finestra con i valori attuali e il pulsante diventa **Salva modifiche**. Codice e matricola sono testo libero: l'applicazione non controlla che siano univoci, quindi due attrezzature possono avere lo stesso codice.
+
+## Collegare un’impresa del cantiere
+
+1. Apri **Collegamento impresa** sulla riga salvata. Alla prima attivazione l’owner abilita i collegamenti per il cantiere.
+2. Controlla l’appaltatore originale, lo stato e le note. I nomi uguali compaiono come suggerimenti. Scegli esplicitamente un’impresa del registro del cantiere, conferma la creazione di una nuova impresa oppure lascia il caso da risolvere. Indica la motivazione e, se colleghi un’impresa, specifica se è proprietaria, custode o fornitrice.
+3. Premi **Approva decisione** e poi **Applica il batch**. Lo storico mostra la decisione e l’esito. Se l’attrezzatura o l’impresa cambia, riapri l’anteprima e rivedi la decisione.
+
+Il collegamento decorre dall’applicazione. L’etichetta approvata compare accanto all’appaltatore originale. Il filtro **Appaltatore** continua a usare il testo originale. Modificare quel testo rende necessario un nuovo collegamento. L’archiviazione dell’impresa mantiene il nome registrato e mostra lo stato di archivio.
+
+Da **Storico delle decisioni** l’owner può annullare un batch e disattivare i collegamenti nel cantiere. Il registro torna a mostrare il testo e il rollback rimuove i legami del batch ancora correnti. Lo storico conserva decisioni, modifiche e collegamenti successivi. L’owner può riattivare i collegamenti rimasti.
 
 ## Eliminare un'attrezzatura
 
@@ -57,11 +67,11 @@ I valori sono quelli salvati: per lo stato compare il codice (`available`, `in_u
 | Azione | Ruolo |
 | :-- | :-- |
 | Consultare il registro | Tutti i membri del cantiere |
-| Aggiungere, modificare o eliminare un'attrezzatura | owner, editor, verifier |
+| Aggiungere, modificare o eliminare un'attrezzatura | owner, editor |
 | Consultare le ultime modifiche | owner, verifier |
 
 :::caution[Se qualcosa non torna]
-- **Non vedo i pulsanti:** il ruolo `viewer` consulta soltanto; la scrittura è riservata a owner, editor e verificatori. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/).
+- **Non vedo i pulsanti:** verificatori e viewer consultano il registro. Owner ed editor possono modificarlo. Vedi [Utenti e ruoli](../../amministrazione/utenti-e-ruoli/).
 - **«L'attrezzatura non è più disponibile»:** qualcun altro l'ha eliminata. Chiudi la finestra e ricarica l'elenco.
 - **Offline:** la vista richiede la connessione, come le altre viste dei moduli; senza rete non si consultano né si modificano le attrezzature.
 - **Elenco vuoto:** il cantiere non ha ancora attrezzature, oppure i due filtri si sommano; azzera appaltatore e stato.

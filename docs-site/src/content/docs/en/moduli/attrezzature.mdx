@@ -23,7 +23,7 @@ The statuses are **Available**, **In use**, **Maintenance** and **Retired**. A r
 
 ## Adding or editing a tool
 
-Owners, editors and verifiers see the **Add tool** button.
+Owners and editors see the **Add tool** button.
 
 1. Press **Add tool**.
 2. Fill in **Name**, required, up to 120 characters.
@@ -32,6 +32,16 @@ Owners, editors and verifiers see the **Add tool** button.
 5. Press **Save tool**. The window closes, the list refreshes and the message “Tool saved.” appears.
 
 To correct a row, press **Edit** on the row itself: the same window opens with the current values and the button becomes **Save changes**. Code and serial number are free text: the application does not check that they are unique, so two tools can share the same code.
+
+## Linking a company on the site
+
+1. Open **Company link** on a saved tool. The site owner activates company links before the first batch.
+2. Check the original contractor, status and notes. Matching names appear as suggestions. Explicitly select a company in the site registry, approve a new company, or leave the case unresolved. Record the reason. For a link, select whether the company owns, holds or supplies the tool.
+3. Select **Approve decision**, then **Apply batch**. The history shows the decision and outcome. If the tool or company changes, open a new preview and review the decision.
+
+The link takes effect on application. The approved label appears beside the original contractor. The **Contractor** filter still uses the original text. Editing that text requires a new link. Archiving a company keeps its recorded label visible with the archived status.
+
+From **Decision history**, the owner can roll back a batch and disable company links for the site. The list returns to the original text and rollback removes the batch links that are still current. The history retains decisions, edits and subsequent links. The owner can reactivate the remaining links.
 
 ## Deleting a tool
 
@@ -57,11 +67,11 @@ Values are the stored ones: for the status you see the code (`available`, `in_us
 | Action | Role |
 | :-- | :-- |
 | Read the register | Every member of the site |
-| Add, edit or delete a tool | owner, editor, verifier |
+| Add, edit or delete a tool | owner, editor |
 | Read the latest changes | owner, verifier |
 
 :::caution[If something does not add up]
-- **I cannot see the buttons:** the `viewer` role only reads; writing is reserved to owners, editors and verifiers. See [Users and roles](../../amministrazione/utenti-e-ruoli/).
+- **I cannot see the buttons:** verifiers and viewers have read access. Owners and editors can make changes. See [Users and roles](../../amministrazione/utenti-e-ruoli/).
 - **“This tool is no longer available”:** someone else deleted it. Close the window and reload the list.
 - **Offline:** the view requires a connection, like the other module views; without a network you can neither read nor edit tools.
 - **Empty list:** the site has no tools yet, or the two filters add up; clear contractor and status.

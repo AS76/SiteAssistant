@@ -108,6 +108,8 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
   };
   const registryPath = (siteId, collection, id, action) =>
     '/api/sites/' + [siteId, collection, id, action].filter(value => value != null).map(encodeURIComponent).join('/');
+  const toolReconciliationPath = (siteId, ...segments) =>
+    '/api/sites/' + [siteId, 'people-reconciliation', 'tools', ...segments].map(encodeURIComponent).join('/');
   async function listAll(path, filters, fromApi, label) {
     const { limit: requestedLimit, offset: startOffset, ...criteria } = filters ?? {};
     const limit = requestedLimit == null || requestedLimit === '' ? 200 : requestedLimit;
@@ -174,6 +176,13 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     createTool: async input => toolFromApi(await request('/api/tools', toolPayload(input))),
     updateTool: async (id, input) => toolFromApi(await request(`/api/tools/${encodeURIComponent(id)}`, toolPayload(input), { method: 'PATCH' })),
     deleteTool: id => request(`/api/tools/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' }),
+    previewToolCompanies: (siteId, occurrences) => request(toolReconciliationPath(siteId, 'previews'), { occurrences }),
+    activateToolCompanies: siteId => request(toolReconciliationPath(siteId, 'adoption'), {}),
+    decideToolCompanies: (siteId, input) => request(toolReconciliationPath(siteId, 'batches'), input),
+    listToolCompanyBatches: (siteId, recordId) => request(toolReconciliationPath(siteId, 'batches') + query({ recordId })),
+    getToolCompanyBatch: (siteId, id) => request(toolReconciliationPath(siteId, 'batches', id)),
+    applyToolCompanyBatch: (siteId, id) => request(toolReconciliationPath(siteId, 'batches', id, 'apply'), {}),
+    rollbackToolCompanyBatch: (siteId, id, reason) => request(toolReconciliationPath(siteId, 'batches', id, 'rollback'), { reason }),
     listShipments: async ({ siteId, status } = {}) => (await request(`/api/shipments${query({ site_id: siteId, status })}`)).map(shipmentFromApi),
     getShipment: async id => shipmentFromApi(await request(`/api/shipments/${encodeURIComponent(id)}`)),
     createShipment: async input => shipmentFromApi(await request('/api/shipments', purchaseOrderPayload(input, ['siteId', 'shipmentNo', 'carrier', 'shippedOn', 'expectedOn', 'notes', 'packageIds']))),

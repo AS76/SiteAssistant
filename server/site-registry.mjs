@@ -194,6 +194,11 @@ async function writeMaster(ctx, collection, id, action, input) {
   return await history(ctx, collection, action, reason, await changed(tx, collection, before, fields), before);
 }
 
+// Used inside an authorized reconciliation transaction holding the site lock.
+export async function createReconciledCompany(ctx, input) {
+  return await writeMaster(ctx, 'companies', null, 'create', input);
+}
+
 function interval(input, expires, { at, from = at } = {}) {
   const start = input.validFrom === undefined ? from : instant(input.validFrom, 'validFrom');
   const end = input.validTo == null && !expires ? null : instant(input.validTo, 'validTo');

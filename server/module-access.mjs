@@ -49,6 +49,7 @@ export async function saveModuleAccess(db, { siteId, memberId, module, allowed }
   return db.transaction(async tx => {
     await requireRole(tx, site, user, ['owner']);
     // Share the site lock with role changes, so membership is stable during the upsert.
+    await tx.run('UPDATE sites SET id = id WHERE id = ?', site);
     await requireRole(tx, site, user, ['owner']);
     if (typeof memberId !== 'string' || !uuid.test(memberId) || !MODULES.includes(module) || typeof allowed !== 'boolean') invalid();
     const member = memberId.toLowerCase();
