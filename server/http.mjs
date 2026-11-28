@@ -52,6 +52,7 @@ import { listCertifications, createCertification, updateCertification, deleteCer
 import { listHseEvents, createHseEvent, updateHseEvent, deleteHseEvent, hseSummary } from './hse.mjs';
 import { templatesForJurisdiction } from './checklists.mjs';
 import { archivePlace, createPlace, getPlace, listPlaceHistory, listPlaces, updatePlace } from './places.mjs';
+import { readRegistry, writeRegistry } from './site-registry.mjs';
 import { archiveAsset, createAsset, getAsset, listAssetPositions, listAssets, moveAsset, updateAsset } from './assets.mjs';
 import { listHseAssets, createHseAsset, updateHseAsset, deleteHseAsset } from './hse-assets.mjs';
 import { createInspection, listInspections, getInspection } from './hse-inspections.mjs';
@@ -80,6 +81,7 @@ async function paginatedJson(response, url, db, list, count, filters, user) {
 
 const activatePath = '/api/auth/activate';
 const invitationsPath = '/api/admin/invitations';
+const registryPath = /^\/api\/sites\/([^/]+)\/(people|companies|teams|affiliations|company-roles|team-memberships|account-links|authority-roles|authority-delegations|authority-snapshots)(?:\/([^/]+)(?:\/(history|archive|close|revoke|replace-lead))?)?$/;
 const rateLimitExempt = new Set(['/api/auth/login', '/api/auth/forgot', '/api/auth/password', '/api/auth/request', activatePath, invitationsPath]);
 const authBypassExcluded = new Set([
   '/api/auth/login', '/api/auth/logout', '/api/auth/forgot', '/api/auth/request',
@@ -254,6 +256,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         throw new RepositoryError(400, 'Invalid request URL.', 'VALIDATION_ERROR');
       }
       path = url.pathname;
+      const registryRoute = registryPath.exec(path);
       const method = request.method;
       const ip = clientIp(request);
       if (!path.startsWith('/api/') && privacyResponse(request, response, url, privacyConfig)) return;
@@ -286,7 +289,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         try { user = await authenticate(db, request.headers.cookie, authContext); }
         catch (error) {
           if (!(error instanceof RepositoryError) || error.status !== 401) throw error;
-          if (authBypassEmail && !authBypassExcluded.has(path) && path !== invitationsPath && !revoke) {
+          if (authBypassEmail && !registryRoute && !authBypassExcluded.has(path) && path !== invitationsPath && !revoke) {
             user = await db.get(`SELECT id, email, name, password_change_required FROM users
               WHERE lower(email) = ? AND disabled_at IS NULL`, authBypassEmail);
             if (user) {
@@ -540,6 +543,28 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       const hseInspection = /^\/api\/hse\/inspections\/([^/]+)$/.exec(path);
       if (hseInspection && method === 'GET') {
         return json(response, 200, await getInspection(db, hseInspection[1], user));
+      }
+      if (registryRoute) {
+        const [, siteId, collection, id, action] = registryRoute;
+        const master = ['people', 'companies', 'teams'].includes(collection);
+        const snapshot = collection === 'authority-snapshots';
+        if (method === 'GET' && (!action || (action === 'history' && !snapshot))) {
+          const options = { ...readPagination(url), searchParams: url.searchParams, q: url.searchParams.get('q')?.trim(),
+            includeArchived: url.searchParams.get('includeArchived') === '1' };
+          return json(response, 200, await readRegistry(db, { siteId, collection, id, action }, options, user));
+        }
+        const patch = method === 'PATCH' && id && !action && master;
+        const post = method === 'POST' && (!id || (action === 'archive' && master) ||
+          (action === 'replace-lead' && collection === 'teams') ||
+          (action === 'revoke' && !master && !snapshot) ||
+          (action === 'close' && ['affiliations', 'company-roles', 'team-memberships'].includes(collection)));
+        if (patch || post) {
+          const { input, requestHash } = await readJson(request, { includeHash: true });
+          const status = !id || action === 'replace-lead' ? 201 : 200;
+          const result = await writeRegistry(db, { siteId, collection, id, action: action ?? (patch ? 'update' : 'create') },
+            input, user, { key: request.headers['idempotency-key'], requestHash });
+          return json(response, status, result);
+        }
       }
       if ((path === '/api/places' || path === '/api/assets') && method === 'GET') {
         const options = { siteId: url.searchParams.get('siteId'),

@@ -1,12 +1,12 @@
 import { createApi } from './api.mjs';
 import { getMirror, replayOps, SYNC_TAG } from './offline.mjs';
 
-const VERSION = 'siteassistant-v15-63';
+const VERSION = 'siteassistant-v15-64';
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data-`;
 const shellUrls = [
   './', './index.html', './styles.css', './fonts.css', './app.mjs', './api.mjs', './webauthn-client.mjs',
-  './places-ui.mjs', './place-selector.mjs', './assets-ui.mjs',
+  './places-ui.mjs', './place-selector.mjs', './assets-ui.mjs', './registry-ui.mjs',
   './domain.mjs', './hse-permissions.mjs', './dashboard-layout.mjs', './i18n.mjs', './language.mjs', './offline.mjs', './manifest.webmanifest', './assets/logo.svg',
   './assets/fonts/SourceSans3-normal-300-700-37.woff2', './assets/fonts/SourceSans3-italic-400-30.woff2',
   './assets/fonts/SourceSerif4-normal-400-11.woff2', './assets/fonts/SourceSerif4-italic-400-5.woff2',

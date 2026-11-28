@@ -49,6 +49,10 @@ async function assertMigrations(t, db, driver) {
   for (const table of ['sites', 'tasks', 'task_events', 'diary', 'idempotency_keys', 'users', 'sessions', 'password_resets', 'invitations', 'site_members', 'attachments', 'project_structure', 'wbs_import_sources', 'employees', 'work_days', 'hr_import_sources', 'site_progress_items', 'site_progress_import_sources', 'deviations', 'deviation_links', 'deviation_import_sources', 'deviation_exports', 'deviation_export_rows', 'deviation_events', 'time_bookings', 'cost_impacts', 'cost_impact_deviations', 'planning_import_runs', 'planning_import_keys', 'view_settings', 'tools', 'employee_certifications', 'import_mappings', 'dashboard_layouts', 'member_module_access', 'hse_events', 'purchase_orders', 'purchase_order_items', 'packages', 'package_items', 'shipments', 'shipment_packages', 'shipment_receipts', 'assistant_usage', 'demo_seed_records', 'demo_seed_environment']) {
     t.assert.deepStrictEqual(await db.all(`SELECT * FROM ${table}`), []);
   }
+  for (const entity of ['people', 'companies', 'teams', 'affiliations', 'company_roles', 'team_memberships',
+    'account_links', 'authority_roles', 'authority_delegations', 'authority_snapshots', 'history']) {
+    t.assert.deepStrictEqual(await db.all(`SELECT * FROM registry_${entity}`), []);
+  }
   const committed = [];
   t.assert.strictEqual(await migrate(observeMigrations(db, committed), { driver, demoSandbox: false }), 0);
   assertSequence(committed, []);

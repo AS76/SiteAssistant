@@ -310,5 +310,11 @@
     "file": "058_site_jurisdictions.sql",
     "sqlite": "9be35a0b4960b3f6790039cc61be6af018a9aaf817e1640d1e2782973bb4e77c",
     "pg": "9be35a0b4960b3f6790039cc61be6af018a9aaf817e1640d1e2782973bb4e77c"
+  },
+  {
+    "version": "059",
+    "file": "059_site_registry.sql",
+    "sqlite": "c863dd45728db5fc257707ec8cb820a66e4656500de6098f1e6496ed839f2e38",
+    "pg": "1f3f4f868e616565b0abea8a7fc029fb3f03027b925c6225bf7b84c95dac9848"
   }
 ]
