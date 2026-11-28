@@ -44,6 +44,20 @@ A cosa serve: mettere in cantiere un lavoro con qualcuno che lo esegue e qualcun
 - **Attività creata ma non visibile:** controlla i filtri della bacheca e il cantiere selezionato.
 :::
 
+## Collegare le assegnazioni al registro
+
+Apri online il dettaglio di un’attività già salvata e sincronizzata, quindi vai a **Assegnazioni dal registro**. Il titolare del cantiere attiva il flusso. Titolare ed editor possono approvare e applicare le decisioni. Verificatori e lettori con accesso a **Attività** e **Anagrafica** possono consultare gli snapshot.
+
+1. Scegli **Esecutore**, **Verificatore** o **Impresa esecutrice**. L’anteprima mostra il valore originale e le corrispondenze nel cantiere.
+2. Seleziona esplicitamente la scheda corretta e scrivi la motivazione. Puoi scegliere una persona con un ruolo operativo in corso di validità, una squadra per il solo esecutore o un’impresa per il relativo campo. Se l’identità è incerta, scegli **Lascia da risolvere**, anche in caso di omonimia.
+3. Premi **Approva decisione**, controlla la scheda e il ruolo, quindi premi **Applica il batch**. Lo storico conserva nome, ruolo, valore originale e data del collegamento.
+
+Le modifiche successive al registro lasciano leggibile lo snapshot. Le schede archiviate restano nello storico e sono escluse dalla selezione. Il registro blocca l’archiviazione mentre una scheda ha un collegamento attivo con un’attività aperta.
+
+Il collegamento registra un’attribuzione operativa. Una persona può figurare nello snapshot anche senza account. L’accesso al cantiere richiede un account e un ruolo assegnati a parte. I permessi di verifica e accettazione continuano a dipendere dall’account designato e dal ruolo nel cantiere. Le creazioni e le transizioni già in coda si sincronizzano con il flusso consueto.
+
+Il titolare può aprire lo **Storico delle decisioni** e annullare un batch applicato. L’operazione disattiva i collegamenti per il cantiere e chiude gli intervalli ancora attribuiti a quel batch. Lo storico mostra anche i collegamenti successivi conservati.
+
 ## Attività ordinarie e correttive
 
 Il **tipo** distingue il lavoro previsto dall'intervento che corregge qualcosa:
@@ -51,7 +65,7 @@ Il **tipo** distingue il lavoro previsto dall'intervento che corregge qualcosa:
 - **Ordinaria**: il lavoro pianificato. È il valore predefinito e non viene memorizzato come tipo, quindi le attività create prima di questa classificazione restano ordinarie.
 - **Correttiva**: un intervento che corregge un difetto o una non conformità. Sulle schede della bacheca compare il badge **Correttiva**.
 
-Il tipo si sceglie alla creazione e non si modifica dopo: le attività non sono modificabili. Il filtro **Tipo** nella barra dei filtri vale per la bacheca, per l'elenco, per la vista **Attività leggere** e per l'esportazione CSV, che ha una colonna **Tipo** con l'etichetta tradotta.
+Il tipo si sceglie alla creazione. Il filtro **Tipo** nella barra dei filtri vale per la bacheca, per l'elenco, per la vista **Attività leggere** e per l'esportazione CSV, che ha una colonna **Tipo** con l'etichetta tradotta.
 
 ## Gli stati
 

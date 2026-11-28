@@ -108,8 +108,10 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
   };
   const registryPath = (siteId, collection, id, action) =>
     '/api/sites/' + [siteId, collection, id, action].filter(value => value != null).map(encodeURIComponent).join('/');
-  const toolReconciliationPath = (siteId, ...segments) =>
-    '/api/sites/' + [siteId, 'people-reconciliation', 'tools', ...segments].map(encodeURIComponent).join('/');
+  const reconciliationPath = (siteId, module, ...segments) =>
+    '/api/sites/' + [siteId, 'people-reconciliation', module, ...segments].map(encodeURIComponent).join('/');
+  const toolReconciliationPath = (siteId, ...segments) => reconciliationPath(siteId, 'tools', ...segments);
+  const taskReconciliationPath = (siteId, ...segments) => reconciliationPath(siteId, 'tasks', ...segments);
   async function listAll(path, filters, fromApi, label) {
     const { limit: requestedLimit, offset: startOffset, ...criteria } = filters ?? {};
     const limit = requestedLimit == null || requestedLimit === '' ? 200 : requestedLimit;
@@ -225,7 +227,18 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     deleteHseEvent: id => request(`/api/hse-events/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' }),
     evidenceExport: id => request(`/api/sites/${encodeURIComponent(id)}/evidence-export`, undefined, { binary: 'evidence' }),
     acceptTask: async (id, input) => taskFromApi(await request(`/api/tasks/${encodeURIComponent(id)}/acceptance`, input, { method: 'PATCH' })),
-    getTask: async id => taskFromApi(await request(`/api/tasks/${encodeURIComponent(id)}`)),
+    getTask: async (id, { assignmentHistory = false } = {}) => taskFromApi(await request(
+      `/api/tasks/${encodeURIComponent(id)}${assignmentHistory ? '?include=assignment_history' : ''}`)),
+    taskAssignments: {
+      preview: (siteId, occurrences) => request(taskReconciliationPath(siteId, 'previews'), { occurrences }),
+      candidates: (siteId, field, q) => request(taskReconciliationPath(siteId, 'candidates') + query({ field, q })),
+      activate: siteId => request(taskReconciliationPath(siteId, 'adoption'), {}),
+      decide: (siteId, input) => request(taskReconciliationPath(siteId, 'batches'), input),
+      list: (siteId, recordId) => request(taskReconciliationPath(siteId, 'batches') + query({ recordId })),
+      read: (siteId, id) => request(taskReconciliationPath(siteId, 'batches', id)),
+      apply: (siteId, id) => request(taskReconciliationPath(siteId, 'batches', id, 'apply'), {}),
+      rollback: (siteId, id, reason) => request(taskReconciliationPath(siteId, 'batches', id, 'rollback'), { reason }),
+    },
     createTask: async (input, options) => taskFromApi(await request('/api/tasks', taskPayload(input), options)),
     transitionTask: async (task, input, options) => taskFromApi(await request(`/api/tasks/${encodeURIComponent(task.id)}/transition`, transitionPayload(task, input), options)),
     listDeviations: async (filters = {}) => (await request(`/api/deviations${query(wireFilters({ limit: 200, ...filters }))}`)).map(deviationFromApi),

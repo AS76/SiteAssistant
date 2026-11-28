@@ -256,7 +256,7 @@ async function lightUi(tasks, overrides = {}) {
     section('function renderTasks()', 'function taskCard('),
     section('function taskCard(', 'const lightTransitions ='),
     section('const lightTransitions =', 'function renderDiary()'),
-    section('function taskEvidence(', 'function showTransition('),
+    section('const taskAssignmentFields =', 'function showTransition('),
     section('function showTransition(', 'function showEntryForm('),
     section('function attachmentSection(', 'async function openAttachment('),
   ].join('\n'), context);

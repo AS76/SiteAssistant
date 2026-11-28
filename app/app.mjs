@@ -1,7 +1,7 @@
 import { formatDisplayNumber, formatDateInput, parseDateInput, initialView, todayActions, todayBlockedTaskMeta, recentActions, defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, groupDeviationRows, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_MANUAL_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
-import { messages, toolReconciliationErrorKeys } from './i18n.mjs';
+import { messages, taskReconciliationErrorKeys, toolReconciliationErrorKeys } from './i18n.mjs';
 import { mountPlaces } from './places-ui.mjs';
 import { mountRegistry } from './registry-ui.mjs';
 import { resolveSessionLanguage } from './language.mjs';
@@ -4083,7 +4083,7 @@ function wireTaskResponsibles(form) {
   };
 }
 async function showTaskForm() {
-  showModal(t('newTask'), `<form id="task-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', '', { full: true, required: true, max: 180 })}${field('area', 'area', '', { max: 100 })}${field('company', 'company', '', { max: 100 })}<div data-task-wbs>${field('wbs', 'wbsId', '', { options: `<option value="">${t('wbsUnassigned')}</option>` })}</div>${taskResponsibleFields()}${field('priority', 'priority', 'normal', { options: PRIORITIES.map(priority => `<option value="${esc(priority)}"${priority === 'normal' ? ' selected' : ''}>${esc(t(priority))}</option>`).join(''), required: true })}${field('kind', 'kind', 'ordinary', { options: TASK_KINDS.map(kind => `<option value="${esc(kind)}">${esc(t(taskKindLabelKey(kind)))}</option>`).join('') })}${field('due', 'due', today(), { type: 'date' })}</div>${formActions()}</form>`);
+  showModal(t('newTask'), `<form id="task-form"><div class="form-error" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field('title', 'title', '', { full: true, required: true, max: 180 })}${field('area', 'area', '', { max: 100 })}${field('company', 'company', '', { max: 100 })}<div data-task-wbs>${field('wbs', 'wbsId', '', { options: `<option value="">${t('wbsUnassigned')}</option>` })}</div>${taskResponsibleFields()}${field('priority', 'priority', 'normal', { options: PRIORITIES.map(priority => `<option value="${esc(priority)}"${priority === 'normal' ? ' selected' : ''}>${esc(t(priority))}</option>`).join(''), required: true })}${field('kind', 'kind', 'ordinary', { options: TASK_KINDS.map(kind => `<option value="${esc(kind)}">${esc(t(taskKindLabelKey(kind)))}</option>`).join('') })}${field('due', 'due', today(), { type: 'date' })}</div>${canReconcileTasks() ? `<p class="note">${t('taskAssignmentAfterSave')}</p>` : ''}${formActions()}</form>`);
   const version = modalVersion, selectedSite = siteId;
   const form = $('#task-form');
   if (moduleVisible('wbs') && !offline) void taskWbsOptions(selectedSite).then(options => {
@@ -4101,6 +4101,175 @@ async function showTaskForm() {
     status.textContent = t('assignableUnavailable');
   }
 }
+
+const taskAssignmentFields = { executor: 'assignee', verifier: 'reviewer', company: 'company' };
+const taskAssignmentKind = kind => t({ person: 'taskAssignmentPerson', team: 'taskAssignmentTeam', company: 'company' }[kind]);
+const canReconcileTasks = () => ['owner', 'editor'].includes(role()) && moduleVisible('tasks') && moduleVisible('registry');
+const taskAssignmentError = error => t(taskReconciliationErrorKeys[error.code] ?? '') || errorMessage(error);
+const assignmentName = target => `${esc(target.name)} · ${esc(taskAssignmentKind(target.kind))}`;
+const assignmentOptions = records => `<option value="">${t('responsibleChoose')}</option>` + records.map((target, index) =>
+  `<option value="${index}">${assignmentName(target)} · ${esc(target.id)}</option>`).join('');
+const taskAssignmentAction = (taskId, field) => `data-id="${esc(taskId)}" data-field="${esc(field)}"`;
+
+function taskAssignmentsSection(task) {
+  if (offline || !moduleVisible('registry') || task.localOnly) return '';
+  const history = task.assignment_history ?? [];
+  const canEdit = canReconcileTasks();
+  if (!canEdit && !history.length) return '';
+  return `<section><h3>${t('taskAssignmentTitle')}</h3>
+    ${canEdit ? `<div class="detail-actions">${Object.entries(taskAssignmentFields).map(([fieldName, label]) =>
+      button(label, 'task-assignment', taskAssignmentAction(task.id, fieldName))).join('')}</div>` : ''}
+    ${history.length ? `<ul>${history.map(link => `<li><strong>${t(taskAssignmentFields[link.field])}</strong> ·
+      ${assignmentName(link.snapshot)} · ${esc(timeLabel(link.valid_from))}${link.valid_to ? ' → ' + esc(timeLabel(link.valid_to)) : ''} ·
+      ${t(link.archived_at ? 'taskAssignmentArchived' : link.current ? 'taskAssignmentCurrent' : 'history')}
+      <br>${t('taskAssignmentOriginal')} · <span class="prewrap">${coreValue(link.original_label)}</span></li>`).join('')}</ul>` : ''}</section>`;
+}
+
+async function showTaskAssignment(taskId, fieldName) {
+  if (!canReconcileTasks()) return toast(t('forbidden'));
+  if (offline || !navigator.onLine) return toast(t('coreOnlineOnly'));
+  const selected = siteId;
+  const title = `${t('taskAssignmentTitle')} · ${t(taskAssignmentFields[fieldName])}`;
+  showModal(title, `<p role="status">${t('loading')}</p>`);
+  const version = modalVersion;
+  try {
+    const occurrence = { recordId: taskId, field: fieldName };
+    const [preview, batches] = await Promise.all([
+      freshApi.taskAssignments.preview(selected, [occurrence]), freshApi.taskAssignments.list(selected, taskId),
+    ]);
+    if (version !== modalVersion || selected !== siteId || !$('#modal').open) return;
+    const { source, candidates, revision } = preview.items[0];
+    const account = source.accounts[fieldName];
+    const attrs = taskAssignmentAction(taskId, fieldName);
+    const error = '<div class="form-error" role="alert" tabindex="-1" hidden></div>';
+    const status = count => esc(t('taskAssignmentSuggestions').replace('{count}', String(count)));
+    showModal(title, `<h3>${esc(source.title)}</h3>
+      <p>${t('taskAssignmentOriginal')} · <span class="prewrap">${coreValue(source.original)}</span><br>
+      ${t('status')} · ${t(source.status)} · ${esc(timeLabel(source.factAt))}
+      ${source.evidence.closure ? `<br>${t('taskAssignmentClosureEvidence')}` : ''}
+      ${source.evidence.acceptance ? `<br>${t('taskAssignmentAcceptanceEvidence')}` : ''}</p>
+      ${account ? `<p>${t('taskAssignmentAccount')} · ${esc(account.label)}
+        ${account.atCreation ? `<br>${t('taskAssignmentConfirmed')} · ${esc(account.atCreation.personId)} · ${esc(timeLabel(account.atCreation.validFrom))}` : ''}
+        ${account.current && account.current.validFrom !== account.atCreation?.validFrom ? `<br>${t('taskAssignmentCurrentAccountLink')} · ${esc(account.current.personId)} · ${esc(timeLabel(account.current.validFrom))}` : ''}</p>` : ''}
+      ${source.link ? `<p>${t('taskAssignmentLastLinked')} · ${assignmentName(source.link.snapshot)} · ${esc(timeLabel(source.link.validFrom))}</p>` : ''}
+      ${preview.adoption.enabled ? `<form id="task-assignment-search" ${attrs}>${error}
+        ${field('taskAssignmentSearch', 'q', source.original?.slice(0, 200) ?? '', { max: 200 })}
+        <button type="submit">${t('taskAssignmentSearch')}</button> <span role="status">${status(candidates.total)}</span></form>
+        <form id="task-assignment-decide" ${attrs}>${error}<div class="form-grid">
+        ${field('toolCompanyDecision', 'decision', '', { required: true, options: `<option value="">${t('responsibleChoose')}</option>
+          <option value="link">${t('taskAssignmentChoose')}</option><option value="unresolved">${t('toolCompanyUnresolved')}</option>` })}
+        <div hidden data-assignment-target>${field('taskAssignmentChoose', 'target', '', { options: assignmentOptions(candidates.records) })}</div>
+        ${field('reason', 'reason', '', { type: 'textarea', required: true, full: true, max: 2000 })}
+        </div>${formActions('toolBatchDecide')}</form>` : `<p>${t('taskAssignmentDisabled')}</p>${role() === 'owner' ?
+        `<form id="task-assignment-activate" ${attrs}>${error}<button type="submit">${t('toolCompanyActivate')}</button></form>` : ''}`}
+      ${batches.length ? `<h3>${t('toolBatchHistory')}</h3><ul>${batches.map(batch => `<li>${toolBatchStatus(batch.status)} · ${esc(timeLabel(batch.decidedAt))}
+        ${button('coreDetails', 'task-assignment-batch', `${attrs} data-batch-id="${esc(batch.id)}"`, 'small')}</li>`).join('')}</ul>` : ''}
+      ${button('back', 'detail', `data-id="${esc(taskId)}"`)}`);
+    const form = $('#task-assignment-decide');
+    if (form) {
+      form.records = candidates.records;
+      form.batchId = crypto.randomUUID();
+      form.occurrence = { ...occurrence, revision };
+      form.elements.decision.addEventListener('change', () => {
+        const linking = form.elements.decision.value === 'link';
+        form.querySelector('[data-assignment-target]').hidden = !linking;
+        form.elements.target.required = linking;
+      });
+    }
+  } catch (error) {
+    if (version === modalVersion && $('#modal').open) showModal(title, `<p role="alert">${esc(taskAssignmentError(error))}</p>`);
+  }
+}
+
+async function showTaskAssignmentBatch(taskId, fieldName, batchId) {
+  if (!canReconcileTasks() || offline) return;
+  const selected = siteId;
+  showModal(t('toolBatchHistory'), `<p role="status">${t('loading')}</p>`);
+  const version = modalVersion;
+  try {
+    const batch = await freshApi.taskAssignments.read(selected, batchId);
+    if (version !== modalVersion || selected !== siteId || !$('#modal').open) return;
+    const attrs = `${taskAssignmentAction(taskId, fieldName)} data-batch-id="${esc(batchId)}"`;
+    const error = '<div class="form-error" role="alert" tabindex="-1" hidden></div>';
+    const statuses = { applied: 'toolBatchApplied', matched: 'toolCompanyAlreadyLinked', unresolved: 'toolCompanyUnresolved',
+      stale: 'taskAssignmentStale', conflicting: 'toolCompanyConflict', compensated: 'toolBatchRolledBack' };
+    showModal(t('toolBatchHistory'), `<p>${toolBatchStatus(batch.status)} · ${esc(timeLabel(batch.decidedAt))}</p>
+      ${batch.rollback ? `<p>${t('reason')} · ${esc(batch.rollback.reason)}</p>` : ''}<ul>${batch.items.map(item => {
+        const matches = outcome => outcome.recordId === item.recordId && outcome.field === item.field;
+        const outcome = batch.rollback?.items.find(matches) ?? batch.apply?.items.find(matches);
+        const result = outcome ? taskReconciliationErrorKeys[outcome.code] ?? errorKeys[outcome.code] ?? statuses[outcome.status] : null;
+        return `<li><strong>${esc(item.source.title)} · ${t(taskAssignmentFields[item.field])}</strong>
+          <br>${t('taskAssignmentOriginal')} · <span class="prewrap">${coreValue(item.source.original)}</span>
+          <br>${item.target ? assignmentName(item.target) : t('toolCompanyUnresolved')}
+          ${item.target?.authority ? `<br>${t('taskAssignmentRoleWindow')} · ${esc(timeLabel(item.target.authority.validFrom))} → ${esc(timeLabel(item.target.authority.validTo))}` : ''}
+          <br>${esc(item.decision.reason)}${result ? `<br>${esc(t(result))}` : ''}</li>`;
+      }).join('')}</ul>
+      ${batch.status === 'decided' ? `<form id="task-assignment-apply" ${attrs}>${error}${formActions('toolBatchApply')}</form>` : ''}
+      ${batch.status === 'applied' && role() === 'owner' ? `<form id="task-assignment-rollback" ${attrs}>${error}
+        <p>${t('taskAssignmentRollbackHint')}</p>${field('reason', 'reason', '', { required: true, max: 2000 })}
+        ${formActions('toolBatchRollback')}</form>` : ''}
+      ${button('back', 'task-assignment', taskAssignmentAction(taskId, fieldName))}`);
+  } catch (error) {
+    if (version === modalVersion && $('#modal').open) showModal(t('toolBatchHistory'), `<p role="alert">${esc(taskAssignmentError(error))}</p>`);
+  }
+}
+
+async function submitTaskAssignment(form) {
+  const submit = form.querySelector('[type=submit]');
+  if (submit.disabled) return;
+  const selected = siteId;
+  const current = () => siteId === selected && form.isConnected && $('#modal').open;
+  const { id, field: fieldName, batchId } = form.dataset;
+  const data = Object.fromEntries(new FormData(form));
+  const batches = freshApi.taskAssignments;
+  submit.disabled = true;
+  form.querySelector('.form-error').hidden = true;
+  try {
+    if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
+    if (!canReconcileTasks()) throw new Error('forbidden');
+    if (form.id === 'task-assignment-search') {
+      const { total, records } = await batches.candidates(selected, fieldName, data.q);
+      if (current()) {
+        const decide = $('#task-assignment-decide');
+        const selectedTarget = decide.records[decide.elements.target.value];
+        decide.records = records;
+        decide.elements.target.innerHTML = assignmentOptions(records);
+        const index = records.findIndex(target => target.id === selectedTarget?.id && target.kind === selectedTarget.kind
+          && target.revision === selectedTarget.revision && target.authority?.revision === selectedTarget.authority?.revision
+          && target.authority?.id === selectedTarget.authority?.id);
+        decide.elements.target.value = index < 0 ? '' : String(index);
+        form.querySelector('[role=status]').textContent = t('taskAssignmentSearchResult')
+          .replace('{shown}', String(records.length)).replace('{count}', String(total));
+      }
+      return;
+    }
+    if (form.id === 'task-assignment-activate') {
+      await batches.activate(selected);
+      if (current()) await showTaskAssignment(id, fieldName);
+      return;
+    }
+    if (form.id === 'task-assignment-decide') {
+      const decision = { action: data.decision, reason: data.reason };
+      if (decision.action === 'link') {
+        const target = form.records[data.target];
+        if (!target) throw new Error('taskAssignmentChoose');
+        Object.assign(decision, { kind: target.kind, targetId: target.id, targetRevision: target.revision });
+        if (target.authority) Object.assign(decision, { authorityId: target.authority.id, authorityRevision: target.authority.revision });
+      }
+      const batch = await batches.decide(selected, { batchId: form.batchId, decisions: [{ ...form.occurrence, decision }] });
+      if (current()) await showTaskAssignmentBatch(id, fieldName, batch.id);
+      return;
+    }
+    if (form.id === 'task-assignment-apply') await batches.apply(selected, batchId);
+    if (form.id === 'task-assignment-rollback') await batches.rollback(selected, batchId, data.reason);
+    if (current()) await showTaskAssignmentBatch(id, fieldName, batchId);
+  } catch (error) {
+    if (current()) formError(form, error, taskAssignmentError);
+  } finally {
+    submit.disabled = false;
+  }
+}
+
 function taskEvidence(task) {
   const files = state.attachments.filter(file => file.entity_type === 'task' && file.entity_id === task.id && !file.localOnly);
   const document = files.find(file => file.id === task.acceptance_document_id);
@@ -4127,22 +4296,24 @@ async function showDetail(taskId, { history = false } = {}) {
     const local = state.tasks.find(item => item.id === taskId);
     let task = local;
     if (!offline && !local?.localOnly) {
-      try { task = await freshApi.getTask(taskId); }
+      try { task = await freshApi.getTask(taskId, { assignmentHistory: moduleVisible('registry') && role() !== 'demo_user' }); }
       catch (error) { if (error.code !== 'NETWORK_ERROR' || !local) throw error; offline = true; }
     }
     if (!task) throw new Error('apiUnavailable');
     task = { ...task, syncStatus: local?.syncStatus };
     if (version !== modalVersion || !$('#modal').open || task.siteId !== siteId) return;
-    rememberTask(task);
+    const { assignment_history: _, ...cacheableTask } = task;
+    rememberTask(cacheableTask);
     if (storageReady && !task.localOnly) await accountLock(async () => {
       const saved = await getMirror(`state:${offlineScope}`);
-      if (saved) { saved.tasks = saved.tasks.map(item => item.id === task.id ? task : item); await setMirror(`state:${offlineScope}`, saved); }
+      if (saved) { saved.tasks = saved.tasks.map(item => item.id === task.id ? cacheableTask : item); await setMirror(`state:${offlineScope}`, saved); }
     });
     render();
     const reviewDenied = task.status === 'to_verify' && !canReviewTask(task);
     const actions = reviewDenied ? [] : taskTransitions(task);
     showModal(task.title, `<p class="notebook-card-meta">${notebookState(task.status)}${notebookPriority(task.priority)}${notebookSync(task)}</p>
       <dl class="detail-grid"><div><dt>${t('wbs')}</dt><dd>${esc(taskWbsText(task))}${canEditTask() && moduleVisible('wbs') && !offline && !task.localOnly ? button('wbsAssociate', 'task-wbs', `data-id="${esc(task.id)}"`, 'small') : ''}</dd></div>${['area', 'company', 'assignee', 'reviewer', 'due', 'priority'].map(key => `<div><dt>${t(key)}</dt><dd>${['assignee', 'reviewer'].includes(key) ? personName(task[key]) : key === 'due' ? dateLabel(task[key]) : key === 'priority' ? esc(t(task[key])) : esc(task[key] || '—')}</dd></div>`).join('')}</dl>
+      ${taskAssignmentsSection(task)}
       ${actions.length ? `<div class="detail-actions">${actions.map(to => taskActionButton(task.id, to, taskTransitionLabel(task, to), {
         primary: to === 'closed', resume: task.status === 'blocked',
       })).join('')}</div>` : ''}
@@ -4474,6 +4645,8 @@ document.addEventListener('click', event => {
     'tool-edit': () => { toolEditingId = id; showToolForm(); },
     'tool-company': () => showToolCompany(id),
     'tool-company-batch': () => showToolCompanyBatch(id, target.dataset.recordId),
+    'task-assignment': () => showTaskAssignment(id, target.dataset.field),
+    'task-assignment-batch': () => showTaskAssignmentBatch(id, target.dataset.field, target.dataset.batchId),
     'tool-delete': () => showToolDelete(id),
     'hse-new': () => { hseEditingId = ''; showHseForm(); },
     'hse-edit': () => { hseEditingId = id; showHseForm(); },
@@ -4563,6 +4736,7 @@ document.addEventListener('submit', async event => {
     return;
   }
   if (form.id.startsWith('tool-company-')) { event.preventDefault(); await submitToolCompany(form); return; }
+  if (form.id.startsWith('task-assignment-')) { event.preventDefault(); await submitTaskAssignment(form); return; }
   if (form.id === 'hse-inspection-form') { event.preventDefault(); await submitHseInspection(form); return; }
   if (form.id === 'dashboard-layout-form') { event.preventDefault(); await submitDashboardLayout(form); return; }
   if (form.id === 'ai-form') {

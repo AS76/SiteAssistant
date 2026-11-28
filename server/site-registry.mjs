@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { requireModule } from './module-access.mjs';
+import { moduleAllowed, requireModule } from './module-access.mjs';
 import { fail, instant, invalid, requireUser, text, uuid, validateInput } from './place-asset-scope.mjs';
 import { requireRole } from './repository.mjs';
 
@@ -77,6 +77,13 @@ async function activeDependencies(db, site, collection, id, at) {
       AND ${criteria} ORDER BY id`, site, id, ...params);
     if (rows.length) result.push({ collection: target, ids: rows.map(row => row.id) });
   }
+  const assignmentColumn = { people: 'person_id', companies: 'company_id', teams: 'team_id' }[collection];
+  const tasks = await db.all(`SELECT DISTINCT l.task_id AS id FROM task_assignment_links l
+    JOIN tasks t ON t.site_id = l.site_id AND t.id = l.task_id
+    JOIN reconciliation_adoptions a ON a.site_id = l.site_id AND a.module = l.module AND a.enabled
+    WHERE l.site_id = ? AND l.${assignmentColumn} = ? AND l.valid_to IS NULL AND t.status <> 'closed'
+    ORDER BY l.task_id`, site, id);
+  if (tasks.length) result.push({ collection: 'tasks', ids: tasks.map(row => row.id) });
   return result;
 }
 
@@ -100,8 +107,10 @@ export async function readRegistry(db, scope, options, user) {
     }
     if (!master) return record;
     const related = await activeDependencies(db, site, collection, id, new Date().toISOString());
+    const canReadTasks = await moduleAllowed(db, site, user, 'tasks');
     return { ...record, canArchive: managers.includes(role) && !record.archived_at && !related.length,
-      dependencies: related.filter(dep => role === 'owner' || dep.collection !== 'account-links') };
+      dependencies: related.filter(dep => (role === 'owner' || dep.collection !== 'account-links')
+        && (canReadTasks || dep.collection !== 'tasks')) };
   }
 
   const clauses = ['site_id = ?'], params = [site];
@@ -324,6 +333,12 @@ async function createAccountLink(ctx, input) {
   if (await tx.get(`SELECT 1 FROM registry_account_links WHERE site_id = ? AND revoked_at IS NULL
     AND (person_id = ? OR account_id = ?)`, site, person.id, account)) {
     conflict('REGISTRY_ACCOUNT_LINK_CONFLICT', 'This person or account already has an active link on the site.');
+  }
+  if (await tx.get(`SELECT 1 FROM task_assignment_links l JOIN tasks t ON t.site_id = l.site_id AND t.id = l.task_id
+    WHERE l.site_id = ? AND l.person_id = ? AND l.valid_to IS NULL
+      AND ((l.field = 'executor' AND t.verifier_id = ?) OR (l.field = 'verifier' AND t.executor_id = ?))
+    LIMIT 1`, site, person.id, account, account)) {
+    conflict('SEPARATE_PEOPLE_REQUIRED', 'This account link would identify one person as both executor and verifier.');
   }
   const after = await insert(tx, 'account-links', { id: randomUUID(), site_id: site, person_id: person.id,
     account_id: account, valid_from: at, created_at: at, created_by: user.id });

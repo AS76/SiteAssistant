@@ -1,6 +1,6 @@
 import { isDemoSandbox } from './demo-sandbox.mjs';
 import { HSE_READ_ROLES } from '../app/hse-permissions.mjs';
-import { messages, toolReconciliationErrorKeys } from '../app/i18n.mjs';
+import { messages, taskReconciliationErrorKeys, toolReconciliationErrorKeys } from '../app/i18n.mjs';
 import { requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
 import { createServer as createHttpServer } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -54,6 +54,7 @@ import { listHseEvents, createHseEvent, updateHseEvent, deleteHseEvent, hseSumma
 import { templatesForJurisdiction } from './checklists.mjs';
 import { archivePlace, createPlace, getPlace, listPlaceHistory, listPlaces, updatePlace } from './places.mjs';
 import { readRegistry, writeRegistry } from './site-registry.mjs';
+import { searchTaskAssignmentTargets, taskAssignmentReconciliation, withTaskAssignmentHistory } from './task-reconciliation.mjs';
 import { archiveAsset, createAsset, getAsset, listAssetPositions, listAssets, moveAsset, updateAsset } from './assets.mjs';
 import { listHseAssets, createHseAsset, updateHseAsset, deleteHseAsset } from './hse-assets.mjs';
 import { createInspection, listInspections, getInspection } from './hse-inspections.mjs';
@@ -83,7 +84,7 @@ async function paginatedJson(response, url, db, list, count, filters, user) {
 const activatePath = '/api/auth/activate';
 const invitationsPath = '/api/admin/invitations';
 const registryPath = /^\/api\/sites\/([^/]+)\/(people|companies|teams|affiliations|company-roles|team-memberships|account-links|authority-roles|authority-delegations|authority-snapshots)(?:\/([^/]+)(?:\/(history|archive|close|revoke|replace-lead))?)?$/;
-const toolReconciliationPath = /^\/api\/sites\/([^/]+)\/people-reconciliation\/tools\/(previews|adoption|batches)(?:\/([^/]+)(?:\/(apply|rollback))?)?$/;
+const reconciliationPath = /^\/api\/sites\/([^/]+)\/people-reconciliation\/(tools|tasks)\/(previews|adoption|batches|candidates)(?:\/([^/]+)(?:\/(apply|rollback))?)?$/;
 const reconciliationHttpErrorKeys = {
   ...toolReconciliationErrorKeys,
   AUTH_REQUIRED: 'authRequired', UNAUTHENTICATED: 'authRequired', PASSWORD_CHANGE_REQUIRED: 'passwordChangeNotice',
@@ -256,11 +257,12 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       response.end();
       return;
     }
-    let url, path, toolReconciliation, user = null, isDecision = false;
+    let url, path, reconciliationRoute, user = null, isDecision = false;
     const errorBody = (error, code) => {
-      if (!toolReconciliation) return { error, code };
+      if (!reconciliationRoute) return { error, code };
       const language = ['it', 'en'].includes(user?.language) ? user.language : languageFromRequest(request, url);
-      const key = reconciliationHttpErrorKeys[code] ?? 'apiError';
+      const taskKey = reconciliationRoute[2] === 'tasks' ? taskReconciliationErrorKeys[code] : undefined;
+      const key = taskKey ?? reconciliationHttpErrorKeys[code] ?? 'apiError';
       return { error, code, message: messages[language][key] };
     };
     try {
@@ -271,7 +273,8 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       path = url.pathname;
       const registryRoute = registryPath.exec(path);
-      toolReconciliation = toolReconciliationPath.exec(path);
+      reconciliationRoute = reconciliationPath.exec(path);
+      const taskAssignmentDetail = /^\/api\/tasks\/[^/]+$/.test(path) && url.searchParams.get('include') === 'assignment_history';
       const method = request.method;
       const ip = clientIp(request);
       if (!path.startsWith('/api/') && privacyResponse(request, response, url, privacyConfig)) return;
@@ -304,7 +307,8 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         try { user = await authenticate(db, request.headers.cookie, authContext); }
         catch (error) {
           if (!(error instanceof RepositoryError) || error.status !== 401) throw error;
-          if (authBypassEmail && !registryRoute && !toolReconciliation && !authBypassExcluded.has(path) && path !== invitationsPath && !revoke) {
+          if (authBypassEmail && !registryRoute && !reconciliationRoute && !taskAssignmentDetail
+              && !authBypassExcluded.has(path) && path !== invitationsPath && !revoke) {
             user = await db.get(`SELECT id, email, name, password_change_required FROM users
               WHERE lower(email) = ? AND disabled_at IS NULL`, authBypassEmail);
             if (user) {
@@ -526,9 +530,13 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (tool && method === 'DELETE') {
         return json(response, 200, await deleteTool(db, tool[1], user));
       }
-      if (toolReconciliation) {
-        const [, siteId, resource, batchId, action] = toolReconciliation;
-        const batch = toolCompanyReconciliation;
+      if (reconciliationRoute) {
+        const [, siteId, module, resource, batchId, action] = reconciliationRoute;
+        const batch = module === 'tasks' ? taskAssignmentReconciliation : toolCompanyReconciliation;
+        if (module === 'tasks' && resource === 'candidates' && method === 'GET' && !batchId) {
+          const criteria = { field: url.searchParams.get('field'), q: url.searchParams.get('q') };
+          return json(response, 200, await searchTaskAssignmentTargets(db, siteId, criteria, user));
+        }
         if (resource === 'batches' && method === 'GET' && !action) {
           const result = batchId ? await batch.read(db, siteId, batchId, user)
             : await batch.list(db, siteId, url.searchParams.get('recordId'), user);
@@ -1119,9 +1127,9 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (task && method === 'PATCH') return json(response, 200, await updateTaskWbs(db, task[1], await readJson(request), user));
       if (task && method === 'GET') {
         const record = await getTask(db, task[1]);
-        await requireRole(db, record.site_id, user);
+        const role = await requireRole(db, record.site_id, user);
         await requireModule(db, record.site_id, user, 'tasks');
-        return json(response, 200, record);
+        return json(response, 200, taskAssignmentDetail ? await withTaskAssignmentHistory(db, record, user, role) : record);
       }
       const acceptance = /^\/api\/tasks\/([^/]+)\/acceptance$/.exec(path);
       if (acceptance && method === 'PATCH') {
