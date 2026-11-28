@@ -3,8 +3,9 @@
 //
 // Usage:
 //   node server/seed-demo.mjs            # dry run: prints the plan
-//   node server/seed-demo.mjs --apply    # write the rows
-//   node server/seed-demo.mjs --reset    # delete only the rows created here
+//   node server/seed-demo.mjs --apply       # write the rows
+//   node server/seed-demo.mjs --reset       # delete only the rows created here
+//   node server/seed-demo.mjs --reset-apply # reset and reseed in one transaction
 import { createHash } from 'node:crypto';
 import process from 'node:process';
 import { stat } from 'node:fs/promises';
@@ -17,6 +18,7 @@ import { stableId } from './wbs.mjs';
 import { TEMPLATES } from './checklists.mjs';
 
 const NS = '6d1f7c42-8f0e-4a4c-9d2b0f7a2c9d1e3f';
+const DEMO_RESET_APPLY_LOCK = [0x53414445, 0x52535441]; // SADE / RSTA
 const at = '2026-11-01T08:00:00.000Z';
 const id = name => {
   const hash = createHash('sha1').update(`${NS}:${name}`).digest('hex');
@@ -789,13 +791,16 @@ async function requireDemoSeedRecords(db) {
   }
 }
 
-function deterministicFixtures() {
+function deterministicFixtures({ includeComposite }) {
   const tables = new Map();
   const addId = (table, recordId) => {
     if (!tables.has(table)) tables.set(table, []);
     tables.get(table).push(recordId);
   };
   const add = (table, key) => addId(table, id(key));
+  const addComposite = (table, row) => {
+    if (includeComposite) addId(table, fixtureRecordId(table, row));
+  };
   const indexed = (table, code, label, rows) => rows.forEach((_, i) => add(table, `${code}:${label}:${i + 1}`));
   for (const code of SITES) {
     add('sites', `${code}:site`);
@@ -808,8 +813,12 @@ function deterministicFixtures() {
       add('packages', `${code}:package:${key}`);
       for (const { lineNo } of items) add('package_items', `${code}:package:${key}:line:${lineNo}`);
     }
-    for (const { shipmentNo, receipts = [] } of SHIPMENTS[code]) {
-      add('shipments', `${code}:shipment:${shipmentNo}`);
+    for (const { shipmentNo, packageKeys, receipts = [] } of SHIPMENTS[code]) {
+      const shipmentId = id(`${code}:shipment:${shipmentNo}`);
+      addId('shipments', shipmentId);
+      for (const key of packageKeys) {
+        addComposite('shipment_packages', { shipment_id: shipmentId, package_id: id(`${code}:package:${key}`) });
+      }
       for (const { poNo, lineNo } of receipts) add('shipment_receipts', `${code}:shipment:${shipmentNo}:receipt:${poNo}:${lineNo}`);
     }
     for (const type of TYPES[code]) {
@@ -846,6 +855,12 @@ function deterministicFixtures() {
     }
     indexed('deviations', code, 'deviation', DEVIATIONS[code]);
     indexed('cost_impacts', code, 'impact', IMPACTS[code]);
+    for (const index of IMPACTS[code].keys()) {
+      const deviation = IMPACT_DEVIATIONS[code][index];
+      addComposite('cost_impact_deviations', {
+        cost_impact_id: id(`${code}:impact:${index + 1}`), deviation_id: id(`${code}:deviation:${deviation + 1}`),
+      });
+    }
     indexed('hse_events', code, 'hse', HSE[code]);
     indexed('hse_assets', code, 'hse-asset', HSE_ASSETS[code]);
     indexed('hse_events', code, 'hse-inspection-event', HSE_INSPECTIONS[code]);
@@ -864,47 +879,75 @@ function deterministicFixtures() {
     employees: 'employee', site_progress_items: 'progress', work_days: 'night', time_bookings: 'booking',
     tasks: 'task', deviations: 'deviation', diary: 'diary',
   })) add(table, `FITT-03:c03:${suffix}`);
+  addComposite('deviation_links', {
+    deviation_id: id('FITT-03:c03:deviation'), entity_type: 'task', entity_id: id('FITT-03:c03:task'),
+  });
   add('tasks', waiverTaskKey);
   add('users', 'responsibility:synthetic-account');
   return tables;
 }
 
-async function checkFixtureCollisions(db, residual = new Map()) {
-  const fixtures = deterministicFixtures();
+async function checkFixtureCollisions(db, { residual = new Map(), includeComposite = false } = {}) {
+  const fixtures = deterministicFixtures({ includeComposite });
+  const collisions = new Map();
+  const add = (table, id) => {
+    if (!collisions.has(table)) collisions.set(table, new Set());
+    collisions.get(table).add(String(id));
+  };
   const site = await db.get("SELECT id FROM sites WHERE code = 'FITT-01'");
   if (site) {
     for (const meta of evidenceExports(site.id)) {
       const batch = await registeredDeviationExport(db, site.id, meta);
-      if (batch) await requireRegistered(db, 'deviation_exports', batch.id);
+      if (batch && !await isRegistered(db, 'deviation_exports', batch.id)) add('deviation_exports', batch.id);
       for (const row of meta.rows) {
         const existing = await db.get('SELECT id FROM deviations WHERE site_id = ? AND source_system = ? AND source_id = ?',
           site.id, meta.sourceSystem, row.source_id);
-        if (existing) await requireRegistered(db, 'deviations', existing.id);
+        if (existing && !await isRegistered(db, 'deviations', existing.id)) add('deviations', existing.id);
         fixtures.get('deviations').push(stableId('deviation', site.id, meta.sourceSystem, row.source_id));
       }
     }
   }
   for (const [table, plannedIds] of fixtures) {
     const ids = plannedIds.filter(id => !residual.get(table)?.has(id));
-    for (let offset = 0; offset < ids.length; offset += 400) {
-      const batch = ids.slice(offset, offset + 400);
-      const conflict = await db.get(`SELECT candidate.id FROM ${table} candidate
-        WHERE candidate.id IN (${batch.map(() => '?').join(', ')}) AND NOT EXISTS (
-          SELECT 1 FROM demo_seed_records owned WHERE owned.table_name = ? AND owned.record_id = CAST(candidate.id AS TEXT)
-        ) LIMIT 1`, ...batch, table);
-      if (conflict) throw collisionError(table, conflict.id);
+    const columns = compositeKeys[table];
+    const batchSize = Math.floor(400 / (columns?.length ?? 1));
+    for (let offset = 0; offset < ids.length; offset += batchSize) {
+      const batch = ids.slice(offset, offset + batchSize);
+      if (columns) {
+        const keys = batch.map(id => keyForRecord(table, id));
+        const rows = await db.all(`SELECT ${columns.join(', ')} FROM ${table}
+          WHERE ${keys.map(({ where }) => `(${where})`).join(' OR ')}`, ...keys.flatMap(({ values }) => values));
+        for (const row of rows) {
+          const recordId = fixtureRecordId(table, row);
+          if (!await isRegistered(db, table, recordId)) add(table, recordId);
+        }
+      } else {
+        const rows = await db.all(`SELECT candidate.id FROM ${table} candidate
+          WHERE candidate.id IN (${batch.map(() => '?').join(', ')}) AND NOT EXISTS (
+            SELECT 1 FROM demo_seed_records owned WHERE owned.table_name = ? AND owned.record_id = CAST(candidate.id AS TEXT)
+          )`, ...batch, table);
+        for (const { id } of rows) add(table, id);
+      }
     }
   }
+  if (collisions.size) throw collisionError(collisions);
+}
+
+async function runDemoSeed(db, operation, { atomic = false } = {}) {
+  requireDemoAppEnv();
+  return db.transaction(async tx => {
+    if (atomic && !await demoDatabaseIsSqlite(tx)) {
+      await tx.get('SELECT pg_advisory_xact_lock(CAST(? AS INTEGER), CAST(? AS INTEGER))', ...DEMO_RESET_APPLY_LOCK);
+    }
+    await requireDemoDatabase(tx);
+    await requireDemoSeedRecords(tx);
+    return operation(tx);
+  });
 }
 
 // Site shells and copied login roles survive a fixture reset.
 export async function reset(db) {
-  requireDemoAppEnv();
-  return db.transaction(async tx => {
-    await requireDemoDatabase(tx);
-    await requireDemoSeedRecords(tx);
-    return resetFixtures(tx);
-  });
+  return runDemoSeed(db, resetFixtures);
 }
 
 const resetTables = [
@@ -975,7 +1018,8 @@ async function resetFixtures(db) {
   }
 
   // Deterministic IDs without ledger entries are safe only if reached through a declared ownership FK.
-  await checkFixtureCollisions(db, residual);
+  // Apply checks planned composite links separately, after reset has handled those residuals.
+  await checkFixtureCollisions(db, { residual });
   for (const id of pending.get('project_structure').keys()) {
     await db.run('UPDATE project_structure SET parent_id = NULL WHERE id = ?', id);
   }
@@ -1024,25 +1068,35 @@ async function isRegistered(db, table, recordId) {
   return Boolean(await db.get('SELECT 1 FROM demo_seed_records WHERE table_name = ? AND record_id = ?', table, String(recordId)));
 }
 
-const collisionError = (table, recordId) => new Error(`Unregistered demo fixture collision: ${table} (${recordId}).`);
+function collisionError(collisions) {
+  const summary = Array.from(collisions, ([table, keys]) => {
+    const sorted = Array.from(keys).sort();
+    return `${table} (${sorted.length} ${sorted.length === 1 ? 'row' : 'rows'}, examples: ${sorted.slice(0, 3).join(', ')})`;
+  });
+  return new Error(`Unregistered demo fixture collision: ${summary.join(' | ')}.`);
+}
 
 async function requireRegistered(db, table, recordId) {
   if (!await isRegistered(db, table, recordId)) {
-    throw collisionError(table, recordId);
+    throw collisionError([[table, [String(recordId)]]]);
   }
 }
 
 export async function apply(db, { demoSandbox = isDemoSandbox() } = {}) {
-  requireDemoAppEnv();
-  return db.transaction(async tx => {
-    await requireDemoDatabase(tx);
-    await requireDemoSeedRecords(tx);
-    return applyFixtures(tx, demoSandbox);
-  });
+  return runDemoSeed(db, tx => applyFixtures(tx, demoSandbox));
+}
+
+export async function resetAndApply(db, { demoSandbox = isDemoSandbox() } = {}) {
+  return runDemoSeed(db, async tx => {
+    const resetResult = await resetFixtures(tx);
+    const counts = await applyFixtures(tx, demoSandbox);
+    return { reset: resetResult, counts };
+  }, { atomic: true });
 }
 
 async function applyFixtures(db, demoSandbox) {
-  await checkFixtureCollisions(db);
+  // Reset checks ownership first and can safely remove legacy children of registered parents.
+  await checkFixtureCollisions(db, { includeComposite: true });
   const storage = db;
   const lock = await demoDatabaseIsSqlite(db) ? '' : ' FOR UPDATE';
   db = { ...storage, run: async (sql, ...args) => {
@@ -1532,8 +1586,8 @@ async function applyFixtures(db, demoSandbox) {
 if (process.argv[1] === new URL(import.meta.url).pathname) {
   const args = process.argv.slice(2);
   const [operation] = args;
-  if (args.length > 1 || (operation && !['--apply', '--reset', '--mark-demo-database'].includes(operation))) {
-    throw new Error('Usage: node server/seed-demo.mjs [--apply | --reset | --mark-demo-database]');
+  if (args.length > 1 || (operation && !['--apply', '--reset', '--reset-apply', '--mark-demo-database'].includes(operation))) {
+    throw new Error('Usage: node server/seed-demo.mjs [--apply | --reset | --reset-apply | --mark-demo-database]');
   }
   if (!operation) {
     const dataset = plan();
@@ -1564,6 +1618,9 @@ if (process.argv[1] === new URL(import.meta.url).pathname) {
       } else if (operation === '--reset') {
         const result = await reset(db);
         console.log(JSON.stringify({ reset: true, ...result }));
+      } else if (operation === '--reset-apply') {
+        const result = await resetAndApply(db);
+        console.log(JSON.stringify({ applied: true, ...result }));
       } else {
         const counts = await apply(db);
         console.log(JSON.stringify({ applied: true, counts }));
