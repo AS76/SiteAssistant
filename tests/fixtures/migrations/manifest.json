@@ -304,5 +304,11 @@
     "file": "057_places_assets.sql",
     "sqlite": "25f2c446b16fdaf5281e3781fa5b0e6c9bd3a59bffbf46017dc3e540ca6f1a9f",
     "pg": "dbf1f71ea4d6563eda3067c3f366e06bc57deadf4cfdf8d3ae3a8554214936d4"
+  },
+  {
+    "version": "058",
+    "file": "058_site_jurisdictions.sql",
+    "sqlite": "9be35a0b4960b3f6790039cc61be6af018a9aaf817e1640d1e2782973bb4e77c",
+    "pg": "9be35a0b4960b3f6790039cc61be6af018a9aaf817e1640d1e2782973bb4e77c"
   }
 ]

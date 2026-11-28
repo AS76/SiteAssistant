@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { RepositoryError, requireRole } from './repository.mjs';
 import { requireModule } from './module-access.mjs';
 import { appendAuditEvent } from './audit.mjs';
-import { findTemplate } from './checklists.mjs';
+import { templateForSite } from './hse-assets.mjs';
 
 const COLUMNS = `id, site_id, asset_id, CAST(performed_on AS TEXT) AS performed_on,
   performed_by, performer_role, mode, outcome, notes, CAST(next_due_on AS TEXT) AS next_due_on,
@@ -116,8 +116,7 @@ export async function createInspection(db, input, user) {
     await inspectionRole(tx, siteId, user, HSE_WRITE_ROLES);
     await tx.run('UPDATE hse_assets SET id = id WHERE id = ? AND site_id = ? AND deleted_at IS NULL', assetId, siteId);
     const asset = await findAsset(tx, siteId, assetId);
-    const template = findTemplate(asset.template_code);
-    if (!template) invalid('Unknown asset template.');
+    const template = await templateForSite(tx, asset.template_code, siteId);
     const items = snapshotItems(input.items, template);
     const { outcome: computedOutcome, reasons } = inspectionSuggestion(items);
     if (reasons.some(reason => reason.code === 'INSPECTION_ITEMS_INCOMPLETE')) {

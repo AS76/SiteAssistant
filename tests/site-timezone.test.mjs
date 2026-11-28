@@ -58,7 +58,7 @@ for (const driver of ['sqlite', 'pg']) {
     });
 
     await t.test('London 23:30 stays on 20 December and Rome keeps its operational-day rule', async () => {
-      const uk = await site({ jurisdiction: 'UK', code: 'NL-UK-01' });
+      const uk = await site({ jurisdiction: 'UK', time_zone: 'Europe/London', code: 'NL-UK-01' });
       const it = await site({ jurisdiction: 'IT' });
       for (const [created, zone] of [[uk, 'Europe/London'], [it, 'Europe/Rome']]) {
         const read = await api(`/api/sites/${created.id}`, { cookie: cookies.editor });
@@ -80,7 +80,7 @@ for (const driver of ['sqlite', 'pg']) {
 
     await t.test('the same instant falls on different operational days and shifts at the local cutoff', async () => {
       t.mock.timers.setTime(Date.parse('2026-12-21T05:30:00Z'));
-      const uk = await site({ jurisdiction: 'UK' });
+      const uk = await site({ jurisdiction: 'UK', time_zone: 'Europe/London' });
       const it = await site({ jurisdiction: 'IT' });
       for (const [created, date, shift] of [[uk, '2026-12-20', 'night'], [it, '2026-12-21', 'day']]) {
         const entry = await diary(created.id);
@@ -92,7 +92,7 @@ for (const driver of ['sqlite', 'pg']) {
 
     await t.test('owner settings are validated, audited and applied to the next diary entry', async () => {
       t.mock.timers.setTime(Date.parse('2026-12-21T06:30:00Z'));
-      const created = await site({ jurisdiction: 'UK' });
+      const created = await site({ jurisdiction: 'UK', time_zone: 'Europe/London' });
       const update = (body, role = 'owner') => api(`/api/sites/${created.id}`, { method: 'PATCH', cookie: cookies[role], body });
       assert.equal((await update({ day_cutoff_time: '07:45' }, 'editor')).status, 403);
       for (const body of [{ time_zone: 'Europe/Invalid' }, { time_zone: '+01:00' }, { day_cutoff_time: '06:60' }]) {
@@ -123,8 +123,10 @@ for (const driver of ['sqlite', 'pg']) {
 
     await t.test('progress has identical points for matching local dates across the spring transition', async () => {
       const curves = [];
-      for (const [jurisdiction, before, after] of [['IT', '+01:00', '+02:00'], ['UK', '+00:00', '+01:00']]) {
-        const created = await site({ jurisdiction });
+      for (const [jurisdiction, time_zone, before, after] of [
+        ['IT', 'Europe/Rome', '+01:00', '+02:00'], ['UK-GB', 'Europe/London', '+00:00', '+01:00'],
+      ]) {
+        const created = await site({ jurisdiction, time_zone });
         const type = await createProgressType(db, {
           site_id: created.id, code: 'SYN', name: 'Synthetic progress', steps: [{ position: 1, code: 'STEP', weight: 100 }],
         }, users.owner);

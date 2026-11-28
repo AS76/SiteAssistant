@@ -22,9 +22,9 @@ const id = (...parts) => {
 const number = (prefix, index) => `${prefix}-${String(index + 1).padStart(2, '0')}`;
 
 const SITES = [
-  { code: 'NL-IT-01', jurisdiction: 'IT', timeZone: 'Europe/Rome', start: '2026-09-07', finish: '2027-02-27',
+  { code: 'NL-IT-01', jurisdiction: 'IT', contentLanguage: 'it', timeZone: 'Europe/Rome', start: '2026-09-07', finish: '2027-02-27',
     diaryStart: '2026-10-12', name: 'Northline Piacenza — Impianto intralogistico', location: 'Zona simulata, Piacenza, Italia' },
-  { code: 'NL-UK-01', jurisdiction: 'UK', timeZone: 'Europe/London', start: '2026-09-14', finish: '2027-03-06',
+  { code: 'NL-UK-01', jurisdiction: 'UK', contentLanguage: 'en', timeZone: 'Europe/London', start: '2026-09-14', finish: '2027-03-06',
     diaryStart: '2026-10-19', name: 'Northline Midlands — Intralogistics installation', location: 'Simulated site, Daventry, United Kingdom' },
 ];
 
@@ -276,8 +276,8 @@ function buildDataset() {
     add('users', { id: user.id, email: user.email, name: user.name, password_algo: 'scrypt', created_at: at(SITES[0].start) });
   }
   for (const site of SITES) {
-    const language = site.jurisdiction === 'IT' ? 0 : 1;
-    const local = pair => pair[language];
+    const languageIndex = { it: 0, en: 1 }[site.contentLanguage];
+    const local = pair => pair[languageIndex];
     const key = (...parts) => id(site.code, ...parts);
     const day = index => addDays(site.diaryStart, Math.floor(index / 5) * 7 + index % 5);
     const wbsId = code => key('wbs', code);

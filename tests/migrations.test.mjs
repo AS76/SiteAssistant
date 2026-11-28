@@ -80,7 +80,7 @@ test('migrations adopt populated SQLite databases without changing existing reco
   await assertUpgrade(db, { driver: 'sqlite' });
   t.assert.deepStrictEqual((await db.all('SELECT * FROM sites')).map(row => ({ ...row })),
     before.map(row => ({ ...row, jurisdiction: 'IT', time_zone: 'Europe/Rome', day_cutoff_time: '06:00',
-      assistant_enabled: 0, assistant_timeout_ms: 20000, demo_sandbox: 0 })));
+      assistant_enabled: 0, assistant_timeout_ms: 20000, demo_sandbox: 0, jurisdiction_code: null, content_language: null })));
   t.assert.deepStrictEqual({ ...await db.get('SELECT * FROM diary') }, {
     ...diaryBefore, time_zone: 'Europe/Rome', day_cutoff_time: '06:00',
     author_id: null, recording_motivation: null, recorded_late: 0, updated_at: null, updated_by: null,

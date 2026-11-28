@@ -5008,6 +5008,95 @@
       }
     ]
   },
+  "table jurisdictions": {
+    "relation": "jurisdictions",
+    "sql": "CREATE TABLE jurisdictions (\n  code TEXT PRIMARY KEY NOT NULL,\n  country_code TEXT NOT NULL,\n  territory_code TEXT,\n  label_it TEXT NOT NULL,\n  label_en TEXT NOT NULL,\n  UNIQUE (country_code, territory_code)\n)",
+    "columns": [
+      {
+        "name": "code",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "name": "country_code",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "territory_code",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "label_it",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "label_en",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [],
+    "implicitIndexes": [
+      {
+        "origin": "pk",
+        "columns": [
+          {
+            "name": "code",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": null,
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 0
+          }
+        ]
+      },
+      {
+        "origin": "u",
+        "columns": [
+          {
+            "name": "country_code",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "territory_code",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": null,
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 0
+          }
+        ]
+      }
+    ]
+  },
   "table member_module_access": {
     "relation": "member_module_access",
     "sql": "CREATE TABLE member_module_access (\n  id TEXT PRIMARY KEY NOT NULL,\n  site_id TEXT NOT NULL REFERENCES sites(id),\n  user_id TEXT NOT NULL REFERENCES users(id),\n  module TEXT NOT NULL,\n  allowed BOOLEAN NOT NULL CHECK (allowed IN (0, 1)),\n  created_at TEXT NOT NULL,\n  updated_at TEXT NOT NULL,\n  UNIQUE (site_id, user_id, module)\n)",
@@ -8246,7 +8335,7 @@
   },
   "table sites": {
     "relation": "sites",
-    "sql": "CREATE TABLE sites (\n  id TEXT PRIMARY KEY NOT NULL,\n  code TEXT UNIQUE NOT NULL,\n  name TEXT NOT NULL,\n  location TEXT,\n  start_date TEXT,\n  end_date TEXT,\n  created_at TEXT NOT NULL\n, jurisdiction TEXT NOT NULL DEFAULT 'IT' CHECK (jurisdiction IN ('IT', 'UK')), time_zone TEXT NOT NULL DEFAULT 'Europe/Rome'\n  CHECK (time_zone GLOB '[A-Za-z]*' AND time_zone NOT GLOB '*[^A-Za-z0-9_+/-]*'\n    AND time_zone NOT LIKE '%//%' AND time_zone NOT LIKE '%/'), day_cutoff_time TEXT NOT NULL DEFAULT '06:00'\n  CHECK (day_cutoff_time GLOB '[0-2][0-9]:[0-5][0-9]' AND day_cutoff_time < '24:00'), assistant_enabled BOOLEAN NOT NULL DEFAULT FALSE\n  CHECK (assistant_enabled IN (FALSE, TRUE)), assistant_timeout_ms INTEGER NOT NULL DEFAULT 20000\n  CHECK (typeof(assistant_timeout_ms) = 'integer' AND assistant_timeout_ms BETWEEN 5000 AND 60000), demo_sandbox BOOLEAN NOT NULL DEFAULT FALSE CHECK (demo_sandbox IN (0, 1)))",
+    "sql": "CREATE TABLE sites (\n  id TEXT PRIMARY KEY NOT NULL,\n  code TEXT UNIQUE NOT NULL,\n  name TEXT NOT NULL,\n  location TEXT,\n  start_date TEXT,\n  end_date TEXT,\n  created_at TEXT NOT NULL\n, jurisdiction TEXT NOT NULL DEFAULT 'IT' CHECK (jurisdiction IN ('IT', 'UK')), time_zone TEXT NOT NULL DEFAULT 'Europe/Rome'\n  CHECK (time_zone GLOB '[A-Za-z]*' AND time_zone NOT GLOB '*[^A-Za-z0-9_+/-]*'\n    AND time_zone NOT LIKE '%//%' AND time_zone NOT LIKE '%/'), day_cutoff_time TEXT NOT NULL DEFAULT '06:00'\n  CHECK (day_cutoff_time GLOB '[0-2][0-9]:[0-5][0-9]' AND day_cutoff_time < '24:00'), assistant_enabled BOOLEAN NOT NULL DEFAULT FALSE\n  CHECK (assistant_enabled IN (FALSE, TRUE)), assistant_timeout_ms INTEGER NOT NULL DEFAULT 20000\n  CHECK (typeof(assistant_timeout_ms) = 'integer' AND assistant_timeout_ms BETWEEN 5000 AND 60000), demo_sandbox BOOLEAN NOT NULL DEFAULT FALSE CHECK (demo_sandbox IN (0, 1)), jurisdiction_code TEXT REFERENCES jurisdictions(code), content_language TEXT CHECK (content_language IN ('it', 'en')))",
     "columns": [
       {
         "name": "id",
@@ -8351,9 +8440,36 @@
         "default_value": "FALSE",
         "pk": 0,
         "hidden": 0
+      },
+      {
+        "name": "jurisdiction_code",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "content_language",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
       }
     ],
-    "foreignKeys": [],
+    "foreignKeys": [
+      {
+        "id": 0,
+        "seq": 0,
+        "table": "jurisdictions",
+        "from": "jurisdiction_code",
+        "to": "code",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      }
+    ],
     "implicitIndexes": [
       {
         "origin": "pk",

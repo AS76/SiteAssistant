@@ -137,6 +137,10 @@ function date(value, required = false) {
 export function sitePayload(input) {
   const result = { code: text(input.code, true), name: text(input.name, true), location: text(input.location), start_date: date(input.start), end_date: date(input.end) };
   if (result.start_date && result.end_date && result.end_date < result.start_date) fail('dateOrder');
+  for (const key of ['jurisdiction', 'time_zone', 'day_cutoff_time', 'content_language']) {
+    if (Object.hasOwn(input, key)) result[key] = input[key];
+  }
+  if (result.content_language === '') result.content_language = null;
   return result;
 }
 export function taskPayload(input) {

@@ -1,6 +1,6 @@
 import { HSE_READ_ROLES, HSE_WRITE_ROLES } from '../app/hse-permissions.mjs';
 import { randomUUID } from 'node:crypto';
-import { RepositoryError, requireRole } from './repository.mjs';
+import { RepositoryError, getSite, requireRole } from './repository.mjs';
 import { requireModule } from './module-access.mjs';
 import { appendAuditEvent } from './audit.mjs';
 import { findTemplate } from './checklists.mjs';
@@ -55,11 +55,11 @@ async function writableSite(tx, siteId, user) {
   await assetRole(tx, siteId, user, HSE_WRITE_ROLES);
 }
 
-async function templateForSite(db, code, siteId) {
+export async function templateForSite(db, code, siteId) {
   const template = typeof code === 'string' ? findTemplate(code) : undefined;
   if (!template) invalid('Unknown templateCode.');
-  const site = await db.get('SELECT jurisdiction FROM sites WHERE id = ?', siteId);
-  if (template.jurisdiction !== site.jurisdiction) {
+  const { jurisdiction } = await getSite(db, siteId);
+  if (template.jurisdiction !== jurisdiction) {
     fail(400, 'Template jurisdiction must match the site.', 'TEMPLATE_JURISDICTION_MISMATCH');
   }
   return template;

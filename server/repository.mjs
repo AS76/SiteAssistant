@@ -79,7 +79,12 @@ async function uniqueWrite(db, write, message, code) {
   }
 }
 
-const publicSite = ({ demo_sandbox, ...site }) => ({ ...site, assistant_enabled: site.assistant_enabled === true || site.assistant_enabled === 1 });
+const publicSite = ({ demo_sandbox, jurisdiction_code, ...site }) => ({
+  ...site,
+  jurisdiction: jurisdiction_code ?? site.jurisdiction,
+  jurisdiction_declared: jurisdiction_code != null,
+  assistant_enabled: site.assistant_enabled === true || site.assistant_enabled === 1,
+});
 
 export async function listSites(db, user) {
   const sites = await db.all(`SELECT * FROM sites ${user ? 'WHERE id IN (SELECT site_id FROM accessible_site_members WHERE user_id = ?)' : ''}
@@ -151,8 +156,27 @@ export async function getSite(db, id) {
   return publicSite(site);
 }
 
-function siteJurisdiction(value) {
-  if (!['IT', 'UK'].includes(value)) fail(400, 'jurisdiction must be IT or UK.', 'VALIDATION_ERROR');
+export function listJurisdictions(db) {
+  return db.all('SELECT code, country_code, territory_code, label_it, label_en FROM jurisdictions ORDER BY code');
+}
+
+export class UnsupportedJurisdictionError extends RepositoryError {
+  constructor() {
+    super(400, 'Unsupported jurisdiction code. See the jurisdiction catalogue for supported codes.', 'VALIDATION_ERROR');
+  }
+}
+
+async function siteJurisdiction(db, value) {
+  if (typeof value !== 'string' || !await db.get('SELECT code FROM jurisdictions WHERE code = ?', value)) {
+    throw new UnsupportedJurisdictionError();
+  }
+  return value;
+}
+
+function siteContentLanguage(value) {
+  if (value !== null && !['it', 'en'].includes(value)) {
+    fail(400, 'content_language must be it, en or null.', 'VALIDATION_ERROR');
+  }
   return value;
 }
 
@@ -178,10 +202,10 @@ function siteDayCutoff(value) {
 
 export async function createSite(db, input, { demoSandbox = false } = {}) {
   object(input);
-  const jurisdiction = siteJurisdiction(input.jurisdiction === undefined ? 'IT' : input.jurisdiction);
-  const timeZone = input.time_zone === undefined
-    ? (jurisdiction === 'UK' ? 'Europe/London' : 'Europe/Rome') : siteTimeZone(input.time_zone);
+  const jurisdiction = input.jurisdiction === undefined ? null : await siteJurisdiction(db, input.jurisdiction);
+  const timeZone = input.time_zone === undefined ? 'Europe/Rome' : siteTimeZone(input.time_zone);
   const cutoff = input.day_cutoff_time === undefined ? '06:00' : siteDayCutoff(input.day_cutoff_time);
+  const contentLanguage = input.content_language === undefined ? null : siteContentLanguage(input.content_language);
   const code = text(input.code, 'code', true);
   const name = text(input.name, 'name', true);
   const location = text(input.location, 'location');
@@ -192,9 +216,10 @@ export async function createSite(db, input, { demoSandbox = false } = {}) {
   }
   const id = randomUUID();
   await uniqueWrite(db, () => db.run(`
-    INSERT INTO sites (id, code, name, location, start_date, end_date, created_at, jurisdiction, time_zone, day_cutoff_time)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, id, code, name, location, start, end, new Date().toISOString(), jurisdiction, timeZone, cutoff),
+    INSERT INTO sites (id, code, name, location, start_date, end_date, created_at, jurisdiction_code,
+      time_zone, day_cutoff_time, content_language)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, id, code, name, location, start, end, new Date().toISOString(), jurisdiction, timeZone, cutoff, contentLanguage),
   'Site code already exists.', 'DUPLICATE_SITE_CODE');
   if (demoSandbox) await db.run('UPDATE sites SET demo_sandbox = TRUE WHERE id = ?', id);
   return await getSite(db, id);
@@ -220,14 +245,18 @@ export async function updateSite(db, id, input, user) {
     await tx.run('UPDATE sites SET id = id WHERE id = ?', id);
     await requireRole(tx, id, user, ['owner']);
     const keys = Object.keys(input);
-    if (!keys.length || keys.some(key => !['jurisdiction', 'time_zone', 'day_cutoff_time'].includes(key))) {
-      fail(400, 'Only jurisdiction, time_zone and day_cutoff_time may be updated.', 'VALIDATION_ERROR');
+    if (!keys.length || keys.some(key => !['jurisdiction', 'time_zone', 'day_cutoff_time', 'content_language'].includes(key))) {
+      fail(400, 'Only jurisdiction, time_zone, day_cutoff_time and content_language may be updated.', 'VALIDATION_ERROR');
     }
     const before = await getSite(tx, id);
-    const jurisdiction = Object.hasOwn(input, 'jurisdiction') ? siteJurisdiction(input.jurisdiction) : before.jurisdiction;
+    const jurisdiction = Object.hasOwn(input, 'jurisdiction')
+      ? await siteJurisdiction(tx, input.jurisdiction)
+      : before.jurisdiction_declared ? before.jurisdiction : null;
     const timeZone = Object.hasOwn(input, 'time_zone') ? siteTimeZone(input.time_zone) : before.time_zone;
     const cutoff = Object.hasOwn(input, 'day_cutoff_time') ? siteDayCutoff(input.day_cutoff_time) : before.day_cutoff_time;
-    await tx.run('UPDATE sites SET jurisdiction = ?, time_zone = ?, day_cutoff_time = ? WHERE id = ?', jurisdiction, timeZone, cutoff, id);
+    const contentLanguage = Object.hasOwn(input, 'content_language') ? siteContentLanguage(input.content_language) : before.content_language;
+    await tx.run(`UPDATE sites SET jurisdiction_code = ?, time_zone = ?, day_cutoff_time = ?, content_language = ? WHERE id = ?`,
+      jurisdiction, timeZone, cutoff, contentLanguage, id);
     const after = await getSite(tx, id);
     await appendAuditEvent(tx, {
       entityType: 'site', action: 'update', before, after, actor: user.id,

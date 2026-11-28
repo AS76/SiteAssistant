@@ -37,6 +37,7 @@ function dateUi(language) {
     ['const canAttachDiary =', 'const canTransitionTask ='],
     ['function coreSelect(', 'const coreDetailButton'],
     ['function renderHse()', 'function showHseDelete('],
+    ['function siteJurisdictionLabel(', 'function showSettingsForm('],
     ['function showSiteForm()', 'function taskResponsibleFields('],
     ['function taskResponsibleFields()', 'function wireTaskResponsibles('],
     ['async function showTaskForm()', 'async function showDetail('],

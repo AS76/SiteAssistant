@@ -58,7 +58,7 @@ import { createInspection, listInspections, getInspection } from './hse-inspecti
 import { importRequest, MAX_IMPORT_BYTES, importDeviationWorkbook, listImportMappings, saveImportMapping, deleteImportMapping } from './planning-import.mjs';
 import { importTemplate } from './import-template.mjs';
 import {
-  RepositoryError, listSites, createSiteForUser, getSite, updateSite, updateSiteAssistant, updateTaskWbs, listTasks, countTasks, getTask,
+  RepositoryError, UnsupportedJurisdictionError, listSites, listJurisdictions, createSiteForUser, getSite, updateSite, updateSiteAssistant, updateTaskWbs, listTasks, countTasks, getTask,
   transitionTask, acceptTask, listDiary, countDiary, createDiary, updateDiary, listDiaryVersions, requireRole, WRITE_ROLES, listMembers, setMember, listAssignable,
   createAttachment, listAttachments, getAttachment, deleteAttachment, MAX_ATTACHMENT_BYTES,
 } from './repository.mjs';
@@ -988,6 +988,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         response.end();
         return;
       }
+      if (path === '/api/jurisdictions' && method === 'GET') return json(response, 200, await listJurisdictions(db));
       if (path === '/api/sites' && method === 'GET') return json(response, 200, await listSites(db, user));
       if (path === '/api/sites' && method === 'POST') {
         return json(response, 201, await createSiteForUser(db, await readJson(request), user, { demoSandbox }));
@@ -1101,6 +1102,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       if (error instanceof RepositoryError) {
         if (error.retryAfter) response.setHeader('Retry-After', String(error.retryAfter));
         json(response, error.status, { error: error.message, code: error.code,
+          ...(error instanceof UnsupportedJurisdictionError ? { message: error.message } : {}),
           ...(path === '/api/auth/login' && error.retryAfter ? { retry_after: error.retryAfter } : {}),
         });
       } else {

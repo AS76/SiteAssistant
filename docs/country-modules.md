@@ -8,6 +8,21 @@ An Italian site and a British site must use the same flows for diary, HSE, plann
 
 ## 2. Model
 
+The `jurisdictions` catalogue stores a stable `code`, a `country_code`, an optional `territory_code` and labels in Italian (`label_it`) and English (`label_en`). Migration 058 seeds the following entries.
+
+| Code | Country | Territory | Italian label | English label |
+| --- | --- | --- | --- | --- |
+| `IT` | `IT` | — | Italia | Italy |
+| `UK` | `UK` | — | Regno Unito · territorio da confermare | United Kingdom · territory to confirm |
+| `UK-GB` | `UK` | `GB` | Gran Bretagna | Great Britain |
+| `UK-NI` | `UK` | `NI` | Irlanda del Nord | Northern Ireland |
+
+`UK` leaves the territory unassigned. The site retains that code until an explicit choice of `UK-GB` or `UK-NI` records the territory on the basis of evidence or approval. The site API accepts exact catalogue codes and explicitly rejects unsupported values with HTTP 400, without aliasing or inference from language.
+
+`sites.jurisdiction_code` is a nullable reference to the catalogue. `sites.content_language` stores the site's declared content language (`it`, `en`, or null for “not declared”). These are additive columns alongside the historical `sites.jurisdiction`. The interface language selects the labels displayed to the user. The operational jurisdiction, site content language and time zone are configured independently of that preference.
+
+The broader country-module proposal covers the following data and configuration.
+
 | Recorded data | Declarative configuration |
 | --- | --- |
 | Site, country, optional territory, time zone, cutoff and source of the declaration | Versioned register of supported modules and territories, suggested values and generic validation rules |
@@ -17,7 +32,7 @@ An Italian site and a British site must use the same flows for diary, HSE, plann
 
 Every module has a stable ID, an immutable revision and a validity interval with the start included and the end excluded. The same applies to assignments, appointments and site configurations that take effect over time. Use logical archiving and preserve historical and original references without ordinary physical deletion. The published document keeps the revision of the module and of the model, the rules applied, the language and the references to the sources. A future change applies from its effective date and preserves the reproducibility of earlier editions.
 
-Country, territory, presentation locale, text language and time zone are distinct attributes. IT and UK remain existing application codes. The documentary rule is resolved through site, territory and reference date. The language is declared at entry or import, with tags such as `it` and `en` and the option of more specific tags for content, according to the catalogue. A pre-filled choice requires confirmation. The links to the [diary](evidentiary-diary.md), [people and companies](people-and-companies.md) and [places and assets](places-and-assets.md) use UUIDs, validity and the site perimeter.
+The proposed documentary rules resolve through site, territory and reference date. The proposal envisages declaring the language of individual documents at entry or import, including more specific tags where the catalogue supports them. A pre-filled choice requires confirmation. The links to the [diary](evidentiary-diary.md), [people and companies](people-and-companies.md) and [places and assets](places-and-assets.md) use UUIDs, validity and the site perimeter.
 
 ## 3. Localised content
 
@@ -46,9 +61,9 @@ The register must allow the addition of a country code and territories, locale, 
 
 ## 6. Migration
 
-1. Inventory data and sources in read-only mode. Keep the existing jurisdiction value and distinguish documented assignment, historical default and uncertain provenance. Even an IT value may derive from the default. Treat the country as to be confirmed when there is no evidence. For UK, also detect the missing territories.
-2. Record provenance and human approval for country, territory, language and mappings. A record without a language remains "not declared" until reconciled. Preserve texts, originals, nulls, timestamps, units, any missing currency and snapshots. The existing operational time zone remains applied until a change is confirmed with an effective date.
-3. Allow historical consultation and export with gap indicators. Block the publication of new documents that require declared data. Offer a preview of the reconciliations and an idempotent application with revisions and traceability. The rollback disables the use of the new assignments or applies a compensating correction, preserving history and originals. Migration and operational activation are distinct steps.
+1. Migration 058 creates and seeds the catalogue and adds the two nullable site columns in SQLite and PostgreSQL. Existing rows keep their historical `jurisdiction`, time zone and cutoff, with both new columns initially null. Diary records are untouched.
+2. When `jurisdiction_code` is null, the API exposes the historical value as `jurisdiction` with `jurisdiction_declared: false`. This includes `IT` values originating from the historical default. A historical `UK` still has its territory to confirm. A null `content_language` is displayed as “Not declared” in the English site settings.
+3. The new-site form requires an explicit jurisdiction choice. An API create request that omits jurisdiction leaves the declaration empty and exposes the historical `IT` default. A site owner can declare the jurisdiction in site settings. The update is audited and writes the chosen code to `jurisdiction_code`, preserving the historical column.
 
 ## 7. Acceptance criteria and negative tests
 
