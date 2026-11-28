@@ -1,6 +1,6 @@
 import { isDemoSandbox } from './demo-sandbox.mjs';
 import { HSE_READ_ROLES } from '../app/hse-permissions.mjs';
-import { messages, taskReconciliationErrorKeys, toolReconciliationErrorKeys } from '../app/i18n.mjs';
+import { messages, deviationRegistryErrorKeys, taskReconciliationErrorKeys, toolReconciliationErrorKeys } from '../app/i18n.mjs';
 import { requireModule, listModuleAccess, saveModuleAccess } from './module-access.mjs';
 import { createServer as createHttpServer } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -30,6 +30,7 @@ import {
 } from './deviations.mjs';
 import { evidenceExport } from './evidence-export.mjs';
 import { deviationReconciliation } from './deviation-reconciliation.mjs';
+import { deviationRegistryReconciliation, searchDeviationRegistryTargets, withDeviationRegistryHistory } from './deviation-registry.mjs';
 import { listCostImpacts, getCostImpact, listImpactsForDeviation, createCostImpact, transitionCostImpact } from './cost-impacts.mjs';
 import {
   listPurchaseOrders, getPurchaseOrder, createPurchaseOrder, updatePurchaseOrder, transitionPurchaseOrder,
@@ -84,7 +85,12 @@ async function paginatedJson(response, url, db, list, count, filters, user) {
 const activatePath = '/api/auth/activate';
 const invitationsPath = '/api/admin/invitations';
 const registryPath = /^\/api\/sites\/([^/]+)\/(people|companies|teams|affiliations|company-roles|team-memberships|account-links|authority-roles|authority-delegations|authority-snapshots)(?:\/([^/]+)(?:\/(history|archive|close|revoke|replace-lead))?)?$/;
-const reconciliationPath = /^\/api\/sites\/([^/]+)\/people-reconciliation\/(tools|tasks)\/(previews|adoption|batches|candidates)(?:\/([^/]+)(?:\/(apply|rollback))?)?$/;
+const reconciliationPath = /^\/api\/sites\/([^/]+)\/people-reconciliation\/(tools|tasks|deviations)\/(previews|adoption|batches|candidates)(?:\/([^/]+)(?:\/(apply|rollback))?)?$/;
+const reconciliations = {
+  tools: { batch: toolCompanyReconciliation },
+  tasks: { batch: taskAssignmentReconciliation, search: searchTaskAssignmentTargets, errors: taskReconciliationErrorKeys },
+  deviations: { batch: deviationRegistryReconciliation, search: searchDeviationRegistryTargets, errors: deviationRegistryErrorKeys },
+};
 const reconciliationHttpErrorKeys = {
   ...toolReconciliationErrorKeys,
   AUTH_REQUIRED: 'authRequired', UNAUTHENTICATED: 'authRequired', PASSWORD_CHANGE_REQUIRED: 'passwordChangeNotice',
@@ -261,8 +267,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
     const errorBody = (error, code) => {
       if (!reconciliationRoute) return { error, code };
       const language = ['it', 'en'].includes(user?.language) ? user.language : languageFromRequest(request, url);
-      const taskKey = reconciliationRoute[2] === 'tasks' ? taskReconciliationErrorKeys[code] : undefined;
-      const key = taskKey ?? reconciliationHttpErrorKeys[code] ?? 'apiError';
+      const key = reconciliations[reconciliationRoute[2]].errors?.[code] ?? reconciliationHttpErrorKeys[code] ?? 'apiError';
       return { error, code, message: messages[language][key] };
     };
     try {
@@ -275,6 +280,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       const registryRoute = registryPath.exec(path);
       reconciliationRoute = reconciliationPath.exec(path);
       const taskAssignmentDetail = /^\/api\/tasks\/[^/]+$/.test(path) && url.searchParams.get('include') === 'assignment_history';
+      const deviationRegistryDetail = /^\/api\/deviations\/[^/]+$/.test(path) && url.searchParams.get('include') === 'registry_history';
       const method = request.method;
       const ip = clientIp(request);
       if (!path.startsWith('/api/') && privacyResponse(request, response, url, privacyConfig)) return;
@@ -307,7 +313,7 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
         try { user = await authenticate(db, request.headers.cookie, authContext); }
         catch (error) {
           if (!(error instanceof RepositoryError) || error.status !== 401) throw error;
-          if (authBypassEmail && !registryRoute && !reconciliationRoute && !taskAssignmentDetail
+          if (authBypassEmail && !registryRoute && !reconciliationRoute && !taskAssignmentDetail && !deviationRegistryDetail
               && !authBypassExcluded.has(path) && path !== invitationsPath && !revoke) {
             user = await db.get(`SELECT id, email, name, password_change_required FROM users
               WHERE lower(email) = ? AND disabled_at IS NULL`, authBypassEmail);
@@ -532,10 +538,10 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       }
       if (reconciliationRoute) {
         const [, siteId, module, resource, batchId, action] = reconciliationRoute;
-        const batch = module === 'tasks' ? taskAssignmentReconciliation : toolCompanyReconciliation;
-        if (module === 'tasks' && resource === 'candidates' && method === 'GET' && !batchId) {
+        const { batch, search } = reconciliations[module];
+        if (search && resource === 'candidates' && method === 'GET' && !batchId) {
           const criteria = { field: url.searchParams.get('field'), q: url.searchParams.get('q') };
-          return json(response, 200, await searchTaskAssignmentTargets(db, siteId, criteria, user));
+          return json(response, 200, await search(db, siteId, criteria, user));
         }
         if (resource === 'batches' && method === 'GET' && !action) {
           const result = batchId ? await batch.read(db, siteId, batchId, user)
@@ -1021,9 +1027,11 @@ export function createServer(db, { limiter = createLoginLimiter(), production = 
       const deviation = /^\/api\/deviations\/([^/]+)$/.exec(path);
       if (deviation && method === 'GET') {
         const record = await getDeviation(db, deviation[1]);
-        await requireRole(db, record.site_id, user);
+        const role = await requireRole(db, record.site_id, user);
         await requireModule(db, record.site_id, user, 'deviations');
-        return json(response, 200, { ...record, impacts: await listImpactsForDeviation(db, record, user) });
+        const detail = deviationRegistryDetail
+          ? await withDeviationRegistryHistory(db, record, user, role) : record;
+        return json(response, 200, { ...detail, impacts: await listImpactsForDeviation(db, record, user) });
       }
       if (path === '/api/attachments' && method === 'POST') {
         const input = await readJson(request, { maxBytes: 4 * Math.ceil(MAX_ATTACHMENT_BYTES / 3) + 65536 });

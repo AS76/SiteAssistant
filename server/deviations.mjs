@@ -138,8 +138,25 @@ async function appendDeviationEvent(tx, { id, at, actor, source, from, to, actio
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, at, actor?.name ?? 'import', actor?.id ?? null, source, from, to ?? 'unknown', action, note);
 }
 
+export async function recordDeviationRegistryEvent(tx, { recordId, field }, actor, at, action) {
+  const row = await deviationRow(tx, recordId);
+  // The registry decision and snapshot are visible through the gated reconciliation API.
+  await appendAuditEvent(tx, { entityType: 'deviation', action: 'update', before: row, after: row,
+    actor: actor.id, at, note: { action, field } });
+  const status = row.status ?? 'unknown';
+  await appendDeviationEvent(tx, { id: row.id, at, actor, source: 'internal', from: status, to: status, action });
+}
+
 export async function recordDeviationImportEvent(tx, before, after, at) {
-  if (!before || (before.status === after.status && before.source_status === after.source_status)) return;
+  if (!before) return;
+  // Keep identical reimports stable and invalidate old previews if a label changes and later returns.
+  for (const field of ['author', 'assigned_to']) {
+    if (before[field] === after[field]) continue;
+    await tx.run(`INSERT INTO deviation_registry_source_revisions (site_id, deviation_id, field, revision)
+      VALUES (?, ?, ?, 1) ON CONFLICT (site_id, deviation_id, field) DO UPDATE
+      SET revision = deviation_registry_source_revisions.revision + 1`, before.site_id, before.id, field);
+  }
+  if (before.status === after.status && before.source_status === after.source_status) return;
   await appendDeviationEvent(tx, { id: after.id, at, source: 'import', from: before.status, to: after.status,
     action: before.status === 'closed' && after.status !== 'closed' ? 'reopen' : 'import',
     note: before.source_status !== after.source_status ? JSON.stringify({ from: before.source_status, to: after.source_status }) : null });

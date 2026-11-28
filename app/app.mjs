@@ -1,7 +1,7 @@
 import { formatDisplayNumber, formatDateInput, parseDateInput, initialView, todayActions, todayBlockedTaskMeta, recentActions, defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, groupDeviationRows, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_MANUAL_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
-import { messages, taskReconciliationErrorKeys, toolReconciliationErrorKeys } from './i18n.mjs';
+import { messages, deviationRegistryErrorKeys, taskReconciliationErrorKeys, toolReconciliationErrorKeys } from './i18n.mjs';
 import { mountPlaces } from './places-ui.mjs';
 import { mountRegistry } from './registry-ui.mjs';
 import { resolveSessionLanguage } from './language.mjs';
@@ -196,6 +196,11 @@ const taskStatusLabel = status => t(status === 'closed' ? 'notebookClosed' : sta
 const formalAcceptanceLabel = task => t(taskFormalAcceptance(task) === 'accepted' ? 'evidenceAccepted' : 'evidenceAcceptanceNotRecorded');
 const priorityBadge = priority => priority !== 'normal' ? `<span class="badge ${esc(priority)}">${esc(t(priority))}</span>` : '';
 const button = (key, command, extra = '', css = '') => `<button type="button" class="${css}" data-command="${command}" ${extra}>${t(key)}</button>`;
+const assignmentKind = kind => t({ person: 'taskAssignmentPerson', team: 'taskAssignmentTeam', company: 'company' }[kind]);
+const assignmentName = target => `${esc(target.name)} · ${esc(assignmentKind(target.kind))}`;
+const assignmentOptions = records => `<option value="">${t('responsibleChoose')}</option>` + records.map((target, index) =>
+  `<option value="${index}">${assignmentName(target)} · ${esc(target.id)}</option>`).join('');
+const assignmentAction = (recordId, field) => `data-id="${esc(recordId)}" data-field="${esc(field)}"`;
 function toast(message) {
   clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false;
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
@@ -3514,7 +3519,8 @@ const deviationSourceLabels = new Map([
   ['internal', 'evidenceSourceInternal'], ['other', 'evidenceSourceOther'],
 ]);
 const attributionLabels = { not_determined: 'evidenceUndetermined', agreed: 'evidenceAgreed', disputed: 'evidenceDisputed' };
-const deviationActions = { owner: 'evidenceOwner', attribution: 'evidenceAttribution', import: 'evidenceImported', reopen: 'evidenceReopened' };
+const deviationActions = { owner: 'evidenceOwner', attribution: 'evidenceAttribution', import: 'evidenceImported',
+  reopen: 'evidenceReopened', registry_link: 'deviationRegistryLinked', registry_rollback: 'deviationRegistryRolledBack' };
 function absenceText(row) {
   if (typeof row.absence === 'boolean') {
     return t(row.absence ? 'evidenceAbsent' : 'evidencePresent')
@@ -3563,6 +3569,164 @@ function deviationGovernance(row, events, members) {
     : coreFields({ ...row, attribution }, [['causingCompany', 'evidenceCausing'], ['resolvingCompany', 'evidenceResolving'], ['attribution', 'status']])}</section>
     ${deviationHistory(events)}${attachmentSection('deviation', row.id)}`;
 }
+const deviationRegistryFields = {
+  author: 'coreAuthor', assigned_to: 'coreAssignedTo', causing_company: 'evidenceCausing', resolving_company: 'evidenceResolving',
+};
+const canReadDeviationRegistry = () => ['owner', 'editor', 'verifier', 'viewer'].includes(role())
+  && moduleVisible('deviations') && moduleVisible('registry');
+const canEditDeviationRegistry = () => canReadDeviationRegistry() && ['owner', 'editor'].includes(role());
+const deviationRegistryError = error => t(deviationRegistryErrorKeys[error.code] ?? '') || errorMessage(error);
+
+function deviationRegistrySection(row) {
+  if (!canReadDeviationRegistry()) return '';
+  return `<section><h3>${t('deviationRegistryTitle')}</h3>
+    <div class="detail-actions">${Object.entries(deviationRegistryFields).map(([name, label]) =>
+      button(label, 'deviation-registry', assignmentAction(row.id, name))).join('')}</div>
+    ${row.registryHistory?.length ? `<ul>${row.registryHistory.map(link => `<li><strong>${t(deviationRegistryFields[link.field])}</strong>
+      · ${assignmentName(link.snapshot)} · ${esc(timeLabel(link.valid_from))}
+      ${link.valid_to ? ' → ' + esc(timeLabel(link.valid_to)) : ''} ·
+      ${t(link.archived_at ? 'taskAssignmentArchived' : link.current ? 'taskAssignmentCurrent' : 'history')}
+      <br>${t('taskAssignmentOriginal')} · <span class="prewrap">${coreValue(link.original_label)}</span></li>`).join('')}</ul>` : ''}</section>`;
+}
+
+async function showDeviationRegistry(id, fieldName) {
+  if (!canReadDeviationRegistry()) return toast(t('forbidden'));
+  if (offline || !navigator.onLine) return toast(t('coreOnlineOnly'));
+  const selected = siteId, title = t(deviationRegistryFields[fieldName]);
+  showModal(title, `<p role="status">${t('loading')}</p>`);
+  const version = modalVersion;
+  const api = freshApi.deviationRegistry;
+  try {
+    const occurrence = { recordId: id, field: fieldName };
+    const [preview, batches] = await Promise.all([api.preview(selected, [occurrence]), api.list(selected, id)]);
+    if (version !== modalVersion || selected !== siteId || !$('#modal').open) return;
+    const { source, candidates, revision } = preview.items[0];
+    const provenance = source.provenance;
+    const sourceLabel = provenance.kind === 'attribution'
+      ? t(attributionLabels[provenance.attributionState])
+      : [t(deviationSourceLabels.get(provenance.sourceSystem) ?? 'evidenceUntracked'),
+        provenance.exportDate && dateLabel(provenance.exportDate)].filter(Boolean).join(' · ');
+    const mayLink = source.linkable;
+    const attrs = assignmentAction(id, fieldName);
+    const actions = !canEditDeviationRegistry() ? '' : preview.adoption.enabled ? `
+      ${mayLink ? `<form id="deviation-registry-search" ${attrs}>${toolCompanyFormError}
+        ${field('taskAssignmentSearch', 'q', source.original.slice(0, 200), { max: 200 })}
+        <button type="submit">${t('taskAssignmentSearch')}</button>
+        <p role="status">${esc(t('taskAssignmentSuggestions').replace('{count}', String(candidates.total)))}</p>
+      </form>` : `<p>${t('deviationRegistryMustResolve')}</p>`}
+      <form id="deviation-registry-decide" ${attrs}>${toolCompanyFormError}<div class="form-grid">
+        ${field('toolCompanyDecision', 'decision', '', { required: true, options:
+          `<option value="">${t('responsibleChoose')}</option>${mayLink ? `<option value="link">${t('taskAssignmentChoose')}</option>` : ''}
+          <option value="unresolved">${t('toolCompanyUnresolved')}</option>` })}
+        ${mayLink ? `<div hidden data-registry-target>${field('taskAssignmentChoose', 'target', '', {
+          options: assignmentOptions(candidates.records),
+        })}</div>` : ''}
+        ${field('deviationRegistryReason', 'reason', '', { type: 'textarea', required: true, full: true, max: 2000 })}
+      </div>${formActions('toolBatchDecide')}</form>` : `<p>${t('taskAssignmentDisabled')}</p>
+      ${role() === 'owner' ? `<form id="deviation-registry-activate" ${attrs}>${toolCompanyFormError}
+        <button type="submit">${t('deviationRegistryActivate')}</button></form>` : ''}`;
+    showModal(title, `<h3>${esc(source.title)}</h3>
+      <p>${t('taskAssignmentOriginal')} · <span class="prewrap">${coreValue(source.original)}</span><br>${esc(sourceLabel)}</p>
+      ${actions}${batches.length ? `<h3>${t('toolBatchHistory')}</h3><ul>${batches.map(batch =>
+        `<li>${esc(toolBatchStatus(batch.status))} · ${esc(timeLabel(batch.decidedAt))}
+        ${button('coreDetails', 'deviation-registry-batch', `${attrs} data-batch-id="${esc(batch.id)}"`, 'small')}</li>`).join('')}</ul>` : ''}
+      ${button('back', 'core-detail', `data-module="deviations" data-id="${esc(id)}"`)}`);
+    const form = $('#deviation-registry-decide');
+    if (!form) return;
+    form.records = candidates.records;
+    form.occurrence = { ...occurrence, revision };
+    form.batchId = crypto.randomUUID();
+    if (mayLink) form.elements.decision.addEventListener('change', () => {
+      const linking = form.elements.decision.value === 'link';
+      form.querySelector('[data-registry-target]').hidden = !linking;
+      form.elements.target.required = linking;
+    });
+  } catch (error) {
+    if (version === modalVersion && $('#modal').open) showModal(title, `<p role="alert">${esc(deviationRegistryError(error))}</p>`);
+  }
+}
+
+async function showDeviationRegistryBatch(id, fieldName, batchId) {
+  if (!canReadDeviationRegistry() || offline) return;
+  const selected = siteId;
+  showModal(t('toolBatchHistory'), `<p role="status">${t('loading')}</p>`);
+  const version = modalVersion;
+  try {
+    const batch = await freshApi.deviationRegistry.read(selected, batchId);
+    if (version !== modalVersion || selected !== siteId || !$('#modal').open) return;
+    const attrs = `${assignmentAction(id, fieldName)} data-batch-id="${esc(batchId)}"`;
+    const statuses = { applied: 'toolBatchApplied', matched: 'deviationRegistryAlreadyLinked', unresolved: 'toolCompanyUnresolved',
+      stale: 'deviationRegistryStale', conflicting: 'toolCompanyConflict', compensated: 'toolBatchRolledBack' };
+    showModal(t('toolBatchHistory'), `<p>${esc(toolBatchStatus(batch.status))} · ${esc(timeLabel(batch.decidedAt))}</p>
+      ${batch.rollback ? `<p>${t('reason')} · ${esc(batch.rollback.reason)}</p>` : ''}<ul>${batch.items.map(item => {
+        const match = result => result.recordId === item.recordId && result.field === item.field;
+        const result = batch.rollback?.items.find(match) ?? batch.apply?.items.find(match);
+        const label = result && (deviationRegistryErrorKeys[result.code] ?? statuses[result.status]);
+        return `<li><strong>${esc(item.source.title)} · ${t(deviationRegistryFields[item.field])}</strong>
+          <br>${t('taskAssignmentOriginal')} · <span class="prewrap">${coreValue(item.source.original)}</span>
+          <br>${item.target ? assignmentName(item.target) : t('toolCompanyUnresolved')}
+          <br>${esc(item.decision.reason)}${label ? '<br>' + esc(t(label)) : ''}</li>`;
+      }).join('')}</ul>
+      ${batch.status === 'decided' && canEditDeviationRegistry() ?
+        `<form id="deviation-registry-apply" ${attrs}>${toolCompanyFormError}${formActions('toolBatchApply')}</form>` : ''}
+      ${batch.status === 'applied' && role() === 'owner' ? `<form id="deviation-registry-rollback" ${attrs}>${toolCompanyFormError}
+        <p>${t('taskAssignmentRollbackHint')}</p>${field('reason', 'reason', '', { required: true, max: 2000 })}
+        ${formActions('toolBatchRollback')}</form>` : ''}
+      ${button('back', 'deviation-registry', assignmentAction(id, fieldName))}`);
+  } catch (error) {
+    if (version === modalVersion && $('#modal').open) showModal(t('toolBatchHistory'), `<p role="alert">${esc(deviationRegistryError(error))}</p>`);
+  }
+}
+
+async function submitDeviationRegistry(form) {
+  const submit = form.querySelector('[type=submit]');
+  if (submit.disabled) return;
+  const selected = siteId, { id, field: fieldName, batchId } = form.dataset;
+  const current = () => siteId === selected && form.isConnected && $('#modal').open;
+  const data = Object.fromEntries(new FormData(form));
+  const api = freshApi.deviationRegistry;
+  submit.disabled = true;
+  form.querySelector('.form-error').hidden = true;
+  try {
+    if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
+    if (!canEditDeviationRegistry()) throw new Error('forbidden');
+    if (form.id === 'deviation-registry-search') {
+      const { total, records } = await api.candidates(selected, fieldName, data.q);
+      if (current()) {
+        const decision = $('#deviation-registry-decide');
+        decision.records = records;
+        decision.elements.target.innerHTML = assignmentOptions(records);
+        form.querySelector('[role=status]').textContent = t('taskAssignmentSearchResult')
+          .replace('{shown}', String(records.length)).replace('{count}', String(total));
+      }
+      return;
+    }
+    if (form.id === 'deviation-registry-activate') {
+      await api.activate(selected);
+      if (current()) await showDeviationRegistry(id, fieldName);
+      return;
+    }
+    if (form.id === 'deviation-registry-decide') {
+      const decision = { action: data.decision, reason: data.reason };
+      if (decision.action === 'link') {
+        const target = form.records[data.target];
+        if (!target) throw new Error('taskAssignmentChoose');
+        Object.assign(decision, { kind: target.kind, targetId: target.id, targetRevision: target.revision });
+      }
+      const batch = await api.decide(selected, { batchId: form.batchId, decisions: [{ ...form.occurrence, decision }] });
+      if (current()) await showDeviationRegistryBatch(id, fieldName, batch.id);
+      return;
+    }
+    if (form.id === 'deviation-registry-apply') await api.apply(selected, batchId);
+    if (form.id === 'deviation-registry-rollback') await api.rollback(selected, batchId, data.reason);
+    if (current()) await showDeviationRegistryBatch(id, fieldName, batchId);
+  } catch (error) {
+    if (current()) formError(form, error, deviationRegistryError);
+  } finally {
+    submit.disabled = false;
+  }
+}
+
 function showDeviationImport() {
   if (!['owner', 'demo_user'].includes(role()) || offline) return;
   const options = [...deviationSourceLabels].map(([value, label]) => `<option value="${value}">${esc(t(label))}</option>`).join('');
@@ -3584,7 +3748,8 @@ async function showCoreDetail(module, id) {
   try {
     if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
     const [row, events, files, members] = await Promise.all([
-      ({ deviations: freshApi.getDeviation, progress: freshApi.getProgress, impacts: freshApi.getImpact }[module])(id),
+      module === 'deviations' ? freshApi.getDeviation(id, { registryHistory: canReadDeviationRegistry() })
+        : ({ progress: freshApi.getProgress, impacts: freshApi.getImpact }[module])(id),
       module === 'deviations' ? freshApi.listDeviationEvents(id) : [],
       module === 'deviations' ? freshApi.listAttachments({ site_id: selected, entity_type: 'deviation', entity_id: id }) : [],
       module === 'deviations' && deviationWrite() ? freshApi.listAssignable(selected, 'deviation') : [],
@@ -3593,7 +3758,7 @@ async function showCoreDetail(module, id) {
     if (row.siteId !== selected) throw new Error('forbidden');
     if (['progress', 'deviations'].includes(module)) {
       const previous = todayResource(module);
-      const { impacts, ...record } = row;
+      const { impacts, registryHistory, ...record } = row;
       const updated = { ...previous.find(item => item.id === row.id), ...record };
       rememberTodayResource(module, [...previous.filter(item => item.id !== row.id), updated]);
     }
@@ -3610,7 +3775,7 @@ async function showCoreDetail(module, id) {
       content = `<div class="detail-tabs" role="tablist">
         <button type="button" role="tab" aria-selected="true" class="selected" data-command="detail-tab" data-panel="data">${t('coreDetails')}</button>
         <button type="button" role="tab" aria-selected="false" data-command="detail-tab" data-panel="refs">${t('coreReferences')}</button>
-      </div><div class="detail-panel" data-detail-panel="data">${details}${deviationGovernance(row, events, members)}</div><div class="detail-panel" data-detail-panel="refs" hidden>${references}${linkedImpacts}</div>`;
+      </div><div class="detail-panel" data-detail-panel="data">${details}${deviationRegistrySection(row)}${deviationGovernance(row, events, members)}</div><div class="detail-panel" data-detail-panel="refs" hidden>${references}${linkedImpacts}</div>`;
     } else if (module === 'progress') {
       const day = value => value ? dateLabel(String(value).slice(0, 10)) : null;
       content = progressValue(row) + progressVerificationWarning(row) + coreFields({ ...row, wbsId: [row.wbsCode, row.wbsDescription].filter(Boolean).join(' · ') || '—',
@@ -4103,13 +4268,8 @@ async function showTaskForm() {
 }
 
 const taskAssignmentFields = { executor: 'assignee', verifier: 'reviewer', company: 'company' };
-const taskAssignmentKind = kind => t({ person: 'taskAssignmentPerson', team: 'taskAssignmentTeam', company: 'company' }[kind]);
 const canReconcileTasks = () => ['owner', 'editor'].includes(role()) && moduleVisible('tasks') && moduleVisible('registry');
 const taskAssignmentError = error => t(taskReconciliationErrorKeys[error.code] ?? '') || errorMessage(error);
-const assignmentName = target => `${esc(target.name)} · ${esc(taskAssignmentKind(target.kind))}`;
-const assignmentOptions = records => `<option value="">${t('responsibleChoose')}</option>` + records.map((target, index) =>
-  `<option value="${index}">${assignmentName(target)} · ${esc(target.id)}</option>`).join('');
-const taskAssignmentAction = (taskId, field) => `data-id="${esc(taskId)}" data-field="${esc(field)}"`;
 
 function taskAssignmentsSection(task) {
   if (offline || !moduleVisible('registry') || task.localOnly) return '';
@@ -4118,7 +4278,7 @@ function taskAssignmentsSection(task) {
   if (!canEdit && !history.length) return '';
   return `<section><h3>${t('taskAssignmentTitle')}</h3>
     ${canEdit ? `<div class="detail-actions">${Object.entries(taskAssignmentFields).map(([fieldName, label]) =>
-      button(label, 'task-assignment', taskAssignmentAction(task.id, fieldName))).join('')}</div>` : ''}
+      button(label, 'task-assignment', assignmentAction(task.id, fieldName))).join('')}</div>` : ''}
     ${history.length ? `<ul>${history.map(link => `<li><strong>${t(taskAssignmentFields[link.field])}</strong> ·
       ${assignmentName(link.snapshot)} · ${esc(timeLabel(link.valid_from))}${link.valid_to ? ' → ' + esc(timeLabel(link.valid_to)) : ''} ·
       ${t(link.archived_at ? 'taskAssignmentArchived' : link.current ? 'taskAssignmentCurrent' : 'history')}
@@ -4140,7 +4300,7 @@ async function showTaskAssignment(taskId, fieldName) {
     if (version !== modalVersion || selected !== siteId || !$('#modal').open) return;
     const { source, candidates, revision } = preview.items[0];
     const account = source.accounts[fieldName];
-    const attrs = taskAssignmentAction(taskId, fieldName);
+    const attrs = assignmentAction(taskId, fieldName);
     const error = '<div class="form-error" role="alert" tabindex="-1" hidden></div>';
     const status = count => esc(t('taskAssignmentSuggestions').replace('{count}', String(count)));
     showModal(title, `<h3>${esc(source.title)}</h3>
@@ -4189,7 +4349,7 @@ async function showTaskAssignmentBatch(taskId, fieldName, batchId) {
   try {
     const batch = await freshApi.taskAssignments.read(selected, batchId);
     if (version !== modalVersion || selected !== siteId || !$('#modal').open) return;
-    const attrs = `${taskAssignmentAction(taskId, fieldName)} data-batch-id="${esc(batchId)}"`;
+    const attrs = `${assignmentAction(taskId, fieldName)} data-batch-id="${esc(batchId)}"`;
     const error = '<div class="form-error" role="alert" tabindex="-1" hidden></div>';
     const statuses = { applied: 'toolBatchApplied', matched: 'toolCompanyAlreadyLinked', unresolved: 'toolCompanyUnresolved',
       stale: 'taskAssignmentStale', conflicting: 'toolCompanyConflict', compensated: 'toolBatchRolledBack' };
@@ -4208,7 +4368,7 @@ async function showTaskAssignmentBatch(taskId, fieldName, batchId) {
       ${batch.status === 'applied' && role() === 'owner' ? `<form id="task-assignment-rollback" ${attrs}>${error}
         <p>${t('taskAssignmentRollbackHint')}</p>${field('reason', 'reason', '', { required: true, max: 2000 })}
         ${formActions('toolBatchRollback')}</form>` : ''}
-      ${button('back', 'task-assignment', taskAssignmentAction(taskId, fieldName))}`);
+      ${button('back', 'task-assignment', assignmentAction(taskId, fieldName))}`);
   } catch (error) {
     if (version === modalVersion && $('#modal').open) showModal(t('toolBatchHistory'), `<p role="alert">${esc(taskAssignmentError(error))}</p>`);
   }
@@ -4647,6 +4807,8 @@ document.addEventListener('click', event => {
     'tool-company-batch': () => showToolCompanyBatch(id, target.dataset.recordId),
     'task-assignment': () => showTaskAssignment(id, target.dataset.field),
     'task-assignment-batch': () => showTaskAssignmentBatch(id, target.dataset.field, target.dataset.batchId),
+    'deviation-registry': () => showDeviationRegistry(id, target.dataset.field),
+    'deviation-registry-batch': () => showDeviationRegistryBatch(id, target.dataset.field, target.dataset.batchId),
     'tool-delete': () => showToolDelete(id),
     'hse-new': () => { hseEditingId = ''; showHseForm(); },
     'hse-edit': () => { hseEditingId = id; showHseForm(); },
@@ -4737,6 +4899,7 @@ document.addEventListener('submit', async event => {
   }
   if (form.id.startsWith('tool-company-')) { event.preventDefault(); await submitToolCompany(form); return; }
   if (form.id.startsWith('task-assignment-')) { event.preventDefault(); await submitTaskAssignment(form); return; }
+  if (form.id.startsWith('deviation-registry-')) { event.preventDefault(); await submitDeviationRegistry(form); return; }
   if (form.id === 'hse-inspection-form') { event.preventDefault(); await submitHseInspection(form); return; }
   if (form.id === 'dashboard-layout-form') { event.preventDefault(); await submitDashboardLayout(form); return; }
   if (form.id === 'ai-form') {

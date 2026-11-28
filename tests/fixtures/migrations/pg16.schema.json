@@ -235,6 +235,62 @@
     "definition": "PRIMARY KEY (deviation_id, entity_type, entity_id)",
     "validated": true
   },
+  "constraint deviation_registry_links.deviation_registry_company_fk": {
+    "definition": "FOREIGN KEY (site_id, company_id) REFERENCES registry_companies(site_id, id)",
+    "validated": true
+  },
+  "constraint deviation_registry_links.deviation_registry_end_check": {
+    "definition": "CHECK ((((valid_to IS NULL) AND (end_action IS NULL)) OR ((valid_to IS NOT NULL) AND (valid_to >= valid_from) AND (end_action IS NOT NULL) AND (end_action = ANY (ARRAY['superseded'::text, 'compensated'::text])))))",
+    "validated": true
+  },
+  "constraint deviation_registry_links.deviation_registry_item_fk": {
+    "definition": "FOREIGN KEY (site_id, module, batch_id, deviation_id, field) REFERENCES reconciliation_items(site_id, module, batch_id, record_id, field)",
+    "validated": true
+  },
+  "constraint deviation_registry_links.deviation_registry_links_pkey": {
+    "definition": "PRIMARY KEY (site_id, deviation_id, field, version)",
+    "validated": true
+  },
+  "constraint deviation_registry_links.deviation_registry_module_check": {
+    "definition": "CHECK ((module = 'deviations'::text))",
+    "validated": true
+  },
+  "constraint deviation_registry_links.deviation_registry_person_fk": {
+    "definition": "FOREIGN KEY (site_id, person_id) REFERENCES registry_people(site_id, id)",
+    "validated": true
+  },
+  "constraint deviation_registry_links.deviation_registry_source_fk": {
+    "definition": "FOREIGN KEY (site_id, deviation_id) REFERENCES deviations(site_id, id)",
+    "validated": true
+  },
+  "constraint deviation_registry_links.deviation_registry_target_check": {
+    "definition": "CHECK ((((field = ANY (ARRAY['author'::text, 'assigned_to'::text])) AND (person_id IS NOT NULL) AND (team_id IS NULL) AND (company_id IS NULL)) OR ((field = 'assigned_to'::text) AND (team_id IS NOT NULL) AND (person_id IS NULL) AND (company_id IS NULL)) OR ((field = ANY (ARRAY['causing_company'::text, 'resolving_company'::text])) AND (company_id IS NOT NULL) AND (person_id IS NULL) AND (team_id IS NULL))))",
+    "validated": true
+  },
+  "constraint deviation_registry_links.deviation_registry_team_fk": {
+    "definition": "FOREIGN KEY (site_id, team_id) REFERENCES registry_teams(site_id, id)",
+    "validated": true
+  },
+  "constraint deviation_registry_links.deviation_registry_version_check": {
+    "definition": "CHECK ((version > 0))",
+    "validated": true
+  },
+  "constraint deviation_registry_source_revisions.deviation_registry_revision_field_check": {
+    "definition": "CHECK ((field = ANY (ARRAY['author'::text, 'assigned_to'::text])))",
+    "validated": true
+  },
+  "constraint deviation_registry_source_revisions.deviation_registry_revision_source_fk": {
+    "definition": "FOREIGN KEY (site_id, deviation_id) REFERENCES deviations(site_id, id) ON DELETE CASCADE",
+    "validated": true
+  },
+  "constraint deviation_registry_source_revisions.deviation_registry_revision_value_check": {
+    "definition": "CHECK ((revision > 0))",
+    "validated": true
+  },
+  "constraint deviation_registry_source_revisions.deviation_registry_source_revisions_pkey": {
+    "definition": "PRIMARY KEY (site_id, deviation_id, field)",
+    "validated": true
+  },
   "constraint deviations.deviations_attribution_state_check": {
     "definition": "CHECK ((attribution_state = ANY (ARRAY['not_determined'::text, 'agreed'::text, 'disputed'::text])))",
     "validated": true
@@ -1660,6 +1716,18 @@
     "definition": "CREATE UNIQUE INDEX deviation_links_pkey ON deviation_links USING btree (deviation_id, entity_type, entity_id)",
     "valid": true
   },
+  "index deviation_registry_current": {
+    "definition": "CREATE UNIQUE INDEX deviation_registry_current ON deviation_registry_links USING btree (site_id, deviation_id, field) WHERE (valid_to IS NULL)",
+    "valid": true
+  },
+  "index deviation_registry_links_pkey": {
+    "definition": "CREATE UNIQUE INDEX deviation_registry_links_pkey ON deviation_registry_links USING btree (site_id, deviation_id, field, version)",
+    "valid": true
+  },
+  "index deviation_registry_source_revisions_pkey": {
+    "definition": "CREATE UNIQUE INDEX deviation_registry_source_revisions_pkey ON deviation_registry_source_revisions USING btree (site_id, deviation_id, field)",
+    "valid": true
+  },
   "index deviations_external_identity": {
     "definition": "CREATE UNIQUE INDEX deviations_external_identity ON deviations USING btree (site_id, source_system, source_id) WHERE (source_id IS NOT NULL)",
     "valid": true
@@ -1670,6 +1738,10 @@
   },
   "index deviations_pkey": {
     "definition": "CREATE UNIQUE INDEX deviations_pkey ON deviations USING btree (id)",
+    "valid": true
+  },
+  "index deviations_site_identity": {
+    "definition": "CREATE UNIQUE INDEX deviations_site_identity ON deviations USING btree (site_id, id)",
     "valid": true
   },
   "index deviations_site_internal_owner": {
@@ -3341,6 +3413,160 @@
       {
         "name": "entity_id",
         "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table deviation_registry_links": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "deviation_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "field",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "team_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "company_id",
+        "type": "uuid",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "original_label",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "snapshot",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_from",
+        "type": "timestamp with time zone",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "valid_to",
+        "type": "timestamp with time zone",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "end_action",
+        "type": "text",
+        "required": false,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "batch_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "module",
+        "type": "text",
+        "required": true,
+        "default_value": "'deviations'::text",
+        "identity": "",
+        "generated": ""
+      }
+    ]
+  },
+  "table deviation_registry_source_revisions": {
+    "definition": null,
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "deviation_id",
+        "type": "uuid",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "field",
+        "type": "text",
+        "required": true,
+        "default_value": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
         "required": true,
         "default_value": null,
         "identity": "",

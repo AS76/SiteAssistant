@@ -335,6 +335,36 @@
       }
     ]
   },
+  "index deviation_registry_current": {
+    "relation": "deviation_registry_links",
+    "sql": "CREATE UNIQUE INDEX deviation_registry_current ON deviation_registry_links(site_id, deviation_id, field) WHERE valid_to IS NULL",
+    "columns": [
+      {
+        "name": "site_id",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": "deviation_id",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": "field",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": null,
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 0
+      }
+    ]
+  },
   "index deviations_external_identity": {
     "relation": "deviations",
     "sql": "CREATE UNIQUE INDEX deviations_external_identity ON deviations(site_id, source_system, source_id) WHERE source_id IS NOT NULL",
@@ -377,6 +407,30 @@
       },
       {
         "name": "deviation_no",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": null,
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 0
+      }
+    ]
+  },
+  "index deviations_site_identity": {
+    "relation": "deviations",
+    "sql": "CREATE UNIQUE INDEX deviations_site_identity ON deviations(site_id, id)",
+    "columns": [
+      {
+        "name": "site_id",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": "id",
         "descending": 0,
         "coll": "BINARY",
         "is_key": 1
@@ -3594,6 +3648,384 @@
           },
           {
             "name": "entity_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": null,
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 0
+          }
+        ]
+      }
+    ]
+  },
+  "table deviation_registry_links": {
+    "relation": "deviation_registry_links",
+    "sql": "CREATE TABLE deviation_registry_links (\n  site_id TEXT NOT NULL,\n  deviation_id TEXT NOT NULL,\n  field TEXT NOT NULL,\n  version INTEGER NOT NULL,\n  person_id TEXT,\n  team_id TEXT,\n  company_id TEXT,\n  original_label TEXT NOT NULL,\n  snapshot TEXT NOT NULL,\n  valid_from TEXT NOT NULL,\n  valid_to TEXT,\n  end_action TEXT,\n  batch_id TEXT NOT NULL,\n  module TEXT NOT NULL DEFAULT 'deviations',\n  CONSTRAINT deviation_registry_links_pkey PRIMARY KEY (site_id, deviation_id, field, version),\n  CONSTRAINT deviation_registry_source_fk FOREIGN KEY (site_id, deviation_id) REFERENCES deviations(site_id, id),\n  CONSTRAINT deviation_registry_person_fk FOREIGN KEY (site_id, person_id) REFERENCES registry_people(site_id, id),\n  CONSTRAINT deviation_registry_team_fk FOREIGN KEY (site_id, team_id) REFERENCES registry_teams(site_id, id),\n  CONSTRAINT deviation_registry_company_fk FOREIGN KEY (site_id, company_id) REFERENCES registry_companies(site_id, id),\n  CONSTRAINT deviation_registry_item_fk FOREIGN KEY (site_id, module, batch_id, deviation_id, field)\n    REFERENCES reconciliation_items(site_id, module, batch_id, record_id, field),\n  CONSTRAINT deviation_registry_module_check CHECK (module = 'deviations'),\n  CONSTRAINT deviation_registry_version_check CHECK (version > 0),\n  CONSTRAINT deviation_registry_target_check CHECK (\n    (field IN ('author', 'assigned_to') AND person_id IS NOT NULL AND team_id IS NULL AND company_id IS NULL)\n    OR (field = 'assigned_to' AND team_id IS NOT NULL AND person_id IS NULL AND company_id IS NULL)\n    OR (field IN ('causing_company', 'resolving_company') AND company_id IS NOT NULL AND person_id IS NULL AND team_id IS NULL)\n  ),\n  CONSTRAINT deviation_registry_end_check CHECK (\n    (valid_to IS NULL AND end_action IS NULL)\n    OR (valid_to IS NOT NULL AND valid_to >= valid_from AND end_action IS NOT NULL AND end_action IN ('superseded', 'compensated'))\n  )\n)",
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "name": "deviation_id",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 2,
+        "hidden": 0
+      },
+      {
+        "name": "field",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 3,
+        "hidden": 0
+      },
+      {
+        "name": "version",
+        "type": "INTEGER",
+        "required": 1,
+        "default_value": null,
+        "pk": 4,
+        "hidden": 0
+      },
+      {
+        "name": "person_id",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "team_id",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "company_id",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "original_label",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "snapshot",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "valid_from",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "valid_to",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "end_action",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "batch_id",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "module",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": "'deviations'",
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [
+      {
+        "id": 0,
+        "seq": 0,
+        "table": "reconciliation_items",
+        "from": "site_id",
+        "to": "site_id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 0,
+        "seq": 1,
+        "table": "reconciliation_items",
+        "from": "module",
+        "to": "module",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 0,
+        "seq": 2,
+        "table": "reconciliation_items",
+        "from": "batch_id",
+        "to": "batch_id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 0,
+        "seq": 3,
+        "table": "reconciliation_items",
+        "from": "deviation_id",
+        "to": "record_id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 0,
+        "seq": 4,
+        "table": "reconciliation_items",
+        "from": "field",
+        "to": "field",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 1,
+        "seq": 0,
+        "table": "registry_companies",
+        "from": "site_id",
+        "to": "site_id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 1,
+        "seq": 1,
+        "table": "registry_companies",
+        "from": "company_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 2,
+        "seq": 0,
+        "table": "registry_teams",
+        "from": "site_id",
+        "to": "site_id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 2,
+        "seq": 1,
+        "table": "registry_teams",
+        "from": "team_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 3,
+        "seq": 0,
+        "table": "registry_people",
+        "from": "site_id",
+        "to": "site_id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 3,
+        "seq": 1,
+        "table": "registry_people",
+        "from": "person_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 4,
+        "seq": 0,
+        "table": "deviations",
+        "from": "site_id",
+        "to": "site_id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 4,
+        "seq": 1,
+        "table": "deviations",
+        "from": "deviation_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      }
+    ],
+    "implicitIndexes": [
+      {
+        "origin": "pk",
+        "columns": [
+          {
+            "name": "site_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "deviation_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "field",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "version",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": null,
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 0
+          }
+        ]
+      }
+    ]
+  },
+  "table deviation_registry_source_revisions": {
+    "relation": "deviation_registry_source_revisions",
+    "sql": "CREATE TABLE deviation_registry_source_revisions (\n  site_id TEXT NOT NULL,\n  deviation_id TEXT NOT NULL,\n  field TEXT NOT NULL,\n  revision INTEGER NOT NULL,\n  CONSTRAINT deviation_registry_source_revisions_pkey PRIMARY KEY (site_id, deviation_id, field),\n  CONSTRAINT deviation_registry_revision_source_fk FOREIGN KEY (site_id, deviation_id) REFERENCES deviations(site_id, id) ON DELETE CASCADE,\n  CONSTRAINT deviation_registry_revision_field_check CHECK (field IN ('author', 'assigned_to')),\n  CONSTRAINT deviation_registry_revision_value_check CHECK (revision > 0)\n)",
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "name": "deviation_id",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 2,
+        "hidden": 0
+      },
+      {
+        "name": "field",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 3,
+        "hidden": 0
+      },
+      {
+        "name": "revision",
+        "type": "INTEGER",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [
+      {
+        "id": 0,
+        "seq": 0,
+        "table": "deviations",
+        "from": "site_id",
+        "to": "site_id",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE",
+        "match": "NONE"
+      },
+      {
+        "id": 0,
+        "seq": 1,
+        "table": "deviations",
+        "from": "deviation_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "CASCADE",
+        "match": "NONE"
+      }
+    ],
+    "implicitIndexes": [
+      {
+        "origin": "pk",
+        "columns": [
+          {
+            "name": "site_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "deviation_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "field",
             "descending": 0,
             "coll": "BINARY",
             "is_key": 1

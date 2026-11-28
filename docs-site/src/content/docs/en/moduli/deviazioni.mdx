@@ -1,11 +1,11 @@
 ---
 title: Deviations
-description: Consult imported deviations, filter them by status and priority and read the detail.
+description: View imported deviations, manage internal attribution and link records from the site registry.
 ---
 
 import Shot from '../../../../components/Shot.astro';
 
-The **Deviations** view shows the deviations of the selected site. They are data **imported from the planning system** and are read-only here: you do not create or edit them in the application. For totals per PLC area and the count by status in a printable table, see the [site report](../avanzamento/#site-report).
+The **Deviations** view shows the official data imported for the selected site. Open a deviation to record its internal owner, attribution and registry links. For totals per PLC area and the count by status, see the [site report](../avanzamento/#site-report).
 
 ## Consulting deviations
 
@@ -55,9 +55,7 @@ At the top of the view, the collapsible **To reconcile** panel gathers the date 
 
 The panel is **read only**: no date is corrected. The two buttons with the count filter the table; a second click removes the filter. The table shows reference, title, official status, days apart and reason, and a click on a row opens the deviation detail. When there is nothing to report, “Timelines aligned” appears.
 
-:::note[Why statuses are not compared]
-Deviations are imported only: they have no internal status and no status history, so the panel compares official dates only. The conflicting statuses check has been retired, and the panel says so in a note: “An imported deviation has no internal history: reconciliation only compares official dates.”
-:::
+The panel compares official dates. The timeline in the detail records import events and internal decisions.
 
 The same checks appear in the [site report](../avanzamento/#site-report), in the **Inconsistent timelines** section.
 
@@ -68,7 +66,7 @@ The detail is split into two tabs:
 - **Data:** reference, status and priority; problem description, author and assignee; PLC area and creation, due, approval and closure dates; actual cost, claimed quantity, labour hours and completed task percentage.
 - **References:** the **linked references** — progress item, task or diary entry.
 
-Switch tabs with a click or with Tab and Enter. The fields are read-only. To change a deviation, change the planning export and repeat the import.
+Switch tabs with a click or with Tab and Enter. To correct an official field, update the planning export and import it again.
 
 :::caution[If the detail does not open]
 - **Record no longer available:** the data changed after loading. Close the detail and reload the view.
@@ -76,11 +74,25 @@ Switch tabs with a click or with Tab and Enter. The fields are read-only. To cha
 - **Offline:** the deviation detail requires a connection, even if the list was already visible.
 :::
 
+## Link a site registry record
+
+Under **Data → Site registry links**, open the field you want to reconcile. The **author** can link to a person. The **assignee** can link to a person or team. The **causing company** and **resolving company** can each link to a company.
+
+1. The owner activates deviation links for the site. The preview shows the original text and either the recorded import source or the internal attribution state, depending on the field.
+2. Select an active record on the same site and enter the reason and the evidence you used to identify it. An identical name is only a suggestion. Choose **Leave unresolved** if the case is ambiguous, the imported identity is unresolved, the field is blank or the attribution is disputed.
+3. Select **Approve decision**, then **Apply batch**. The detail retains the original text and the record’s type, name and revision at approval. Archived records remain visible in history. Search returns active records.
+
+Internal attribution has its own states **Undetermined**, **Agreed** and **Disputed**. Linking a company identifies the registry record the text refers to. Change the attribution state in the **Attribution** form. Registry links grant no site access, operational authority or team membership.
+
+Open a new preview when the source data for the field changes. The previous snapshot remains available in history. The owner can roll back a batch by entering a reason. Rollback disables deviation links for the site and closes intervals still associated with that batch. Manual attribution corrections and later links stay on record.
+
 ## Who can do what
 
 | Action | Role |
 | :-- | :-- |
 | View list, board and detail | Every site member |
-| Create or edit a deviation | No role in the interface: they come from the import |
+| View registry previews, decisions and snapshots | Owners, editors, verifiers and viewers with access to Deviations and Registry |
+| Approve and apply links | Owners and editors with access to both modules |
+| Activate links or roll back a batch | Owners |
 
 For the export format see [Import a planning export](../../amministrazione/import-pianificazione/). For linked claims see [Cost impacts](../impatti-economici/).

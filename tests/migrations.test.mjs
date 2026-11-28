@@ -55,7 +55,7 @@ async function assertMigrations(t, db, driver) {
     t.assert.deepStrictEqual(await db.all(`SELECT * FROM registry_${entity}`), []);
   }
   for (const table of ['reconciliation_adoptions', 'reconciliation_batches', 'reconciliation_items', 'tool_company_links',
-    'task_assignment_links']) {
+    'task_assignment_links', 'deviation_registry_links', 'deviation_registry_source_revisions']) {
     t.assert.deepStrictEqual(await db.all(`SELECT * FROM ${table}`), []);
   }
   const committed = [];
@@ -139,11 +139,11 @@ test('PostgreSQL migrations initialize an empty PGlite schema and repeat without
 });
 
 for (const [driver, open] of [['sqlite', temporarySqlite], ['pg', temporaryPGlite]]) {
-  test(`${driver} 060 and 061 append one migration each and keep existing labels and nulls`, async t => {
+  test(`${driver} 060, 061 and 062 append one migration each and keep existing labels and nulls`, async t => {
     const { db } = await open(t);
-    const site = randomUUID(), tool = randomUUID(), task = randomUUID();
+    const site = randomUUID(), tool = randomUUID(), task = randomUUID(), deviation = randomUUID();
     const at = '2026-01-01T00:00:00.000Z';
-    let toolBefore, taskBefore;
+    let toolBefore, taskBefore, deviationBefore;
     const committed = [];
     const observed = observeMigrations(db, committed, async version => {
       if (version === '059') {
@@ -157,17 +157,27 @@ for (const [driver, open] of [['sqlite', temporarySqlite], ['pg', temporaryPGlit
           VALUES (?, ?, ?, ?, ?, 'todo', ?)`, task, site, 'Synthetic task', 'Original  crew', 'Original reviewer', at);
         taskBefore = await db.get('SELECT * FROM tasks WHERE id = ?', task);
       }
+      if (version === '061') {
+        await db.run(`INSERT INTO deviations (id, site_id, title, author, assigned_to, causing_company, attribution_state, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 'disputed', ?)`,
+        deviation, site, 'Synthetic deviation', 'Original  author', 'Original  crew', 'Original  company', at);
+        deviationBefore = await db.get('SELECT * FROM deviations WHERE id = ?', deviation);
+      }
     });
     t.assert.strictEqual(await migrate(observed, { driver, demoSandbox: false }), versions.length);
     const index = committed.indexOf('059');
     t.assert.ok(index >= 0);
-    t.assert.deepStrictEqual(committed.slice(index + 1), ['060', '061']);
+    t.assert.deepStrictEqual(committed.slice(index + 1), ['060', '061', '062']);
     t.assert.deepStrictEqual({ ...await db.get('SELECT * FROM tools WHERE id = ?', tool) }, { ...toolBefore });
     t.assert.deepStrictEqual({ ...await db.get('SELECT * FROM tasks WHERE id = ?', task) }, { ...taskBefore });
     t.assert.strictEqual(taskBefore.company, null);
+    t.assert.deepStrictEqual({ ...await db.get('SELECT * FROM deviations WHERE id = ?', deviation) }, { ...deviationBefore });
+    t.assert.strictEqual(deviationBefore.resolving_company, null);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM tool_reconciliation_revisions'), []);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM tool_company_links'), []);
     t.assert.deepStrictEqual(await db.all('SELECT * FROM task_assignment_links'), []);
+    t.assert.deepStrictEqual(await db.all('SELECT * FROM deviation_registry_links'), []);
+    t.assert.deepStrictEqual(await db.all('SELECT * FROM deviation_registry_source_revisions'), []);
     t.assert.strictEqual(await migrate(db, { driver, demoSandbox: false }), 0);
   });
 
