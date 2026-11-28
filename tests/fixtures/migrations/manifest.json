@@ -316,5 +316,11 @@
     "file": "059_site_registry.sql",
     "sqlite": "c863dd45728db5fc257707ec8cb820a66e4656500de6098f1e6496ed839f2e38",
     "pg": "1f3f4f868e616565b0abea8a7fc029fb3f03027b925c6225bf7b84c95dac9848"
+  },
+  {
+    "version": "060",
+    "file": "060_tools_company_reconciliation.sql",
+    "sqlite": "2f34f8eb19658a1440a4f279ee54457c16c13f176213b2d3259159fa6e8b349f",
+    "pg": "2f34f8eb19658a1440a4f279ee54457c16c13f176213b2d3259159fa6e8b349f"
   }
 ]

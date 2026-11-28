@@ -24,7 +24,9 @@ Permissions in SiteAssistant are **per site**, not global: the same person can b
 | Record step completion | Yes | Yes | No | No |
 | Create or delete progress types — API only | Yes | No | No | No |
 | Book hours on attendance and progress items | Yes | With Time bookings and Worker names and individual hours access | No | No |
-| Manage the tools register | Yes | Yes | Yes | No |
+| Manage the tools register | Yes | Yes | No | No |
+| Approve and apply tool company links | Yes | Yes | No | No |
+| Activate tool company links or roll back a batch | Yes | No | No | No |
 | Read the HSE register | Yes | Yes | Yes | No |
 | Add, edit or delete HSE events | Yes | Yes | No | No |
 | Set up HSE assets or record an inspection | Yes | Yes | No | No |

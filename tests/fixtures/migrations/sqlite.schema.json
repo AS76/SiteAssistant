@@ -869,6 +869,78 @@
       }
     ]
   },
+  "index reconciliation_applied_occurrence": {
+    "relation": "reconciliation_items",
+    "sql": "CREATE UNIQUE INDEX reconciliation_applied_occurrence ON reconciliation_items(site_id, module, record_id, field, source_revision)\n  WHERE applied_at IS NOT NULL",
+    "columns": [
+      {
+        "name": "site_id",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": "module",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": "record_id",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": "field",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": "source_revision",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": null,
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 0
+      }
+    ]
+  },
+  "index reconciliation_record_history": {
+    "relation": "reconciliation_items",
+    "sql": "CREATE INDEX reconciliation_record_history ON reconciliation_items(site_id, module, record_id)",
+    "columns": [
+      {
+        "name": "site_id",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": "module",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": "record_id",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": null,
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 0
+      }
+    ]
+  },
   "index registry_account_links_open_account": {
     "relation": "registry_account_links",
     "sql": "CREATE UNIQUE INDEX registry_account_links_open_account\n  ON registry_account_links(site_id, account_id) WHERE revoked_at IS NULL",
@@ -1553,6 +1625,30 @@
       }
     ]
   },
+  "index tool_company_links_company": {
+    "relation": "tool_company_links",
+    "sql": "CREATE INDEX tool_company_links_company ON tool_company_links(site_id, company_id)",
+    "columns": [
+      {
+        "name": "site_id",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": "company_id",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": null,
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 0
+      }
+    ]
+  },
   "index tools_site_company": {
     "relation": "tools",
     "sql": "CREATE INDEX tools_site_company ON tools(site_id, company)",
@@ -1565,6 +1661,30 @@
       },
       {
         "name": "company",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": null,
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 0
+      }
+    ]
+  },
+  "index tools_site_identity": {
+    "relation": "tools",
+    "sql": "CREATE UNIQUE INDEX tools_site_identity ON tools(site_id, id)",
+    "columns": [
+      {
+        "name": "site_id",
+        "descending": 0,
+        "coll": "BINARY",
+        "is_key": 1
+      },
+      {
+        "name": "id",
         "descending": 0,
         "coll": "BINARY",
         "is_key": 1
@@ -7516,6 +7636,451 @@
       }
     ]
   },
+  "table reconciliation_adoptions": {
+    "relation": "reconciliation_adoptions",
+    "sql": "CREATE TABLE reconciliation_adoptions (\n  site_id UUID NOT NULL REFERENCES sites(id),\n  module TEXT NOT NULL,\n  enabled BOOLEAN NOT NULL,\n  revision INTEGER NOT NULL,\n  changed_at TIMESTAMPTZ NOT NULL,\n  changed_by UUID NOT NULL REFERENCES users(id),\n  PRIMARY KEY (site_id, module)\n)",
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "name": "module",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 2,
+        "hidden": 0
+      },
+      {
+        "name": "enabled",
+        "type": "BOOLEAN",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "revision",
+        "type": "INTEGER",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "changed_at",
+        "type": "TIMESTAMPTZ",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "changed_by",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [
+      {
+        "id": 0,
+        "seq": 0,
+        "table": "users",
+        "from": "changed_by",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 1,
+        "seq": 0,
+        "table": "sites",
+        "from": "site_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      }
+    ],
+    "implicitIndexes": [
+      {
+        "origin": "pk",
+        "columns": [
+          {
+            "name": "site_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "module",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": null,
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 0
+          }
+        ]
+      }
+    ]
+  },
+  "table reconciliation_batches": {
+    "relation": "reconciliation_batches",
+    "sql": "CREATE TABLE reconciliation_batches (\n  site_id UUID NOT NULL REFERENCES sites(id),\n  module TEXT NOT NULL,\n  id UUID NOT NULL,\n  adoption_revision INTEGER NOT NULL,\n  decision_hash TEXT NOT NULL,\n  decided_at TIMESTAMPTZ NOT NULL,\n  decided_by UUID NOT NULL REFERENCES users(id),\n  applied_at TIMESTAMPTZ,\n  applied_by UUID REFERENCES users(id),\n  apply_result TEXT,\n  rolled_back_at TIMESTAMPTZ,\n  rolled_back_by UUID REFERENCES users(id),\n  rollback_result TEXT,\n  PRIMARY KEY (site_id, module, id)\n)",
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "name": "module",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 2,
+        "hidden": 0
+      },
+      {
+        "name": "id",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 3,
+        "hidden": 0
+      },
+      {
+        "name": "adoption_revision",
+        "type": "INTEGER",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "decision_hash",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "decided_at",
+        "type": "TIMESTAMPTZ",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "decided_by",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "applied_at",
+        "type": "TIMESTAMPTZ",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "applied_by",
+        "type": "UUID",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "apply_result",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "rolled_back_at",
+        "type": "TIMESTAMPTZ",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "rolled_back_by",
+        "type": "UUID",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "rollback_result",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [
+      {
+        "id": 0,
+        "seq": 0,
+        "table": "users",
+        "from": "rolled_back_by",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 1,
+        "seq": 0,
+        "table": "users",
+        "from": "applied_by",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 2,
+        "seq": 0,
+        "table": "users",
+        "from": "decided_by",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 3,
+        "seq": 0,
+        "table": "sites",
+        "from": "site_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      }
+    ],
+    "implicitIndexes": [
+      {
+        "origin": "pk",
+        "columns": [
+          {
+            "name": "site_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "module",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": null,
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 0
+          }
+        ]
+      }
+    ]
+  },
+  "table reconciliation_items": {
+    "relation": "reconciliation_items",
+    "sql": "CREATE TABLE reconciliation_items (\n  site_id UUID NOT NULL,\n  module TEXT NOT NULL,\n  batch_id UUID NOT NULL,\n  record_id UUID NOT NULL,\n  field TEXT NOT NULL,\n  source_revision TEXT NOT NULL,\n  source_snapshot TEXT NOT NULL,\n  decision TEXT NOT NULL,\n  target_snapshot TEXT,\n  applied_at TIMESTAMPTZ,\n  PRIMARY KEY (site_id, module, batch_id, record_id, field),\n  FOREIGN KEY (site_id, module, batch_id) REFERENCES reconciliation_batches(site_id, module, id)\n)",
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "name": "module",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 2,
+        "hidden": 0
+      },
+      {
+        "name": "batch_id",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 3,
+        "hidden": 0
+      },
+      {
+        "name": "record_id",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 4,
+        "hidden": 0
+      },
+      {
+        "name": "field",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 5,
+        "hidden": 0
+      },
+      {
+        "name": "source_revision",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "source_snapshot",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "decision",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "target_snapshot",
+        "type": "TEXT",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "applied_at",
+        "type": "TIMESTAMPTZ",
+        "required": 0,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [
+      {
+        "id": 0,
+        "seq": 0,
+        "table": "reconciliation_batches",
+        "from": "site_id",
+        "to": "site_id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 0,
+        "seq": 1,
+        "table": "reconciliation_batches",
+        "from": "module",
+        "to": "module",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 0,
+        "seq": 2,
+        "table": "reconciliation_batches",
+        "from": "batch_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      }
+    ],
+    "implicitIndexes": [
+      {
+        "origin": "pk",
+        "columns": [
+          {
+            "name": "site_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "module",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "batch_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "record_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "field",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": null,
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 0
+          }
+        ]
+      }
+    ]
+  },
   "table registry_account_links": {
     "relation": "registry_account_links",
     "sql": "CREATE TABLE registry_account_links (\n  id TEXT PRIMARY KEY NOT NULL,\n  site_id TEXT NOT NULL REFERENCES sites(id),\n  person_id TEXT NOT NULL,\n  account_id TEXT NOT NULL REFERENCES users(id),\n  valid_from TEXT NOT NULL,\n  revoked_at TEXT,\n  revision INTEGER NOT NULL DEFAULT 1,\n  created_at TEXT NOT NULL,\n  created_by TEXT NOT NULL REFERENCES users(id),\n  UNIQUE (site_id, id),\n  FOREIGN KEY (site_id, person_id) REFERENCES registry_people(site_id, id)\n)",
@@ -11421,9 +11986,176 @@
       }
     ]
   },
+  "table tool_company_links": {
+    "relation": "tool_company_links",
+    "sql": "CREATE TABLE tool_company_links (\n  site_id UUID NOT NULL,\n  tool_id UUID NOT NULL,\n  company_id UUID NOT NULL,\n  company_label TEXT NOT NULL,\n  relationship TEXT NOT NULL CHECK (relationship IN ('owner', 'custodian', 'supplier')),\n  linked_at TIMESTAMPTZ NOT NULL,\n  batch_id UUID NOT NULL,\n  module TEXT NOT NULL DEFAULT 'tools' CHECK (module = 'tools'),\n  PRIMARY KEY (site_id, tool_id),\n  FOREIGN KEY (site_id, tool_id) REFERENCES tools(site_id, id),\n  FOREIGN KEY (site_id, company_id) REFERENCES registry_companies(site_id, id),\n  FOREIGN KEY (site_id, module, batch_id) REFERENCES reconciliation_batches(site_id, module, id)\n)",
+    "columns": [
+      {
+        "name": "site_id",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 1,
+        "hidden": 0
+      },
+      {
+        "name": "tool_id",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 2,
+        "hidden": 0
+      },
+      {
+        "name": "company_id",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "company_label",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "relationship",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "linked_at",
+        "type": "TIMESTAMPTZ",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "batch_id",
+        "type": "UUID",
+        "required": 1,
+        "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "module",
+        "type": "TEXT",
+        "required": 1,
+        "default_value": "'tools'",
+        "pk": 0,
+        "hidden": 0
+      }
+    ],
+    "foreignKeys": [
+      {
+        "id": 0,
+        "seq": 0,
+        "table": "reconciliation_batches",
+        "from": "site_id",
+        "to": "site_id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 0,
+        "seq": 1,
+        "table": "reconciliation_batches",
+        "from": "module",
+        "to": "module",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 0,
+        "seq": 2,
+        "table": "reconciliation_batches",
+        "from": "batch_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 1,
+        "seq": 0,
+        "table": "registry_companies",
+        "from": "site_id",
+        "to": "site_id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 1,
+        "seq": 1,
+        "table": "registry_companies",
+        "from": "company_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 2,
+        "seq": 0,
+        "table": "tools",
+        "from": "site_id",
+        "to": "site_id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      },
+      {
+        "id": 2,
+        "seq": 1,
+        "table": "tools",
+        "from": "tool_id",
+        "to": "id",
+        "on_update": "NO ACTION",
+        "on_delete": "NO ACTION",
+        "match": "NONE"
+      }
+    ],
+    "implicitIndexes": [
+      {
+        "origin": "pk",
+        "columns": [
+          {
+            "name": "site_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": "tool_id",
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 1
+          },
+          {
+            "name": null,
+            "descending": 0,
+            "coll": "BINARY",
+            "is_key": 0
+          }
+        ]
+      }
+    ]
+  },
   "table tools": {
     "relation": "tools",
-    "sql": "CREATE TABLE tools (\n  id UUID PRIMARY KEY NOT NULL,\n  site_id UUID NOT NULL REFERENCES sites(id),\n  name TEXT NOT NULL,\n  code TEXT,\n  company TEXT,\n  status TEXT NOT NULL CHECK (status IN ('available', 'in_use', 'maintenance', 'retired')),\n  location TEXT,\n  notes TEXT,\n  created_at TIMESTAMPTZ NOT NULL,\n  updated_at TIMESTAMPTZ NOT NULL\n, deleted_at TEXT)",
+    "sql": "CREATE TABLE tools (\n  id UUID PRIMARY KEY NOT NULL,\n  site_id UUID NOT NULL REFERENCES sites(id),\n  name TEXT NOT NULL,\n  code TEXT,\n  company TEXT,\n  status TEXT NOT NULL CHECK (status IN ('available', 'in_use', 'maintenance', 'retired')),\n  location TEXT,\n  notes TEXT,\n  created_at TIMESTAMPTZ NOT NULL,\n  updated_at TIMESTAMPTZ NOT NULL\n, deleted_at TEXT, reconciliation_revision INTEGER NOT NULL DEFAULT 0)",
     "columns": [
       {
         "name": "id",
@@ -11510,6 +12242,14 @@
         "type": "TEXT",
         "required": 0,
         "default_value": null,
+        "pk": 0,
+        "hidden": 0
+      },
+      {
+        "name": "reconciliation_revision",
+        "type": "INTEGER",
+        "required": 1,
+        "default_value": "0",
         "pk": 0,
         "hidden": 0
       }

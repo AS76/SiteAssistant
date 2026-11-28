@@ -74,7 +74,7 @@ for (const driver of ['sqlite', 'pg']) test(`Tools registry ${driver}`, async t 
     const f = await fixture(), tool = await f.create({ name: 'Initial', code: 'A-1', company: 'Alpha',
       status: 'in_use', location: 'Zone 1', notes: 'Initial note' });
     await db.run('UPDATE tools SET updated_at = ? WHERE id = ?', '2020-01-01T00:00:00.000Z', tool.id);
-    const changed = await updateTool(db, tool.id.toUpperCase(), { location: ' Zone 2 ', code: '  ' }, users.verifier);
+    const changed = await updateTool(db, tool.id.toUpperCase(), { location: ' Zone 2 ', code: '  ' }, users.editor);
     t.assert.strictEqual(changed.location, 'Zone 2');
     t.assert.strictEqual(changed.code, null);
     t.assert.strictEqual(changed.name, 'Initial');
@@ -126,7 +126,7 @@ for (const driver of ['sqlite', 'pg']) test(`Tools registry ${driver}`, async t 
     t.assert.deepStrictEqual((await api(`/api/tools?site_id=${f.site.id}&company=${encodeURIComponent('HTTP contractor')}`, { cookie: cookies.viewer })).body.map(row => row.id), [id]);
     t.assert.deepStrictEqual((await api(`/api/tools?site_id=${f.site.id}&company=${encodeURIComponent('Other contractor')}`, { cookie: cookies.viewer })).body, []);
     t.assert.deepStrictEqual((await api(`/api/tools?site_id=${other.site.id}`, { cookie: cookies.viewer })).body, []);
-    const updated = await api(`/api/tools/${id}`, { method: 'PATCH', body: { status: 'maintenance', notes: 'Synthetic note' }, cookie: cookies.verifier });
+    const updated = await api(`/api/tools/${id}`, { method: 'PATCH', body: { status: 'maintenance', notes: 'Synthetic note' }, cookie: cookies.editor });
     t.assert.strictEqual(updated.status, 200);
     t.assert.strictEqual(updated.body.name, 'HTTP tool');
     t.assert.strictEqual(updated.body.status, 'maintenance');
@@ -135,6 +135,9 @@ for (const driver of ['sqlite', 'pg']) test(`Tools registry ${driver}`, async t 
       ['/api/tools', 'POST', { ...body, name: 'n'.repeat(121) }, cookies.editor, 400, 'TOOL_INVALID'],
       ['/api/tools', 'POST', { ...body, status: 'unknown' }, cookies.editor, 400, 'TOOL_INVALID'],
       ['/api/tools', 'POST', body, cookies.viewer, 403, 'TOOL_FORBIDDEN'],
+      ['/api/tools', 'POST', body, cookies.verifier, 403, 'TOOL_FORBIDDEN'],
+      [`/api/tools/${id}`, 'PATCH', { name: 'Denied' }, cookies.verifier, 403, 'TOOL_FORBIDDEN'],
+      [`/api/tools/${id}`, 'DELETE', undefined, cookies.verifier, 403, 'TOOL_FORBIDDEN'],
       [`/api/tools/${id}`, 'PATCH', { name: 'Denied' }, cookies.viewer, 403, 'TOOL_FORBIDDEN'],
       [`/api/tools/${id}`, 'DELETE', undefined, cookies.viewer, 403, 'TOOL_FORBIDDEN'],
       [`/api/tools/${randomUUID()}`, 'PATCH', {}, cookies.editor, 404, 'TOOL_NOT_FOUND'],

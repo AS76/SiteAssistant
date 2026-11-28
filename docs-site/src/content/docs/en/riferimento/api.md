@@ -272,16 +272,33 @@ The statuses are `planned`, `in_transit`, `arrived` and `received`, and they adv
 
 ## Tools
 
-The tools register is the same one managed from the **Tools** view. Reading is open to every member of the site; writing to owners, editors and verifiers.
+The tools register is the same one managed from the **Tools** view. Reading is open to every member of the site; writing to owners and editors.
 
 | Method | Path | Access | Notes |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/tools?site_id=&company=` | member | Site register; optional, exact contractor filter |
-| POST | `/api/tools` | owner/editor/verifier | `{ site_id, name, code?, company?, status?, location?, notes? }` |
-| PATCH | `/api/tools/{id}` | owner/editor/verifier | Updates only the fields sent |
-| DELETE | `/api/tools/{id}` | owner/editor/verifier | Deletes the row |
+| POST | `/api/tools` | owner/editor | `{ site_id, name, code?, company?, status?, location?, notes? }` |
+| PATCH | `/api/tools/{id}` | owner/editor | Updates only the fields sent |
+| DELETE | `/api/tools/{id}` | owner/editor | Deletes the row |
 
 `name` is required, 1 to 120 characters. `code`, `company`, `location` and `notes` are free text, up to 10000 characters, and may be `null`. The status is `available`, `in_use`, `maintenance` or `retired`; when omitted on creation it is `available`. The list is sorted by contractor, with rows without a contractor last, then by name. Deletion is **logical**: `DELETE` removes the row from the list, from the filters and from later reads, but keeps it in the [audit register](#audit-register).
+
+### Linking to the company registry
+
+Routes start at `/api/sites/{siteId}/people-reconciliation/tools`. Access requires both Tools and Registry. The simulated demo role keeps text-based CRUD in its demo environment.
+
+| Method and path | Access | Data |
+| :-- | :-- | :-- |
+| `POST /previews` | owner/editor/verifier/viewer | `{ occurrences: [{ recordId, field: "company" }] }` |
+| `POST /adoption` | owner | Activates company links for the site |
+| `POST /batches` | owner/editor | `{ batchId, decisions: [{ recordId, field: "company", revision, decision }] }` |
+| `GET /batches?recordId=…`, `GET /batches/{batchId}` | owner/editor | Recent history and detail with snapshots |
+| `POST /batches/{batchId}/apply` | owner/editor | Applies recorded decisions and returns outcomes |
+| `POST /batches/{batchId}/rollback` | owner | `{ reason }`, compensates the batch and disables links for the site |
+
+The read-only preview returns a `revision` digest and suggestions for up to 50 occurrences. Each decision includes `action` and `reason`. For `link`, send `companyId`, `companyRevision` and `relationship`. For `create`, send `name` and `relationship`. `unresolved` records the reason. The `relationship` values are `owner`, `custodian` and `supplier`.
+
+Reuse the same `batchId` UUID and content to retry an approval. Applying again returns the previous receipt. The result reports changed and conflicting occurrences for further review. With adoption enabled and Registry access, `GET /api/tools` includes `company_id`, `company_label`, `company_relationship` and `company_archived_at`. `company` and the exact contractor filter keep their original meaning.
 
 ## Fitness
 

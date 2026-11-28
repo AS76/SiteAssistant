@@ -1,7 +1,7 @@
 import { formatDisplayNumber, formatDateInput, parseDateInput, initialView, todayActions, todayBlockedTaskMeta, recentActions, defaultViewState, sanitizeViewState, viewStatePayload, lightTaskRows, transitionNeedsDialog, TASK_COLUMNS, REPORT_PROGRESS_COLUMNS, REPORT_DEVIATION_COLUMNS, reportProgressRows, reportDeviationRows, offlineBannerState, STATUSES, PRIORITIES, today, validDate, allowedTransitions, transitionRequirements, counts, csvCell, taskPayload, diaryPayload, transitionPayload, DEVIATION_STATUSES, groupDeviationRows, IMPACT_STATUSES, IMPACT_RESULTS, TOOL_STATUSES, TASK_KINDS, taskKindLabelKey, impactTransitions, corePermissions, filterSortRecords, impactTotals, groupBookings, weeklyBookingHours, flattenWbs, navGroups, visibleModules, toolCompanies, filterTools, toolStatusLabelKey, filterCertifications, certificationCounts, CERT_CATEGORIES, CERT_STATUSES, certCategoryLabelKey, certStatusLabelKey, HSE_TYPES, HSE_MANUAL_TYPES, HSE_SEVERITIES, filterHseEvents, hseCounts } from './domain.mjs';
 import { createApi, DEFAULT_BASE_URL } from './api.mjs';
 import { supportsPasskeys, runPasskey } from './webauthn-client.mjs';
-import { messages } from './i18n.mjs';
+import { messages, toolReconciliationErrorKeys } from './i18n.mjs';
 import { mountPlaces } from './places-ui.mjs';
 import { mountRegistry } from './registry-ui.mjs';
 import { resolveSessionLanguage } from './language.mjs';
@@ -201,6 +201,7 @@ function toast(message) {
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 5000);
 }
 const errorKeys = {
+  ...toolReconciliationErrorKeys,
   MOTIVATION_REQUIRED: 'diaryMotivationHint',
   TASK_CLOSURE_EVIDENCE_REQUIRED: 'taskEvidenceRequired', TASK_ACCEPTANCE_EVIDENCE_REQUIRED: 'evidenceAcceptanceMissing',
   DEVIATION_OWNER_INVALID: 'evidenceOwnerError', DEVIATION_IDENTITY_UNRESOLVED: 'evidenceIdentityError',
@@ -2680,11 +2681,16 @@ async function submitShipment(form, data) {
 
 function renderTools() {
   const all = coreData('tools'), filter = coreFilters.tools, canWrite = permissions().tools;
+  const canReconcile = canReconcileTools();
   const rows = filterTools(all, filter), companies = toolCompanies(all);
   let html = `<div class="toolbar core-toolbar">${coreSelect('company', 'toolCompany', companies.map(company => [company, company]), filter.company, 'toolAllCompanies')}${coreSelect('status', 'status', TOOL_STATUSES.map(status => [status, t(toolStatusLabelKey(status))]), filter.status, 'allStatuses')}</div>`;
   html += rows.length ? coreTable(['toolName', 'toolCode', 'toolCompany', 'toolStatus', 'toolLocation', ...(canWrite ? ['coreActions'] : [])], rows.map(row => [
-    `<strong>${esc(row.name)}</strong>`, coreValue(row.code), coreValue(row.company), coreStatus(row.status, t(toolStatusLabelKey(row.status))), coreValue(row.location),
-    ...(canWrite ? [`<div class="tool-actions">${button('edit', 'tool-edit', `data-id="${esc(row.id)}"`, 'small')}${button('coreDelete', 'tool-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`] : []),
+    `<strong>${esc(row.name)}</strong>`, coreValue(row.code), coreValue(row.company) + (row.companyId ?
+      `<br><small>${esc(row.companyLabel)} · ${esc(toolCompanyRelationship(row.companyRelationship))}${row.companyArchivedAt ? ' · ' + esc(t('toolCompanyArchived')) : ''}</small>` : ''),
+    coreStatus(row.status, t(toolStatusLabelKey(row.status))), coreValue(row.location),
+    ...(canWrite ? [`<div class="tool-actions">${button('edit', 'tool-edit', `data-id="${esc(row.id)}"`, 'small')}${
+      canReconcile ? button('toolCompanyLink', 'tool-company', `data-id="${esc(row.id)}"`, 'small') : ''
+    }${button('coreDelete', 'tool-delete', `data-id="${esc(row.id)}"`, 'danger small')}</div>`] : []),
   ])) : empty('toolEmpty', 'toolEmptyHint');
   return html;
 }
@@ -3632,6 +3638,158 @@ function showBookingDelete(id) {
   if (!row) return;
   showModal(t('coreDeleteBooking'), `<form id="booking-delete-form" data-id="${esc(id)}"><div class="form-error" role="alert" tabindex="-1" hidden></div><p>${t('coreDeleteConfirm')}</p><p>${coreNumber(row.hours, 'hours')} ${t('coreAppBookedHours')} · ${esc(progressLabel(coreData('progress').find(item => item.id === row.siteProgressItemId)))}</p><div class="form-actions">${button('cancel', 'close-modal')}<button type="submit" class="danger">${t('coreDelete')}</button></div></form>`);
 }
+const canReconcileTools = () => ['owner', 'editor'].includes(role()) && moduleVisible('tools') && moduleVisible('registry');
+const toolCompanyRelationship = value => t({ owner: 'toolCompanyOwner', custodian: 'toolCompanyCustodian', supplier: 'toolCompanySupplier' }[value]);
+const toolBatchStatus = value => t({ decided: 'toolBatchDecided', applied: 'toolBatchApplied', rolled_back: 'toolBatchRolledBack' }[value]);
+const toolCompanyOptions = companies => `<option value="">${t('toolCompanyChoose')}</option>` + companies.map(company =>
+  `<option value="${esc(company.id)}" data-revision="${esc(company.revision)}">${esc(company.name)} · ${esc(company.id)}</option>`).join('');
+const toolCompanyFormError = '<div class="form-error" role="alert" tabindex="-1" hidden></div>';
+
+async function showToolCompany(id) {
+  if (!canReconcileTools()) return toast(t('forbidden'));
+  if (offline || !navigator.onLine) return toast(t('coreOnlineOnly'));
+  const selected = siteId;
+  showModal(t('toolCompanyLink'), `<p role="status">${t('loading')}</p>`);
+  const version = modalVersion;
+  try {
+    const [preview, batches] = await Promise.all([
+      freshApi.previewToolCompanies(selected, [{ recordId: id, field: 'company' }]),
+      freshApi.listToolCompanyBatches(selected, id),
+    ]);
+    if (version !== modalVersion || selected !== siteId || !$('#modal').open) return;
+    const [item] = preview.items;
+    const { source, candidates } = item;
+    const attrs = `data-record-id="${esc(id)}"`;
+    const decision = `<form id="tool-company-decide" ${attrs}>${toolCompanyFormError}
+      <div class="form-grid">
+        ${field('toolCompanyDecision', 'decision', '', { required: true, options: `<option value="">${t('toolCompanyChoose')}</option>
+          <option value="link">${t('toolCompanyExisting')}</option><option value="create">${t('toolCompanyCreate')}</option>
+          <option value="unresolved">${t('toolCompanyUnresolved')}</option>` })}
+        <div data-company-decision="link" hidden>${field('toolCompanyExisting', 'companyId', '', { options: toolCompanyOptions(candidates.records) })}</div>
+        <div data-company-decision="create" hidden>${field('toolCompanyNewName', 'name', '', { max: 200 })}</div>
+        <div data-company-decision="link create" hidden>${field('toolCompanyRelationship', 'relationship', '', { options:
+          `<option value="">${t('toolCompanyChoose')}</option>` + ['owner', 'custodian', 'supplier'].map(value =>
+            `<option value="${value}">${esc(toolCompanyRelationship(value))}</option>`).join('') })}</div>
+        ${field('toolCompanyReason', 'reason', '', { type: 'textarea', full: true, required: true, max: 2000 })}
+      </div>${formActions('toolBatchDecide')}</form>`;
+    const disabled = `<p>${t('toolCompanyDisabled')}</p>${role() === 'owner' ?
+      `<form id="tool-company-activate" ${attrs}>${toolCompanyFormError}<button type="submit">${t('toolCompanyActivate')}</button></form>` : ''}`;
+    showModal(t('toolCompanyLink'), `<h3>${esc(source.name)}</h3>
+      <p>${t('toolCompanyOriginal')} · ${coreValue(source.company)}<br>${t('status')} · ${esc(t(toolStatusLabelKey(source.status)))}</p>
+      ${source.notes ? `<p class="prewrap">${esc(source.notes)}</p>` : ''}
+      ${source.link ? `<p>${t('toolCompanyLink')} · ${esc(source.link.company_label)} · ${esc(toolCompanyRelationship(source.link.relationship))}</p>` : ''}
+      ${preview.adoption.enabled ? `<p>${esc(t('toolCompanySuggestions').replace('{count}', String(candidates.total)))}</p>
+        <form id="tool-company-search" ${attrs}>${toolCompanyFormError}
+          ${field('toolCompanySearch', 'companySearch', source.company?.slice(0, 200) ?? '', { required: true, max: 200 })}
+          <button type="submit">${t('toolCompanySearch')}</button><p role="status"></p>
+        </form>${decision}` : disabled}
+      ${batches.length ? `<h3>${t('toolBatchHistory')}</h3><ul>${batches.map(batch =>
+        `<li>${esc(toolBatchStatus(batch.status))} · ${esc(batch.decidedAt)} ${button('coreDetails', 'tool-company-batch',
+          `${attrs} data-id="${esc(batch.id)}"`, 'small')}</li>`).join('')}</ul>` : ''}`);
+    const form = $('#tool-company-decide');
+    if (form) {
+      form.occurrence = { recordId: id, field: item.field, revision: item.revision };
+      form.batchId = crypto.randomUUID();
+    }
+  } catch (error) {
+    if (version === modalVersion && $('#modal').open) showModal(t('toolCompanyLink'), `<p role="alert">${esc(errorMessage(error))}</p>`);
+  }
+}
+
+async function showToolCompanyBatch(id, recordId) {
+  if (!canReconcileTools()) return toast(t('forbidden'));
+  const selected = siteId;
+  showModal(t('toolBatchHistory'), `<p role="status">${t('loading')}</p>`);
+  const version = modalVersion;
+  try {
+    const batch = await freshApi.getToolCompanyBatch(selected, id);
+    if (version !== modalVersion || selected !== siteId || !$('#modal').open) return;
+    const attrs = `data-batch-id="${esc(id)}" data-record-id="${esc(recordId)}"`;
+    const outcomes = new Map(batch.apply?.items.map(item => [item.recordId, item]) ?? []);
+    const compensations = new Map(batch.rollback?.items.map(item => [item.recordId, item]) ?? []);
+    showModal(t('toolBatchHistory'), `<p>${esc(toolBatchStatus(batch.status))} · ${esc(batch.decidedAt)}</p>
+      ${batch.rollback ? `<p>${t('toolCompanyReason')} · ${esc(batch.rollback.reason)}</p>` : ''}
+      <ul>${batch.items.map(item => {
+        const outcome = outcomes.get(item.recordId), compensation = compensations.get(item.recordId);
+        const status = compensation?.status ?? outcome?.status;
+        const detail = { applied: 'toolBatchApplied', matched: 'toolCompanyAlreadyLinked', unresolved: 'toolCompanyUnresolved',
+          stale: 'toolCompanyStale', conflicting: 'toolCompanyConflict', compensated: 'toolBatchRolledBack' }[status];
+        const code = compensation?.code ?? outcome?.code;
+        return `<li><strong>${esc(item.source.name)}</strong> · ${coreValue(item.source.company)}
+          <br>${item.target ? esc(item.target.name) + ' · ' + esc(toolCompanyRelationship(item.target.relationship)) : t('toolCompanyUnresolved')}
+          <br>${esc(item.decision.reason)}${detail ? '<br>' + esc(t(errorKeys[code] || detail)) : ''}</li>`;
+      }).join('')}</ul>
+      ${batch.status === 'decided' ? `<form id="tool-company-apply" ${attrs}>${toolCompanyFormError}${formActions('toolBatchApply')}</form>` : ''}
+      ${batch.status === 'applied' && role() === 'owner' ? `<form id="tool-company-rollback" ${attrs}>${toolCompanyFormError}
+        <p>${t('toolCompanyRollbackHint')}</p>${field('toolCompanyReason', 'reason', '', { required: true, max: 2000 })}
+        ${formActions('toolBatchRollback')}</form>` : ''}
+      ${button('back', 'tool-company', `data-id="${esc(recordId)}"`)}`);
+  } catch (error) {
+    if (version === modalVersion && $('#modal').open) showModal(t('toolBatchHistory'), `<p role="alert">${esc(errorMessage(error))}</p>`);
+  }
+}
+
+async function submitToolCompany(form) {
+  if (form.dataset.saving) return;
+  const version = modalVersion, selected = siteId, user = session?.user.id;
+  const current = () => version === modalVersion && selected === siteId && form.isConnected && $('#modal').open;
+  const { recordId, batchId } = form.dataset;
+  const data = Object.fromEntries(new FormData(form));
+  const submit = form.querySelector('[type=submit]');
+  submit.disabled = true;
+  form.dataset.saving = 'true';
+  form.querySelector('.form-error').hidden = true;
+  try {
+    if (offline || !navigator.onLine) throw new Error('coreOnlineOnly');
+    if (!canReconcileTools()) throw new Error('forbidden');
+    if (form.id === 'tool-company-search') {
+      const companies = await freshApi.listRegistry(selected, 'companies', { q: data.companySearch, limit: 50 });
+      if (current()) {
+        const select = $('#tool-company-decide [name=companyId]');
+        const previous = select.value;
+        select.innerHTML = toolCompanyOptions(companies);
+        if (companies.some(company => company.id === previous)) select.value = previous;
+        form.querySelector('[role=status]').textContent = t(companies.length === 50 ? 'toolCompanySearchLimit' : 'toolCompanyFound')
+          .replace('{count}', String(companies.length));
+      }
+      return;
+    }
+    if (form.id === 'tool-company-activate') {
+      await api.activateToolCompanies(selected);
+      if (session?.user.id === user) coreCache.get(selected)?.delete('tools');
+      if (current()) { render(); await showToolCompany(recordId); }
+      return;
+    }
+    if (form.id === 'tool-company-decide') {
+      const decision = { action: data.decision, reason: data.reason };
+      if (decision.action !== 'unresolved') {
+        if (!data.relationship) throw new Error('toolCompanyDecisionRequired');
+        decision.relationship = data.relationship;
+      }
+      if (decision.action === 'link') {
+        if (!data.companyId) throw new Error('toolCompanyDecisionRequired');
+        decision.companyId = data.companyId;
+        decision.companyRevision = Number(form.elements.companyId.selectedOptions[0].dataset.revision);
+      } else if (decision.action === 'create') {
+        if (!data.name.trim()) throw new Error('toolCompanyDecisionRequired');
+        decision.name = data.name;
+      }
+      const batch = await api.decideToolCompanies(selected, { batchId: form.batchId, decisions: [{ ...form.occurrence, decision }] });
+      if (current()) await showToolCompanyBatch(batch.id, recordId);
+      return;
+    }
+    if (form.id === 'tool-company-apply') await api.applyToolCompanyBatch(selected, batchId);
+    if (form.id === 'tool-company-rollback') await api.rollbackToolCompanyBatch(selected, batchId, data.reason);
+    if (session?.user.id === user) coreCache.get(selected)?.delete('tools');
+    if (current()) { render(); await showToolCompanyBatch(batchId, recordId); }
+  } catch (error) {
+    if (current()) formError(form, error);
+  } finally {
+    delete form.dataset.saving;
+    submit.disabled = false;
+  }
+}
+
 function showToolForm() {
   if (!permissions().tools) return toast(t('forbidden'));
   const editing = toolEditingId ? coreData('tools').find(tool => tool.id === toolEditingId) : null;
@@ -4315,6 +4473,8 @@ document.addEventListener('click', event => {
     'po-detail-reload': () => { coreCache.get(siteId)?.delete(`purchaseOrder:${id}`); render(); },
     'tool-new': () => { toolEditingId = ''; showToolForm(); },
     'tool-edit': () => { toolEditingId = id; showToolForm(); },
+    'tool-company': () => showToolCompany(id),
+    'tool-company-batch': () => showToolCompanyBatch(id, target.dataset.recordId),
     'tool-delete': () => showToolDelete(id),
     'hse-new': () => { hseEditingId = ''; showHseForm(); },
     'hse-edit': () => { hseEditingId = id; showHseForm(); },
@@ -4403,6 +4563,7 @@ document.addEventListener('submit', async event => {
     render();
     return;
   }
+  if (form.id.startsWith('tool-company-')) { event.preventDefault(); await submitToolCompany(form); return; }
   if (form.id === 'hse-inspection-form') { event.preventDefault(); await submitHseInspection(form); return; }
   if (form.id === 'dashboard-layout-form') { event.preventDefault(); await submitDashboardLayout(form); return; }
   if (form.id === 'ai-form') {
@@ -4652,6 +4813,12 @@ $('#modal').addEventListener('cancel', event => {
   modalVersion++;
 });
 document.addEventListener('change', async event => {
+  if (event.target.matches('#tool-company-decide [name=decision]')) {
+    for (const panel of event.target.form.querySelectorAll('[data-company-decision]')) {
+      panel.hidden = !panel.dataset.companyDecision.split(' ').includes(event.target.value);
+    }
+    if (!$('#tool-company-decide [data-company-decision="link"]').hidden) $('#tool-company-decide [name=companyId]').focus();
+  }
   const input = event.target.closest('[data-member-access]');
   if (!input) return;
   const selected = input.dataset.site, memberId = input.dataset.member, module = input.dataset.module;

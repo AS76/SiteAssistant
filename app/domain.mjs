@@ -358,7 +358,7 @@ export function corePermissions(role) {
   const write = edit || role === 'verifier';
   return { book: edit, transition: ['owner', 'verifier', 'demo_user'].includes(role),
     steps: edit, assign: ['owner', 'demo_user'].includes(role),
-    tools: write, certifications: write, certificationWrite: edit,
+    tools: edit, certifications: write, certificationWrite: edit,
     hse: HSE_READ_ROLES.includes(role), hseWrite: HSE_WRITE_ROLES.includes(role) };
 }
 export const HSE_TYPES = Object.freeze(['near_miss', 'accident', 'observation', 'inspection', 'external_visit']);

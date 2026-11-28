@@ -33,7 +33,7 @@ test('tool statuses, labels and write permission are centralized and bilingual',
   }
   assert.equal(corePermissions('owner').tools, true);
   assert.equal(corePermissions('editor').tools, true);
-  assert.equal(corePermissions('verifier').tools, true);
+  assert.equal(corePermissions('verifier').tools, false);
   assert.equal(corePermissions('viewer').tools, false);
 });
 
@@ -82,4 +82,26 @@ test('tools API client maps filters, partial writes, response keys and errors', 
   const failing = createApi({ fetchImpl: async () => Response.json({ error: 'Synthetic tool error', code: 'TOOL_NOT_FOUND' }, { status: 404 }) });
   await assert.rejects(() => failing.deleteTool('missing-tool'), error => error instanceof ApiError
     && error.status === 404 && error.code === 'TOOL_NOT_FOUND' && error.message === 'Synthetic tool error');
+});
+
+test('Tools reconciliation client sends distinct preview, decision, apply and rollback requests', async () => {
+  const calls = [];
+  const api = createApi({ baseUrl: 'https://example.invalid', fetchImpl: async (url, options) => {
+    calls.push([new URL(url).pathname, options.method, JSON.parse(options.body)]);
+    return Response.json({});
+  } });
+  const prefix = '/api/sites/site/people-reconciliation/tools';
+  const occurrence = { recordId: 'example-tool', field: 'company' };
+  const decision = { batchId: 'example-batch', decisions: [{ ...occurrence, revision: 'example-revision',
+    decision: { action: 'unresolved', reason: 'Requires review' } }] };
+  await api.previewToolCompanies('site', [occurrence]);
+  await api.decideToolCompanies('site', decision);
+  await api.applyToolCompanyBatch('site', 'example-batch');
+  await api.rollbackToolCompanyBatch('site', 'example-batch', 'Synthetic correction');
+  assert.deepEqual(calls, [
+    [prefix + '/previews', 'POST', { occurrences: [occurrence] }],
+    [prefix + '/batches', 'POST', decision],
+    [prefix + '/batches/example-batch/apply', 'POST', {}],
+    [prefix + '/batches/example-batch/rollback', 'POST', { reason: 'Synthetic correction' }],
+  ]);
 });
