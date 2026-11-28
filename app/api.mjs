@@ -111,7 +111,19 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
   const reconciliationPath = (siteId, module, ...segments) =>
     '/api/sites/' + [siteId, 'people-reconciliation', module, ...segments].map(encodeURIComponent).join('/');
   const toolReconciliationPath = (siteId, ...segments) => reconciliationPath(siteId, 'tools', ...segments);
-  const taskReconciliationPath = (siteId, ...segments) => reconciliationPath(siteId, 'tasks', ...segments);
+  const reconciliation = module => {
+    const path = (siteId, ...segments) => reconciliationPath(siteId, module, ...segments);
+    return {
+      preview: (siteId, occurrences) => request(path(siteId, 'previews'), { occurrences }),
+      candidates: (siteId, field, q) => request(path(siteId, 'candidates') + query({ field, q })),
+      activate: siteId => request(path(siteId, 'adoption'), {}),
+      decide: (siteId, input) => request(path(siteId, 'batches'), input),
+      list: (siteId, recordId) => request(path(siteId, 'batches') + query({ recordId })),
+      read: (siteId, id) => request(path(siteId, 'batches', id)),
+      apply: (siteId, id) => request(path(siteId, 'batches', id, 'apply'), {}),
+      rollback: (siteId, id, reason) => request(path(siteId, 'batches', id, 'rollback'), { reason }),
+    };
+  };
   async function listAll(path, filters, fromApi, label) {
     const { limit: requestedLimit, offset: startOffset, ...criteria } = filters ?? {};
     const limit = requestedLimit == null || requestedLimit === '' ? 200 : requestedLimit;
@@ -229,20 +241,13 @@ export function createApi({ baseUrl = DEFAULT_BASE_URL, fetchImpl = globalThis.f
     acceptTask: async (id, input) => taskFromApi(await request(`/api/tasks/${encodeURIComponent(id)}/acceptance`, input, { method: 'PATCH' })),
     getTask: async (id, { assignmentHistory = false } = {}) => taskFromApi(await request(
       `/api/tasks/${encodeURIComponent(id)}${assignmentHistory ? '?include=assignment_history' : ''}`)),
-    taskAssignments: {
-      preview: (siteId, occurrences) => request(taskReconciliationPath(siteId, 'previews'), { occurrences }),
-      candidates: (siteId, field, q) => request(taskReconciliationPath(siteId, 'candidates') + query({ field, q })),
-      activate: siteId => request(taskReconciliationPath(siteId, 'adoption'), {}),
-      decide: (siteId, input) => request(taskReconciliationPath(siteId, 'batches'), input),
-      list: (siteId, recordId) => request(taskReconciliationPath(siteId, 'batches') + query({ recordId })),
-      read: (siteId, id) => request(taskReconciliationPath(siteId, 'batches', id)),
-      apply: (siteId, id) => request(taskReconciliationPath(siteId, 'batches', id, 'apply'), {}),
-      rollback: (siteId, id, reason) => request(taskReconciliationPath(siteId, 'batches', id, 'rollback'), { reason }),
-    },
+    taskAssignments: reconciliation('tasks'),
+    deviationRegistry: reconciliation('deviations'),
     createTask: async (input, options) => taskFromApi(await request('/api/tasks', taskPayload(input), options)),
     transitionTask: async (task, input, options) => taskFromApi(await request(`/api/tasks/${encodeURIComponent(task.id)}/transition`, transitionPayload(task, input), options)),
     listDeviations: async (filters = {}) => (await request(`/api/deviations${query(wireFilters({ limit: 200, ...filters }))}`)).map(deviationFromApi),
-    getDeviation: async id => deviationFromApi(await request(`/api/deviations/${encodeURIComponent(id)}`)),
+    getDeviation: async (id, { registryHistory = false } = {}) => deviationFromApi(await request(
+      `/api/deviations/${encodeURIComponent(id)}${registryHistory ? '?include=registry_history' : ''}`)),
     listDeviationEvents: id => request(`/api/deviations/${encodeURIComponent(id)}/events`),
     updateDeviationOwner: (id, userId) => request(`/api/deviations/${encodeURIComponent(id)}/owner`, { userId }, { method: 'PATCH' }),
     updateDeviationAttribution: (id, input) => request(`/api/deviations/${encodeURIComponent(id)}/attribution`, input, { method: 'PATCH' }),

@@ -328,5 +328,11 @@
     "file": "061_task_assignment_snapshots.sql",
     "sqlite": "a0c1df42c4242044cb5039a43a3d1270a0f8e70209166baacb979c1f53956712",
     "pg": "d78bbf251fb0d986d437eba2d7c98121e06a328eea4803f2da059c35114af9b4"
+  },
+  {
+    "version": "062",
+    "file": "062_deviation_registry_links.sql",
+    "sqlite": "3b8008be510293764ee344951194b0708254b8ca13fc7694b687b99309da5dfd",
+    "pg": "740a355ba70ea72d4a714c22a27d0c47007ec2c29b28ed890e3e31f8229bb915"
   }
 ]

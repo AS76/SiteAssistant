@@ -1,11 +1,11 @@
 ---
 title: Deviazioni
-description: Consultare le deviazioni importate, filtrarle per stato e priorità e leggere il dettaglio.
+description: Consultare le deviazioni importate, gestire l’attribuzione interna e collegare le schede del registro.
 ---
 
 import Shot from '../../../components/Shot.astro';
 
-La vista **Deviazioni** mostra le deviazioni del cantiere selezionato. Sono dati **importati dal sistema di pianificazione** e si consultano in sola lettura: nell'applicazione non si creano e non si modificano. Per i totali per area PLC e il conteggio per stato in una tabella stampabile, vedi il [report del cantiere](../avanzamento/#report-del-cantiere).
+La vista **Deviazioni** mostra i dati ufficiali importati per il cantiere selezionato. Il dettaglio permette di registrare il responsabile interno, l’attribuzione e i collegamenti al registro. Per i totali per area PLC e il conteggio per stato, vedi il [report del cantiere](../avanzamento/#report-del-cantiere).
 
 ## Consultare le deviazioni
 
@@ -55,9 +55,7 @@ In cima alla vista, il pannello richiudibile **Da riconciliare** raccoglie i con
 
 Il pannello è **solo lettura**: nessuna data viene corretta. I due pulsanti con il conteggio filtrano la tabella; un secondo clic toglie il filtro. La tabella mostra riferimento, titolo, stato ufficiale, giorni di distanza e motivo, e un clic su una riga apre il dettaglio della deviazione. Quando non c'è nulla da segnalare compare «Cronologie allineate».
 
-:::note[Perché non si confrontano gli stati]
-Le deviazioni sono solo importate: non hanno uno stato interno né una storia dei cambi di stato, quindi il pannello confronta soltanto le date ufficiali. Il controllo sugli stati discordanti è stato ritirato e il pannello lo dice in una nota: «Una deviazione importata non ha storia interna: la riconciliazione confronta solo le date ufficiali.»
-:::
+Il pannello confronta le date ufficiali. La cronologia nel dettaglio registra gli eventi di importazione e le decisioni interne.
 
 Gli stessi controlli compaiono nel [report del cantiere](../avanzamento/#report-del-cantiere), nella sezione **Cronologie incoerenti**.
 
@@ -68,7 +66,7 @@ Il dettaglio è diviso in due schede:
 - **Dati:** riferimento, stato e priorità; descrizione del problema, autore e assegnatario; area PLC e date di creazione, scadenza, approvazione e chiusura; costo effettivo, quantità reclamata, ore di lavoro e percentuale di attività completate.
 - **Riferimenti:** i **riferimenti collegati** — voce di avanzamento, attività o voce di diario.
 
-Si passa da una scheda all'altra con un clic o con Tab e Invio. I campi sono in sola lettura. Per cambiare una deviazione si interviene sull'export di pianificazione e si ripete l'import.
+Si passa da una scheda all'altra con un clic o con Tab e Invio. Per correggere un campo ufficiale si aggiorna l’export e si ripete l’importazione.
 
 :::caution[Se il dettaglio non si apre]
 - **Record non più disponibile:** i dati sono cambiati dopo il caricamento. Chiudi il dettaglio e ricarica la vista.
@@ -76,11 +74,25 @@ Si passa da una scheda all'altra con un clic o con Tab e Invio. I campi sono in 
 - **Offline:** il dettaglio delle deviazioni richiede la connessione, anche se l'elenco era già visibile.
 :::
 
+## Collegare una scheda del registro
+
+In **Dati → Collegamenti al registro**, apri il campo da riconciliare. L’**autore** accetta una persona. L’**assegnatario** accetta una persona o una squadra. L’**impresa causante** e l’**impresa risolutrice** accettano ciascuna un’impresa.
+
+1. Il titolare attiva i collegamenti per le deviazioni del cantiere. L’anteprima mostra il testo originale e, secondo il campo, la fonte registrata dell’importazione o lo stato dell’attribuzione interna.
+2. Scegli una scheda attiva dello stesso cantiere e indica il motivo e l’evidenza usata per identificarla. Un nome uguale è solo un suggerimento. Usa **Lascia da risolvere** se il caso resta ambiguo, l’identità importata è irrisolta, il campo è vuoto o l’attribuzione è contestata.
+3. Seleziona **Approva decisione**, poi **Applica il batch**. Il dettaglio conserva il testo originale, il tipo, il nome e la revisione della scheda al momento dell’approvazione. Lo storico mostra anche le schede archiviate. La ricerca propone soltanto schede attive.
+
+L’attribuzione interna mantiene i propri stati **Da determinare**, **Concordata** e **Contestata**. Collegare un’impresa identifica la scheda a cui si riferisce il testo. Lo stato di attribuzione si modifica dal modulo **Attribuzione**. I collegamenti non concedono accessi al cantiere, ruoli operativi o appartenenza a una squadra.
+
+Se cambia il dato di origine associato al campo, si riapre l’anteprima. Lo snapshot precedente resta consultabile nello storico. Il titolare può annullare un batch con un motivo. L’annullamento disattiva i collegamenti delle deviazioni nel cantiere e chiude gli intervalli ancora riferiti al batch. Le correzioni manuali dell’attribuzione e i collegamenti successivi restano registrati.
+
 ## Chi può fare cosa
 
 | Azione | Ruolo |
 | :-- | :-- |
 | Consultare elenco, board e dettaglio | Tutti i membri del cantiere |
-| Creare o modificare una deviazione | Nessun ruolo dall'interfaccia: arrivano dall'import |
+| Consultare anteprime, decisioni e snapshot del registro | Owner, editor, verifier e viewer con accesso a Deviazioni e Registro |
+| Approvare e applicare i collegamenti | Owner ed editor con accesso a entrambi i moduli |
+| Attivare i collegamenti o annullare un batch | Owner |
 
 Per il formato dell'export vedi [Importare un export di pianificazione](../../amministrazione/import-pianificazione/). Per i reclami collegati vedi [Impatti economici](../impatti-economici/).
